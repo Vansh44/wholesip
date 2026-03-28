@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     siteName: "Soakd",
     images: [
       {
-        url: "/logo.png",
+        url: "https://getsoakd.in/og.png",
         width: 1200,
         height: 630,
       },
