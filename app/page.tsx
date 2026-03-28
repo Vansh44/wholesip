@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 
 export default function Home() {
   const [email, setEmail] = useState("");
@@ -8,13 +9,21 @@ export default function Home() {
   return (
     <main style={styles.main}>
       <div style={styles.container}>
-        <h1 style={styles.title}>Soakd 🌿</h1>
+        {/* Adjusted Logo styling */}
+        <Image
+          src="/logo.png"
+          alt="Soakd Logo"
+          width={160} // Made wider to accommodate the wordmark
+          height={50}
+          style={styles.logo}
+        />
 
+        {/* Removed the H1 to avoid redundancy with the logo */}
         <p style={styles.subtitle}>Healthy • Refreshing • Authentic</p>
 
         <div style={styles.card}>
-          <h2>Launching Soon 🚀</h2>
-          <p>Get Soakd, in real ingredients</p>
+          <h2 style={styles.cardTitle}>Launching Soon 🚀</h2>
+          <p style={styles.cardText}>Get Soakd, in real ingredients</p>
 
           {/* Email Input */}
           <div style={styles.inputWrapper}>
@@ -43,17 +52,19 @@ const styles = {
     justifyContent: "center",
     alignItems: "center",
     color: "white",
-    fontFamily: "Arial",
+    fontFamily: "system-ui, -apple-system, sans-serif",
   },
   container: {
     textAlign: "center" as const,
     maxWidth: "500px",
     width: "100%",
+    padding: "20px",
   },
-  title: {
-    fontSize: "52px",
-    marginBottom: "10px",
-    fontWeight: "bold",
+  logo: {
+    marginBottom: "20px",
+    // CSS trick to invert black text to white and blend the background away
+    filter: "invert(1) grayscale(100%) contrast(200%)",
+    mixBlendMode: "screen" as const,
   },
   subtitle: {
     fontSize: "18px",
@@ -62,35 +73,43 @@ const styles = {
   },
   card: {
     background: "#1e293b",
-    padding: "25px",
+    padding: "30px",
     borderRadius: "16px",
     marginBottom: "20px",
     boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
   },
+  cardTitle: {
+    margin: "0 0 10px 0",
+  },
+  cardText: {
+    margin: "0 0 20px 0",
+    color: "#94a3b8",
+  },
   inputWrapper: {
     display: "flex",
-    marginTop: "15px",
     gap: "10px",
   },
   input: {
     flex: 1,
-    padding: "12px",
+    padding: "12px 16px",
     borderRadius: "8px",
-    border: "none",
+    border: "1px solid #334155",
+    background: "#0f172a", // Darker input background
+    color: "white",
     outline: "none",
   },
   button: {
-    padding: "12px 16px",
+    padding: "12px 20px",
     background: "#22c55e",
     border: "none",
     borderRadius: "8px",
     color: "white",
-    fontSize: "14px",
+    fontWeight: "bold",
     cursor: "pointer",
   },
   footer: {
-    fontSize: "12px",
-    color: "#94a3b8",
-    marginTop: "10px",
+    fontSize: "13px",
+    color: "#64748b",
+    marginTop: "20px",
   },
 };
