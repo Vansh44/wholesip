@@ -12,7 +12,7 @@ export default function Home() {
           <p>Made with almonds, fennel, rose & natural ingredients.</p>
         </div>
 
-        <button style={styles.button}>Notify Me now</button>
+        <button style={styles.button}>Notify Me</button>
       </div>
     </main>
   );
