@@ -12,7 +12,7 @@ export default function Home() {
           <p>Made with almonds, fennel, rose & natural ingredients.</p>
         </div>
 
-        <button style={styles.button}>Notify Me</button>
+        <button style={styles.button}>Notify Me now</button>
       </div>
     </main>
   );
@@ -29,7 +29,7 @@ const styles = {
     fontFamily: "Arial",
   },
   container: {
-    textAlign: "center",
+    textAlign: "center" as const,
   },
   title: {
     fontSize: "48px",
