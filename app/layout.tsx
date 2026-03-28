@@ -2,6 +2,25 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+export const metadata: Metadata = {
+  title: "Soakd - Real Ingredients Drink",
+  description: "Healthy • Refreshing • Authentic",
+  openGraph: {
+    title: "Soakd",
+    description: "Healthy • Refreshing • Authentic",
+    url: "https://getsoakd.in",
+    siteName: "Soakd",
+    images: [
+      {
+        url: "/logo.png",
+        width: 1200,
+        height: 630,
+      },
+    ],
+    type: "website",
+  },
+};
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -11,11 +30,6 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
-
-export const metadata: Metadata = {
-  title: "Get Soakd in Real Ingredients",
-  description: "Soakd",
-};
 
 export default function RootLayout({
   children,
