@@ -3,8 +3,11 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 export const metadata: Metadata = {
-     title: "Soakd",
+  metadataBase: new URL("https://getsoakd.in"),
+
+  title: "Soakd",
   description: "Healthy • Refreshing • Authentic",
+
   openGraph: {
     title: "Soakd",
     description: "Healthy • Refreshing • Authentic",
