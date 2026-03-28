@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 export default function Home() {
   const [email, setEmail] = useState("");
@@ -10,9 +10,7 @@ export default function Home() {
       <div style={styles.container}>
         <h1 style={styles.title}>Soakd 🌿</h1>
 
-        <p style={styles.subtitle}>
-          Healthy • Refreshing • Authentic
-        </p>
+        <p style={styles.subtitle}>Healthy • Refreshing • Authentic</p>
 
         <div style={styles.card}>
           <h2>Launching Soon 🚀</h2>
@@ -27,15 +25,11 @@ export default function Home() {
               onChange={(e) => setEmail(e.target.value)}
               style={styles.input}
             />
-            <button style={styles.button}>
-              Notify Me
-            </button>
+            <button style={styles.button}>Notify Me</button>
           </div>
         </div>
 
-        <p style={styles.footer}>
-          Built with ❤️ by the Soakd Team
-        </p>
+        <p style={styles.footer}>Built with ❤️ by the Soakd Team</p>
       </div>
     </main>
   );
@@ -52,7 +46,7 @@ const styles = {
     fontFamily: "Arial",
   },
   container: {
-    textAlign: "center",
+    textAlign: "center" as const,
     maxWidth: "500px",
     width: "100%",
   },
