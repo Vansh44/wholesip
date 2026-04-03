@@ -2,9 +2,9 @@ name: Next.js CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   ci:
@@ -36,4 +36,4 @@ jobs:
         run: npm run test
 
       - name: Format Check
-        run: npm run prettier
+        run: npm run prettier --check
