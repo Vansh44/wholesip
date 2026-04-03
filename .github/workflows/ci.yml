@@ -26,9 +26,6 @@ jobs:
       - name: Lint Check
         run: npm run lint
 
-      - name: Build Project
-        run: npm run build
-
       - name: Type Check
         run: npm run typecheck
 
@@ -37,3 +34,6 @@ jobs:
 
       - name: Format Check
         run: npm run prettier --check
+
+      - name: Build Project
+        run: npm run build
