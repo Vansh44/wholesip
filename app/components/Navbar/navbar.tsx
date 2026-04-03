@@ -24,7 +24,9 @@ export default function Navbar() {
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [menuOpen]);
 
   return (
@@ -41,7 +43,9 @@ export default function Navbar() {
               </li>
             ))}
             <li>
-              <Link href="/shop" className="nav-cta">Shop Now</Link>
+              <Link href="/shop" className="nav-cta">
+                Shop Now
+              </Link>
             </li>
           </ul>
           <button
@@ -49,18 +53,28 @@ export default function Navbar() {
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Toggle menu"
           >
-            <span /><span /><span />
+            <span />
+            <span />
+            <span />
           </button>
         </div>
       </nav>
 
       <div className={`mobile-menu${menuOpen ? " open" : ""}`}>
         {NAV_LINKS.map((link) => (
-          <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>
+          <Link
+            key={link.href}
+            href={link.href}
+            onClick={() => setMenuOpen(false)}
+          >
             {link.label}
           </Link>
         ))}
-        <Link href="/shop" className="mobile-cta" onClick={() => setMenuOpen(false)}>
+        <Link
+          href="/shop"
+          className="mobile-cta"
+          onClick={() => setMenuOpen(false)}
+        >
           Shop Now
         </Link>
       </div>
