@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Navbar from "./components/Navbar/navbar";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://getsoakd.in"),
-
   title: "Soakd",
   description: "Healthy • Refreshing • Authentic",
-
   openGraph: {
     title: "Soakd",
     description: "Healthy • Refreshing • Authentic",
@@ -44,7 +43,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <Navbar />
+        <main className="pt-20">{children}</main>
+      </body>
     </html>
   );
 }
