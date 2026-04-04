@@ -44,7 +44,9 @@ jobs:
         run: npm run build
 
       - name: Notify Vercel
-        uses: vercel/repository-dispatch@v2
+        uses: amondnet/vercel-action@v25
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          event-type: ci-success
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: ./
