@@ -6,8 +6,13 @@ on:
   pull_request:
     branches: [main, dev]
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   ci:
+    name: Next.js CI
     runs-on: ubuntu-latest
 
     steps:
@@ -37,9 +42,3 @@ jobs:
 
       - name: Build Project
         run: npm run build
-
-      - name: Notify Vercel
-        uses: vercel/repository-dispatch-action@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          event-type: ci-success
