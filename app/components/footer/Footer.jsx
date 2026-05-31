@@ -68,7 +68,7 @@ import styles from "./Footer.module.css";
 const socialLinks = [
   {
     name: "Instagram",
-    href: "https://instagram.com/soakd",
+    href: "https://instagram.com/getsoakd.official",
     icon: (
       <svg
         width="18"
@@ -105,24 +105,7 @@ const socialLinks = [
       </svg>
     ),
   },
-  {
-    name: "Pinterest",
-    href: "https://pinterest.com/soakd",
-    icon: (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.65 7.86 6.39 9.29-.09-.78-.17-1.98.04-2.83.18-.77 1.22-5.17 1.22-5.17s-.31-.63-.31-1.56c0-1.46.85-2.55 1.9-2.55.9 0 1.33.67 1.33 1.48 0 .9-.58 2.26-.87 3.52-.25 1.05.52 1.9 1.55 1.9 1.86 0 3.11-2.39 3.11-5.22 0-2.15-1.45-3.75-4.06-3.75-2.96 0-4.79 2.21-4.79 4.67 0 .85.25 1.44.63 1.9.17.2.19.28.13.51-.04.17-.14.57-.18.73-.06.23-.24.31-.45.23-1.27-.52-1.86-1.92-1.86-3.49 0-2.6 2.2-5.7 6.55-5.7 3.5 0 5.82 2.53 5.82 5.25 0 3.59-1.99 6.27-4.92 6.27-.98 0-1.91-.53-2.23-1.12l-.63 2.43c-.22.84-.64 1.67-1.02 2.33.77.23 1.58.36 2.41.36 5.52 0 10-4.48 10-10S17.52 2 12 2z" />
-      </svg>
-    ),
-  },
+
   {
     name: "WhatsApp",
     href: "https://wa.me/919999999999",
