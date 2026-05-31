@@ -243,7 +243,9 @@
   visibility: visible;
 }
 
-/* Responsiveness Media Queries */
+/* =========================================
+   Responsiveness Media Queries 
+   ========================================= */
 @media (max-width: 1024px) {
   .header {
     padding: 20px 32px;
@@ -266,10 +268,32 @@
   .navLinks {
     display: none;
   }
+
+  /* FIXED: Removed display: none and resized to fit */
   .searchBar {
-    display: none;
+    width: 160px;
+    height: 36px;
+    padding: 0 12px;
   }
+
+  .headerRight {
+    gap: 16px; /* Tightened the gap slightly so everything fits */
+  }
+
   .hamburgerBtn {
     display: flex;
+  }
+}
+
+/* Added query for very small phones to prevent horizontal scrolling */
+@media (max-width: 480px) {
+  .logo {
+    font-size: 26px;
+  }
+  .searchBar {
+    width: 130px; /* Shrinks a bit more on tiny screens */
+  }
+  .headerRight {
+    gap: 12px;
   }
 }

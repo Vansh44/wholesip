@@ -36,6 +36,7 @@ export default function Header() {
       </div>
 
       <div className={styles.headerRight}>
+        {/* Search Bar - Now exclusively in the main header */}
         <div className={styles.searchBar}>
           <input
             type="text"
@@ -58,6 +59,7 @@ export default function Header() {
             </svg>
           </span>
         </div>
+
         <button className={styles.userIcon}>
           <svg
             width="20"
@@ -130,30 +132,7 @@ export default function Header() {
           </button>
         </div>
 
-        <div className={styles.drawerSearch}>
-          <div className={styles.drawerSearchBar}>
-            <input
-              type="text"
-              placeholder="search..."
-              className={styles.searchInput}
-            />
-            <span className={styles.searchIcon}>
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-            </span>
-          </div>
-        </div>
+        {/* The Search Bar has been removed from this drawer */}
 
         <nav className={styles.drawerNav}>
           <Link href="/shop" onClick={() => setIsMenuOpen(false)}>
