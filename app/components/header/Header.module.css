@@ -1,0 +1,120 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 48px;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 50;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 72px; /* Spacing between logo and nav links */
+}
+
+.logo {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 800;
+  font-size: 30px;
+  color: #323232;
+  letter-spacing: -0.5px;
+  transition: transform 0.2s ease;
+}
+
+.logo:hover {
+  transform: scale(1.03);
+}
+
+.navLinks {
+  display: flex;
+  gap: 40px; /* Spacing between navigation links */
+}
+
+.navLinks a {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: #323232;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.navLinks a:hover {
+  opacity: 0.6;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 0 16px;
+  width: 280px;
+  height: 38px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition:
+    box-shadow 0.2s ease,
+    width 0.2s ease;
+}
+
+.searchBar:focus-within {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.searchInput {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 14px;
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 500;
+  color: #323232;
+  background: transparent;
+}
+
+.searchInput::placeholder {
+  color: #a0a0a0;
+}
+
+.searchIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #a0a0a0;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: color 0.2s ease;
+}
+
+.searchBar:focus-within .searchIcon {
+  color: #323232;
+}
+
+.userIcon {
+  background: transparent;
+  border: none;
+  color: #323232;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.userIcon:hover {
+  opacity: 0.7;
+  transform: scale(1.08);
+}
