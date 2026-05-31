@@ -238,3 +238,48 @@
     transform: translateY(-8px) scale(1.02);
   }
 }
+
+/* Hero Section Responsiveness */
+@media (max-width: 768px) {
+  .backgroundText {
+    font-size: clamp(65px, 15vw, 180px);
+    letter-spacing: -1px;
+  }
+
+  .bottleContainer {
+    width: clamp(140px, 45vw, 220px);
+  }
+
+  .almondRotationWrapper {
+    width: clamp(40px, 10vw, 75px);
+  }
+
+  .controlBtn {
+    width: 42px;
+    height: 42px;
+    opacity: 0.8;
+    visibility: visible;
+  }
+
+  .prevBtn {
+    left: 12px;
+  }
+
+  .nextBtn {
+    right: 12px;
+  }
+
+  .indicators {
+    bottom: 24px;
+    gap: 8px;
+  }
+
+  .indicatorDot {
+    width: 8px;
+    height: 8px;
+  }
+
+  .activeDot {
+    width: 24px;
+  }
+}
