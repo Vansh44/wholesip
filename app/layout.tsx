@@ -1,5 +1,6 @@
 import "./globals.css";
 import Header from "./components/header/Header";
+import Footer from "./components/footer/Footer";
 import { Outfit, Roboto, Stick_No_Bills } from "next/font/google";
 
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
@@ -31,6 +32,7 @@ export default function RootLayout({
       >
         <Header />
         {children}
+        <Footer />
       </body>
     </html>
   );

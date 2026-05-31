@@ -27,11 +27,11 @@ export default function Header() {
         </Link>
 
         <nav className={styles.navLinks}>
-          <Link href="/shop">Shop</Link>
-          <Link href="/track-order">Track Order</Link>
-          <Link href="/find-us">Find Us</Link>
-          <Link href="/enquiries">Enquiries</Link>
-          <Link href="/our-story">Our Story</Link>
+          <Link href="/pages/shop">Shop</Link>
+          <Link href="/pages/track-order">Track Order</Link>
+          <Link href="/pages/find-us">Find Us</Link>
+          <Link href="/pages/enquiries">Enquiries</Link>
+          <Link href="/pages/our-story">Our Story</Link>
         </nav>
       </div>
 
@@ -135,7 +135,7 @@ export default function Header() {
         {/* The Search Bar has been removed from this drawer */}
 
         <nav className={styles.drawerNav}>
-          <Link href="/shop" onClick={() => setIsMenuOpen(false)}>
+          <Link href="/pages/shop" onClick={() => setIsMenuOpen(false)}>
             Shop
           </Link>
           <Link href="/track-order" onClick={() => setIsMenuOpen(false)}>
@@ -147,7 +147,7 @@ export default function Header() {
           <Link href="/enquiries" onClick={() => setIsMenuOpen(false)}>
             Enquiries
           </Link>
-          <Link href="/our-story" onClick={() => setIsMenuOpen(false)}>
+          <Link href="/pages/our-story" onClick={() => setIsMenuOpen(false)}>
             Our Story
           </Link>
         </nav>

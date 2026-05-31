@@ -10,6 +10,9 @@ body {
   overflow-x: hidden;
   background-color: #f5f5f5; /* Default peach background */
   color: #323232;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 a {

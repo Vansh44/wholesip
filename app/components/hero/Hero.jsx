@@ -8,7 +8,7 @@ export default function Hero() {
     {
       id: "almonds",
       name: "Almond Ragda",
-      bgText: "ALMONDS",
+      bgText: "ALMOND",
       bgColor: "#E09771",
       bottleAsset: "/bottle_almond.png",
       singleAsset: "/singleAlmond.png",
@@ -17,7 +17,7 @@ export default function Hero() {
     {
       id: "blueberries",
       name: "Blueberry Ragda",
-      bgText: "BERRIES",
+      bgText: "BLUEBERRY",
       bgColor: "#9575AB",
       bottleAsset: "/bottle_blueberry.png",
       singleAsset: "/singleBlueberry.png",
@@ -26,7 +26,7 @@ export default function Hero() {
     {
       id: "pistachios",
       name: "Pistachio Ragda",
-      bgText: "PISTACHIOS",
+      bgText: "PISTACHIO",
       bgColor: "#73AC96",
       bottleAsset: "/bottle_pistachio.png",
       singleAsset: "/singlePistachio.png",
@@ -159,7 +159,7 @@ export default function Hero() {
 
   useEffect(() => {
     if (!isHovered) {
-      autoplayRef.current = setInterval(nextSlide, 5000);
+      autoplayRef.current = setInterval(nextSlide, 3000);
     }
     return () => {
       if (autoplayRef.current) {
