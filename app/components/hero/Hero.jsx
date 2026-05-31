@@ -10,7 +10,7 @@ export default function Hero() {
       name: "Almond Ragda",
       bgText: "ALMONDS",
       bgColor: "#E09771",
-      bottleFilter: "none",
+      bottleAsset: "/bottle_almond.png",
       singleAsset: "/singleAlmond.png",
       clusterAsset: "/almonds.png",
     },
@@ -19,8 +19,7 @@ export default function Hero() {
       name: "Blueberry Ragda",
       bgText: "BERRIES",
       bgColor: "#8EA6DB",
-      bottleFilter:
-        "hue-rotate(225deg) saturate(1.3) contrast(1.05) brightness(0.95)",
+      bottleAsset: "/bottle_blueberry.png",
       singleAsset: "/singleBlueberry.png",
       clusterAsset: "/blueberries.png",
     },
@@ -29,7 +28,7 @@ export default function Hero() {
       name: "Pistachio Ragda",
       bgText: "PISTACHIOS",
       bgColor: "#88C096",
-      bottleFilter: "hue-rotate(65deg) saturate(0.95) brightness(0.92)",
+      bottleAsset: "/bottle_pistachio.png",
       singleAsset: "/singlePistachio.png",
       clusterAsset: "/pistachios.png",
     },
@@ -232,15 +231,18 @@ export default function Hero() {
       })}
 
       {/* Central Bottle */}
-      <div
-        className={styles.bottleContainer}
-        style={{ filter: currentSlide.bottleFilter }}
-      >
-        <img
-          src="/bottle.png"
-          alt="Soakd Ragda Bottle"
-          className={styles.bottleImg}
-        />
+      <div className={styles.bottleContainer}>
+        {slides.map((slide, index) => {
+          const isActive = index === activeSlide;
+          return (
+            <img
+              key={slide.id}
+              src={slide.bottleAsset}
+              alt={slide.name}
+              className={`${styles.bottleImg} ${isActive ? styles.activeBottle : styles.inactiveBottle}`}
+            />
+          );
+        })}
       </div>
 
       {/* Slide Navigation Controls */}

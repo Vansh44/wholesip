@@ -51,11 +51,9 @@
   position: relative;
   z-index: 10;
   width: clamp(200px, 22vw, 413px);
+  aspect-ratio: 826 / 1728;
   animation: breathe 8s ease-in-out infinite;
-  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.15));
-  transition:
-    transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275),
-    filter 1s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .bottleContainer:hover {
@@ -63,9 +61,26 @@
 }
 
 .bottleImg {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
-  height: auto;
+  height: 90%;
   object-fit: contain;
+  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.15));
+  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.activeBottle {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+  pointer-events: auto;
+}
+
+.inactiveBottle {
+  opacity: 0;
+  transform: scale(0.92) rotate(-6deg);
+  pointer-events: none;
 }
 
 .ingredientsGroup {
