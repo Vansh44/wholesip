@@ -19,7 +19,7 @@ export default function ComingSoon() {
         <h1 className={styles.logo}>soakd.</h1>
         <h2 className={styles.headline}>Something fresh is soaking.</h2>
         <p className={styles.subhead}>
-          We're crafting 100% real, stone-ground goodness with zero
+          We are crafting 100% real, stone-ground goodness with zero
           preservatives. Drop your email below to be the first to know when we
           launch.
         </p>
