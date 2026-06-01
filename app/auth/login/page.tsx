@@ -6,13 +6,6 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -43,45 +36,61 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold tracking-tight">
-          soakd
-        </CardTitle>
-        <CardDescription>Sign in to your dashboard</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-            />
+    <div className="w-full">
+      <div className="mb-10 text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-primary">
+          Log in to Soakd
+        </h1>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="email" className="font-medium">
+            Email address
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="you@example.com"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            className="h-10"
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password" className="font-medium">
+              Password
+            </Label>
+            <a
+              href="#"
+              className="text-sm font-medium text-accent hover:underline"
+            >
+              Forgot password?
+            </a>
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in…" : "Sign In"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+          <Input
+            id="password"
+            type="password"
+            placeholder="••••••••"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            className="h-10"
+          />
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button
+          type="submit"
+          className="w-full h-10 mt-2 font-medium"
+          disabled={loading}
+        >
+          {loading ? "Signing in…" : "Sign in"}
+        </Button>
+      </form>
+    </div>
   );
 }

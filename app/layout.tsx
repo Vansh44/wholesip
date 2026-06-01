@@ -24,12 +24,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body
-        className={`${outfit.variable} ${roboto.variable} ${stickNoBills.variable}`}
-      >
-        {children}
-      </body>
+    <html
+      lang="en"
+      className={`${outfit.variable} ${roboto.variable} ${stickNoBills.variable}`}
+    >
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

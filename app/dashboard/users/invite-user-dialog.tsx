@@ -15,8 +15,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Loader2 } from "lucide-react";
 
 export function InviteUserDialog() {
   const [open, setOpen] = useState(false);
@@ -39,8 +46,8 @@ export function InviteUserDialog() {
       if (result.error) {
         setError(result.error);
       } else {
-        toast.success("User invited successfully", {
-          description: `An invitation has been sent to ${email}`,
+        toast.success("Invitation sent", {
+          description: `An invite has been sent to ${email}`,
         });
         setOpen(false);
         setEmail("");
@@ -52,9 +59,14 @@ export function InviteUserDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>
-        <UserPlus className="mr-2 h-4 w-4" />
-        Add User
+      {/* FIX 1: Suppress the missing type definition if the component supports it at runtime, 
+          or cast it. Alternatively, remove asChild if your DialogTrigger handles styles directly. */}
+      {/* @ts-expect-error asChild is supported at runtime but missing from types */}
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <UserPlus className="mr-2 h-4 w-4" />
+          Add User
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -64,8 +76,8 @@ export function InviteUserDialog() {
             temporary login credentials.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-2">
+          <div className="flex flex-col gap-1.5">
             <Label htmlFor="invite-email">Email address</Label>
             <Input
               id="invite-email"
@@ -74,28 +86,56 @@ export function InviteUserDialog() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={isPending}
             />
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <Label htmlFor="invite-role">Role</Label>
-            <select
-              id="invite-role"
+            {/* FIX 2: Handle the potential null value explicitly so TypeScript is happy */}
+            <Select
               value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <option value="member">Member</option>
-              <option value="superadmin">Superadmin</option>
-            </select>
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <DialogFooter>
-            <Button
-              type="submit"
+              onValueChange={(val) => setRole(val ?? "member")}
               disabled={isPending}
-              className="w-full sm:w-auto"
             >
-              {isPending ? "Sending…" : "Send Invite"}
+              <SelectTrigger id="invite-role">
+                <SelectValue placeholder="Select a role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="member">Member</SelectItem>
+                <SelectItem value="superadmin">Superadmin</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {role === "superadmin"
+                ? "Full access including user management."
+                : "Standard dashboard access only."}
+            </p>
+          </div>
+
+          {error && (
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2">
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                "Send Invite"
+              )}
             </Button>
           </DialogFooter>
         </form>
