@@ -74,17 +74,12 @@ export async function middleware(request: NextRequest) {
     }
 
     return supabaseResponse;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
     return new NextResponse(
-      JSON.stringify({
-        error: "Middleware Exception",
-        message: error?.message || error,
-        stack: error?.stack,
-      }),
-      {
-        status: 500,
-        headers: { "content-type": "application/json" },
-      },
+      JSON.stringify({ error: "Middleware Exception", message, stack }),
+      { status: 500, headers: { "content-type": "application/json" } },
     );
   }
 }
