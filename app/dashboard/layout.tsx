@@ -33,6 +33,7 @@ import {
   Search,
   Bell,
   HelpCircle,
+  Image as ImageIcon,
 } from "lucide-react";
 import { SidebarUser } from "./sidebar-user";
 import { ActiveBreadcrumb } from "./active-breadcrumb";
@@ -230,6 +231,15 @@ export default async function DashboardLayout({
                       >
                         <Users className="h-4 w-4" />
                         <span>Users</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        render={<Link href="/dashboard/media" />}
+                        className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                        <span>Media Library</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>

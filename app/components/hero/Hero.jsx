@@ -11,11 +11,11 @@ export default function Hero() {
       bgText: "ALMOND",
       bgColor: "#E09771",
       bottleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/sb326kfqi5g_1780341104315.png",
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/nei10q9mscn_1780343457832.png",
       singleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/rfq4o1qstpb_1780341777778.png",
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/ngvkthdf3b_1780343562983.png",
       clusterAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/2bgp9wm7vgy_1780341796742.png",
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/xdmdafqscc_1780343810851.png",
     },
     {
       id: "blueberries",
@@ -23,11 +23,11 @@ export default function Hero() {
       bgText: "BLUEBERRY",
       bgColor: "#9575AB",
       bottleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/rpnqxr50hk_1780341625796.png",
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/jmunueumdml_1780343501018.png",
       singleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/8otmmue5sjr_1780341771072.png",
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/i0y7x9sjox_1780343588753.png",
       clusterAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/nv6qygb99h_1780341791134.png",
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/n2e74hl15l_1780343843904.png",
     },
     {
       id: "pistachios",
@@ -35,11 +35,11 @@ export default function Hero() {
       bgText: "PISTACHIO",
       bgColor: "#73AC96",
       bottleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/p1ykimou63i_1780341711475.png",
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/9m3686ix2i_1780343537281.png",
       singleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/2q8421k1iax_1780341762826.png",
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/pcijqkoaf2_1780343617414.png",
       clusterAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/5i6z9to4ghm_1780341784959.png",
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/f33nes0qxrs_1780343888420.png",
     },
   ];
 

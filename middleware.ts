@@ -31,9 +31,10 @@ export async function middleware(request: NextRequest) {
           return NextResponse.redirect(url);
         }
 
-        // --- Gate 3: Role-based access for /dashboard/users ---
+        // --- Gate 3: Role-based access for restricted dashboard routes ---
         if (
-          pathname.startsWith("/dashboard/users") &&
+          (pathname.startsWith("/dashboard/users") ||
+            pathname.startsWith("/dashboard/media")) &&
           profile.role !== "superadmin"
         ) {
           const url = request.nextUrl.clone();
