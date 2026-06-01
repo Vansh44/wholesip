@@ -149,24 +149,23 @@ export default function Hero() {
   const [isHovered, setIsHovered] = useState(false);
   const autoplayRef = useRef(null);
 
-  const nextSlide = () => {
-    setActiveSlide((prev) => (prev + 1) % slides.length);
-  };
+  // const nextSlide = () => {
+  //   setActiveSlide((prev) => (prev + 1) % slides.length);
+  // };
 
-  const prevSlide = () => {
-    setActiveSlide((prev) => (prev - 1 + slides.length) % slides.length);
-  };
+  // const prevSlide = () => {
+  //   setActiveSlide((prev) => (prev - 1 + slides.length) % slides.length);
+  // };
 
   useEffect(() => {
-    if (!isHovered) {
-      autoplayRef.current = setInterval(nextSlide, 3000);
-    }
-    return () => {
-      if (autoplayRef.current) {
-        clearInterval(autoplayRef.current);
-      }
-    };
-  }, [isHovered]);
+    if (isHovered) return;
+
+    autoplayRef.current = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % slides.length);
+    }, 3000);
+
+    return () => clearInterval(autoplayRef.current);
+  }, [isHovered]); // ✅ no stale closure — updater fn always has fresh prev
 
   const currentSlide = slides[activeSlide];
 
@@ -247,7 +246,9 @@ export default function Hero() {
 
       {/* Slide Navigation Controls */}
       <button
-        onClick={prevSlide}
+        onClick={() =>
+          setActiveSlide((prev) => (prev - 1 + slides.length) % slides.length)
+        }
         className={`${styles.controlBtn} ${styles.prevBtn}`}
         aria-label="Previous Slide"
       >
@@ -264,8 +265,9 @@ export default function Hero() {
           <polyline points="15 18 9 12 15 6"></polyline>
         </svg>
       </button>
+
       <button
-        onClick={nextSlide}
+        onClick={() => setActiveSlide((prev) => (prev + 1) % slides.length)}
         className={`${styles.controlBtn} ${styles.nextBtn}`}
         aria-label="Next Slide"
       >
