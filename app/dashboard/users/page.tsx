@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { InviteUserDialog } from "./invite-user-dialog";
-import { Users, Search, MoreHorizontal } from "lucide-react";
+import { Users, Search } from "lucide-react";
 
 interface Profile {
   id: string;

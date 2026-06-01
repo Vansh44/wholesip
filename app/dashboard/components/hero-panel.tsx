@@ -14,7 +14,7 @@ export function HeroPanel() {
           Operations Center
         </h1>
         <p className="text-sm text-secondary-foreground">
-          Welcome back, Vansh. Here's what's happening today.
+          Welcome back, Vansh. Here&apos;s what&apos;s happening today.
         </p>
       </div>
       <div className="flex items-center text-sm font-medium text-secondary-foreground bg-secondary/50 px-3 py-1.5 rounded-md border border-border/50">
