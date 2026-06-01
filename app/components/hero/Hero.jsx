@@ -10,27 +10,36 @@ export default function Hero() {
       name: "Almond Ragda",
       bgText: "ALMOND",
       bgColor: "#E09771",
-      bottleAsset: "/bottle_almond.png",
-      singleAsset: "/singleAlmond.png",
-      clusterAsset: "/almonds.png",
+      bottleAsset:
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/sb326kfqi5g_1780341104315.png",
+      singleAsset:
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/rfq4o1qstpb_1780341777778.png",
+      clusterAsset:
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/2bgp9wm7vgy_1780341796742.png",
     },
     {
       id: "blueberries",
       name: "Blueberry Ragda",
       bgText: "BLUEBERRY",
       bgColor: "#9575AB",
-      bottleAsset: "/bottle_blueberry.png",
-      singleAsset: "/singleBlueberry.png",
-      clusterAsset: "/blueberries.png",
+      bottleAsset:
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/rpnqxr50hk_1780341625796.png",
+      singleAsset:
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/8otmmue5sjr_1780341771072.png",
+      clusterAsset:
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/nv6qygb99h_1780341791134.png",
     },
     {
       id: "pistachios",
       name: "Pistachio Ragda",
       bgText: "PISTACHIO",
       bgColor: "#73AC96",
-      bottleAsset: "/bottle_pistachio.png",
-      singleAsset: "/singlePistachio.png",
-      clusterAsset: "/pistachios.png",
+      bottleAsset:
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/p1ykimou63i_1780341711475.png",
+      singleAsset:
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/2q8421k1iax_1780341762826.png",
+      clusterAsset:
+        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/test-uploads/5i6z9to4ghm_1780341784959.png",
     },
   ];
 
