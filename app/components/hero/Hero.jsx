@@ -158,14 +158,14 @@ export default function Hero() {
   // };
 
   useEffect(() => {
-  if (isHovered) return;
+    if (isHovered) return;
 
-  autoplayRef.current = setInterval(() => {
-    setActiveSlide((prev) => (prev + 1) % slides.length);
-  }, 3000);
+    autoplayRef.current = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % slides.length);
+    }, 3000);
 
-  return () => clearInterval(autoplayRef.current);
-}, [isHovered]); // ✅ no stale closure — updater fn always has fresh prev
+    return () => clearInterval(autoplayRef.current);
+  }, [isHovered]); // ✅ no stale closure — updater fn always has fresh prev
 
   const currentSlide = slides[activeSlide];
 
@@ -245,25 +245,45 @@ export default function Hero() {
       </div>
 
       {/* Slide Navigation Controls */}
-<button
-  onClick={() => setActiveSlide((prev) => (prev - 1 + slides.length) % slides.length)}
-  className={`${styles.controlBtn} ${styles.prevBtn}`}
-  aria-label="Previous Slide"
->
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="15 18 9 12 15 6"></polyline>
-  </svg>
-</button>
+      <button
+        onClick={() =>
+          setActiveSlide((prev) => (prev - 1 + slides.length) % slides.length)
+        }
+        className={`${styles.controlBtn} ${styles.prevBtn}`}
+        aria-label="Previous Slide"
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
 
-<button
-  onClick={() => setActiveSlide((prev) => (prev + 1) % slides.length)}
-  className={`${styles.controlBtn} ${styles.nextBtn}`}
-  aria-label="Next Slide"
->
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="9 18 15 12 9 6"></polyline>
-  </svg>
-</button>
+      <button
+        onClick={() => setActiveSlide((prev) => (prev + 1) % slides.length)}
+        className={`${styles.controlBtn} ${styles.nextBtn}`}
+        aria-label="Next Slide"
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
 
       {/* Slide Indicator Dots */}
       <div className={styles.indicators}>

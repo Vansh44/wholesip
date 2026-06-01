@@ -1,4 +1,4 @@
-import Hero from "./components/hero/Hero";
+import Hero from "@/app/components/hero/Hero";
 
 export default function Home() {
   return (
