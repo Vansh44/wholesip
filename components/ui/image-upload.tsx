@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { uploadImage } from "@/lib/supabase/storage";
 import { UploadCloud, Loader2, X, Check } from "lucide-react";
+import Image from "next/image";
 import { Button } from "./button";
 
 interface ImageUploadProps {
@@ -89,12 +90,13 @@ export function ImageUpload({
   if (pendingPreview) {
     return (
       <div className={`w-full ${className}`}>
-        <div className="relative w-full rounded-lg border border-border overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+        <div className="relative w-full h-48 rounded-lg border border-border overflow-hidden bg-muted/30">
+          <Image
             src={pendingPreview}
             alt="Preview"
-            className="w-full h-48 object-contain bg-muted/30"
+            fill
+            className="object-contain"
+            unoptimized
           />
           <div className="absolute bottom-0 inset-x-0 bg-background/90 border-t border-border px-3 py-2 flex items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground truncate">
@@ -139,11 +141,12 @@ export function ImageUpload({
     return (
       <div className={`w-full ${className}`}>
         <div className="relative w-full h-48 rounded-lg border border-border/50 overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={previewUrl}
             alt="Uploaded"
-            className="w-full h-full object-cover"
+            fill
+            className="object-cover"
+            unoptimized
           />
           <button
             onClick={handleRemoveUploaded}

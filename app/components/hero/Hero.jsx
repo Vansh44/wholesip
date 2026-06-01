@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import styles from "./Hero.module.css";
+import { siteConfig } from "@/config/site";
 
 export default function Hero() {
   const slides = [
@@ -10,36 +11,27 @@ export default function Hero() {
       name: "Almond Ragda",
       bgText: "ALMOND",
       bgColor: "#E09771",
-      bottleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/nei10q9mscn_1780343457832.png",
-      singleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/ngvkthdf3b_1780343562983.png",
-      clusterAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/xdmdafqscc_1780343810851.png",
+      bottleAsset: siteConfig.assets.almondBottle,
+      singleAsset: siteConfig.assets.singleAlmond,
+      clusterAsset: siteConfig.assets.almonds,
     },
     {
       id: "blueberries",
       name: "Blueberry Ragda",
       bgText: "BLUEBERRY",
       bgColor: "#9575AB",
-      bottleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/jmunueumdml_1780343501018.png",
-      singleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/i0y7x9sjox_1780343588753.png",
-      clusterAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/n2e74hl15l_1780343843904.png",
+      bottleAsset: siteConfig.assets.blueberryBottle,
+      singleAsset: siteConfig.assets.singleBlueberry,
+      clusterAsset: siteConfig.assets.blueberries,
     },
     {
       id: "pistachios",
       name: "Pistachio Ragda",
       bgText: "PISTACHIO",
       bgColor: "#73AC96",
-      bottleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/9m3686ix2i_1780343537281.png",
-      singleAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/pcijqkoaf2_1780343617414.png",
-      clusterAsset:
-        "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/f33nes0qxrs_1780343888420.png",
+      bottleAsset: siteConfig.assets.pistachioBottle,
+      singleAsset: siteConfig.assets.singlePistachio,
+      clusterAsset: siteConfig.assets.pistachios,
     },
   ];
 

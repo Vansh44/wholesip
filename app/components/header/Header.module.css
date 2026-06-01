@@ -2,26 +2,24 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px 48px;
+  padding: 6px 48px;
   position: absolute;
   top: 0;
   width: 100%;
+  /* height: 100%; */
   z-index: 50;
 }
 
 .headerLeft {
   display: flex;
   align-items: center;
-  gap: 72px; /* Spacing between logo and nav links */
+  gap: 40px; /* Spacing between logo and nav links */
 }
 
 .logo {
-  font-family: var(--font-outfit), sans-serif;
-  font-weight: 800;
-  font-size: 30px;
-  color: #323232;
-  letter-spacing: -0.5px;
-  transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .logo:hover {
