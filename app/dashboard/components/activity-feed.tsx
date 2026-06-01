@@ -61,36 +61,35 @@ const activities = [
 
 export function ActivityFeed() {
   return (
-    <div className="enterprise-card p-6 h-full">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-primary">
+    <div className="h-full">
+      <div className="flex items-center justify-between mb-6 border-b border-border pb-3">
+        <h2 className="text-lg font-semibold text-primary">
           Business Activity
         </h2>
-        <button className="text-sm font-medium text-accent hover:underline">
+        <button className="text-xs font-medium text-accent hover:underline">
           View all
         </button>
       </div>
 
       <div className="relative">
-        {/* Vertical line connecting timeline items */}
-        <div className="absolute left-[19px] top-2 bottom-2 w-px bg-border z-0"></div>
+        <div className="absolute left-[15px] top-2 bottom-2 w-px bg-border/60 z-0"></div>
 
-        <div className="flex flex-col gap-6 relative z-10">
+        <div className="flex flex-col gap-4 relative z-10">
           {activities.map((activity) => (
-            <div key={activity.id} className="flex gap-4 group">
+            <div key={activity.id} className="flex gap-3 group items-start">
               <div
-                className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center border-2 border-card ${activity.bg}`}
+                className={`h-8 w-8 shrink-0 rounded-full flex items-center justify-center border-[3px] border-card ${activity.bg}`}
               >
-                <activity.icon className={`h-4 w-4 ${activity.color}`} />
+                <activity.icon className={`h-3.5 w-3.5 ${activity.color}`} />
               </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold text-primary group-hover:text-accent transition-colors">
+              <div className="flex flex-col pt-1">
+                <span className="text-sm font-medium text-primary group-hover:text-accent transition-colors">
                   {activity.title}
                 </span>
-                <span className="text-sm text-secondary-foreground mt-0.5">
+                <span className="text-xs text-secondary-foreground mt-0.5">
                   {activity.description}
                 </span>
-                <span className="text-xs text-muted-foreground mt-1.5 font-medium">
+                <span className="text-[11px] text-muted-foreground mt-1 font-medium">
                   {activity.time}
                 </span>
               </div>

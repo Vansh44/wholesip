@@ -1,7 +1,7 @@
 import { HeroPanel } from "./components/hero-panel";
 import { ExecutiveMetrics } from "./components/executive-metrics";
 import { ActivityFeed } from "./components/activity-feed";
-import { QuickActionsPanel } from "./components/quick-actions-panel";
+import { ActionCards } from "./components/action-cards";
 import { RevenueChart } from "./components/revenue-chart";
 import { OperationalHealth } from "./components/operational-health";
 import { ProductPerformance } from "./components/product-performance";
@@ -10,40 +10,40 @@ import { RecentOrdersTable } from "./components/recent-orders-table";
 
 export default async function DashboardHomePage() {
   return (
-    <div className="flex flex-col gap-6 w-full animate-in fade-in duration-500 pb-10">
-      {/* Hero Section */}
+    <div className="flex flex-col gap-12 w-full animate-in fade-in duration-500 pb-20">
+      {/* Header Area */}
       <HeroPanel />
 
-      {/* Executive Metrics */}
+      {/* Horizontal Actions Strip */}
+      <ActionCards />
+
+      {/* Executive Metrics Overview */}
       <ExecutiveMetrics />
 
-      {/* Main Grid Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Main Grid Row 1: Analytics & Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
         <div className="lg:col-span-8">
-          <ActivityFeed />
+          <RevenueChart />
         </div>
         <div className="lg:col-span-4">
-          <QuickActionsPanel />
+          <ActivityFeed />
         </div>
       </div>
 
-      {/* Main Grid Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Main Grid Row 2: Performance & Health */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
         <div className="lg:col-span-8">
-          <RevenueChart />
+          <ProductPerformance />
         </div>
         <div className="lg:col-span-4">
           <OperationalHealth />
         </div>
       </div>
 
-      {/* Main Grid Row 3 */}
-      <ProductPerformance />
-
-      {/* Main Grid Row 4 */}
+      {/* Main Grid Row 3: Inventory */}
       <InventoryHealth />
 
-      {/* Main Grid Row 5 */}
+      {/* Main Grid Row 4: Orders */}
       <RecentOrdersTable />
     </div>
   );

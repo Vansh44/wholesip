@@ -27,13 +27,13 @@ export function RevenueChart() {
   const tabs = ["7 Days", "30 Days", "90 Days", "12 Months"];
 
   return (
-    <div className="enterprise-card p-6 h-full flex flex-col">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div className="h-full flex flex-col">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 border-b border-border pb-3">
         <div>
-          <h2 className="text-xl font-semibold text-primary">
+          <h2 className="text-lg font-semibold text-primary">
             Revenue & Orders Analytics
           </h2>
-          <p className="text-sm text-secondary-foreground mt-1">
+          <p className="text-sm text-secondary-foreground mt-0.5">
             Overview of your store performance
           </p>
         </div>

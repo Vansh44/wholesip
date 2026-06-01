@@ -100,8 +100,8 @@ export default async function DashboardLayout({
   return (
     <SidebarProvider>
       <div className="relative flex min-h-screen w-full bg-background text-foreground">
-        <Sidebar className="border-r border-border w-[260px] bg-sidebar">
-          <SidebarHeader className="px-4 py-4 border-b border-border h-[72px] flex flex-col justify-center">
+        <Sidebar className="border-r border-border w-[240px] bg-sidebar">
+          <SidebarHeader className="px-4 py-0 border-b border-border h-14 flex flex-col justify-center">
             <Link href="/dashboard" className="flex items-center gap-2 group">
               <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
                 <span className="text-primary-foreground text-xs font-black">
@@ -271,7 +271,7 @@ export default async function DashboardLayout({
         </Sidebar>
 
         <SidebarInset className="bg-background relative z-10 w-full flex flex-col">
-          <header className="flex h-[72px] items-center justify-between border-b border-border px-6 bg-card sticky top-0 z-20 shrink-0">
+          <header className="flex h-14 items-center justify-between border-b border-border px-6 bg-card sticky top-0 z-20 shrink-0">
             <div className="flex items-center gap-4">
               <SidebarTrigger className="-ml-2" />
               <Separator orientation="vertical" className="h-6 bg-border" />
@@ -303,7 +303,7 @@ export default async function DashboardLayout({
             </div>
           </header>
 
-          <main className="flex-1 w-full max-w-[1440px] mx-auto p-8">
+          <main className="flex-1 w-full max-w-[1440px] mx-auto p-6 lg:p-8">
             {children}
           </main>
         </SidebarInset>

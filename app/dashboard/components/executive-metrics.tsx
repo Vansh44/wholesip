@@ -2,104 +2,60 @@ import { TrendingUp, ShoppingBag, Users, AlertTriangle } from "lucide-react";
 
 export function ExecutiveMetrics() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      {/* Card 1: Revenue */}
-      <div className="enterprise-card p-6 flex flex-col justify-between h-[140px]">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-secondary-foreground">
-            Revenue This Month
-          </span>
-          <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-            <TrendingUp className="h-4 w-4 text-primary" />
-          </div>
+    <div className="w-full flex flex-col sm:flex-row divide-y sm:divide-y-0 sm:divide-x divide-border border-y border-border bg-transparent">
+      {/* Metric 1: Revenue */}
+      <div className="flex-1 py-6 sm:px-6 first:pl-0 last:pr-0 flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium text-secondary-foreground">
+          <TrendingUp className="h-4 w-4" />
+          <span>Revenue</span>
         </div>
-        <div>
-          <div className="text-[32px] font-bold text-primary tracking-tight">
+        <div className="flex items-baseline gap-3">
+          <span className="text-3xl font-semibold tracking-tight text-primary">
             $84,250.00
-          </div>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="text-sm font-medium text-success bg-success/10 px-1.5 rounded">
-              +12.5%
-            </span>
-            <span className="text-xs text-secondary-foreground">
-              vs last month
-            </span>
-          </div>
+          </span>
+          <span className="text-sm font-medium text-success">+12.5%</span>
         </div>
       </div>
 
-      {/* Card 2: Orders */}
-      <div className="enterprise-card p-6 flex flex-col justify-between h-[140px]">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-secondary-foreground">
-            Orders
-          </span>
-          <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-            <ShoppingBag className="h-4 w-4 text-primary" />
-          </div>
+      {/* Metric 2: Orders */}
+      <div className="flex-1 py-6 sm:px-6 first:pl-0 last:pr-0 flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium text-secondary-foreground">
+          <ShoppingBag className="h-4 w-4" />
+          <span>Orders</span>
         </div>
-        <div>
-          <div className="text-[32px] font-bold text-primary tracking-tight">
+        <div className="flex items-baseline gap-3">
+          <span className="text-3xl font-semibold tracking-tight text-primary">
             1,248
-          </div>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="text-sm font-medium text-success bg-success/10 px-1.5 rounded">
-              +8.2%
-            </span>
-            <span className="text-xs text-secondary-foreground">
-              vs last month
-            </span>
-          </div>
+          </span>
+          <span className="text-sm font-medium text-success">+8.2%</span>
         </div>
       </div>
 
-      {/* Card 3: Customers */}
-      <div className="enterprise-card p-6 flex flex-col justify-between h-[140px]">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-secondary-foreground">
-            Customers
-          </span>
-          <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-            <Users className="h-4 w-4 text-primary" />
-          </div>
+      {/* Metric 3: Customers */}
+      <div className="flex-1 py-6 sm:px-6 first:pl-0 last:pr-0 flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium text-secondary-foreground">
+          <Users className="h-4 w-4" />
+          <span>Customers</span>
         </div>
-        <div>
-          <div className="text-[32px] font-bold text-primary tracking-tight">
+        <div className="flex items-baseline gap-3">
+          <span className="text-3xl font-semibold tracking-tight text-primary">
             8,492
-          </div>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="text-sm font-medium text-success bg-success/10 px-1.5 rounded">
-              +4.1%
-            </span>
-            <span className="text-xs text-secondary-foreground">
-              vs last month
-            </span>
-          </div>
+          </span>
+          <span className="text-sm font-medium text-success">+4.1%</span>
         </div>
       </div>
 
-      {/* Card 4: Inventory Alerts */}
-      <div className="enterprise-card p-6 flex flex-col justify-between h-[140px]">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-secondary-foreground">
-            Inventory Alerts
-          </span>
-          <div className="h-8 w-8 rounded-full bg-warning/10 flex items-center justify-center">
-            <AlertTriangle className="h-4 w-4 text-warning" />
-          </div>
+      {/* Metric 4: Alerts */}
+      <div className="flex-1 py-6 sm:px-6 first:pl-0 last:pr-0 flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium text-secondary-foreground">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <span className="text-warning">Inventory Alerts</span>
         </div>
-        <div>
-          <div className="text-[32px] font-bold text-primary tracking-tight">
+        <div className="flex items-baseline gap-3">
+          <span className="text-3xl font-semibold tracking-tight text-primary">
             12
-          </div>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="text-sm font-medium text-warning bg-warning/10 px-1.5 rounded">
-              Low Stock
-            </span>
-            <span className="text-xs text-secondary-foreground">
-              Needs attention
-            </span>
-          </div>
+          </span>
+          <span className="text-sm font-medium text-warning">Low Stock</span>
         </div>
       </div>
     </div>
