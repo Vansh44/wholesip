@@ -84,7 +84,7 @@ export async function middleware(request: NextRequest) {
       {
         status: 500,
         headers: { "content-type": "application/json" },
-      }
+      },
     );
   }
 }
@@ -92,4 +92,3 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: ["/dashboard/:path*", "/auth/:path*"],
 };
-
