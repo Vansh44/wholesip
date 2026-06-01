@@ -1,65 +1,3 @@
-// import Link from "next/link";
-// import styles from "./Footer.module.css";
-
-// export default function Footer() {
-//   const currentYear = new Date().getFullYear();
-
-//   return (
-//     <footer className={styles.footer}>
-//       <div className={styles.grid}>
-
-//         {/* Brand Column */}
-//         <div className={styles.brandCol}>
-//           <Link href="/" className={styles.logo}>soakd.</Link>
-//           <p className={styles.tagline}>
-//             Real food for real people. Crafted with intention, consumed with purpose. </p>
-//         </div>
-
-//         {/* Shop Column */}
-//         <div className={styles.linkCol}>
-//           <h4 className={styles.columnTitle}>Shop</h4>
-//           <nav className={styles.linkList}>
-//             <Link href="/pages/shop">All Products</Link>
-//             <Link href="/pages/shop?category=butters">Nut Butters</Link>
-//             <Link href="/pages/shop?category=milks">Nut Milks</Link>
-//             <Link href="/pages/shop?category=snacks">Snacks</Link>
-//           </nav>
-//         </div>
-
-//         {/* Company Column */}
-//         <div className={styles.linkCol}>
-//           <h4 className={styles.columnTitle}>Company</h4>
-//           <nav className={styles.linkList}>
-//             <Link href="/pages/our-story">Our Story</Link>
-//             <Link href="/pages/process">The Process</Link>
-//             <Link href="/pages/sustainability">Sustainability</Link>
-//             <Link href="/pages/careers">Careers</Link>
-//           </nav>
-//         </div>
-
-//         {/* Support Column */}
-//         <div className={styles.linkCol}>
-//           <h4 className={styles.columnTitle}>Support</h4>
-//           <nav className={styles.linkList}>
-//             <Link href="/pages/faqs">FAQs</Link>
-//             <Link href="/pages/track-order">Track Order</Link>
-//             <Link href="/pages/returns">Returns</Link>
-//             <Link href="/pages/contact">Contact Us</Link>
-//           </nav>
-//         </div>
-
-//       </div>
-
-//       {/* Bottom Copyright Row */}
-//       <div className={styles.bottomRow}>
-//         <p>&copy; {currentYear} Soakd. All rights reserved.</p>
-//         <p>Get Soakd. Live Authentic.</p>
-//         <p>Made with ❤️ by Soakd team</p>
-//       </div>
-//     </footer>
-//   );
-// }
-
 "use client";
 
 import Link from "next/link";
@@ -132,8 +70,6 @@ const certBadges = [
   { label: "Cold Pressed", icon: "❄" },
   { label: "Handcrafted", icon: "✦" },
 ];
-
-const paymentIcons = ["Visa", "Mastercard", "UPI", "Razorpay", "COD"];
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -318,20 +254,6 @@ export default function Footer() {
             <Link href="/pages/refund-policy">Refund Policy</Link>
             <span className={styles.legalDivider}>·</span>
             <Link href="/pages/cookie-policy">Cookie Policy</Link>
-          </div>
-        </div>
-
-        {/* Payment Methods */}
-        <div className={styles.paymentRow}>
-          <span className={styles.paymentLabel}>
-            Safe &amp; Secure Payments
-          </span>
-          <div className={styles.paymentIcons}>
-            {paymentIcons.map((p) => (
-              <span key={p} className={styles.paymentChip}>
-                {p}
-              </span>
-            ))}
           </div>
         </div>
       </div>

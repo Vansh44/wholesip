@@ -1,100 +1,95 @@
 /* ============================================
-   Footer — soakd. D2C Brand
+   FOOTER - PREMIUM SAGE D2C THEME
    ============================================ */
 
 .footer {
-  background-color: #1e1510;
-  color: #fffcf8;
+  background: #e8efea;
+  color: #22332d;
   margin-top: auto;
 }
 
 /* ============================================
-   Newsletter Bar
+   Newsletter
    ============================================ */
 
 .newsletterBar {
-  background-color: #e09771;
-  padding: 36px 64px;
+  background: #f7f3ee;
+  padding: 42px 64px;
+  border-bottom: 1px solid #e3ddd4;
 }
 
 .newsletterInner {
   max-width: 1400px;
   margin: 0 auto;
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   gap: 32px;
 }
 
 .newsletterLabel {
   font-family: var(--font-outfit), sans-serif;
+  font-size: 22px;
   font-weight: 800;
-  font-size: 20px;
-  color: #261b17;
+  color: #22332d;
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .newsletterSub {
   font-family: var(--font-roboto), sans-serif;
+  color: #61736c;
   font-size: 14px;
-  color: #4a2c1f;
   margin: 0;
 }
 
 .newsletterForm {
   display: flex;
-  gap: 0;
   flex-shrink: 0;
 }
 
 .newsletterInput {
-  font-family: var(--font-roboto), sans-serif;
+  width: 280px;
+  padding: 14px 18px;
+  border: 1px solid #d8e4dd;
+  border-right: none;
+  background: #ffffff;
+  color: #22332d;
   font-size: 14px;
-  padding: 12px 20px;
-  border: none;
-  background: rgba(255, 255, 255, 0.3);
-  color: #261b17;
-  border-radius: 6px 0 0 6px;
   outline: none;
-  width: 260px;
-  transition: background 0.2s ease;
+  border-radius: 10px 0 0 10px;
 }
 
 .newsletterInput::placeholder {
-  color: #7a4b3a;
-}
-
-.newsletterInput:focus {
-  background: rgba(255, 255, 255, 0.5);
+  color: #93a39c;
 }
 
 .newsletterBtn {
+  padding: 14px 24px;
+  border: none;
+  background: #35544a;
+  color: white;
   font-family: var(--font-outfit), sans-serif;
-  font-weight: 700;
   font-size: 13px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
-  padding: 12px 24px;
-  background: #261b17;
-  color: #fffcf8;
-  border: none;
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 10px 10px 0;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: all 0.25s ease;
 }
 
 .newsletterBtn:hover {
-  background: #3d2a22;
+  background: #22332d;
 }
 
 /* ============================================
-   Trust Badges Bar
+   Trust Bar
    ============================================ */
 
 .trustBar {
-  background-color: #261b17;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: #dde8e1;
+  border-bottom: 1px solid #d1ddd5;
   padding: 18px 64px;
 }
 
@@ -103,26 +98,24 @@
   margin: 0 auto;
   display: flex;
   justify-content: center;
-  align-items: center;
-  gap: 48px;
   flex-wrap: wrap;
+  gap: 48px;
 }
 
 .trustBadge {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--font-outfit), sans-serif;
+  color: #4b6259;
   font-size: 13px;
+  font-family: var(--font-outfit), sans-serif;
   font-weight: 600;
+  letter-spacing: 1px;
   text-transform: uppercase;
-  letter-spacing: 1.2px;
-  color: #bfaea8;
 }
 
 .trustIcon {
-  font-size: 15px;
-  color: #e09771;
+  color: #6b8a7e;
 }
 
 /* ============================================
@@ -130,123 +123,127 @@
    ============================================ */
 
 .mainGrid {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
-  gap: 48px;
   max-width: 1400px;
   margin: 0 auto;
   padding: 72px 64px 56px;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 56px;
 }
 
-/* Brand Section */
+/* ============================================
+   Brand
+   ============================================ */
+
 .logo {
   font-family: var(--font-outfit), sans-serif;
+  font-size: 40px;
   font-weight: 800;
-  font-size: 38px;
-  color: #fffcf8;
-  letter-spacing: -1.5px;
+  color: #22332d;
+  letter-spacing: -1px;
   margin-bottom: 18px;
   display: inline-block;
-  transition: opacity 0.2s ease;
 }
 
 .logo:hover {
-  opacity: 0.75;
+  opacity: 0.8;
 }
 
 .tagline {
-  font-family: var(--font-roboto), sans-serif;
-  font-size: 14.5px;
-  color: #8c7b75;
-  line-height: 1.7;
-  max-width: 280px;
+  color: #61736c;
+  line-height: 1.8;
+  max-width: 300px;
   margin-bottom: 28px;
+  font-size: 14px;
 }
 
-/* Contact Block */
+/* ============================================
+   Contact
+   ============================================ */
+
 .contactBlock {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 28px;
+  gap: 12px;
+  margin-bottom: 30px;
 }
 
 .contactLine {
-  font-family: var(--font-roboto), sans-serif;
-  font-size: 13.5px;
-  color: #8c7b75;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  color: #61736c;
   text-decoration: none;
-  transition: color 0.2s ease;
+  font-size: 13.5px;
+  transition: all 0.2s ease;
+}
+
+.contactLine:hover {
+  color: #35544a;
 }
 
 .contactLine svg {
-  flex-shrink: 0;
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
-a.contactLine:hover {
-  color: #e09771;
-}
+/* ============================================
+   Social
+   ============================================ */
 
-/* Social Icons */
 .socials {
   display: flex;
-  gap: 10px;
+  gap: 12px;
 }
 
 .socialIcon {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: white;
+  border: 1px solid #d8e4dd;
   display: flex;
-  align-items: center;
   justify-content: center;
-  color: #8c7b75;
-  transition:
-    border-color 0.2s ease,
-    color 0.2s ease,
-    background 0.2s ease;
+  align-items: center;
+  color: #61736c;
+  transition: all 0.25s ease;
 }
 
 .socialIcon:hover {
-  border-color: #e09771;
-  color: #e09771;
-  background: rgba(224, 151, 113, 0.08);
+  color: #35544a;
+  border-color: #35544a;
+  transform: translateY(-2px);
 }
 
-/* Link Columns */
+/* ============================================
+   Columns
+   ============================================ */
+
 .columnTitle {
+  color: #35544a;
   font-family: var(--font-outfit), sans-serif;
+  font-size: 12px;
   font-weight: 700;
-  font-size: 11px;
-  color: #e09771;
-  margin-bottom: 22px;
   text-transform: uppercase;
   letter-spacing: 2px;
+  margin-bottom: 24px;
 }
 
 .linkList {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .linkList a {
-  font-family: var(--font-roboto), sans-serif;
-  font-size: 14px;
-  color: #8c7b75;
-  transition:
-    color 0.2s ease,
-    transform 0.2s ease;
+  color: #61736c;
+  text-decoration: none;
   width: fit-content;
+  transition: all 0.25s ease;
+  font-size: 14px;
 }
 
 .linkList a:hover {
-  color: #fffcf8;
+  color: #22332d;
   transform: translateX(4px);
 }
 
@@ -255,134 +252,74 @@ a.contactLine:hover {
    ============================================ */
 
 .bottomSection {
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
   max-width: 1400px;
   margin: 0 auto;
-  padding: 28px 64px 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  padding: 32px 64px 40px;
+  border-top: 1px solid #d8e4dd;
 }
 
 .legalRow {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 16px;
   flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
 .copyright {
-  font-family: var(--font-roboto), sans-serif;
-  font-size: 12.5px;
-  color: #4f4540;
-  margin: 0;
+  color: #7a8b84;
+  font-size: 12px;
 }
 
 .legalLinks {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .legalLinks a {
-  font-family: var(--font-roboto), sans-serif;
-  font-size: 12.5px;
-  color: #5f504a;
-  transition: color 0.2s ease;
+  color: #61736c;
+  font-size: 12px;
 }
 
 .legalLinks a:hover {
-  color: #bfaea8;
+  color: #35544a;
 }
 
 .legalDivider {
-  color: #3d302a;
-  font-size: 12px;
-}
-
-/* Payment Row */
-.paymentRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.paymentLabel {
-  font-family: var(--font-roboto), sans-serif;
-  font-size: 12px;
-  color: #4f4540;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.paymentIcons {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.paymentChip {
-  font-family: var(--font-outfit), sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  padding: 5px 12px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #5f504a;
-  text-transform: uppercase;
+  color: #b9c7c0;
 }
 
 /* ============================================
-   Responsive — Tablet (max 1024px)
+   Tablet
    ============================================ */
 
 @media (max-width: 1024px) {
-  .newsletterBar {
-    padding: 32px 48px;
-  }
-
-  .trustBar {
-    padding: 18px 48px;
-  }
-
   .mainGrid {
     grid-template-columns: 1fr 1fr;
-    gap: 40px;
-    padding: 56px 48px 48px;
+    padding: 56px 48px;
   }
 
   .brandCol {
     grid-column: 1 / -1;
   }
 
-  .tagline {
-    max-width: 480px;
-  }
-
+  .newsletterBar,
+  .trustBar,
   .bottomSection {
-    padding: 28px 48px 36px;
+    padding-left: 48px;
+    padding-right: 48px;
   }
 }
 
 /* ============================================
-   Responsive — Mobile (max 768px)
+   Mobile
    ============================================ */
 
 @media (max-width: 768px) {
-  .newsletterBar {
-    padding: 28px 24px;
-  }
-
   .newsletterInner {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 20px;
+    align-items: stretch;
   }
 
   .newsletterForm {
@@ -391,61 +328,23 @@ a.contactLine:hover {
 
   .newsletterInput {
     width: 100%;
-    flex: 1;
-  }
-
-  .trustBar {
-    padding: 16px 24px;
-  }
-
-  .trustInner {
-    gap: 20px;
-    justify-content: flex-start;
   }
 
   .mainGrid {
     grid-template-columns: 1fr;
-    gap: 36px;
-    padding: 48px 24px 40px;
+    padding: 48px 24px;
   }
 
+  .newsletterBar,
+  .trustBar,
   .bottomSection {
-    padding: 24px 24px 32px;
+    padding-left: 24px;
+    padding-right: 24px;
   }
 
-  .legalRow {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
+  .legalRow,
   .paymentRow {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
-  }
-}
-
-/* ============================================
-   Responsive — Small Mobile (max 480px)
-   ============================================ */
-
-@media (max-width: 480px) {
-  .trustInner {
-    gap: 14px;
-  }
-
-  .trustBadge {
-    font-size: 11px;
-  }
-
-  .legalLinks {
-    flex-direction: column;
-    gap: 6px;
-    align-items: flex-start;
-  }
-
-  .legalDivider {
-    display: none;
   }
 }
