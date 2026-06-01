@@ -119,7 +119,7 @@ export default function Footer() {
         {/* Brand Column */}
         <div className={styles.brandCol}>
           <Link href="/" className={styles.logo}>
-            soakd.
+            soakd
           </Link>
           <p className={styles.tagline}>
             Real food for real people. Soaked, sprouted &amp; crafted with

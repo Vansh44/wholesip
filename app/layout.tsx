@@ -16,7 +16,7 @@ const stickNoBills = Stick_No_Bills({
 });
 
 export const metadata = {
-  title: "Soakd | The Original Ragda",
+  title: "soakd | The Original Ragda",
   description: "Zero preservatives. 100% real ingredients.",
 };
 
