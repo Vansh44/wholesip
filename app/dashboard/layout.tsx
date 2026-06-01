@@ -1,7 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Toaster } from "@/components/ui/sonner";
+import { siteConfig } from "@/config/site";
 import {
   Sidebar,
   SidebarContent,
@@ -33,6 +35,7 @@ import {
   Search,
   Bell,
   HelpCircle,
+  Image as ImageIcon,
 } from "lucide-react";
 import { SidebarUser } from "./sidebar-user";
 import { ActiveBreadcrumb } from "./active-breadcrumb";
@@ -102,15 +105,17 @@ export default async function DashboardLayout({
       <div className="relative flex min-h-screen w-full bg-background text-foreground">
         <Sidebar className="border-r border-border w-[240px] bg-sidebar">
           <SidebarHeader className="px-4 py-0 border-b border-border h-14 flex flex-col justify-center">
-            <Link href="/dashboard" className="flex items-center gap-2 group">
-              <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground text-xs font-black">
-                  S
-                </span>
+            <Link href="/dashboard" className="flex items-center gap-3 group">
+              <div className="relative h-8 w-32 flex items-center shrink-0">
+                <Image
+                  src={siteConfig.assets.logoUrl}
+                  alt={`${siteConfig.name} Logo`}
+                  fill
+                  className="object-contain object-left"
+                  priority
+                  sizes="180px"
+                />
               </div>
-              <span className="text-base font-bold tracking-tight text-primary">
-                soakd
-              </span>
             </Link>
           </SidebarHeader>
 
@@ -230,6 +235,15 @@ export default async function DashboardLayout({
                       >
                         <Users className="h-4 w-4" />
                         <span>Users</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        render={<Link href="/dashboard/media" />}
+                        className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                        <span>Media Library</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>

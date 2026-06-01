@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import styles from "./Hero.module.css";
+import { siteConfig } from "@/config/site";
 
 export default function Hero() {
   const slides = [
@@ -10,27 +11,27 @@ export default function Hero() {
       name: "Almond Ragda",
       bgText: "ALMOND",
       bgColor: "#E09771",
-      bottleAsset: "/bottle_almond.png",
-      singleAsset: "/singleAlmond.png",
-      clusterAsset: "/almonds.png",
+      bottleAsset: siteConfig.assets.almondBottle,
+      singleAsset: siteConfig.assets.singleAlmond,
+      clusterAsset: siteConfig.assets.almonds,
     },
     {
       id: "blueberries",
       name: "Blueberry Ragda",
       bgText: "BLUEBERRY",
       bgColor: "#9575AB",
-      bottleAsset: "/bottle_blueberry.png",
-      singleAsset: "/singleBlueberry.png",
-      clusterAsset: "/blueberries.png",
+      bottleAsset: siteConfig.assets.blueberryBottle,
+      singleAsset: siteConfig.assets.singleBlueberry,
+      clusterAsset: siteConfig.assets.blueberries,
     },
     {
       id: "pistachios",
       name: "Pistachio Ragda",
       bgText: "PISTACHIO",
       bgColor: "#73AC96",
-      bottleAsset: "/bottle_pistachio.png",
-      singleAsset: "/singlePistachio.png",
-      clusterAsset: "/pistachios.png",
+      bottleAsset: siteConfig.assets.pistachioBottle,
+      singleAsset: siteConfig.assets.singlePistachio,
+      clusterAsset: siteConfig.assets.pistachios,
     },
   ];
 

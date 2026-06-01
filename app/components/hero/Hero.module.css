@@ -53,6 +53,7 @@
   width: clamp(200px, 22vw, 413px);
   aspect-ratio: 826 / 1728;
   animation: breathe 8s ease-in-out infinite;
+  margin-top: 80px;
 }
 
 .bottleImg {

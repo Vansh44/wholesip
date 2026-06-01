@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import styles from "./Footer.module.css";
-
+import Image from "next/image";
+import { siteConfig } from "@/config/site";
 const socialLinks = [
   {
     name: "Instagram",
@@ -119,7 +120,13 @@ export default function Footer() {
         {/* Brand Column */}
         <div className={styles.brandCol}>
           <Link href="/" className={styles.logo}>
-            soakd
+            <Image
+              src={siteConfig.assets.logoUrl}
+              alt="Soakd Logo"
+              width={160}
+              height={60}
+              priority
+            />
           </Link>
           <p className={styles.tagline}>
             Real food for real people. Soaked, sprouted &amp; crafted with

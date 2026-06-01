@@ -56,7 +56,12 @@ export function RevenueChart() {
       </div>
 
       <div className="flex-1 min-h-[300px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer
+          width="100%"
+          height="100%"
+          minWidth={0}
+          minHeight={0}
+        >
           <AreaChart
             data={data7Days}
             margin={{ top: 10, right: 10, left: 0, bottom: 0 }}

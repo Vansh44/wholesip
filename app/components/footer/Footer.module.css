@@ -136,13 +136,9 @@
    ============================================ */
 
 .logo {
-  font-family: var(--font-outfit), sans-serif;
-  font-size: 40px;
-  font-weight: 800;
-  color: #22332d;
-  letter-spacing: -1px;
-  margin-bottom: 18px;
-  display: inline-block;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .logo:hover {

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import styles from "./Header.module.css";
+import Image from "next/image";
+import { siteConfig } from "@/config/site";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -23,7 +25,13 @@ export default function Header() {
     <header className={styles.header}>
       <div className={styles.headerLeft}>
         <Link href="/" className={styles.logo}>
-          soakd
+          <Image
+            src={siteConfig.assets.logoUrl}
+            alt="Soakd Logo"
+            width={180}
+            height={60}
+            priority
+          />
         </Link>
 
         <nav className={styles.navLinks}>
