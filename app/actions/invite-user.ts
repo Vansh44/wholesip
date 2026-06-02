@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Resend } from "resend";
+import { siteConfig } from "@/config/site";
 
 function generateTempPassword(): string {
   const chars =
@@ -85,23 +86,94 @@ export async function inviteUser(formData: FormData) {
     try {
       const resend = new Resend(resendApiKey);
       await resend.emails.send({
-        from: "Soakd Dashboard <onboarding@resend.dev>",
+        from: "Soakd Dashboard <admin@getsoakd.in>",
         to: email,
-        subject: "You've been invited to the Soakd Dashboard",
-        text: [
-          "Hello,",
-          "",
-          `You've been invited to join the Soakd admin dashboard as a ${role}.`,
-          "",
-          "Your temporary login credentials:",
-          `Email: ${email}`,
-          `Temporary Password: ${tempPassword}`,
-          "",
-          "Please sign in and set a new password:",
-          "https://getsoakd.in/auth/login",
-          "",
-          "You will be prompted to set a new password on your first login.",
-        ].join("\n"),
+        subject: "Welcome to Soakd Dashboard",
+        html: `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+      
+      <div style="background: #ffffff; padding: 24px; text-align: center;">
+        <img
+          src="${siteConfig.assets.logoUrl}"
+          alt="Soakd"
+          style="
+            max-height: 80px;
+            width: auto;
+            display: block;
+            margin: 0 auto;
+          "
+        />
+      </div>
+
+      <div style="padding: 32px 24px;">
+        <h2 style="margin-top: 0;">You've Been Invited 🎉</h2>
+
+        <p>Hello,</p>
+
+        <p>
+          You have been invited to join the <strong>Soakd Admin Dashboard</strong>
+          as a <strong>${role}</strong>.
+        </p>
+
+        <div
+          style="
+            background: #f8f8f8;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 24px 0;
+          "
+        >
+          <h3 style="margin-top: 0;">Temporary Login Credentials</h3>
+
+          <p style="margin: 8px 0;">
+            <strong>Email:</strong> ${email}
+          </p>
+
+          <p style="margin: 8px 0;">
+            <strong>Password:</strong>
+            <span
+              style="
+                font-family: monospace;
+                background: #fff;
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid #ddd;
+              "
+            >
+              ${tempPassword}
+            </span>
+          </p>
+        </div>
+
+        <div style="text-align: center; margin: 32px 0;">
+          <a
+            href="https://getsoakd.in/dashboard"
+            style="
+              display: inline-block;
+              background: #000;
+              color: #fff;
+              text-decoration: none;
+              padding: 14px 28px;
+              border-radius: 6px;
+              font-weight: 600;
+            "
+          >
+            Sign In to Dashboard
+          </a>
+        </div>
+
+        <p>
+          You'll be prompted to set a new password when you sign in for the first time.
+        </p>
+
+        <p>
+          Regards,<br />
+          <strong>Team Soakd</strong>
+        </p>
+      </div>
+    </div>
+  `,
       });
     } catch (e) {
       console.error("Failed to send invite email via Resend:", e);

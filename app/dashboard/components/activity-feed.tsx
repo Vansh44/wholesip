@@ -62,34 +62,37 @@ const activities = [
 export function ActivityFeed() {
   return (
     <div className="h-full">
-      <div className="flex items-center justify-between mb-6 border-b border-border pb-3">
-        <h2 className="text-lg font-semibold text-primary">
-          Business Activity
-        </h2>
-        <button className="text-xs font-medium text-accent hover:underline">
+      <div className="mb-6 flex items-center justify-between border-b border-border pb-4">
+        <div>
+          <span className="dashboard-kicker">Signals</span>
+          <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-primary">
+            Business Activity
+          </h2>
+        </div>
+        <button className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-primary">
           View all
         </button>
       </div>
 
       <div className="relative">
-        <div className="absolute left-[15px] top-2 bottom-2 w-px bg-border/60 z-0"></div>
+        <div className="absolute bottom-2 left-[15px] top-2 z-0 w-px bg-border/60"></div>
 
-        <div className="flex flex-col gap-4 relative z-10">
+        <div className="relative z-10 flex flex-col gap-5">
           {activities.map((activity) => (
-            <div key={activity.id} className="flex gap-3 group items-start">
+            <div key={activity.id} className="group flex gap-3 items-start">
               <div
-                className={`h-8 w-8 shrink-0 rounded-full flex items-center justify-center border-[3px] border-card ${activity.bg}`}
+                className={`flex h-8 w-8 shrink-0 items-center justify-center border border-border/80 bg-card ${activity.bg}`}
               >
                 <activity.icon className={`h-3.5 w-3.5 ${activity.color}`} />
               </div>
-              <div className="flex flex-col pt-1">
-                <span className="text-sm font-medium text-primary group-hover:text-accent transition-colors">
+              <div className="flex flex-col pt-0.5">
+                <span className="text-sm font-semibold text-primary transition-colors group-hover:text-accent">
                   {activity.title}
                 </span>
-                <span className="text-xs text-secondary-foreground mt-0.5">
+                <span className="mt-1 text-xs leading-5 text-secondary-foreground">
                   {activity.description}
                 </span>
-                <span className="text-[11px] text-muted-foreground mt-1 font-medium">
+                <span className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   {activity.time}
                 </span>
               </div>

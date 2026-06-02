@@ -35,54 +35,59 @@ export function InventoryHealth() {
 
   return (
     <div className="w-full overflow-hidden">
-      <div className="flex items-end justify-between mb-8 border-b border-border pb-3">
-        <h2 className="text-lg font-semibold text-primary">Inventory Health</h2>
-        <button className="text-xs font-medium text-accent hover:underline">
+      <div className="mb-8 flex items-end justify-between border-b border-border pb-4">
+        <div>
+          <span className="dashboard-kicker">Stock Control</span>
+          <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-primary">
+            Inventory Health
+          </h2>
+        </div>
+        <button className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-primary">
           Manage Inventory
         </button>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-border">
-              <th className="pb-3 text-xs font-semibold text-secondary-foreground uppercase tracking-wider">
+              <th className="pb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Product
               </th>
-              <th className="pb-3 text-xs font-semibold text-secondary-foreground uppercase tracking-wider">
+              <th className="pb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Current Stock
               </th>
-              <th className="pb-3 text-xs font-semibold text-secondary-foreground uppercase tracking-wider">
+              <th className="pb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Threshold
               </th>
-              <th className="pb-3 text-xs font-semibold text-secondary-foreground uppercase tracking-wider text-right">
+              <th className="pb-3 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Status
               </th>
             </tr>
           </thead>
           <tbody>
-            {inventory.map((item, idx) => (
+            {inventory.map((item) => (
               <tr
-                key={idx}
-                className={`border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors ${item.status === "Critical" ? "bg-error/5 hover:bg-error/10" : ""}`}
+                key={item.name}
+                className={`border-b border-border/40 transition-colors last:border-0 ${item.status === "Critical" ? "bg-error/5 hover:bg-error/10" : "hover:bg-background/65"}`}
               >
-                <td className="py-3 text-sm font-medium text-primary flex items-center gap-2">
+                <td className="flex items-center gap-2 py-4 text-sm font-semibold text-primary">
                   {item.status === "Critical" && (
-                    <span className="w-2 h-2 rounded-full bg-error animate-pulse"></span>
+                    <span className="h-2 w-2 rounded-full bg-error"></span>
                   )}
                   {item.name}
                 </td>
                 <td
-                  className={`py-3 text-sm font-semibold ${item.status === "Critical" ? "text-error" : "text-primary"}`}
+                  className={`py-4 text-sm font-semibold ${item.status === "Critical" ? "text-error" : "text-primary"}`}
                 >
                   {item.stock}
                 </td>
-                <td className="py-3 text-sm text-secondary-foreground">
+                <td className="py-4 text-sm text-secondary-foreground">
                   {item.threshold}
                 </td>
-                <td className="py-3 text-right">
+                <td className="py-4 text-right">
                   <span
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider border ${getStatusStyles(item.status)}`}
+                    className={`border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusStyles(item.status)}`}
                   >
                     {item.status}
                   </span>

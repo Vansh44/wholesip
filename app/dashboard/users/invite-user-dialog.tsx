@@ -9,8 +9,6 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -25,7 +23,15 @@ import {
 import { toast } from "sonner";
 import { UserPlus, Loader2 } from "lucide-react";
 
-export function InviteUserDialog() {
+export function InviteUserDialog({
+  className,
+  label = "Add User",
+  size = "sm",
+}: {
+  className?: string;
+  label?: string;
+  size?: "default" | "sm" | "lg";
+}) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("member");
@@ -59,75 +65,90 @@ export function InviteUserDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {/* FIX 1: Suppress the missing type definition if the component supports it at runtime, 
-          or cast it. Alternatively, remove asChild if your DialogTrigger handles styles directly. */}
-      {/* @ts-expect-error asChild is supported at runtime but missing from types */}
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <UserPlus className="mr-2 h-4 w-4" />
-          Add User
-        </Button>
+      <DialogTrigger render={<Button className={className} size={size} />}>
+        <UserPlus className="mr-2 h-4 w-4" />
+        {label}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Invite a new user</DialogTitle>
-          <DialogDescription>
-            Send a dashboard invitation. The user will receive an email with
-            temporary login credentials.
-          </DialogDescription>
+      <DialogContent className="gap-6 rounded-[16px] border border-[#E5E7EB] bg-white p-8 shadow-xl sm:max-w-[520px]">
+        <DialogHeader className="space-y-2 p-0">
+          <DialogTitle className="text-[20px] font-[600] text-[#111827]">
+            Invite User
+          </DialogTitle>
+          <p className="text-[14px] text-[#6B7280]">
+            Send an invitation to a new team member.
+          </p>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="invite-email">Email address</Label>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <Label
+              htmlFor="invite-email"
+              className="text-[14px] font-medium text-[#111827]"
+            >
+              Email Address
+            </Label>
             <Input
               id="invite-email"
               type="email"
-              placeholder="user@example.com"
+              placeholder="user@company.com"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isPending}
+              className="h-[48px] rounded-[10px] border-[#E5E7EB] bg-white px-3 text-[14px] text-[#111827] focus-visible:ring-[#0F172A] shadow-sm placeholder:text-[#6B7280]"
             />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="invite-role">Role</Label>
-            {/* FIX 2: Handle the potential null value explicitly so TypeScript is happy */}
+
+          <div className="flex flex-col gap-2">
+            <Label
+              htmlFor="invite-role"
+              className="text-[14px] font-medium text-[#111827]"
+            >
+              Role
+            </Label>
             <Select
               value={role}
               onValueChange={(val) => setRole(val ?? "member")}
               disabled={isPending}
             >
-              <SelectTrigger id="invite-role">
+              <SelectTrigger
+                id="invite-role"
+                className="h-[48px] rounded-[10px] border-[#E5E7EB] bg-white px-3 text-[14px] text-[#111827] focus-visible:ring-[#0F172A] shadow-sm"
+              >
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="member">Member</SelectItem>
-                <SelectItem value="superadmin">Superadmin</SelectItem>
+              <SelectContent className="rounded-[10px] border-[#E5E7EB] shadow-lg">
+                <SelectItem value="member" className="py-2.5">
+                  Member
+                </SelectItem>
+                <SelectItem value="superadmin" className="py-2.5">
+                  Owner
+                </SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              {role === "superadmin"
-                ? "Full access including user management."
-                : "Standard dashboard access only."}
-            </p>
           </div>
 
           {error && (
-            <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2">
-              <p className="text-sm text-destructive">{error}</p>
+            <div className="rounded-[10px] bg-[#FEF2F2] border border-[#FCA5A5] px-4 py-3">
+              <p className="text-[14px] text-[#EF4444] font-medium">{error}</p>
             </div>
           )}
 
-          <DialogFooter className="pt-2">
+          <div className="flex justify-end gap-3">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={isPending}
+              className="h-10 rounded-[8px] border border-[#E5E7EB] bg-white text-[#111827] hover:bg-[#FAFAFA] hover:text-[#111827] px-4 font-medium"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button
+              type="submit"
+              disabled={isPending}
+              className="h-10 rounded-[8px] bg-[#0F172A] text-white hover:bg-[#1E293B] px-5 font-medium shadow-sm"
+            >
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -137,7 +158,7 @@ export function InviteUserDialog() {
                 "Send Invite"
               )}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

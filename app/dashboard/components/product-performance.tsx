@@ -28,50 +28,53 @@ export function ProductPerformance() {
 
   return (
     <div className="w-full overflow-hidden">
-      <div className="flex items-end justify-between mb-8 border-b border-border pb-3">
-        <h2 className="text-lg font-semibold text-primary">
-          Top Selling Products
-        </h2>
-        <button className="text-xs font-medium text-accent hover:underline">
+      <div className="mb-8 flex items-end justify-between border-b border-border pb-4">
+        <div>
+          <span className="dashboard-kicker">Merchandising</span>
+          <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-primary">
+            Top Selling Products
+          </h2>
+        </div>
+        <button className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-primary">
           View all products
         </button>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-border">
-              <th className="pb-3 text-xs font-semibold text-secondary-foreground uppercase tracking-wider">
+              <th className="pb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Product Name
               </th>
-              <th className="pb-3 text-xs font-semibold text-secondary-foreground uppercase tracking-wider">
+              <th className="pb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Revenue
               </th>
-              <th className="pb-3 text-xs font-semibold text-secondary-foreground uppercase tracking-wider">
+              <th className="pb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Units Sold
               </th>
-              <th className="pb-3 text-xs font-semibold text-secondary-foreground uppercase tracking-wider text-right">
+              <th className="pb-3 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Conversion Rate
               </th>
             </tr>
           </thead>
           <tbody>
-            {products.map((product, idx) => (
+            {products.map((product) => (
               <tr
-                key={idx}
-                className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors"
+                key={product.name}
+                className="border-b border-border/45 transition-colors last:border-0 hover:bg-background/65"
               >
-                <td className="py-3 text-sm font-medium text-primary">
+                <td className="py-4 text-sm font-semibold text-primary">
                   {product.name}
                 </td>
-                <td className="py-3 text-sm text-primary font-semibold">
+                <td className="py-4 text-sm font-semibold text-primary">
                   {product.revenue}
                 </td>
-                <td className="py-3 text-sm text-secondary-foreground">
+                <td className="py-4 text-sm text-secondary-foreground">
                   {product.units}
                 </td>
-                <td className="py-3 text-right">
-                  <span className="text-secondary-foreground font-medium text-sm">
+                <td className="py-4 text-right">
+                  <span className="text-sm font-semibold text-secondary-foreground">
                     {product.conversion}
                   </span>
                 </td>

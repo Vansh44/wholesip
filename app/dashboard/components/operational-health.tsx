@@ -30,8 +30,9 @@ export function OperationalHealth() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="mb-8 border-b border-border pb-3">
-        <h2 className="text-lg font-semibold text-primary">
+      <div className="mb-8 border-b border-border pb-4">
+        <span className="dashboard-kicker">Infrastructure</span>
+        <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-primary">
           Operational Health
         </h2>
       </div>
@@ -40,7 +41,7 @@ export function OperationalHealth() {
         {services.map((service, index) => (
           <div
             key={index}
-            className="flex items-center justify-between py-3 border-b border-border/40 last:border-0"
+            className="flex items-center justify-between border-b border-border/40 py-4 last:border-0"
           >
             <div className="flex items-center gap-3">
               <service.icon className="h-4 w-4 text-muted-foreground" />
@@ -49,11 +50,9 @@ export function OperationalHealth() {
               </span>
             </div>
 
-            <div className="flex items-center gap-2 bg-success/10 px-2.5 py-1 rounded-full border border-success/20">
-              <span
-                className={`w-2 h-2 rounded-full bg-success animate-pulse`}
-              ></span>
-              <span className="text-xs font-semibold text-success uppercase tracking-wider">
+            <div className="flex items-center gap-2 border border-success/20 bg-success/10 px-2.5 py-1.5">
+              <span className="h-2 w-2 rounded-full bg-success"></span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-success">
                 {service.status}
               </span>
             </div>
