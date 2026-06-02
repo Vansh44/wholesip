@@ -25,7 +25,6 @@ import { Loader2 } from "lucide-react";
 export function InviteUserDialog({
   className,
   label = "Add User",
-  size = "sm",
 }: {
   className?: string;
   label?: string;

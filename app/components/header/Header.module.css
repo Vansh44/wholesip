@@ -117,6 +117,191 @@
   transform: scale(1.08);
 }
 
+/* ---- Profile Wrapper & Avatar ---- */
+.profileWrapper {
+  position: relative;
+}
+
+.avatarBubble {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1a1a1a 0%, #444 100%);
+  color: #fff;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: transform 0.2s ease;
+}
+
+.userIconLoggedIn:hover .avatarBubble {
+  transform: scale(1.08);
+}
+
+/* ---- Profile Dropdown ---- */
+.profileDropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 260px;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  z-index: 60;
+  padding: 8px;
+  animation: dropdownFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.profileDropdownHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.profileDropdownAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1a1a1a 0%, #444 100%);
+  color: #fff;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.profileDropdownInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.profileDropdownName {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profileDropdownPhone {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 12px;
+  color: #888;
+}
+
+.profileDropdownDivider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 4px 8px;
+}
+
+.profileDropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.profileDropdownItem:hover {
+  background: #f8f8f8;
+  color: #1a1a1a;
+}
+
+/* ---- Mobile Drawer Auth Section ---- */
+.drawerAuth {
+  margin-top: auto;
+  padding-top: 32px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.drawerAuthUser {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.drawerAuthAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1a1a1a 0%, #444 100%);
+  color: #fff;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.drawerAuthName {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #323232;
+}
+
+.drawerAuthBtn {
+  width: 100%;
+  padding: 12px;
+  border: 1.5px solid #1a1a1a;
+  border-radius: 10px;
+  background: transparent;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  cursor: pointer;
+  text-align: center;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.drawerAuthBtn:hover {
+  background: #1a1a1a;
+  color: #fff;
+}
+
 .hamburgerBtn {
   display: none;
   background: transparent;
@@ -280,6 +465,28 @@
 
   .hamburgerBtn {
     display: flex;
+  }
+
+  .profileDropdown {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    border-radius: 16px 16px 0 0;
+    animation: dropdownSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes dropdownSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 
