@@ -1,104 +1,70 @@
-import {
-  ShoppingBag,
-  Edit,
-  UserPlus,
-  RefreshCcw,
-  FileText,
-} from "lucide-react";
-
 const activities = [
   {
-    id: 1,
-    type: "order",
-    title: "New order placed",
-    description: "Order #4092 for $249.00 by Sarah Jenkins.",
-    time: "10 mins ago",
-    icon: ShoppingBag,
-    color: "text-blue-500",
-    bg: "bg-blue-500/10",
+    color: "var(--dash-green)",
+    text: (
+      <>
+        <strong>New order</strong> placed by Priya Sharma
+      </>
+    ),
+    time: "2 min ago",
   },
   {
-    id: 2,
-    type: "product",
-    title: "Product updated",
-    description: "Pricing updated for 'Premium Wireless Headphones'.",
-    time: "1 hour ago",
-    icon: Edit,
-    color: "text-indigo-500",
-    bg: "bg-indigo-500/10",
+    color: "var(--dash-accent)",
+    text: (
+      <>
+        <strong>Blog post</strong> &quot;Summer Sale Tips&quot; published
+      </>
+    ),
+    time: "18 min ago",
   },
   {
-    id: 3,
-    type: "customer",
-    title: "New customer registered",
-    description: "Michael Chen joined via organic search.",
-    time: "2 hours ago",
-    icon: UserPlus,
-    color: "text-success",
-    bg: "bg-success/10",
+    color: "var(--dash-amber)",
+    text: (
+      <>
+        <strong>Low stock</strong> alert: Almond Soak (4 left)
+      </>
+    ),
+    time: "1 hr ago",
   },
   {
-    id: 4,
-    type: "refund",
-    title: "Refund processed",
-    description: "Refund of $45.00 processed for Order #4088.",
-    time: "4 hours ago",
-    icon: RefreshCcw,
-    color: "text-warning",
-    bg: "bg-warning/10",
+    color: "var(--dash-accent-2)",
+    text: (
+      <>
+        <strong>New customer</strong> Suresh K. registered
+      </>
+    ),
+    time: "3 hr ago",
   },
   {
-    id: 5,
-    type: "blog",
-    title: "Blog published",
-    description: "'10 Tips for Better Audio' is now live.",
-    time: "Yesterday",
-    icon: FileText,
-    color: "text-purple-500",
-    bg: "bg-purple-500/10",
+    color: "var(--dash-red)",
+    text: (
+      <>
+        <strong>Order cancelled</strong> #ORD-4818 by Vikram Singh
+      </>
+    ),
+    time: "5 hr ago",
   },
 ];
 
 export function ActivityFeed() {
   return (
-    <div className="h-full">
-      <div className="mb-6 flex items-center justify-between border-b border-border pb-4">
-        <div>
-          <span className="dashboard-kicker">Signals</span>
-          <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-primary">
-            Business Activity
-          </h2>
-        </div>
-        <button className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-primary">
-          View all
-        </button>
+    <div className="dash-card h-full">
+      <div className="dash-card-header">
+        <div className="dash-card-title">Recent Activity</div>
       </div>
-
-      <div className="relative">
-        <div className="absolute bottom-2 left-[15px] top-2 z-0 w-px bg-border/60"></div>
-
-        <div className="relative z-10 flex flex-col gap-5">
-          {activities.map((activity) => (
-            <div key={activity.id} className="group flex gap-3 items-start">
-              <div
-                className={`flex h-8 w-8 shrink-0 items-center justify-center border border-border/80 bg-card ${activity.bg}`}
-              >
-                <activity.icon className={`h-3.5 w-3.5 ${activity.color}`} />
-              </div>
-              <div className="flex flex-col pt-0.5">
-                <span className="text-sm font-semibold text-primary transition-colors group-hover:text-accent">
-                  {activity.title}
-                </span>
-                <span className="mt-1 text-xs leading-5 text-secondary-foreground">
-                  {activity.description}
-                </span>
-                <span className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  {activity.time}
-                </span>
-              </div>
+      <div className="px-5 py-3">
+        {activities.map((item, i) => (
+          <div key={i} className="dash-activity-item">
+            <div
+              className="dash-activity-dot"
+              style={{ background: item.color }}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="dash-activity-text">{item.text}</div>
+              <div className="dash-activity-time">{item.time}</div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );

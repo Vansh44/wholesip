@@ -1,56 +1,57 @@
-import { TrendingUp, ShoppingBag, Users, AlertTriangle } from "lucide-react";
+import { IndianRupee, Package, Users, ShoppingBag } from "lucide-react";
 
 export function ExecutiveMetrics() {
   const metrics = [
     {
-      label: "Revenue",
-      value: "$84,250.00",
-      change: "+12.5%",
-      icon: TrendingUp,
-      tone: "text-accent",
+      label: "Total Revenue",
+      value: "₹4,28,900",
+      trend: "+12.4%",
+      trendUp: true,
+      icon: IndianRupee,
+      tone: "blue" as const,
     },
     {
-      label: "Orders",
-      value: "1,248",
-      change: "+8.2%",
-      icon: ShoppingBag,
-      tone: "text-primary",
+      label: "Orders This Month",
+      value: "1,284",
+      trend: "+8.1%",
+      trendUp: true,
+      icon: Package,
+      tone: "green" as const,
     },
     {
-      label: "Customers",
-      value: "8,492",
-      change: "+4.1%",
+      label: "Total Customers",
+      value: "3,940",
+      trend: "+5.3%",
+      trendUp: true,
       icon: Users,
-      tone: "text-primary",
+      tone: "amber" as const,
     },
     {
-      label: "Inventory Alerts",
-      value: "12",
-      change: "Low Stock",
-      icon: AlertTriangle,
-      tone: "text-warning",
+      label: "Products Listed",
+      value: "248",
+      trend: "-2.1%",
+      trendUp: false,
+      icon: ShoppingBag,
+      tone: "red" as const,
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
       {metrics.map((metric) => (
-        <div
-          key={metric.label}
-          className="dashboard-panel-muted flex min-h-[148px] flex-col justify-between px-5 py-5"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <span className="dashboard-kicker">{metric.label}</span>
-            <metric.icon className={`h-4 w-4 ${metric.tone}`} />
-          </div>
-          <div className="space-y-2">
-            <div className="text-3xl font-semibold tracking-[-0.04em] text-primary">
-              {metric.value}
+        <div key={metric.label} className="dash-stat-card">
+          <div className="mb-3 flex items-start justify-between">
+            <div className={`dash-stat-icon ${metric.tone}`}>
+              <metric.icon className="h-4 w-4" />
             </div>
-            <div className={`text-sm font-semibold ${metric.tone}`}>
-              {metric.change}
-            </div>
+            <span
+              className={`dash-trend ${metric.trendUp ? "dash-trend-up" : "dash-trend-down"}`}
+            >
+              {metric.trend}
+            </span>
           </div>
+          <div className="dash-stat-val">{metric.value}</div>
+          <div className="dash-stat-label">{metric.label}</div>
         </div>
       ))}
     </div>

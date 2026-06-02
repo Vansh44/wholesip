@@ -2,16 +2,6 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  MoreHorizontal,
-  Search,
-  ShieldAlert,
-  UserX,
-  UserCheck,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Select,
@@ -28,14 +18,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -43,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { InviteUserDialog } from "./invite-user-dialog";
 import type { Profile } from "./page";
 import {
@@ -50,109 +33,22 @@ import {
   changeUserRole,
   toggleUserSuspension,
 } from "@/app/actions/user-management";
+import {
+  formatDisplayName,
+  getAvatarBackground,
+  getInitials,
+  getLastActiveLabel,
+  getRoleDisplay,
+  getStatusDisplay,
+} from "../lib/dashboard-user-display";
 
 type Props = {
   currentUserId: string;
   profiles: Profile[];
 };
 
-type StatusFilter = "all" | "active" | "pending" | "suspended";
-type SortOption = "name" | "recent" | "role";
-
-function formatDisplayName(email: string) {
-  const localPart = email.split("@")[0]?.replace(/[0-9]+$/g, "") ?? "";
-  const segmented = localPart
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .split(/[._\-\s]+/)
-    .filter(Boolean);
-
-  if (segmented.length === 0) {
-    return "Workspace Member";
-  }
-
-  return segmented
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(" ");
-}
-
-function getRoleLabel(role: string) {
-  if (role === "superadmin") return "Owner";
-  if (role === "member") return "Member";
-  return role.charAt(0).toUpperCase() + role.slice(1);
-}
-
-function getRoleClasses(role: string) {
-  if (role === "superadmin") {
-    return "bg-[#F3F4F6] text-[#111827] border-transparent";
-  }
-
-  if (role === "member") {
-    return "bg-[#FAFAFA] text-[#6B7280] border-[#E5E7EB]";
-  }
-
-  return "bg-[#F3F4F6] text-[#6B7280] border-[#E5E7EB]";
-}
-
-function getStatusMeta(profile: Profile) {
-  if (profile.is_suspended) {
-    return {
-      label: "Suspended",
-      dot: "bg-destructive",
-      classes: "bg-destructive/10 text-destructive border-transparent",
-    };
-  }
-
-  if (profile.force_password_reset) {
-    return {
-      label: "Pending",
-      dot: "bg-[#F59E0B]",
-      classes: "bg-[#FEF3C7] text-[#B45309] border-transparent",
-    };
-  }
-
-  return {
-    label: "Active",
-    dot: "bg-[#10B981]",
-    classes: "bg-[#D1FAE5] text-[#047857] border-transparent",
-  };
-}
-
-function getLastActiveLabel(profile: Profile, currentUserId: string) {
-  if (profile.force_password_reset) {
-    return "Never";
-  }
-
-  if (profile.id === currentUserId) {
-    return "Now";
-  }
-
-  const daysSinceAdded = Math.floor(
-    (Date.now() - new Date(profile.created_at).getTime()) / 86400000,
-  );
-
-  if (daysSinceAdded <= 1) return "Today";
-  if (daysSinceAdded <= 7) return `${daysSinceAdded}d ago`;
-  if (daysSinceAdded <= 30) return `${Math.floor(daysSinceAdded / 7)}w ago`;
-
-  return "Recently";
-}
-
-function formatDateLabel(value: string) {
-  return new Date(value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 export function UsersManagementView({ currentUserId, profiles }: Props) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [sort, setSort] = useState<SortOption>("recent");
-
-  // Dialog states
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [actionType, setActionType] = useState<
     "delete" | "role" | "suspend" | null
@@ -160,71 +56,14 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
   const [newRole, setNewRole] = useState<string>("member");
   const [isPending, startTransition] = useTransition();
 
-  const metrics = useMemo(
-    () => [
-      {
-        label: "Total Users",
-        value: profiles.length,
-      },
-      {
-        label: "Active",
-        value: profiles.filter(
-          (profile) => !profile.force_password_reset && !profile.is_suspended,
-        ).length,
-      },
-      {
-        label: "Suspended",
-        value: profiles.filter((profile) => profile.is_suspended).length,
-      },
-    ],
+  const sortedProfiles = useMemo(
+    () =>
+      [...profiles].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      ),
     [profiles],
   );
-
-  const filteredProfiles = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    const nextProfiles = profiles.filter((profile) => {
-      const displayName = formatDisplayName(profile.email).toLowerCase();
-      const matchesQuery =
-        normalizedQuery.length === 0 ||
-        profile.email.toLowerCase().includes(normalizedQuery) ||
-        displayName.includes(normalizedQuery) ||
-        getRoleLabel(profile.role).toLowerCase().includes(normalizedQuery);
-
-      const matchesRole =
-        roleFilter === "all" ||
-        getRoleLabel(profile.role).toLowerCase() === roleFilter;
-
-      const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "active" &&
-          !profile.force_password_reset &&
-          !profile.is_suspended) ||
-        (statusFilter === "pending" && profile.force_password_reset) ||
-        (statusFilter === "suspended" && profile.is_suspended);
-
-      return matchesQuery && matchesRole && matchesStatus;
-    });
-
-    nextProfiles.sort((left, right) => {
-      if (sort === "name") {
-        return formatDisplayName(left.email).localeCompare(
-          formatDisplayName(right.email),
-        );
-      }
-
-      if (sort === "role") {
-        return getRoleLabel(left.role).localeCompare(getRoleLabel(right.role));
-      }
-
-      return (
-        new Date(right.created_at).getTime() -
-        new Date(left.created_at).getTime()
-      );
-    });
-
-    return nextProfiles;
-  }, [profiles, query, roleFilter, sort, statusFilter]);
 
   const handleAction = async () => {
     if (!selectedUser || !actionType) return;
@@ -250,7 +89,7 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success(`User action successful`);
+        toast.success("User updated");
         closeDialog();
         router.refresh();
       }
@@ -269,284 +108,120 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[1320px] flex-col animate-in fade-in duration-300">
-      <section className="mb-12 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-3">
-          <h1 className="text-[40px] font-[700] leading-tight tracking-tight text-[#111827]">
-            User Management
-          </h1>
-          <p className="max-w-2xl text-[16px] text-[#6B7280]">
-            Manage workspace members, permissions, roles and access across your
-            organization.
-          </p>
+    <div className="dash-page-enter">
+      <header className="dash-page-header row">
+        <div>
+          <h1>Users</h1>
+          <p>Manage dashboard access — only authorised users</p>
         </div>
         <InviteUserDialog
-          className="h-11 rounded-[10px] bg-[#0F172A] px-6 text-[14px] font-medium text-white shadow-sm transition-colors hover:bg-[#1E293B]"
-          label="Add User"
+          className="dash-btn dash-btn-primary shrink-0"
+          label="＋ Invite User"
           size="default"
         />
-      </section>
+      </header>
 
-      <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {metrics.map((metric) => (
-          <div
-            key={metric.label}
-            className="rounded-[12px] border border-[#E5E7EB] bg-white p-6"
-          >
-            <p className="mb-3 text-[14px] font-medium text-[#6B7280]">
-              {metric.label}
-            </p>
-            <p className="text-[32px] font-[700] leading-none text-[#111827]">
-              {metric.value}
-            </p>
-          </div>
-        ))}
-      </section>
-
-      <section className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative w-full lg:max-w-[460px]">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6B7280]" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search users, email, role..."
-            className="h-11 w-full rounded-[10px] border-[#E5E7EB] bg-white pl-10 pr-4 text-[14px] shadow-sm placeholder:text-[#6B7280] focus-visible:ring-[#0F172A]"
-          />
+      <div className="dash-card">
+        <div className="dash-card-header">
+          <div className="dash-card-title">Dashboard Users</div>
         </div>
+        <table className="dash-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Last Active</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedProfiles.map((profile) => {
+              const displayName = formatDisplayName(profile.email);
+              const role = getRoleDisplay(profile.role);
+              const status = getStatusDisplay(profile);
 
-        <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 lg:w-auto">
-          <Select
-            value={roleFilter}
-            onValueChange={(value) => setRoleFilter(value ?? "all")}
-          >
-            <SelectTrigger className="h-11 min-w-[140px] rounded-[10px] border-[#E5E7EB] bg-white px-3 text-[14px] shadow-sm">
-              <SelectValue placeholder="Role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All roles</SelectItem>
-              <SelectItem value="owner">Owner</SelectItem>
-              <SelectItem value="member">Member</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={statusFilter}
-            onValueChange={(value) =>
-              setStatusFilter((value as StatusFilter) ?? "all")
-            }
-          >
-            <SelectTrigger className="h-11 min-w-[140px] rounded-[10px] border-[#E5E7EB] bg-white px-3 text-[14px] shadow-sm">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="suspended">Suspended</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={sort}
-            onValueChange={(value) =>
-              setSort((value as SortOption) ?? "recent")
-            }
-          >
-            <SelectTrigger className="h-11 min-w-[140px] rounded-[10px] border-[#E5E7EB] bg-white px-3 text-[14px] shadow-sm">
-              <SelectValue placeholder="Sort" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recent">Newest</SelectItem>
-              <SelectItem value="name">Name</SelectItem>
-              <SelectItem value="role">Role</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </section>
-
-      <section className="mb-12 overflow-hidden rounded-[16px] border border-[#E5E7EB] bg-white">
-        <div className="overflow-x-auto">
-          <Table className="min-w-[900px]">
-            <TableHeader>
-              <TableRow className="border-b border-[#E5E7EB] hover:bg-transparent bg-[#FAFAFA]">
-                <TableHead className="h-12 pl-6 text-[12px] font-medium text-[#6B7280]">
-                  User
-                </TableHead>
-                <TableHead className="h-12 text-[12px] font-medium text-[#6B7280]">
-                  Role
-                </TableHead>
-                <TableHead className="h-12 text-[12px] font-medium text-[#6B7280]">
-                  Status
-                </TableHead>
-                <TableHead className="h-12 text-[12px] font-medium text-[#6B7280]">
-                  Last Active
-                </TableHead>
-                <TableHead className="h-12 text-[12px] font-medium text-[#6B7280]">
-                  Date Added
-                </TableHead>
-                <TableHead className="h-12 pr-6 text-right text-[12px] font-medium text-[#6B7280] w-[80px]">
-                  Actions
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {filteredProfiles.map((profile) => {
-                const displayName = formatDisplayName(profile.email);
-                const roleLabel = getRoleLabel(profile.role);
-                const status = getStatusMeta(profile);
-
-                return (
-                  <TableRow
-                    key={profile.id}
-                    className={`group min-h-[72px] border-b border-[#E5E7EB] transition-colors hover:bg-[#FAFAFA] last:border-0 ${profile.is_suspended ? "opacity-70" : ""}`}
-                  >
-                    <TableCell className="pl-6 py-4 h-[72px]">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F3F4F6] text-[13px] font-medium text-[#111827] border border-[#E5E7EB]">
-                          {displayName.charAt(0)}
-                        </div>
-                        <div className="min-w-0 flex flex-col">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-[14px] font-medium text-[#111827]">
-                              {displayName}
-                            </p>
-                            {profile.id === currentUserId && (
-                              <Badge
-                                variant="outline"
-                                className="rounded-full border-[#E5E7EB] bg-[#FAFAFA] px-1.5 py-0 text-[10px] font-medium text-[#6B7280]"
-                              >
-                                You
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="truncate text-[13px] text-[#6B7280] mt-0.5">
-                            {profile.email}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="py-4 h-[72px]">
-                      <span
-                        className={`inline-flex rounded-full border px-[10px] py-1 text-[12px] font-medium ${getRoleClasses(profile.role)}`}
-                      >
-                        {roleLabel}
-                      </span>
-                    </TableCell>
-
-                    <TableCell className="py-4 h-[72px]">
+              return (
+                <tr key={profile.id}>
+                  <td>
+                    <div className="dash-flex-row">
                       <div
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-[10px] py-1 text-[12px] font-medium ${status.classes}`}
+                        className="dash-user-avatar"
+                        style={{
+                          background: getAvatarBackground(profile.email),
+                        }}
                       >
-                        <span
-                          className={`h-1.5 w-1.5 rounded-full ${status.dot}`}
-                        />
-                        {status.label}
+                        {getInitials(profile.email)}
                       </div>
-                    </TableCell>
-
-                    <TableCell className="py-4 text-[14px] text-[#6B7280] h-[72px]">
-                      {getLastActiveLabel(profile, currentUserId)}
-                    </TableCell>
-
-                    <TableCell className="py-4 text-[14px] text-[#6B7280] h-[72px]">
-                      {formatDateLabel(profile.created_at)}
-                    </TableCell>
-
-                    <TableCell className="py-4 pr-6 text-right h-[72px]">
-                      {profile.id !== currentUserId && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#6B7280] opacity-0 transition-colors hover:bg-[#F3F4F6] hover:text-[#111827] focus:opacity-100 data-[state=open]:opacity-100 group-hover:opacity-100">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            side="bottom"
-                            align="end"
-                            className="min-w-[160px] border border-[#E5E7EB] bg-white p-1 shadow-md rounded-lg"
-                          >
-                            <DropdownMenuItem
-                              onClick={() => openDialog(profile, "role")}
-                              className="cursor-pointer px-2.5 py-2 text-[13px] text-[#111827] focus:bg-[#F3F4F6]"
-                            >
-                              <ShieldAlert className="w-4 h-4 mr-2 text-[#6B7280]" />
-                              Change Role
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => openDialog(profile, "suspend")}
-                              className="cursor-pointer px-2.5 py-2 text-[13px] text-[#111827] focus:bg-[#F3F4F6]"
-                            >
-                              {profile.is_suspended ? (
-                                <>
-                                  <UserCheck className="w-4 h-4 mr-2 text-green-600" />{" "}
-                                  Un-suspend User
-                                </>
-                              ) : (
-                                <>
-                                  <UserX className="w-4 h-4 mr-2 text-[#6B7280]" />{" "}
-                                  Suspend User
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator className="bg-[#E5E7EB]" />
-                            <DropdownMenuItem
-                              onClick={() => openDialog(profile, "delete")}
-                              className="cursor-pointer px-2.5 py-2 text-[13px] text-[#EF4444] focus:bg-[#FEF2F2] focus:text-[#EF4444]"
-                            >
-                              Remove User
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-
-              {filteredProfiles.length === 0 && (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={6} className="px-6 py-24 text-center">
-                    <div className="mx-auto max-w-sm flex flex-col items-center">
-                      <div className="h-12 w-12 rounded-full bg-[#FAFAFA] border border-[#E5E7EB] flex items-center justify-center mb-4">
-                        <Search className="h-5 w-5 text-[#6B7280]" />
-                      </div>
-                      <p className="text-[16px] font-[600] text-[#111827]">
-                        No users matched your filters
-                      </p>
-                      <p className="mt-1 text-[14px] text-[#6B7280]">
-                        Try a different search term or clear the active filters.
-                      </p>
-                      <div className="mt-6">
-                        <Button
-                          variant="outline"
-                          className="h-10 px-5 text-[14px] border-[#E5E7EB] text-[#111827] hover:bg-[#FAFAFA] rounded-lg shadow-sm"
-                          onClick={() => {
-                            setQuery("");
-                            setRoleFilter("all");
-                            setStatusFilter("all");
-                            setSort("recent");
-                          }}
-                        >
-                          Clear filters
-                        </Button>
-                      </div>
+                      {displayName}
                     </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </section>
+                  </td>
+                  <td className="text-muted">{profile.email}</td>
+                  <td>
+                    <span className={`dash-role-pill ${role.pillClass}`}>
+                      {role.icon} {role.label}
+                    </span>
+                  </td>
+                  <td className="text-dim font-mono-dash">
+                    {getLastActiveLabel(profile, currentUserId)}
+                  </td>
+                  <td>
+                    <span className={`dash-badge ${status.badgeClass}`}>
+                      {status.label}
+                    </span>
+                  </td>
+                  <td>
+                    {profile.id === currentUserId ? (
+                      <span className="text-dim text-[12px]">—</span>
+                    ) : (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
+                          Edit
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+                        >
+                          <DropdownMenuItem
+                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            onClick={() => openDialog(profile, "role")}
+                          >
+                            Change role
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            onClick={() => openDialog(profile, "suspend")}
+                          >
+                            {profile.is_suspended
+                              ? "Un-suspend user"
+                              : "Suspend user"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                          <DropdownMenuItem
+                            className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                            onClick={() => openDialog(profile, "delete")}
+                          >
+                            Remove user
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
-      {/* Action Dialogs */}
       <Dialog
         open={actionType !== null}
         onOpenChange={(open) => !open && closeDialog()}
       >
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-[#e8ecf4]">
               {actionType === "delete" && "Remove User"}
               {actionType === "role" && "Change Role"}
               {actionType === "suspend" &&
@@ -554,14 +229,14 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
                   ? "Un-suspend User"
                   : "Suspend User")}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-[#8b93a8]">
               {actionType === "delete" &&
-                "Are you sure you want to completely remove this user? This action cannot be undone."}
+                "Are you sure you want to remove this user? This cannot be undone."}
               {actionType === "role" && "Select a new role for this user."}
               {actionType === "suspend" &&
                 (selectedUser?.is_suspended
-                  ? "This user will regain access to the platform."
-                  : "This user will immediately lose access to the platform.")}
+                  ? "This user will regain access."
+                  : "This user will lose access immediately.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -571,24 +246,17 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
                 value={newRole}
                 onValueChange={(val) => val && setNewRole(val)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4]">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="superadmin">Owner</SelectItem>
+                <SelectContent className="border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4]">
+                  <SelectItem value="member">Admin</SelectItem>
+                  <SelectItem value="superadmin">Superadmin</SelectItem>
                 </SelectContent>
               </Select>
             )}
-
-            {actionType === "delete" && (
-              <p className="text-sm font-medium text-[#111827]">
-                User: {selectedUser?.email}
-              </p>
-            )}
-
-            {actionType === "suspend" && (
-              <p className="text-sm font-medium text-[#111827]">
+            {(actionType === "delete" || actionType === "suspend") && (
+              <p className="text-sm text-[#8b93a8]">
                 User: {selectedUser?.email}
               </p>
             )}
@@ -599,6 +267,7 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
               variant="outline"
               onClick={closeDialog}
               disabled={isPending}
+              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
             >
               Cancel
             </Button>
@@ -611,8 +280,14 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
               }
               onClick={handleAction}
               disabled={isPending}
+              className={
+                actionType !== "delete" &&
+                !(actionType === "suspend" && !selectedUser?.is_suspended)
+                  ? "bg-[#4f6ef7] text-white hover:bg-[#3d5ce5]"
+                  : undefined
+              }
             >
-              {isPending ? "Saving..." : "Confirm"}
+              {isPending ? "Saving…" : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>

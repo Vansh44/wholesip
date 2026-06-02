@@ -169,10 +169,6 @@ a {
     @apply w-full;
   }
 
-  .dashboard-shell {
-    @apply bg-background;
-  }
-
   .dashboard-panel {
     @apply border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)];
   }
