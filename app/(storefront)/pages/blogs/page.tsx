@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import BlogListingClient from "./blog-listing-client";
 import "./blogs.css";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Blog | Soakd",
   description:

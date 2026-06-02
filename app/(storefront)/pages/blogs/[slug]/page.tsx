@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { BlogCard } from "../blog-listing-client";
 import "../blogs.css";
 
+export const dynamic = "force-dynamic";
+
 interface Blog {
   id: string;
   title: string;
