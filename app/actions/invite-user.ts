@@ -16,8 +16,14 @@ function generateTempPassword(): string {
 }
 
 export async function inviteUser(formData: FormData) {
+  const firstName = formData.get("firstName") as string;
+  const lastName = (formData.get("lastName") as string) || null;
   const email = formData.get("email") as string;
   const role = formData.get("role") as string;
+
+  if (!firstName || !firstName.trim()) {
+    return { error: "First name is required." };
+  }
 
   if (!email || !email.includes("@")) {
     return { error: "Please provide a valid email address." };
@@ -66,6 +72,8 @@ export async function inviteUser(formData: FormData) {
   const { error: profileError } = await adminClient.from("profiles").upsert({
     id: newUser.user.id,
     email,
+    first_name: firstName.trim(),
+    last_name: lastName?.trim() || null,
     role,
     force_password_reset: true,
     invited_by: caller.id,
@@ -108,7 +116,7 @@ export async function inviteUser(formData: FormData) {
       <div style="padding: 32px 24px;">
         <h2 style="margin-top: 0;">You've Been Invited 🎉</h2>
 
-        <p>Hello,</p>
+        <p>Hello ${firstName}${lastName ? " " + lastName : ""},</p>
 
         <p>
           You have been invited to join the <strong>Soakd Admin Dashboard</strong>
@@ -183,6 +191,7 @@ export async function inviteUser(formData: FormData) {
   // Always log to console for dev
   console.log("\n" + "=".repeat(60));
   console.log("📨 USER INVITED");
+  console.log(`Name: ${firstName}${lastName ? " " + lastName : ""}`);
   console.log(`Email: ${email}`);
   console.log(`Role: ${role}`);
   console.log(`Temporary Password: ${tempPassword}`);

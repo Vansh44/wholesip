@@ -5,6 +5,8 @@ import { UsersManagementView } from "./users-management-view";
 export interface Profile {
   id: string;
   email: string;
+  first_name: string;
+  last_name: string | null;
   role: string;
   force_password_reset: boolean;
   is_suspended: boolean;

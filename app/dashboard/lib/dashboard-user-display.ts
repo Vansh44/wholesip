@@ -6,7 +6,21 @@ const AVATAR_BACKGROUNDS = [
   "#6366f1",
 ];
 
-export function formatDisplayName(email: string) {
+/**
+ * Returns the user's display name.
+ * Uses first_name + last_name if available, otherwise falls back to email.
+ */
+export function formatDisplayName(
+  email: string,
+  firstName?: string | null,
+  lastName?: string | null,
+) {
+  if (firstName) {
+    const parts = [firstName, lastName].filter(Boolean);
+    return parts.join(" ");
+  }
+
+  // Fallback: derive from email
   const localPart = email.split("@")[0]?.replace(/[0-9]+$/g, "") ?? "";
   const segmented = localPart
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -23,7 +37,17 @@ export function formatDisplayName(email: string) {
     .join(" ");
 }
 
-export function getInitials(email: string) {
+export function getInitials(
+  email: string,
+  firstName?: string | null,
+  lastName?: string | null,
+) {
+  if (firstName) {
+    const first = firstName.charAt(0).toUpperCase();
+    const last = lastName ? lastName.charAt(0).toUpperCase() : "";
+    return last ? `${first}${last}` : firstName.slice(0, 2).toUpperCase();
+  }
+
   const name = formatDisplayName(email);
   const parts = name.split(" ").filter(Boolean);
   if (parts.length >= 2) {
