@@ -181,25 +181,25 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
-                          className="min-w-[160px] border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-text)]"
+                          className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
                         >
                           <DropdownMenuItem
-                            className="cursor-pointer focus:bg-[var(--dash-surface-3)]"
+                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
                             onClick={() => openDialog(profile, "role")}
                           >
                             Change role
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            className="cursor-pointer focus:bg-[var(--dash-surface-3)]"
+                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
                             onClick={() => openDialog(profile, "suspend")}
                           >
                             {profile.is_suspended
                               ? "Un-suspend user"
                               : "Suspend user"}
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator className="bg-[var(--dash-border)]" />
+                          <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
                           <DropdownMenuItem
-                            className="cursor-pointer text-[var(--dash-red)] focus:bg-[var(--dash-red-soft)] focus:text-[var(--dash-red)]"
+                            className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
                             onClick={() => openDialog(profile, "delete")}
                           >
                             Remove user
@@ -219,9 +219,9 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
         open={actionType !== null}
         onOpenChange={(open) => !open && closeDialog()}
       >
-        <DialogContent className="border-[var(--dash-border)] bg-[var(--dash-surface)] text-[var(--dash-text)] sm:max-w-[425px]">
+        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-[#e8ecf4]">
               {actionType === "delete" && "Remove User"}
               {actionType === "role" && "Change Role"}
               {actionType === "suspend" &&
@@ -229,7 +229,7 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
                   ? "Un-suspend User"
                   : "Suspend User")}
             </DialogTitle>
-            <DialogDescription className="text-[var(--dash-text-2)]">
+            <DialogDescription className="text-[#8b93a8]">
               {actionType === "delete" &&
                 "Are you sure you want to remove this user? This cannot be undone."}
               {actionType === "role" && "Select a new role for this user."}
@@ -246,17 +246,17 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
                 value={newRole}
                 onValueChange={(val) => val && setNewRole(val)}
               >
-                <SelectTrigger className="dash-input border-[var(--dash-border)] bg-[var(--dash-surface-2)]">
+                <SelectTrigger className="border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4]">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4]">
                   <SelectItem value="member">Admin</SelectItem>
                   <SelectItem value="superadmin">Superadmin</SelectItem>
                 </SelectContent>
               </Select>
             )}
             {(actionType === "delete" || actionType === "suspend") && (
-              <p className="text-sm text-[var(--dash-text-2)]">
+              <p className="text-sm text-[#8b93a8]">
                 User: {selectedUser?.email}
               </p>
             )}
@@ -267,7 +267,7 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
               variant="outline"
               onClick={closeDialog}
               disabled={isPending}
-              className="border-[var(--dash-border)] bg-transparent text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
             >
               Cancel
             </Button>
@@ -283,7 +283,7 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
               className={
                 actionType !== "delete" &&
                 !(actionType === "suspend" && !selectedUser?.is_suspended)
-                  ? "bg-[var(--dash-accent)] text-white hover:bg-[#3d5ce5]"
+                  ? "bg-[#4f6ef7] text-white hover:bg-[#3d5ce5]"
                   : undefined
               }
             >

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Sora, JetBrains_Mono } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
@@ -121,23 +122,14 @@ export default async function DashboardLayout({
       <aside className="hidden h-screen w-[240px] shrink-0 flex-col border-r border-[var(--dash-border)] bg-[var(--dash-surface)] md:flex">
         <div className="mb-2 flex items-center gap-2.5 border-b border-[var(--dash-border)] px-[18px] py-5">
           <Link href="/dashboard" className="flex items-center gap-2.5">
-            <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[15px] font-bold text-white"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--dash-accent), var(--dash-accent-2))",
-              }}
-            >
-              {siteConfig.name.charAt(0)}
-            </div>
-            <div>
-              <div className="text-[15px] font-bold tracking-[-0.3px]">
-                {siteConfig.name}
-              </div>
-              <span className="block text-[11px] font-normal text-[var(--dash-text-2)]">
-                v2.0
-              </span>
-            </div>
+            <Image
+              src={siteConfig.assets.logoUrl}
+              alt="Soakd Logo"
+              width={180}
+              height={60}
+              priority
+              style={{ height: "auto" }}
+            />
           </Link>
         </div>
 

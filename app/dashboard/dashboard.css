@@ -1,9 +1,9 @@
 /* Premium operations center — scoped to .dashboard-shell */
 .dashboard-shell {
-  --dash-bg: #0d0f14;
-  --dash-surface: #141720;
-  --dash-surface-2: #1a1f2e;
-  --dash-surface-3: #1f2535;
+  --dash-bg: #f2f4f7;
+  --dash-surface: #ffffff;
+  --dash-surface-2: #eaecf2;
+  --dash-surface-3: #dde0ea;
   --dash-border: rgba(255, 255, 255, 0.06);
   --dash-border-hover: rgba(255, 255, 255, 0.12);
   --dash-accent: #4f6ef7;
@@ -15,9 +15,9 @@
   --dash-amber-soft: rgba(245, 158, 11, 0.12);
   --dash-red: #ef4444;
   --dash-red-soft: rgba(239, 68, 68, 0.12);
-  --dash-text: #e8ecf4;
-  --dash-text-2: #8b93a8;
-  --dash-text-3: #4f5768;
+  --dash-text: #000000;
+  --dash-text-2: #000000;
+  --dash-text-3: #000000;
   --dash-radius: 12px;
   --dash-radius-sm: 8px;
   --dash-sidebar-w: 240px;
@@ -68,12 +68,12 @@
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.4px;
-  color: var(--dash-text);
+  color: #000000;
   line-height: 1.2;
 }
 
 .dashboard-shell .dash-page-header p {
-  color: var(--dash-text-2);
+  color: #000000;
   font-size: 13.5px;
   margin-top: 3px;
 }
@@ -99,11 +99,12 @@
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.02em;
+  color: #000000;
 }
 
 .dashboard-shell .dash-card-sub {
   font-size: 12px;
-  color: var(--dash-text-3);
+  color: #000000;
   margin-top: 1px;
 }
 
@@ -177,11 +178,12 @@
   letter-spacing: -0.8px;
   font-family: var(--font-dash-mono), monospace;
   line-height: 1.1;
+  color: #000000;
 }
 
 .dashboard-shell .dash-stat-label {
   font-size: 12px;
-  color: var(--dash-text-2);
+  color: #000000;
   margin-top: 4px;
 }
 
@@ -213,7 +215,7 @@
 }
 .dashboard-shell .dash-badge-grey {
   background: rgba(255, 255, 255, 0.06);
-  color: var(--dash-text-2);
+  color: #000000;
 }
 
 /* Role pills (reference design) */
@@ -272,7 +274,7 @@
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  color: var(--dash-text-2);
+  color: #000000;
   transition: all 0.15s ease;
   border: none;
   background: transparent;
@@ -281,12 +283,12 @@
 
 .dashboard-shell .dash-filter-tab.active {
   background: var(--dash-surface);
-  color: var(--dash-text);
+  color: #000000;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .dashboard-shell .dash-filter-tab:hover:not(.active) {
-  color: var(--dash-text);
+  color: #000000;
 }
 
 /* Buttons */
@@ -317,11 +319,11 @@
 .dashboard-shell .dash-btn-ghost {
   background: transparent;
   border: 1px solid var(--dash-border);
-  color: var(--dash-text-2);
+  color: #000000;
 }
 .dashboard-shell .dash-btn-ghost:hover {
   border-color: var(--dash-border-hover);
-  color: var(--dash-text);
+  color: #000000;
   background: var(--dash-surface-2);
 }
 
@@ -342,7 +344,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--dash-text-3);
+  color: #000000;
   padding: 10px 16px;
   border-bottom: 1px solid var(--dash-border);
   background: var(--dash-surface-2);
@@ -351,7 +353,7 @@
 .dashboard-shell .dash-table td {
   padding: 11px 16px;
   font-size: 13px;
-  color: var(--dash-text);
+  color: #000000;
   border-bottom: 1px solid var(--dash-border);
   vertical-align: middle;
 }
@@ -365,12 +367,12 @@
 }
 
 .dashboard-shell .dash-table .text-muted {
-  color: var(--dash-text-2);
+  color: #000000;
   font-size: 12px;
 }
 
 .dashboard-shell .dash-table .text-dim {
-  color: var(--dash-text-3);
+  color: #000000;
   font-size: 12px;
 }
 
@@ -387,10 +389,11 @@
   justify-content: space-between;
   font-size: 12.5px;
   margin-bottom: 5px;
+  color: #000000;
 }
 
 .dashboard-shell .dash-progress-label span:last-child {
-  color: var(--dash-text-2);
+  color: #000000;
   font-family: var(--font-dash-mono), monospace;
   font-size: 12px;
 }
@@ -446,7 +449,7 @@
 
 .dashboard-shell .dash-bar-label {
   font-size: 10px;
-  color: var(--dash-text-3);
+  color: #000000;
 }
 
 /* Activity */
@@ -471,17 +474,17 @@
 
 .dashboard-shell .dash-activity-text {
   font-size: 13px;
-  color: var(--dash-text-2);
+  color: #000000;
 }
 
 .dashboard-shell .dash-activity-text strong {
-  color: var(--dash-text);
+  color: #000000;
   font-weight: 600;
 }
 
 .dashboard-shell .dash-activity-time {
   font-size: 11px;
-  color: var(--dash-text-3);
+  color: #000000;
   margin-top: 2px;
   font-family: var(--font-dash-mono), monospace;
 }
@@ -502,11 +505,12 @@
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.2px;
+  color: #000000;
 }
 
 .dashboard-shell .dash-topbar-bc {
   font-size: 12px;
-  color: var(--dash-text-3);
+  color: #000000;
   margin-top: 2px;
 }
 
@@ -530,14 +534,14 @@
   background: none;
   border: none;
   outline: none;
-  color: var(--dash-text);
+  color: #000000;
   font-size: 13px;
   font-family: inherit;
   width: 100%;
 }
 
 .dashboard-shell .dash-search-bar input::placeholder {
-  color: var(--dash-text-3);
+  color: #000000;
 }
 
 .dashboard-shell .dash-icon-btn {
@@ -550,14 +554,14 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--dash-text-2);
+  color: #000000;
   transition: all 0.15s;
   position: relative;
 }
 
 .dashboard-shell .dash-icon-btn:hover {
   border-color: var(--dash-border-hover);
-  color: var(--dash-text);
+  color: #000000;
   background: var(--dash-surface-3);
 }
 
@@ -567,7 +571,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--dash-text-3);
+  color: #000000;
   padding: 10px 8px 4px;
 }
 
@@ -579,7 +583,7 @@
   border-radius: var(--dash-radius-sm);
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--dash-text-2);
+  color: #000000;
   transition: all 0.15s ease;
   position: relative;
   margin-bottom: 1px;
@@ -587,12 +591,12 @@
 
 .dashboard-shell .dash-nav-item:hover {
   background: var(--dash-surface-2);
-  color: var(--dash-text);
+  color: #000000;
 }
 
 .dashboard-shell .dash-nav-item.active {
   background: var(--dash-accent-soft);
-  color: var(--dash-accent);
+  color: #000000;
 }
 
 .dashboard-shell .dash-nav-item.active::before {
