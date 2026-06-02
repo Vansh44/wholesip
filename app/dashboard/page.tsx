@@ -10,41 +10,32 @@ import { RecentOrdersTable } from "./components/recent-orders-table";
 
 export default async function DashboardHomePage() {
   return (
-    <div className="flex flex-col gap-12 w-full animate-in fade-in duration-500 pb-20">
-      {/* Header Area */}
+    <div className="flex w-full flex-col gap-8 animate-in fade-in duration-500 pb-16">
       <HeroPanel />
-
-      {/* Horizontal Actions Strip */}
       <ActionCards />
-
-      {/* Executive Metrics Overview */}
       <ExecutiveMetrics />
-
-      {/* Main Grid Row 1: Analytics & Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-        <div className="lg:col-span-8">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="dashboard-panel lg:col-span-8 px-5 py-5 sm:px-6 sm:py-6">
           <RevenueChart />
         </div>
-        <div className="lg:col-span-4">
+        <div className="dashboard-panel lg:col-span-4 px-5 py-5 sm:px-6 sm:py-6">
           <ActivityFeed />
         </div>
       </div>
-
-      {/* Main Grid Row 2: Performance & Health */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-        <div className="lg:col-span-8">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="dashboard-panel lg:col-span-8 px-5 py-5 sm:px-6 sm:py-6">
           <ProductPerformance />
         </div>
-        <div className="lg:col-span-4">
+        <div className="dashboard-panel lg:col-span-4 px-5 py-5 sm:px-6 sm:py-6">
           <OperationalHealth />
         </div>
       </div>
-
-      {/* Main Grid Row 3: Inventory */}
-      <InventoryHealth />
-
-      {/* Main Grid Row 4: Orders */}
-      <RecentOrdersTable />
+      <div className="dashboard-panel px-5 py-5 sm:px-6 sm:py-6">
+        <InventoryHealth />
+      </div>
+      <div className="dashboard-panel px-5 py-5 sm:px-6 sm:py-6">
+        <RecentOrdersTable />
+      </div>
     </div>
   );
 }

@@ -86,10 +86,10 @@ export async function inviteUser(formData: FormData) {
     try {
       const resend = new Resend(resendApiKey);
       await resend.emails.send({
-  from: "Soakd Dashboard <admin@getsoakd.in>",
-  to: email,
-  subject: "Welcome to Soakd Dashboard",
-  html: `
+        from: "Soakd Dashboard <admin@getsoakd.in>",
+        to: email,
+        subject: "Welcome to Soakd Dashboard",
+        html: `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
       
       <div style="background: #ffffff; padding: 24px; text-align: center;">
@@ -174,7 +174,7 @@ export async function inviteUser(formData: FormData) {
       </div>
     </div>
   `,
-});
+      });
     } catch (e) {
       console.error("Failed to send invite email via Resend:", e);
     }

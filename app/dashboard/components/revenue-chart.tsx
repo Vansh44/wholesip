@@ -28,25 +28,26 @@ export function RevenueChart() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 border-b border-border pb-3">
+      <div className="mb-8 flex flex-col justify-between gap-4 border-b border-border pb-4 sm:flex-row sm:items-end">
         <div>
-          <h2 className="text-lg font-semibold text-primary">
+          <span className="dashboard-kicker">Analytics View</span>
+          <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-primary">
             Revenue & Orders Analytics
           </h2>
-          <p className="text-sm text-secondary-foreground mt-0.5">
+          <p className="mt-1 text-sm text-secondary-foreground">
             Overview of your store performance
           </p>
         </div>
 
-        <div className="flex bg-muted p-1 rounded-lg">
+        <div className="flex flex-wrap gap-2">
           {tabs.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              className={`border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] transition-all ${
                 activeTab === tab
-                  ? "bg-card text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-primary"
+                  ? "border-accent/35 bg-accent text-accent-foreground"
+                  : "border-border/80 bg-background/80 text-muted-foreground hover:border-border hover:text-primary"
               }`}
             >
               {tab}
@@ -68,42 +69,43 @@ export function RevenueChart() {
           >
             <defs>
               <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366F1" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+                <stop offset="5%" stopColor="#1E6B64" stopOpacity={0.28} />
+                <stop offset="95%" stopColor="#1E6B64" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid
-              strokeDasharray="3 3"
+              strokeDasharray="2 5"
               vertical={false}
-              stroke="#E5E7EB"
+              stroke="#D7D0C2"
             />
             <XAxis
               dataKey="name"
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: "#6B7280" }}
+              tick={{ fontSize: 12, fill: "#67717D" }}
               dy={10}
             />
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: "#6B7280" }}
+              tick={{ fontSize: 12, fill: "#67717D" }}
               tickFormatter={(value) => `$${value}`}
               dx={-10}
             />
             <Tooltip
               contentStyle={{
-                borderRadius: "8px",
-                border: "1px solid #E5E7EB",
-                boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                borderRadius: "4px",
+                border: "1px solid #D7D0C2",
+                backgroundColor: "#FBFAF7",
+                boxShadow: "0 14px 32px -24px rgba(19, 26, 34, 0.55)",
               }}
-              itemStyle={{ color: "#111827", fontWeight: 500 }}
+              itemStyle={{ color: "#131A22", fontWeight: 600 }}
             />
             <Area
               type="monotone"
               dataKey="revenue"
-              stroke="#6366F1"
-              strokeWidth={2}
+              stroke="#1E6B64"
+              strokeWidth={2.25}
               fillOpacity={1}
               fill="url(#colorRevenue)"
             />

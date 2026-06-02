@@ -4,42 +4,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/config/site";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
-import {
-  LayoutDashboard,
-  Users,
-  ShoppingCart,
-  Package,
-  Archive,
-  LineChart,
-  FileText,
-  Megaphone,
-  Tag,
-  Shield,
-  Activity,
-  Settings,
-  Search,
-  Bell,
-  HelpCircle,
-  Image as ImageIcon,
-} from "lucide-react";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { Search, Bell, HelpCircle } from "lucide-react";
 import { SidebarUser } from "./sidebar-user";
 import { ActiveBreadcrumb } from "./active-breadcrumb";
 import { Input } from "@/components/ui/input";
+import { SidebarNavLink, type SidebarIconKey } from "./sidebar-nav-link";
 
 export const metadata = {
   title: "Soakd — Operations Center",
@@ -99,14 +69,45 @@ export default async function DashboardLayout({
   }
 
   const isSuperadmin = profile.role === "superadmin";
+  const workspaceLinks: {
+    href: string;
+    label: string;
+    icon: SidebarIconKey;
+  }[] = [
+    { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+    { href: "/dashboard/orders", label: "Orders", icon: "orders" },
+    { href: "/dashboard/products", label: "Products", icon: "products" },
+    { href: "/dashboard/customers", label: "Customers", icon: "customers" },
+    { href: "/dashboard/inventory", label: "Inventory", icon: "inventory" },
+    { href: "/dashboard/analytics", label: "Analytics", icon: "analytics" },
+  ];
+
+  const contentLinks: { href: string; label: string; icon: SidebarIconKey }[] =
+    [
+      { href: "/dashboard/blogs", label: "Blogs", icon: "blogs" },
+      { href: "/dashboard/marketing", label: "Marketing", icon: "marketing" },
+      {
+        href: "/dashboard/promotions",
+        label: "Promotions",
+        icon: "promotions",
+      },
+    ];
+
+  const adminLinks: { href: string; label: string; icon: SidebarIconKey }[] = [
+    { href: "/dashboard/users", label: "Users", icon: "users" },
+    { href: "/dashboard/media", label: "Media Library", icon: "media" },
+    { href: "/dashboard/roles", label: "Roles & Permissions", icon: "roles" },
+    { href: "/dashboard/activity", label: "Activity Logs", icon: "activity" },
+    { href: "/dashboard/settings", label: "Settings", icon: "settings" },
+  ];
 
   return (
     <SidebarProvider>
-      <div className="relative flex min-h-screen w-full bg-background text-foreground">
-        <Sidebar className="border-r border-border w-[240px] bg-sidebar">
-          <SidebarHeader className="px-4 py-0 border-b border-border h-14 flex flex-col justify-center">
+      <div className="flex min-h-screen w-full bg-[#FAFAFA] text-[#111827]">
+        <aside className="hidden h-screen w-[260px] shrink-0 flex-col border-r border-[#E5E7EB] bg-white md:flex">
+          <div className="flex h-[4.5rem] flex-col justify-center border-b border-[#E5E7EB] px-6 py-0 shrink-0">
             <Link href="/dashboard" className="flex items-center gap-3 group">
-              <div className="relative h-8 w-32 flex items-center shrink-0">
+              <div className="relative h-9 w-32 shrink-0 items-center">
                 <Image
                   src={siteConfig.assets.logoUrl}
                   alt={`${siteConfig.name} Logo`}
@@ -117,210 +118,100 @@ export default async function DashboardLayout({
                 />
               </div>
             </Link>
-          </SidebarHeader>
+          </div>
 
-          <SidebarContent className="gap-0 py-2">
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+          <div className="flex-1 px-4 py-6 flex flex-col gap-6">
+            <div>
+              <h4 className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]/70">
                 Workspace
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/dashboard" />}
-                      className="data-[active=true]:bg-accent data-[active=true]:text-accent-foreground data-[active=true]:border-l-2 data-[active=true]:border-primary transition-all duration-200"
-                    >
-                      <LayoutDashboard className="h-4 w-4" />
-                      <span>Dashboard</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/dashboard/orders" />}
-                      className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                    >
-                      <ShoppingCart className="h-4 w-4" />
-                      <span>Orders</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/dashboard/products" />}
-                      className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                    >
-                      <Package className="h-4 w-4" />
-                      <span>Products</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/dashboard/customers" />}
-                      className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                    >
-                      <Users className="h-4 w-4" />
-                      <span>Customers</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/dashboard/inventory" />}
-                      className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                    >
-                      <Archive className="h-4 w-4" />
-                      <span>Inventory</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/dashboard/analytics" />}
-                      className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                    >
-                      <LineChart className="h-4 w-4" />
-                      <span>Analytics</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+              </h4>
+              <nav className="flex flex-col space-y-0.5">
+                {workspaceLinks.map((item) => (
+                  <SidebarNavLink
+                    key={item.href}
+                    href={item.href}
+                    label={item.label}
+                    icon={item.icon}
+                  />
+                ))}
+              </nav>
+            </div>
 
-            <SidebarGroup className="mt-4">
-              <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+            <div>
+              <h4 className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]/70">
                 Content
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/dashboard/blogs" />}
-                      className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                    >
-                      <FileText className="h-4 w-4" />
-                      <span>Blogs</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/dashboard/marketing" />}
-                      className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                    >
-                      <Megaphone className="h-4 w-4" />
-                      <span>Marketing</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      render={<Link href="/dashboard/promotions" />}
-                      className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                    >
-                      <Tag className="h-4 w-4" />
-                      <span>Promotions</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+              </h4>
+              <nav className="flex flex-col space-y-0.5">
+                {contentLinks.map((item) => (
+                  <SidebarNavLink
+                    key={item.href}
+                    href={item.href}
+                    label={item.label}
+                    icon={item.icon}
+                  />
+                ))}
+              </nav>
+            </div>
 
             {isSuperadmin && (
-              <SidebarGroup className="mt-4">
-                <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+              <div>
+                <h4 className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]/70">
                   Administration
-                </SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        render={<Link href="/dashboard/users" />}
-                        className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                      >
-                        <Users className="h-4 w-4" />
-                        <span>Users</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        render={<Link href="/dashboard/media" />}
-                        className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                      >
-                        <ImageIcon className="h-4 w-4" />
-                        <span>Media Library</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        render={<Link href="/dashboard/roles" />}
-                        className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                      >
-                        <Shield className="h-4 w-4" />
-                        <span>Roles & Permissions</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        render={<Link href="/dashboard/activity" />}
-                        className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                      >
-                        <Activity className="h-4 w-4" />
-                        <span>Activity Logs</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        render={<Link href="/dashboard/settings" />}
-                        className="hover:bg-accent hover:text-accent-foreground transition-all duration-200"
-                      >
-                        <Settings className="h-4 w-4" />
-                        <span>Settings</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
+                </h4>
+                <nav className="flex flex-col space-y-0.5">
+                  {adminLinks.map((item) => (
+                    <SidebarNavLink
+                      key={item.href}
+                      href={item.href}
+                      label={item.label}
+                      icon={item.icon}
+                    />
+                  ))}
+                </nav>
+              </div>
             )}
-          </SidebarContent>
+          </div>
 
-          <div className="mt-auto p-4 border-t border-border">
+          <div className="mt-auto border-t border-[#E5E7EB] p-4 shrink-0">
             <SidebarUser email={profile.email} role={profile.role} />
           </div>
-        </Sidebar>
+        </aside>
 
-        <SidebarInset className="bg-background relative z-10 w-full flex flex-col">
-          <header className="flex h-14 items-center justify-between border-b border-border px-6 bg-card sticky top-0 z-20 shrink-0">
+        <main className="flex min-h-screen min-w-0 flex-1 flex-col bg-[#FAFAFA]">
+          <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-5 sm:px-8">
             <div className="flex items-center gap-4">
-              <SidebarTrigger className="-ml-2" />
-              <Separator orientation="vertical" className="h-6 bg-border" />
               <ActiveBreadcrumb />
             </div>
 
-            <div className="flex-1 max-w-md mx-6">
+            <div className="mx-6 hidden max-w-md flex-1 md:block">
               <div className="relative group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B7280]" />
                 <Input
                   placeholder="Search..."
-                  className="w-full pl-9 bg-muted/50 border-none focus-visible:ring-1 focus-visible:ring-ring transition-all duration-200 group-hover:bg-muted"
+                  className="h-9 w-full border-[#E5E7EB] bg-[#FAFAFA] pl-9 pr-16 text-[14px] shadow-sm transition-all duration-200 focus-visible:ring-[#0F172A] rounded-md"
                 />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 border border-[#E5E7EB] bg-white px-1.5 font-mono text-[10px] font-medium text-[#6B7280] rounded">
                     <span className="text-xs">⌘</span>K
                   </kbd>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <button className="text-muted-foreground hover:text-foreground transition-colors">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button className="flex h-9 w-9 items-center justify-center text-[#6B7280] transition-colors hover:bg-[#F3F4F6] hover:text-[#111827] rounded-md">
                 <Bell className="h-5 w-5" />
               </button>
-              <button className="text-muted-foreground hover:text-foreground transition-colors">
+              <button className="flex h-9 w-9 items-center justify-center text-[#6B7280] transition-colors hover:bg-[#F3F4F6] hover:text-[#111827] rounded-md">
                 <HelpCircle className="h-5 w-5" />
               </button>
             </div>
           </header>
 
-          <main className="flex-1 w-full max-w-[1440px] mx-auto p-6 lg:p-8">
+          <div className="flex-1 w-full overflow-x-hidden px-6 py-8 lg:px-8">
             {children}
-          </main>
-        </SidebarInset>
+          </div>
+        </main>
 
         <Toaster richColors position="top-right" />
       </div>
