@@ -147,7 +147,6 @@ const almonds = [
 ];
 
 export default function Hero() {
-
   const [activeSlide, setActiveSlide] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const autoplayRef = useRef(null);

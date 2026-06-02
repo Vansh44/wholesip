@@ -280,7 +280,6 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
     });
   };
 
-
   if (!editor) return null;
 
   return (
