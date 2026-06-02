@@ -63,9 +63,13 @@ function resolveMeta(pathname: string) {
 export function DashboardTopbar({
   email,
   role,
+  firstName,
+  lastName,
 }: {
   email: string;
   role: string;
+  firstName?: string | null;
+  lastName?: string | null;
 }) {
   const pathname = usePathname();
   const { title, breadcrumb } = resolveMeta(pathname);
@@ -98,7 +102,12 @@ export function DashboardTopbar({
         >
           <MessageSquare className="h-4 w-4" />
         </button>
-        <TopbarProfile email={email} role={role} />
+        <TopbarProfile
+          email={email}
+          role={role}
+          firstName={firstName}
+          lastName={lastName}
+        />
       </div>
     </header>
   );

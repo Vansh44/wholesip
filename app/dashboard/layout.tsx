@@ -77,7 +77,7 @@ export default async function DashboardLayout({
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("email, role")
+    .select("email, role, first_name, last_name")
     .eq("id", user.id)
     .single();
 
@@ -162,7 +162,12 @@ export default async function DashboardLayout({
       </aside>
 
       <div className="dash-main">
-        <DashboardTopbar email={profile.email} role={profile.role} />
+        <DashboardTopbar
+          email={profile.email}
+          role={profile.role}
+          firstName={profile.first_name}
+          lastName={profile.last_name}
+        />
         <div className="dash-content">{children}</div>
       </div>
 

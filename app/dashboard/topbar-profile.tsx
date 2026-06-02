@@ -5,7 +5,14 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useRef, useState } from "react";
 
-function displayNameFromEmail(email: string) {
+function getDisplayName(
+  email: string,
+  firstName?: string | null,
+  lastName?: string | null,
+) {
+  if (firstName) {
+    return [firstName, lastName].filter(Boolean).join(" ");
+  }
   const local = email.split("@")[0]?.replace(/[0-9]+$/g, "") ?? "";
   const parts = local.split(/[._-]+/).filter(Boolean);
   if (parts.length === 0) return "Admin";
@@ -14,19 +21,32 @@ function displayNameFromEmail(email: string) {
     .join(" ");
 }
 
-function shortName(email: string) {
-  const full = displayNameFromEmail(email);
-  const parts = full.split(" ").filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0]} ${parts[1].charAt(0)}.`;
+function getShortName(
+  email: string,
+  firstName?: string | null,
+  lastName?: string | null,
+) {
+  let full: string;
+  if (firstName) {
+    full = [firstName, lastName].filter(Boolean).join(" ");
+  } else {
+    full = getDisplayName(email);
   }
-  const single = parts[0] ?? "Admin";
-  if (single.length <= 14) return single;
-  return `${single.slice(0, 12)}…`;
+  if (full.length <= 15) return full;
+  return `${full.slice(0, 15).trimEnd()}…`;
 }
 
-function initialsFromEmail(email: string) {
-  const name = displayNameFromEmail(email);
+function getInitials(
+  email: string,
+  firstName?: string | null,
+  lastName?: string | null,
+) {
+  if (firstName) {
+    const first = firstName.charAt(0).toUpperCase();
+    const last = lastName ? lastName.charAt(0).toUpperCase() : "";
+    return last ? `${first}${last}` : firstName.slice(0, 2).toUpperCase();
+  }
+  const name = getDisplayName(email);
   const bits = name.split(" ").filter(Boolean);
   if (bits.length >= 2) {
     return `${bits[0][0]}${bits[1][0]}`.toUpperCase();
@@ -37,16 +57,20 @@ function initialsFromEmail(email: string) {
 export function TopbarProfile({
   email,
   role,
+  firstName,
+  lastName,
 }: {
   email: string;
   role: string;
+  firstName?: string | null;
+  lastName?: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const name = displayNameFromEmail(email);
-  const short = shortName(email);
-  const initials = initialsFromEmail(email);
+  const name = getDisplayName(email, firstName, lastName);
+  const short = getShortName(email, firstName, lastName);
+  const initials = getInitials(email, firstName, lastName);
   const roleLabel = role === "superadmin" ? "Superadmin" : "Admin";
 
   useEffect(() => {
@@ -88,9 +112,17 @@ export function TopbarProfile({
             {roleLabel}
           </div>
         </div>
-        <span className="hidden pr-0.5 text-[11px] text-[var(--dash-text-3)] sm:inline">
-          ▾
-        </span>
+        <svg
+          className="hidden h-4 w-4 shrink-0 text-[var(--dash-text-2)] sm:block"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+            clipRule="evenodd"
+          />
+        </svg>
       </button>
 
       {open && (

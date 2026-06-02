@@ -138,7 +138,11 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
           </thead>
           <tbody>
             {sortedProfiles.map((profile) => {
-              const displayName = formatDisplayName(profile.email);
+              const displayName = formatDisplayName(
+                profile.email,
+                profile.first_name,
+                profile.last_name,
+              );
               const role = getRoleDisplay(profile.role);
               const status = getStatusDisplay(profile);
 
@@ -152,7 +156,11 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
                           background: getAvatarBackground(profile.email),
                         }}
                       >
-                        {getInitials(profile.email)}
+                        {getInitials(
+                          profile.email,
+                          profile.first_name,
+                          profile.last_name,
+                        )}
                       </div>
                       {displayName}
                     </div>
