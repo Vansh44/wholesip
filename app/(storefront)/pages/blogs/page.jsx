@@ -1,4 +1,4 @@
-export default function OurStory() {
+export default function Blogs() {
   return (
     <main
       style={{
