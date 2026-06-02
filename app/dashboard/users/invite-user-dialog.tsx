@@ -1,9 +1,163 @@
+// "use client";
+
+// import { useState, useTransition } from "react";
+// import { useRouter } from "next/navigation";
+// import { inviteUser } from "@/app/actions/invite-user";
+// import { Input } from "@/components/ui/input";
+// import { Label } from "@/components/ui/label";
+// import {
+//   Dialog,
+//   DialogContent,
+//   DialogHeader,
+//   DialogTitle,
+//   DialogTrigger,
+// } from "@/components/ui/dialog";
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from "@/components/ui/select";
+// import { toast } from "sonner";
+// import { Loader2 } from "lucide-react";
+
+// export function InviteUserDialog({
+//   className,
+//   label = "Add User",
+//   size = "sm",
+// }: {
+//   className?: string;
+//   label?: string;
+//   size?: "default" | "sm" | "lg";
+// }) {
+//   const [open, setOpen] = useState(false);
+//   const [email, setEmail] = useState("");
+//   const [role, setRole] = useState("member");
+//   const [error, setError] = useState("");
+//   const [isPending, startTransition] = useTransition();
+//   const router = useRouter();
+
+//   function handleSubmit(e: React.FormEvent) {
+//     e.preventDefault();
+//     setError("");
+
+//     const formData = new FormData();
+//     formData.set("email", email);
+//     formData.set("role", role);
+
+//     startTransition(async () => {
+//       const result = await inviteUser(formData);
+//       if (result.error) {
+//         setError(result.error);
+//       } else {
+//         toast.success("Invitation sent", {
+//           description: `An invite has been sent to ${email}`,
+//         });
+//         setOpen(false);
+//         setEmail("");
+//         setRole("member");
+//         router.refresh();
+//       }
+//     });
+//   }
+
+//   return (
+//     <Dialog open={open} onOpenChange={setOpen}>
+//       <DialogTrigger className={className}>{label}</DialogTrigger>
+//       <DialogContent className="gap-6 border-[var(--dash-border)] bg-[var(--dash-surface)] p-8 text-[var(--dash-text)] shadow-xl sm:max-w-[520px]">
+//         <DialogHeader className="space-y-2 p-0">
+//           <DialogTitle className="text-[20px] font-semibold">
+//             Invite User
+//           </DialogTitle>
+//           <p className="text-[14px] text-[var(--dash-text-2)]">
+//             Send an invitation to a new team member.
+//           </p>
+//         </DialogHeader>
+
+//         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+//           <div className="flex flex-col gap-2">
+//             <Label
+//               htmlFor="invite-email"
+//               className="text-[14px] font-medium text-[var(--dash-text)]"
+//             >
+//               Email Address
+//             </Label>
+//             <Input
+//               id="invite-email"
+//               type="email"
+//               placeholder="user@company.com"
+//               required
+//               value={email}
+//               onChange={(e) => setEmail(e.target.value)}
+//               disabled={isPending}
+//               className="dash-input h-11 px-3 text-[14px]"
+//             />
+//           </div>
+
+//           <div className="flex flex-col gap-2">
+//             <Label
+//               htmlFor="invite-role"
+//               className="text-[14px] font-medium text-[var(--dash-text)]"
+//             >
+//               Role
+//             </Label>
+//             <Select
+//               value={role}
+//               onValueChange={(val) => setRole(val ?? "member")}
+//               disabled={isPending}
+//             >
+//               <SelectTrigger id="invite-role" className="dash-input h-11 px-3 text-[14px]">
+//                 <SelectValue placeholder="Select a role" />
+//               </SelectTrigger>
+//               <SelectContent>
+//                 <SelectItem value="member">Admin</SelectItem>
+//                 <SelectItem value="superadmin">Superadmin</SelectItem>
+//               </SelectContent>
+//             </Select>
+//           </div>
+
+//           {error && (
+//             <div className="rounded-[var(--dash-radius-sm)] border border-[var(--dash-red)]/30 bg-[var(--dash-red-soft)] px-4 py-3">
+//               <p className="text-[14px] font-medium text-[var(--dash-red)]">{error}</p>
+//             </div>
+//           )}
+
+//           <div className="flex justify-end gap-3">
+//             <button
+//               type="button"
+//               onClick={() => setOpen(false)}
+//               disabled={isPending}
+//               className="dash-btn dash-btn-ghost h-10 px-4"
+//             >
+//               Cancel
+//             </button>
+//             <button
+//               type="submit"
+//               disabled={isPending}
+//               className="dash-btn dash-btn-primary h-10 px-5"
+//             >
+//               {isPending ? (
+//                 <>
+//                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+//                   Sending…
+//                 </>
+//               ) : (
+//                 "Send Invite"
+//               )}
+//             </button>
+//           </div>
+//         </form>
+//       </DialogContent>
+//     </Dialog>
+//   );
+// }
+
 "use client";
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { inviteUser } from "@/app/actions/invite-user";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -21,7 +175,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { UserPlus, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export function InviteUserDialog({
   className,
@@ -65,16 +219,23 @@ export function InviteUserDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button className={className} size={size} />}>
-        <UserPlus className="mr-2 h-4 w-4" />
-        {label}
-      </DialogTrigger>
-      <DialogContent className="gap-6 rounded-[16px] border border-[#E5E7EB] bg-white p-8 shadow-xl sm:max-w-[520px]">
+      <DialogTrigger className={className}>{label}</DialogTrigger>
+      <DialogContent
+        className="gap-6 p-8 shadow-xl sm:max-w-[520px] overflow-y-auto max-h-[90vh]"
+        style={{
+          backgroundColor: "#16181f",
+          border: "1px solid rgba(255,255,255,0.1)",
+          color: "#f0f2f5",
+        }}
+      >
         <DialogHeader className="space-y-2 p-0">
-          <DialogTitle className="text-[20px] font-[600] text-[#111827]">
+          <DialogTitle
+            className="text-[20px] font-semibold"
+            style={{ color: "#f0f2f5" }}
+          >
             Invite User
           </DialogTitle>
-          <p className="text-[14px] text-[#6B7280]">
+          <p className="text-[14px]" style={{ color: "#8b90a0" }}>
             Send an invitation to a new team member.
           </p>
         </DialogHeader>
@@ -83,7 +244,8 @@ export function InviteUserDialog({
           <div className="flex flex-col gap-2">
             <Label
               htmlFor="invite-email"
-              className="text-[14px] font-medium text-[#111827]"
+              className="text-[14px] font-medium"
+              style={{ color: "#f0f2f5" }}
             >
               Email Address
             </Label>
@@ -95,14 +257,20 @@ export function InviteUserDialog({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isPending}
-              className="h-[48px] rounded-[10px] border-[#E5E7EB] bg-white px-3 text-[14px] text-[#111827] focus-visible:ring-[#0F172A] shadow-sm placeholder:text-[#6B7280]"
+              className="h-11 px-3 text-[14px] rounded-md"
+              style={{
+                backgroundColor: "#0e1018",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: "#f0f2f5",
+              }}
             />
           </div>
 
           <div className="flex flex-col gap-2">
             <Label
               htmlFor="invite-role"
-              className="text-[14px] font-medium text-[#111827]"
+              className="text-[14px] font-medium"
+              style={{ color: "#f0f2f5" }}
             >
               Role
             </Label>
@@ -113,41 +281,76 @@ export function InviteUserDialog({
             >
               <SelectTrigger
                 id="invite-role"
-                className="h-[48px] rounded-[10px] border-[#E5E7EB] bg-white px-3 text-[14px] text-[#111827] focus-visible:ring-[#0F172A] shadow-sm"
+                className="h-11 px-3 text-[14px] rounded-md"
+                style={{
+                  backgroundColor: "#0e1018",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "#f0f2f5",
+                }}
               >
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
-              <SelectContent className="rounded-[10px] border-[#E5E7EB] shadow-lg">
-                <SelectItem value="member" className="py-2.5">
-                  Member
-                </SelectItem>
-                <SelectItem value="superadmin" className="py-2.5">
-                  Owner
-                </SelectItem>
+              <SelectContent
+                style={{
+                  backgroundColor: "#16181f",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  color: "#f0f2f5",
+                }}
+              >
+                <SelectItem value="member">Admin</SelectItem>
+                <SelectItem value="superadmin">Superadmin</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {error && (
-            <div className="rounded-[10px] bg-[#FEF2F2] border border-[#FCA5A5] px-4 py-3">
-              <p className="text-[14px] text-[#EF4444] font-medium">{error}</p>
+            <div
+              className="rounded-md px-4 py-3"
+              style={{
+                border: "1px solid rgba(239,68,68,0.3)",
+                backgroundColor: "rgba(239,68,68,0.08)",
+              }}
+            >
+              <p
+                className="text-[14px] font-medium"
+                style={{ color: "#f87171" }}
+              >
+                {error}
+              </p>
             </div>
           )}
 
           <div className="flex justify-end gap-3">
-            <Button
+            <button
               type="button"
-              variant="outline"
               onClick={() => setOpen(false)}
               disabled={isPending}
-              className="h-10 rounded-[8px] border border-[#E5E7EB] bg-white text-[#111827] hover:bg-[#FAFAFA] hover:text-[#111827] px-4 font-medium"
+              className="h-10 px-4 rounded-md text-[14px] font-medium transition-colors"
+              style={{
+                backgroundColor: "transparent",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: "#8b90a0",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  "rgba(255,255,255,0.06)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  "transparent";
+              }}
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
               disabled={isPending}
-              className="h-10 rounded-[8px] bg-[#0F172A] text-white hover:bg-[#1E293B] px-5 font-medium shadow-sm"
+              className="h-10 px-5 rounded-md text-[14px] font-medium flex items-center transition-opacity"
+              style={{
+                backgroundColor: "#3b6ef5",
+                color: "#ffffff",
+                opacity: isPending ? 0.7 : 1,
+              }}
             >
               {isPending ? (
                 <>
@@ -157,7 +360,7 @@ export function InviteUserDialog({
               ) : (
                 "Send Invite"
               )}
-            </Button>
+            </button>
           </div>
         </form>
       </DialogContent>

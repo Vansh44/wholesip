@@ -1,19 +1,63 @@
 import Link from "next/link";
-import Image from "next/image";
 import { redirect } from "next/navigation";
+import { Sora, JetBrains_Mono } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
 import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/config/site";
-import { SidebarProvider } from "@/components/ui/sidebar";
-import { Search, Bell, HelpCircle } from "lucide-react";
-import { SidebarUser } from "./sidebar-user";
-import { ActiveBreadcrumb } from "./active-breadcrumb";
-import { Input } from "@/components/ui/input";
-import { SidebarNavLink, type SidebarIconKey } from "./sidebar-nav-link";
+import { DashboardTopbar } from "./dashboard-topbar";
+import { SidebarNavLink, type SidebarNavItem } from "./sidebar-nav-link";
+import "./dashboard.css";
+
+const dashFont = Sora({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-dash",
+});
+
+const dashMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-dash-mono",
+});
 
 export const metadata = {
-  title: "Soakd — Operations Center",
+  title: `${siteConfig.name} — Operations Center`,
 };
+
+const workspaceLinks: SidebarNavItem[] = [
+  { href: "/dashboard", label: "Dashboard", emoji: "⊞" },
+  {
+    href: "/dashboard/orders",
+    label: "Orders",
+    emoji: "📦",
+    badge: "12",
+    badgeTone: "accent",
+  },
+  { href: "/dashboard/products", label: "Products", emoji: "🛍" },
+  { href: "/dashboard/customers", label: "Customers", emoji: "👥" },
+  {
+    href: "/dashboard/inventory",
+    label: "Inventory",
+    emoji: "🗄",
+    badge: "3",
+    badgeTone: "amber",
+  },
+  { href: "/dashboard/analytics", label: "Analytics", emoji: "📊" },
+];
+
+const contentLinks: SidebarNavItem[] = [
+  { href: "/dashboard/blogs", label: "Blogs", emoji: "✍️" },
+  { href: "/dashboard/marketing", label: "Marketing", emoji: "📢" },
+  { href: "/dashboard/promotions", label: "Promotions", emoji: "🎁" },
+];
+
+const adminLinks: SidebarNavItem[] = [
+  { href: "/dashboard/users", label: "Users", emoji: "🔐" },
+  { href: "/dashboard/media", label: "Media Library", emoji: "🖼" },
+  { href: "/dashboard/roles", label: "Roles & Permissions", emoji: "🛡" },
+  { href: "/dashboard/activity", label: "Activity Logs", emoji: "🕐" },
+  { href: "/dashboard/settings", label: "Settings", emoji: "⚙️" },
+];
 
 export default async function DashboardLayout({
   children,
@@ -41,26 +85,26 @@ export default async function DashboardLayout({
       console.error("Dashboard layout profile fetch error:", profileError);
     }
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted px-4">
-        <div className="max-w-lg rounded-xl border bg-card p-8 text-card-foreground shadow-sm space-y-4">
+      <div className="flex min-h-screen items-center justify-center bg-[#0d0f14] px-4 text-[#e8ecf4]">
+        <div className="max-w-lg space-y-4 rounded-xl border border-white/10 bg-[#141720] p-8 shadow-2xl">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600 text-lg font-bold shrink-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-lg font-bold text-amber-400">
               ⚠️
             </div>
             <div>
               <h1 className="text-lg font-bold">Profile Not Found</h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-[#8b93a8]">
                 Your auth account exists but has no profile row.
               </p>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-[#8b93a8]">
             Run the following SQL in your Supabase SQL Editor:
           </p>
-          <pre className="bg-muted rounded-lg p-3 text-xs overflow-auto border">
+          <pre className="overflow-auto rounded-lg border border-white/10 bg-[#1a1f2e] p-3 text-xs">
             {`INSERT INTO profiles (id, email, role, force_password_reset)\nVALUES ('${user.id}', '${user.email}', 'superadmin', false);`}
           </pre>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#4f5768]">
             After inserting, refresh this page.
           </p>
         </div>
@@ -69,152 +113,91 @@ export default async function DashboardLayout({
   }
 
   const isSuperadmin = profile.role === "superadmin";
-  const workspaceLinks: {
-    href: string;
-    label: string;
-    icon: SidebarIconKey;
-  }[] = [
-    { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-    { href: "/dashboard/orders", label: "Orders", icon: "orders" },
-    { href: "/dashboard/products", label: "Products", icon: "products" },
-    { href: "/dashboard/customers", label: "Customers", icon: "customers" },
-    { href: "/dashboard/inventory", label: "Inventory", icon: "inventory" },
-    { href: "/dashboard/analytics", label: "Analytics", icon: "analytics" },
-  ];
-
-  const contentLinks: { href: string; label: string; icon: SidebarIconKey }[] =
-    [
-      { href: "/dashboard/blogs", label: "Blogs", icon: "blogs" },
-      { href: "/dashboard/marketing", label: "Marketing", icon: "marketing" },
-      {
-        href: "/dashboard/promotions",
-        label: "Promotions",
-        icon: "promotions",
-      },
-    ];
-
-  const adminLinks: { href: string; label: string; icon: SidebarIconKey }[] = [
-    { href: "/dashboard/users", label: "Users", icon: "users" },
-    { href: "/dashboard/media", label: "Media Library", icon: "media" },
-    { href: "/dashboard/roles", label: "Roles & Permissions", icon: "roles" },
-    { href: "/dashboard/activity", label: "Activity Logs", icon: "activity" },
-    { href: "/dashboard/settings", label: "Settings", icon: "settings" },
-  ];
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-[#FAFAFA] text-[#111827]">
-        <aside className="hidden h-screen w-[260px] shrink-0 flex-col border-r border-[#E5E7EB] bg-white md:flex">
-          <div className="flex h-[4.5rem] flex-col justify-center border-b border-[#E5E7EB] px-6 py-0 shrink-0">
-            <Link href="/dashboard" className="flex items-center gap-3 group">
-              <div className="relative h-9 w-32 shrink-0 items-center">
-                <Image
-                  src={siteConfig.assets.logoUrl}
-                  alt={`${siteConfig.name} Logo`}
-                  fill
-                  className="object-contain object-left"
-                  priority
-                  sizes="180px"
-                />
-              </div>
-            </Link>
-          </div>
-
-          <div className="flex-1 px-4 py-6 flex flex-col gap-6">
+    <div
+      className={`dashboard-shell ${dashFont.variable} ${dashMono.variable} flex`}
+    >
+      <aside className="hidden h-screen w-[240px] shrink-0 flex-col border-r border-[var(--dash-border)] bg-[var(--dash-surface)] md:flex">
+        <div className="mb-2 flex items-center gap-2.5 border-b border-[var(--dash-border)] px-[18px] py-5">
+          <Link href="/dashboard" className="flex items-center gap-2.5">
+            <div
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[15px] font-bold text-white"
+              style={{
+                background:
+                  "linear-gradient(135deg, var(--dash-accent), var(--dash-accent-2))",
+              }}
+            >
+              {siteConfig.name.charAt(0)}
+            </div>
             <div>
-              <h4 className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]/70">
-                Workspace
-              </h4>
-              <nav className="flex flex-col space-y-0.5">
-                {workspaceLinks.map((item) => (
-                  <SidebarNavLink
-                    key={item.href}
-                    href={item.href}
-                    label={item.label}
-                    icon={item.icon}
-                  />
-                ))}
-              </nav>
-            </div>
-
-            <div>
-              <h4 className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]/70">
-                Content
-              </h4>
-              <nav className="flex flex-col space-y-0.5">
-                {contentLinks.map((item) => (
-                  <SidebarNavLink
-                    key={item.href}
-                    href={item.href}
-                    label={item.label}
-                    icon={item.icon}
-                  />
-                ))}
-              </nav>
-            </div>
-
-            {isSuperadmin && (
-              <div>
-                <h4 className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-[#6B7280]/70">
-                  Administration
-                </h4>
-                <nav className="flex flex-col space-y-0.5">
-                  {adminLinks.map((item) => (
-                    <SidebarNavLink
-                      key={item.href}
-                      href={item.href}
-                      label={item.label}
-                      icon={item.icon}
-                    />
-                  ))}
-                </nav>
+              <div className="text-[15px] font-bold tracking-[-0.3px]">
+                {siteConfig.name}
               </div>
-            )}
-          </div>
-
-          <div className="mt-auto border-t border-[#E5E7EB] p-4 shrink-0">
-            <SidebarUser email={profile.email} role={profile.role} />
-          </div>
-        </aside>
-
-        <main className="flex min-h-screen min-w-0 flex-1 flex-col bg-[#FAFAFA]">
-          <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-5 sm:px-8">
-            <div className="flex items-center gap-4">
-              <ActiveBreadcrumb />
+              <span className="block text-[11px] font-normal text-[var(--dash-text-2)]">
+                v2.0
+              </span>
             </div>
+          </Link>
+        </div>
 
-            <div className="mx-6 hidden max-w-md flex-1 md:block">
-              <div className="relative group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B7280]" />
-                <Input
-                  placeholder="Search..."
-                  className="h-9 w-full border-[#E5E7EB] bg-[#FAFAFA] pl-9 pr-16 text-[14px] shadow-sm transition-all duration-200 focus-visible:ring-[#0F172A] rounded-md"
-                />
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 border border-[#E5E7EB] bg-white px-1.5 font-mono text-[10px] font-medium text-[#6B7280] rounded">
-                    <span className="text-xs">⌘</span>K
-                  </kbd>
-                </div>
-              </div>
-            </div>
+        <div className="flex flex-1 flex-col overflow-y-auto px-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <NavSection label="Workspace">
+            {workspaceLinks.map((item) => (
+              <SidebarNavLink key={item.href} {...item} />
+            ))}
+          </NavSection>
+          <NavSection label="Content">
+            {contentLinks.map((item) => (
+              <SidebarNavLink key={item.href} {...item} />
+            ))}
+          </NavSection>
+          {isSuperadmin && (
+            <NavSection label="Administration">
+              {adminLinks.map((item) => (
+                <SidebarNavLink key={item.href} {...item} />
+              ))}
+            </NavSection>
+          )}
+        </div>
 
-            <div className="flex items-center gap-2 sm:gap-3">
-              <button className="flex h-9 w-9 items-center justify-center text-[#6B7280] transition-colors hover:bg-[#F3F4F6] hover:text-[#111827] rounded-md">
-                <Bell className="h-5 w-5" />
-              </button>
-              <button className="flex h-9 w-9 items-center justify-center text-[#6B7280] transition-colors hover:bg-[#F3F4F6] hover:text-[#111827] rounded-md">
-                <HelpCircle className="h-5 w-5" />
-              </button>
-            </div>
-          </header>
-
-          <div className="flex-1 w-full overflow-x-hidden px-6 py-8 lg:px-8">
-            {children}
+        <div className="shrink-0 border-t border-[var(--dash-border)] p-2.5">
+          <div className="dash-nav-item cursor-default text-[12px] text-[var(--dash-text-3)] hover:bg-transparent hover:text-[var(--dash-text-3)]">
+            <span className="dash-nav-icon">🌐</span>
+            <span className="font-mono-dash text-[11px]">localhost:3000</span>
           </div>
-        </main>
+        </div>
+      </aside>
 
-        <Toaster richColors position="top-right" />
+      <div className="dash-main">
+        <DashboardTopbar email={profile.email} role={profile.role} />
+        <div className="dash-content">{children}</div>
       </div>
-    </SidebarProvider>
+
+      <Toaster
+        richColors
+        position="top-right"
+        toastOptions={{
+          classNames: {
+            toast: "bg-[#1a1f2e] border-white/10 text-[#e8ecf4] shadow-xl",
+          },
+        }}
+      />
+    </div>
+  );
+}
+
+function NavSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="pt-1">
+      <div className="dash-nav-label">{label}</div>
+      <nav>{children}</nav>
+    </div>
   );
 }
