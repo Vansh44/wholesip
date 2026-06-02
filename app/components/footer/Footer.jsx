@@ -126,6 +126,7 @@ export default function Footer() {
               width={160}
               height={60}
               priority
+              style={{ height: "auto" }}
             />
           </Link>
           <p className={styles.tagline}>
