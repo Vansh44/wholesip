@@ -1,10 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { MoreHorizontal, Search } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  MoreHorizontal,
+  Search,
+  ShieldAlert,
+  UserX,
+  UserCheck,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -27,15 +35,28 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { InviteUserDialog } from "./invite-user-dialog";
 import type { Profile } from "./page";
+import {
+  deleteUser,
+  changeUserRole,
+  toggleUserSuspension,
+} from "@/app/actions/user-management";
 
 type Props = {
   currentUserId: string;
   profiles: Profile[];
 };
 
-type StatusFilter = "all" | "active" | "pending";
+type StatusFilter = "all" | "active" | "pending" | "suspended";
 type SortOption = "name" | "recent" | "role";
 
 function formatDisplayName(email: string) {
@@ -73,6 +94,14 @@ function getRoleClasses(role: string) {
 }
 
 function getStatusMeta(profile: Profile) {
+  if (profile.is_suspended) {
+    return {
+      label: "Suspended",
+      dot: "bg-destructive",
+      classes: "bg-destructive/10 text-destructive border-transparent",
+    };
+  }
+
   if (profile.force_password_reset) {
     return {
       label: "Pending",
@@ -117,10 +146,19 @@ function formatDateLabel(value: string) {
 }
 
 export function UsersManagementView({ currentUserId, profiles }: Props) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<SortOption>("recent");
+
+  // Dialog states
+  const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
+  const [actionType, setActionType] = useState<
+    "delete" | "role" | "suspend" | null
+  >(null);
+  const [newRole, setNewRole] = useState<string>("member");
+  const [isPending, startTransition] = useTransition();
 
   const metrics = useMemo(
     () => [
@@ -130,13 +168,13 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
       },
       {
         label: "Active",
-        value: profiles.filter((profile) => !profile.force_password_reset)
-          .length,
+        value: profiles.filter(
+          (profile) => !profile.force_password_reset && !profile.is_suspended,
+        ).length,
       },
       {
-        label: "Pending",
-        value: profiles.filter((profile) => profile.force_password_reset)
-          .length,
+        label: "Suspended",
+        value: profiles.filter((profile) => profile.is_suspended).length,
       },
     ],
     [profiles],
@@ -159,8 +197,11 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
 
       const matchesStatus =
         statusFilter === "all" ||
-        (statusFilter === "active" && !profile.force_password_reset) ||
-        (statusFilter === "pending" && profile.force_password_reset);
+        (statusFilter === "active" &&
+          !profile.force_password_reset &&
+          !profile.is_suspended) ||
+        (statusFilter === "pending" && profile.force_password_reset) ||
+        (statusFilter === "suspended" && profile.is_suspended);
 
       return matchesQuery && matchesRole && matchesStatus;
     });
@@ -184,6 +225,48 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
 
     return nextProfiles;
   }, [profiles, query, roleFilter, sort, statusFilter]);
+
+  const handleAction = async () => {
+    if (!selectedUser || !actionType) return;
+
+    startTransition(async () => {
+      let result: { error?: string; success?: boolean } = {};
+
+      switch (actionType) {
+        case "delete":
+          result = await deleteUser(selectedUser.id);
+          break;
+        case "role":
+          result = await changeUserRole(selectedUser.id, newRole);
+          break;
+        case "suspend":
+          result = await toggleUserSuspension(
+            selectedUser.id,
+            !selectedUser.is_suspended,
+          );
+          break;
+      }
+
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success(`User action successful`);
+        closeDialog();
+        router.refresh();
+      }
+    });
+  };
+
+  const closeDialog = () => {
+    setActionType(null);
+    setSelectedUser(null);
+  };
+
+  const openDialog = (user: Profile, type: typeof actionType) => {
+    setSelectedUser(user);
+    setActionType(type);
+    if (type === "role") setNewRole(user.role);
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-[1320px] flex-col animate-in fade-in duration-300">
@@ -259,6 +342,7 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="active">Active</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="suspended">Suspended</SelectItem>
             </SelectContent>
           </Select>
 
@@ -315,7 +399,7 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
                 return (
                   <TableRow
                     key={profile.id}
-                    className="group min-h-[72px] border-b border-[#E5E7EB] transition-colors hover:bg-[#FAFAFA] last:border-0"
+                    className={`group min-h-[72px] border-b border-[#E5E7EB] transition-colors hover:bg-[#FAFAFA] last:border-0 ${profile.is_suspended ? "opacity-70" : ""}`}
                   >
                     <TableCell className="pl-6 py-4 h-[72px]">
                       <div className="flex items-center gap-3">
@@ -371,30 +455,49 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
                     </TableCell>
 
                     <TableCell className="py-4 pr-6 text-right h-[72px]">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#6B7280] opacity-0 transition-colors hover:bg-[#F3F4F6] hover:text-[#111827] focus:opacity-100 data-[state=open]:opacity-100 group-hover:opacity-100">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          side="bottom"
-                          align="end"
-                          className="min-w-[160px] border border-[#E5E7EB] bg-white p-1 shadow-md rounded-lg"
-                        >
-                          <DropdownMenuItem className="cursor-pointer px-2.5 py-2 text-[13px] text-[#111827] focus:bg-[#F3F4F6]">
-                            Edit User
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer px-2.5 py-2 text-[13px] text-[#111827] focus:bg-[#F3F4F6]">
-                            Change Role
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer px-2.5 py-2 text-[13px] text-[#111827] focus:bg-[#F3F4F6]">
-                            Suspend User
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator className="bg-[#E5E7EB]" />
-                          <DropdownMenuItem className="cursor-pointer px-2.5 py-2 text-[13px] text-[#EF4444] focus:bg-[#FEF2F2] focus:text-[#EF4444]">
-                            Remove User
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {profile.id !== currentUserId && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#6B7280] opacity-0 transition-colors hover:bg-[#F3F4F6] hover:text-[#111827] focus:opacity-100 data-[state=open]:opacity-100 group-hover:opacity-100">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            side="bottom"
+                            align="end"
+                            className="min-w-[160px] border border-[#E5E7EB] bg-white p-1 shadow-md rounded-lg"
+                          >
+                            <DropdownMenuItem
+                              onClick={() => openDialog(profile, "role")}
+                              className="cursor-pointer px-2.5 py-2 text-[13px] text-[#111827] focus:bg-[#F3F4F6]"
+                            >
+                              <ShieldAlert className="w-4 h-4 mr-2 text-[#6B7280]" />
+                              Change Role
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => openDialog(profile, "suspend")}
+                              className="cursor-pointer px-2.5 py-2 text-[13px] text-[#111827] focus:bg-[#F3F4F6]"
+                            >
+                              {profile.is_suspended ? (
+                                <>
+                                  <UserCheck className="w-4 h-4 mr-2 text-green-600" />{" "}
+                                  Un-suspend User
+                                </>
+                              ) : (
+                                <>
+                                  <UserX className="w-4 h-4 mr-2 text-[#6B7280]" />{" "}
+                                  Suspend User
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-[#E5E7EB]" />
+                            <DropdownMenuItem
+                              onClick={() => openDialog(profile, "delete")}
+                              className="cursor-pointer px-2.5 py-2 text-[13px] text-[#EF4444] focus:bg-[#FEF2F2] focus:text-[#EF4444]"
+                            >
+                              Remove User
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -435,6 +538,85 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
           </Table>
         </div>
       </section>
+
+      {/* Action Dialogs */}
+      <Dialog
+        open={actionType !== null}
+        onOpenChange={(open) => !open && closeDialog()}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {actionType === "delete" && "Remove User"}
+              {actionType === "role" && "Change Role"}
+              {actionType === "suspend" &&
+                (selectedUser?.is_suspended
+                  ? "Un-suspend User"
+                  : "Suspend User")}
+            </DialogTitle>
+            <DialogDescription>
+              {actionType === "delete" &&
+                "Are you sure you want to completely remove this user? This action cannot be undone."}
+              {actionType === "role" && "Select a new role for this user."}
+              {actionType === "suspend" &&
+                (selectedUser?.is_suspended
+                  ? "This user will regain access to the platform."
+                  : "This user will immediately lose access to the platform.")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            {actionType === "role" && (
+              <Select
+                value={newRole}
+                onValueChange={(val) => val && setNewRole(val)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="superadmin">Owner</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+
+            {actionType === "delete" && (
+              <p className="text-sm font-medium text-[#111827]">
+                User: {selectedUser?.email}
+              </p>
+            )}
+
+            {actionType === "suspend" && (
+              <p className="text-sm font-medium text-[#111827]">
+                User: {selectedUser?.email}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={closeDialog}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant={
+                actionType === "delete" ||
+                (actionType === "suspend" && !selectedUser?.is_suspended)
+                  ? "destructive"
+                  : "default"
+              }
+              onClick={handleAction}
+              disabled={isPending}
+            >
+              {isPending ? "Saving..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

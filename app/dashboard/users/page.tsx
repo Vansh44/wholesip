@@ -7,6 +7,7 @@ export interface Profile {
   email: string;
   role: string;
   force_password_reset: boolean;
+  is_suspended: boolean;
   created_at: string;
 }
 

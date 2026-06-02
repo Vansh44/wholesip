@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { changeOwnPassword } from "@/app/actions/user-management";
+import { toast } from "sonner";
 
-export default function LoginPage() {
-  const [email, setEmail] = useState("");
+export default function UpdatePasswordPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,58 +19,33 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const result = await changeOwnPassword(password);
 
-    if (signInError) {
-      setError(signInError.message);
-      setLoading(false);
-      return;
+    if (result.error) {
+      setError(result.error);
+    } else {
+      toast.success("Password updated successfully");
+      router.push("/dashboard");
     }
-
-    router.push("/dashboard");
-    router.refresh();
+    setLoading(false);
   }
 
   return (
     <div className="w-full">
       <div className="mb-10 text-center">
         <h1 className="text-xl font-semibold tracking-tight text-primary">
-          Log in to Soakd
+          Update Password
         </h1>
+        <p className="mt-2 text-sm text-[#6B7280]">
+          Please enter your new password below.
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="email" className="font-medium">
-            Email address
+          <Label htmlFor="password" className="font-medium">
+            New Password
           </Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="you@example.com"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            className="h-10"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="password" className="font-medium">
-              Password
-            </Label>
-            <a
-              href="/auth/forgot-password"
-              className="text-sm font-medium text-accent hover:underline"
-            >
-              Forgot password?
-            </a>
-          </div>
           <Input
             id="password"
             type="password"
@@ -78,17 +53,20 @@ export default function LoginPage() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
+            autoComplete="new-password"
             className="h-10"
+            minLength={6}
           />
         </div>
+
         {error && <p className="text-sm text-destructive">{error}</p>}
+
         <Button
           type="submit"
           className="w-full h-10 mt-2 font-medium"
           disabled={loading}
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? "Updating…" : "Update password"}
         </Button>
       </form>
     </div>
