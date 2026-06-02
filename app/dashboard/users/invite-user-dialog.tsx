@@ -65,11 +65,9 @@ export function InviteUserDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className={className} size={size}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          {label}
-        </Button>
+      <DialogTrigger render={<Button className={className} size={size} />}>
+        <UserPlus className="mr-2 h-4 w-4" />
+        {label}
       </DialogTrigger>
       <DialogContent className="gap-6 rounded-[16px] border border-[#E5E7EB] bg-white p-8 shadow-xl sm:max-w-[520px]">
         <DialogHeader className="space-y-2 p-0">
