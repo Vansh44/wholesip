@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import sanitizeHtml from "sanitize-html";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -103,7 +104,24 @@ export async function createBlog(
       title: formData.title,
       slug,
       excerpt: formData.excerpt || null,
-      content: formData.content || null,
+      content: formData.content
+        ? sanitizeHtml(formData.content, {
+            allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+              "img",
+              "h1",
+              "h2",
+              "h3",
+              "h4",
+              "s",
+              "u",
+            ]),
+            allowedAttributes: {
+              ...sanitizeHtml.defaults.allowedAttributes,
+              img: ["src", "alt", "width", "height"],
+              "*": ["class", "style", "id", "data-*"],
+            },
+          })
+        : null,
       cover_image_url: formData.cover_image_url || null,
       author: formData.author || null,
       categories: formData.categories.length > 0 ? formData.categories : [],
@@ -188,7 +206,24 @@ export async function updateBlog(
       title: formData.title,
       slug,
       excerpt: formData.excerpt || null,
-      content: formData.content || null,
+      content: formData.content
+        ? sanitizeHtml(formData.content, {
+            allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+              "img",
+              "h1",
+              "h2",
+              "h3",
+              "h4",
+              "s",
+              "u",
+            ]),
+            allowedAttributes: {
+              ...sanitizeHtml.defaults.allowedAttributes,
+              img: ["src", "alt", "width", "height"],
+              "*": ["class", "style", "id", "data-*"],
+            },
+          })
+        : null,
       cover_image_url: formData.cover_image_url || null,
       author: formData.author || null,
       categories: formData.categories.length > 0 ? formData.categories : [],
