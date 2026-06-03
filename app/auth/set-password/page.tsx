@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { setPassword } from "@/app/actions/set-password";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/client";
 
 function getPasswordStrength(password: string) {
   if (password.length === 0) return null;
@@ -22,18 +23,118 @@ function getPasswordStrength(password: string) {
   return { label: "Strong", color: "bg-green-500", width: "w-full" };
 }
 
+const COUNTRY_CODES = [
+  { code: "+91", label: "🇮🇳 +91" },
+  { code: "+1", label: "🇺🇸 +1" },
+  { code: "+44", label: "🇬🇧 +44" },
+  { code: "+971", label: "🇦🇪 +971" },
+  { code: "+61", label: "🇦🇺 +61" },
+  { code: "+65", label: "🇸🇬 +65" },
+];
+
 export default function SetPasswordPage() {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [password, setPasswordVal] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  // Phone & OTP states
+  const [countryCode, setCountryCode] = useState("+91");
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [loadingOtp, setLoadingOtp] = useState(false);
+
   const strength = getPasswordStrength(password);
   const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
+  const fullPhone = `${countryCode}${phone}`;
+
+  useEffect(() => {
+    async function fetchProfile() {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("first_name, last_name, phone")
+          .eq("id", user.id)
+          .single();
+        if (profile) {
+          setFirstName(profile.first_name || "");
+          setLastName(profile.last_name || "");
+          // If phone exists we could technically pre-fill it, but let's assume they have to verify a new one
+          // or we can just leave it blank if they haven't verified.
+        }
+      }
+    }
+    fetchProfile();
+  }, []);
+
+  const handleSendOtp = async () => {
+    if (!phone || phone.length < 10) {
+      setOtpError("Please enter a valid phone number.");
+      return;
+    }
+
+    setOtpError("");
+    setLoadingOtp(true);
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.updateUser({ phone: fullPhone });
+
+    if (error) {
+      setOtpError(error.message);
+    } else {
+      setOtpSent(true);
+      setOtpError("");
+    }
+    setLoadingOtp(false);
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp || otp.length < 6) {
+      setOtpError("Please enter the 6-digit OTP.");
+      return;
+    }
+
+    setOtpError("");
+    setLoadingOtp(true);
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.verifyOtp({
+      phone: fullPhone,
+      token: otp,
+      type: "phone_change",
+    });
+
+    if (error) {
+      setOtpError(error.message);
+    } else {
+      setIsPhoneVerified(true);
+      setOtpError("");
+    }
+    setLoadingOtp(false);
+  };
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    if (!firstName.trim()) {
+      setError("First name is required.");
+      return;
+    }
+
+    if (!isPhoneVerified) {
+      setError("Please verify your phone number before setting your password.");
+      return;
+    }
 
     if (password.length < 8) {
       setError("Password must be at least 8 characters.");
@@ -47,6 +148,9 @@ export default function SetPasswordPage() {
     const formData = new FormData();
     formData.set("password", password);
     formData.set("confirmPassword", confirmPassword);
+    formData.set("firstName", firstName);
+    formData.set("lastName", lastName);
+    formData.set("phone", fullPhone);
 
     startTransition(async () => {
       const result = await setPassword(formData);
@@ -58,16 +162,138 @@ export default function SetPasswordPage() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <CardTitle className="text-xl font-bold">Set your password</CardTitle>
+        <CardTitle className="text-xl font-bold">
+          Complete your profile
+        </CardTitle>
         <CardDescription>
-          Please choose a secure password for your account
+          Please verify your details and set a secure password
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="firstName">First Name</Label>
+              <Input
+                id="firstName"
+                placeholder="First name"
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="lastName">Last Name</Label>
+              <Input
+                id="lastName"
+                placeholder="Last name (optional)"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
+            </div>
+          </div>
+
           <div className="flex flex-col gap-2">
+            <Label htmlFor="phone">Phone Number</Label>
+            <div className="flex gap-2">
+              <select
+                className="flex h-10 w-[100px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={countryCode}
+                onChange={(e) => setCountryCode(e.target.value)}
+                disabled={isPhoneVerified || otpSent}
+              >
+                {COUNTRY_CODES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="Mobile number"
+                className="flex-1"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                disabled={isPhoneVerified || otpSent}
+              />
+            </div>
+
+            {!isPhoneVerified && (
+              <div className="mt-1">
+                {!otpSent ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={handleSendOtp}
+                    disabled={loadingOtp || phone.length < 10}
+                  >
+                    {loadingOtp ? "Sending..." : "Send OTP"}
+                  </Button>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-sm text-muted-foreground">
+                      OTP sent to {fullPhone}.{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOtpSent(false);
+                          setOtp("");
+                        }}
+                        className="text-primary underline"
+                      >
+                        Edit
+                      </button>
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        placeholder="Enter 6-digit OTP"
+                        value={otp}
+                        onChange={(e) =>
+                          setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                        }
+                        maxLength={6}
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleVerifyOtp}
+                        disabled={loadingOtp || otp.length < 6}
+                      >
+                        {loadingOtp ? "Verifying..." : "Verify"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isPhoneVerified && (
+              <p className="text-sm text-green-600 font-medium flex items-center gap-1">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                Phone Number Verified
+              </p>
+            )}
+
+            {otpError && <p className="text-sm text-destructive">{otpError}</p>}
+          </div>
+
+          <div className="flex flex-col gap-2 mt-2">
             <Label htmlFor="password">New Password</Label>
             <Input
               id="password"
@@ -108,8 +334,12 @@ export default function SetPasswordPage() {
             )}
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full" disabled={isPending}>
-            {isPending ? "Setting password…" : "Set Password"}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isPending || !isPhoneVerified}
+          >
+            {isPending ? "Setting up account…" : "Complete Setup"}
           </Button>
         </form>
       </CardContent>
