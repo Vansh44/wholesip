@@ -241,17 +241,17 @@ export default function Header() {
           <Link href="/pages/shop" onClick={() => setIsMenuOpen(false)}>
             Shop
           </Link>
-          <Link href="/track-order" onClick={() => setIsMenuOpen(false)}>
+          <Link href="/pages/track-order" onClick={() => setIsMenuOpen(false)}>
             Track Order
           </Link>
-          <Link href="/find-us" onClick={() => setIsMenuOpen(false)}>
+          <Link href="/pages/find-us" onClick={() => setIsMenuOpen(false)}>
             Find Us
           </Link>
-          <Link href="/enquiries" onClick={() => setIsMenuOpen(false)}>
+          <Link href="/pages/enquiries" onClick={() => setIsMenuOpen(false)}>
             Enquiries
           </Link>
-          <Link href="/pages/our-story" onClick={() => setIsMenuOpen(false)}>
-            Our Story
+          <Link href="/pages/blogs" onClick={() => setIsMenuOpen(false)}>
+            Blogs
           </Link>
         </nav>
 
