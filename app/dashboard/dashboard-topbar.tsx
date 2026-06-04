@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, MessageSquare, Search } from "lucide-react";
+import { Bell, MessageSquare, Search, ArrowUpRight, Target } from "lucide-react";
 import { TopbarProfile } from "./topbar-profile";
 
 const routeMeta: Record<string, { title: string; breadcrumb: string }> = {
@@ -99,8 +99,9 @@ export function DashboardTopbar({
           type="button"
           className="dash-icon-btn hidden sm:flex"
           aria-label="Messages"
+          onClick={() => window.open("/", "_blank")}
         >
-          <MessageSquare className="h-4 w-4" />
+          <ArrowUpRight className="h-4 w-4" />
         </button>
         <TopbarProfile
           email={email}
