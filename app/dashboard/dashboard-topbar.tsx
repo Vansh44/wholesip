@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, MessageSquare, Search, ArrowUpRight, Target } from "lucide-react";
+import { Bell, Search, ArrowUpRight } from "lucide-react";
 import { TopbarProfile } from "./topbar-profile";
 
 const routeMeta: Record<string, { title: string; breadcrumb: string }> = {

@@ -10,11 +10,14 @@
   margin-top: 0.01%;
   z-index: 50;
   background-color: transparent;
-  transition: background-color 0.3s ease, padding 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    padding 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 .headerScrolled {
-  background-color: #FAF7F0;
+  background-color: #ede5d8;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
@@ -70,7 +73,7 @@
 .searchBar {
   display: flex;
   align-items: center;
-  background: #ffffff;
+  background: #f5f0e8;
   border-radius: 20px;
   padding: 0 16px;
   width: 280px;
