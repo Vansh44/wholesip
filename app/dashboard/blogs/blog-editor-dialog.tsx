@@ -13,6 +13,26 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Placeholder from "@tiptap/extension-placeholder";
 import {
+  Heading1,
+  Heading2,
+  Heading3,
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  List,
+  ListOrdered,
+  Quote,
+  Code,
+  Minus,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Link as LinkIcon,
+  Image as ImageIcon,
+  ArrowLeft,
+} from "lucide-react";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -75,16 +95,22 @@ const ToolbarButton = ({
     onClick={onClick}
     title={btnTitle}
     style={{
-      padding: "4px 8px",
-      borderRadius: 4,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "6px",
+      borderRadius: "4px",
       border: "none",
       cursor: "pointer",
-      fontSize: 13,
-      fontWeight: 600,
-      background: active ? "var(--dash-accent-soft)" : "transparent",
-      color: active ? "var(--dash-accent)" : "inherit",
-      transition: "all 0.1s",
-      lineHeight: 1.4,
+      background: active ? "#e8f0fe" : "transparent",
+      color: active ? "#1a73e8" : "#444746",
+      transition: "background 0.2s",
+    }}
+    onMouseEnter={(e) => {
+      if (!active) e.currentTarget.style.background = "#f0f4f9";
+    }}
+    onMouseLeave={(e) => {
+      if (!active) e.currentTarget.style.background = "transparent";
     }}
     onMouseDown={(e) => e.preventDefault()}
   >
@@ -97,7 +123,9 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
   const [isPending, startTransition] = useTransition();
   const [hasUnsaved, setHasUnsaved] = useState(false);
   const autosaveTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [mediaPickerTarget, setMediaPickerTarget] = useState<
+    "cover" | "editor" | null
+  >(null);
 
   // ── Form state ──────────────────────────────────────────────
   const [title, setTitle] = useState("");
@@ -331,16 +359,25 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   }
                 }}
                 style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   border: "none",
                   background: "transparent",
                   cursor: "pointer",
-                  fontSize: 18,
-                  padding: "4px 8px",
-                  borderRadius: 6,
-                  lineHeight: 1,
+                  padding: "8px",
+                  borderRadius: "50%",
+                  transition: "background 0.2s",
+                  color: "#5f6368",
                 }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "rgba(0,0,0,0.04)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "transparent")
+                }
               >
-                ←
+                <ArrowLeft size={20} />
               </button>
               <DialogHeader style={{ gap: 0 }}>
                 <DialogTitle style={{ fontSize: 16, fontWeight: 700 }}>
@@ -404,6 +441,7 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                 flexDirection: "column",
                 overflow: "hidden",
                 borderRight: "1px solid rgba(0,0,0,0.08)",
+                background: "#f8f9fa",
               }}
             >
               {/* Toolbar */}
@@ -411,12 +449,14 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 2,
+                  gap: 4,
                   padding: "8px 16px",
-                  background: "#ffffff",
-                  borderBottom: "1px solid rgba(0,0,0,0.06)",
+                  background: "#edf2fa",
+                  borderRadius: "24px",
+                  margin: "12px 24px 0",
                   flexWrap: "wrap",
                   flexShrink: 0,
+                  boxShadow: "0 1px 2px 0 rgba(0,0,0,0.05)",
                 }}
               >
                 <ToolbarButton
@@ -426,7 +466,7 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   active={editor.isActive("heading", { level: 1 })}
                   title="Heading 1"
                 >
-                  H1
+                  <Heading1 size={18} />
                 </ToolbarButton>
                 <ToolbarButton
                   onClick={() =>
@@ -435,7 +475,7 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   active={editor.isActive("heading", { level: 2 })}
                   title="Heading 2"
                 >
-                  H2
+                  <Heading2 size={18} />
                 </ToolbarButton>
                 <ToolbarButton
                   onClick={() =>
@@ -444,15 +484,15 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   active={editor.isActive("heading", { level: 3 })}
                   title="Heading 3"
                 >
-                  H3
+                  <Heading3 size={18} />
                 </ToolbarButton>
 
                 <div
                   style={{
                     width: 1,
-                    height: 18,
-                    background: "rgba(0,0,0,0.1)",
-                    margin: "0 4px",
+                    height: 20,
+                    background: "#c7c7c7",
+                    margin: "0 6px",
                   }}
                 />
 
@@ -461,36 +501,36 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   active={editor.isActive("bold")}
                   title="Bold"
                 >
-                  B
+                  <Bold size={18} />
                 </ToolbarButton>
                 <ToolbarButton
                   onClick={() => editor.chain().focus().toggleItalic().run()}
                   active={editor.isActive("italic")}
                   title="Italic"
                 >
-                  <em>I</em>
+                  <Italic size={18} />
                 </ToolbarButton>
                 <ToolbarButton
                   onClick={() => editor.chain().focus().toggleUnderline().run()}
                   active={editor.isActive("underline")}
                   title="Underline"
                 >
-                  <u>U</u>
+                  <UnderlineIcon size={18} />
                 </ToolbarButton>
                 <ToolbarButton
                   onClick={() => editor.chain().focus().toggleStrike().run()}
                   active={editor.isActive("strike")}
                   title="Strikethrough"
                 >
-                  <s>S</s>
+                  <Strikethrough size={18} />
                 </ToolbarButton>
 
                 <div
                   style={{
                     width: 1,
-                    height: 18,
-                    background: "rgba(0,0,0,0.1)",
-                    margin: "0 4px",
+                    height: 20,
+                    background: "#c7c7c7",
+                    margin: "0 6px",
                   }}
                 />
 
@@ -501,7 +541,7 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   active={editor.isActive("bulletList")}
                   title="Bullet List"
                 >
-                  • List
+                  <List size={18} />
                 </ToolbarButton>
                 <ToolbarButton
                   onClick={() =>
@@ -510,15 +550,15 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   active={editor.isActive("orderedList")}
                   title="Ordered List"
                 >
-                  1. List
+                  <ListOrdered size={18} />
                 </ToolbarButton>
 
                 <div
                   style={{
                     width: 1,
-                    height: 18,
-                    background: "rgba(0,0,0,0.1)",
-                    margin: "0 4px",
+                    height: 20,
+                    background: "#c7c7c7",
+                    margin: "0 6px",
                   }}
                 />
 
@@ -529,14 +569,14 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   active={editor.isActive("blockquote")}
                   title="Blockquote"
                 >
-                  &ldquo;&rdquo;
+                  <Quote size={18} />
                 </ToolbarButton>
                 <ToolbarButton
                   onClick={() => editor.chain().focus().toggleCodeBlock().run()}
                   active={editor.isActive("codeBlock")}
                   title="Code Block"
                 >
-                  {"</>"}
+                  <Code size={18} />
                 </ToolbarButton>
                 <ToolbarButton
                   onClick={() =>
@@ -544,15 +584,15 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   }
                   title="Horizontal Rule"
                 >
-                  ―
+                  <Minus size={18} />
                 </ToolbarButton>
 
                 <div
                   style={{
                     width: 1,
-                    height: 18,
-                    background: "rgba(0,0,0,0.1)",
-                    margin: "0 4px",
+                    height: 20,
+                    background: "#c7c7c7",
+                    margin: "0 6px",
                   }}
                 />
 
@@ -563,7 +603,7 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   active={editor.isActive({ textAlign: "left" })}
                   title="Align Left"
                 >
-                  ⫷
+                  <AlignLeft size={18} />
                 </ToolbarButton>
                 <ToolbarButton
                   onClick={() =>
@@ -572,7 +612,7 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   active={editor.isActive({ textAlign: "center" })}
                   title="Align Center"
                 >
-                  ☰
+                  <AlignCenter size={18} />
                 </ToolbarButton>
                 <ToolbarButton
                   onClick={() =>
@@ -581,15 +621,15 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   active={editor.isActive({ textAlign: "right" })}
                   title="Align Right"
                 >
-                  ⫸
+                  <AlignRight size={18} />
                 </ToolbarButton>
 
                 <div
                   style={{
                     width: 1,
-                    height: 18,
-                    background: "rgba(0,0,0,0.1)",
-                    margin: "0 4px",
+                    height: 20,
+                    background: "#c7c7c7",
+                    margin: "0 6px",
                   }}
                 />
 
@@ -603,18 +643,13 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   active={editor.isActive("link")}
                   title="Insert Link"
                 >
-                  🔗
+                  <LinkIcon size={18} />
                 </ToolbarButton>
                 <ToolbarButton
-                  onClick={() => {
-                    const url = window.prompt("Image URL:");
-                    if (url) {
-                      editor.chain().focus().setImage({ src: url }).run();
-                    }
-                  }}
+                  onClick={() => setMediaPickerTarget("editor")}
                   title="Insert Image"
                 >
-                  🖼
+                  <ImageIcon size={18} />
                 </ToolbarButton>
               </div>
 
@@ -623,50 +658,52 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                 style={{
                   flex: 1,
                   overflow: "auto",
-                  padding: "24px 32px",
-                  background: "#ffffff",
+                  padding: "24px",
                 }}
               >
                 <style>{`
                   .blog-editor-content {
-                    min-height: 400px;
+                    min-height: 1056px;
                     outline: none;
                     font-size: 15px;
-                    line-height: 1.75;
-                    color: #1a1a1a;
-                    max-width: 720px;
-                    margin: 0 auto;
+                    line-height: 1.6;
+                    color: #1f1f1f;
+                    background: #ffffff;
+                    width: 816px;
+                    max-width: 100%;
+                    margin: 0 auto 40px;
+                    padding: 96px;
+                    box-shadow: 0 1px 3px 1px rgba(0,0,0,0.15);
+                    font-family: Arial, sans-serif;
                   }
-                  .blog-editor-content h1 { font-size: 28px; font-weight: 700; margin: 24px 0 12px; line-height: 1.3; }
-                  .blog-editor-content h2 { font-size: 22px; font-weight: 700; margin: 20px 0 10px; line-height: 1.3; }
-                  .blog-editor-content h3 { font-size: 18px; font-weight: 600; margin: 16px 0 8px; line-height: 1.4; }
-                  .blog-editor-content p { margin: 0 0 12px; }
-                  .blog-editor-content ul, .blog-editor-content ol { padding-left: 24px; margin: 0 0 12px; }
-                  .blog-editor-content li { margin-bottom: 4px; }
+                  .blog-editor-content h1 { font-size: 26pt; font-weight: 400; margin: 18pt 0 6pt; line-height: 1.2; font-family: Arial, sans-serif; }
+                  .blog-editor-content h2 { font-size: 20pt; font-weight: 400; margin: 18pt 0 6pt; line-height: 1.2; font-family: Arial, sans-serif; }
+                  .blog-editor-content h3 { font-size: 16pt; font-weight: 400; margin: 14pt 0 4pt; line-height: 1.2; font-family: Arial, sans-serif; color: #434343; }
+                  .blog-editor-content p { margin: 0 0 11pt; }
+                  .blog-editor-content ul, .blog-editor-content ol { padding-left: 36pt; margin: 0 0 11pt; }
+                  .blog-editor-content li { margin-bottom: 4pt; }
                   .blog-editor-content blockquote {
-                    border-left: 3px solid var(--dash-accent, #4f6ef7);
-                    padding: 8px 16px;
-                    margin: 16px 0;
-                    color: #555;
-                    background: rgba(79, 110, 247, 0.04);
-                    border-radius: 0 6px 6px 0;
+                    border-left: 3px solid #cccccc;
+                    padding-left: 14px;
+                    margin: 14px 0;
+                    color: #666666;
                   }
                   .blog-editor-content pre {
-                    background: #1e1e2e;
-                    color: #e8ecf4;
-                    padding: 16px;
-                    border-radius: 8px;
+                    background: #f1f3f4;
+                    color: #202124;
+                    padding: 12px 16px;
+                    border-radius: 4px;
                     overflow-x: auto;
-                    margin: 16px 0;
-                    font-family: var(--font-dash-mono), monospace;
-                    font-size: 13px;
-                    line-height: 1.6;
+                    margin: 14px 0;
+                    font-family: "Consolas", "Courier New", monospace;
+                    font-size: 10.5pt;
+                    border: 1px solid #dadce0;
                   }
                   .blog-editor-content code {
-                    background: rgba(0,0,0,0.06);
-                    padding: 2px 5px;
-                    border-radius: 4px;
-                    font-family: var(--font-dash-mono), monospace;
+                    background: rgba(0,0,0,0.05);
+                    padding: 2px 4px;
+                    border-radius: 3px;
+                    font-family: "Consolas", "Courier New", monospace;
                     font-size: 0.9em;
                   }
                   .blog-editor-content pre code {
@@ -675,22 +712,26 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                     border-radius: 0;
                     color: inherit;
                   }
-                  .blog-editor-content a { color: var(--dash-accent, #4f6ef7); text-decoration: underline; }
+                  .blog-editor-content a { color: #1155cc; text-decoration: underline; }
                   .blog-editor-content img {
                     max-width: 100%;
                     height: auto;
-                    border-radius: 8px;
                     margin: 16px 0;
+                  }
+                  .blog-editor-content img.ProseMirror-selectednode {
+                    outline: 3px solid #1a73e8;
+                    outline-offset: 2px;
+                    border-radius: 2px;
                   }
                   .blog-editor-content hr {
                     border: none;
-                    border-top: 1px solid rgba(0,0,0,0.1);
+                    border-top: 1px solid #dadce0;
                     margin: 24px 0;
                   }
                   .blog-editor-content .is-editor-empty:first-child::before {
                     content: attr(data-placeholder);
                     float: left;
-                    color: rgba(0,0,0,0.3);
+                    color: #9aa0a6;
                     pointer-events: none;
                     height: 0;
                   }
@@ -859,7 +900,7 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                 <button
                   className="dash-btn dash-btn-ghost"
                   style={{ width: "100%", fontSize: 12 }}
-                  onClick={() => setMediaPickerOpen(true)}
+                  onClick={() => setMediaPickerTarget("cover")}
                 >
                   {coverImageUrl ? "Change Image" : "📷 Choose Cover Image"}
                 </button>
@@ -1063,12 +1104,16 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
 
       {/* Media Picker */}
       <MediaPickerDialog
-        open={mediaPickerOpen}
-        onClose={() => setMediaPickerOpen(false)}
+        open={!!mediaPickerTarget}
+        onClose={() => setMediaPickerTarget(null)}
         onSelect={(url) => {
-          setCoverImageUrl(url);
-          setHasUnsaved(true);
-          setMediaPickerOpen(false);
+          if (mediaPickerTarget === "cover") {
+            setCoverImageUrl(url);
+            setHasUnsaved(true);
+          } else if (mediaPickerTarget === "editor") {
+            editor?.chain().focus().setImage({ src: url }).run();
+          }
+          setMediaPickerTarget(null);
         }}
       />
     </>
