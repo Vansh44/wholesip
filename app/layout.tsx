@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Outfit, Roboto, Stick_No_Bills } from "next/font/google";
+import NextTopLoader from "nextjs-toploader";
 
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 const roboto = Roboto({
@@ -28,7 +29,10 @@ export default function RootLayout({
       lang="en"
       className={`${outfit.variable} ${roboto.variable} ${stickNoBills.variable}`}
     >
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <NextTopLoader />
+        {children}
+      </body>
     </html>
   );
 }
