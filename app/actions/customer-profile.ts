@@ -24,6 +24,17 @@ export async function updateCustomerProfile(formData: FormData) {
     return { error: "Not authenticated." };
   }
 
+  // Update auth email if it changed
+  if (email && email.trim() !== user.email) {
+    const { error: authError } = await supabase.auth.updateUser({
+      email: email.trim(),
+    });
+    if (authError) {
+      console.error("Failed to update auth email:", authError);
+      return { error: authError.message || "Failed to update email address." };
+    }
+  }
+
   const { error: upsertError } = await supabase.from("customers").upsert(
     {
       id: user.id,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -125,6 +125,12 @@ export default function BlogListingClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const blogsPerPage = 9;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeCategory, activeTag]);
 
   const filteredBlogs = useMemo(() => {
     let result = blogs;
@@ -179,6 +185,12 @@ export default function BlogListingClient({
 
   const hasActiveFilters =
     searchQuery.trim() !== "" || activeCategory !== "All" || activeTag !== null;
+
+  const totalPages = Math.ceil(filteredBlogs.length / blogsPerPage);
+  const paginatedBlogs = filteredBlogs.slice(
+    (currentPage - 1) * blogsPerPage,
+    currentPage * blogsPerPage,
+  );
 
   return (
     <>
@@ -268,19 +280,102 @@ export default function BlogListingClient({
       {/* Blog Grid */}
       <section className="blog-grid-section">
         <div className="blog-grid-container">
-          {hasActiveFilters && (
-            <p className="blog-results-count">
+          {filteredBlogs.length > 0 && (
+            <p
+              className="blog-results-count"
+              style={{ marginBottom: "1.5rem", color: "#666" }}
+            >
+              Showing {(currentPage - 1) * blogsPerPage + 1}-
+              {Math.min(currentPage * blogsPerPage, filteredBlogs.length)} of{" "}
               {filteredBlogs.length}{" "}
-              {filteredBlogs.length === 1 ? "article" : "articles"} found
+              {filteredBlogs.length === 1 ? "article" : "articles"}
+              {hasActiveFilters && " (filtered)"}
             </p>
           )}
 
           {filteredBlogs.length > 0 ? (
-            <div className="blog-grid" id="blog-grid">
-              {filteredBlogs.map((blog) => (
-                <BlogCard key={blog.id} blog={blog} />
-              ))}
-            </div>
+            <>
+              <div className="blog-grid" id="blog-grid">
+                {paginatedBlogs.map((blog) => (
+                  <BlogCard key={blog.id} blog={blog} />
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    gap: "1rem",
+                    marginTop: "3rem",
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      setCurrentPage((p) => Math.max(1, p - 1));
+                      document
+                        .getElementById("blog-grid")
+                        ?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
+                    }}
+                    disabled={currentPage === 1}
+                    style={{
+                      padding: "8px 16px",
+                      border: "1px solid #1a1a1a",
+                      borderRadius: "8px",
+                      background: currentPage === 1 ? "#f5f5f5" : "transparent",
+                      color: currentPage === 1 ? "#a0a0a0" : "#1a1a1a",
+                      borderColor: currentPage === 1 ? "#e0e0e0" : "#1a1a1a",
+                      cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                      fontFamily: "var(--font-outfit), sans-serif",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Previous
+                  </button>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-outfit), sans-serif",
+                      fontWeight: 500,
+                      color: "#555",
+                    }}
+                  >
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setCurrentPage((p) => Math.min(totalPages, p + 1));
+                      document
+                        .getElementById("blog-grid")
+                        ?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
+                    }}
+                    disabled={currentPage === totalPages}
+                    style={{
+                      padding: "8px 16px",
+                      border: "1px solid #1a1a1a",
+                      borderRadius: "8px",
+                      background:
+                        currentPage === totalPages ? "#f5f5f5" : "transparent",
+                      color: currentPage === totalPages ? "#a0a0a0" : "#1a1a1a",
+                      borderColor:
+                        currentPage === totalPages ? "#e0e0e0" : "#1a1a1a",
+                      cursor:
+                        currentPage === totalPages ? "not-allowed" : "pointer",
+                      fontFamily: "var(--font-outfit), sans-serif",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="blog-empty-state" id="blog-empty-state">
               <svg
