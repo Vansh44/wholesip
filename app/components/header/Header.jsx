@@ -33,7 +33,7 @@ export default function Header() {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
-    
+
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -74,7 +74,9 @@ export default function Header() {
     : "?";
 
   return (
-    <header className={`${styles.header} ${isScrolled ? styles.headerScrolled : ""}`}>
+    <header
+      className={`${styles.header} ${isScrolled ? styles.headerScrolled : ""}`}
+    >
       <div className={styles.headerLeft}>
         <Link href="/" className={styles.logo}>
           <Image
@@ -124,56 +126,18 @@ export default function Header() {
         <div className={styles.iconGroup}>
           {/* Profile Button with Dropdown */}
           <div className={styles.profileWrapper} ref={profileRef}>
-          <button
-            className={`${styles.userIcon} ${isLoggedIn ? styles.userIconLoggedIn : ""}`}
-            onClick={handleProfileClick}
-            aria-label={isLoggedIn ? "Open profile menu" : "Sign in"}
-            id="header-profile-btn"
-          >
-            {isLoggedIn ? (
-              <span className={styles.avatarBubble}>{initials}</span>
-            ) : (
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-            )}
-          </button>
-
-          {/* Profile Dropdown */}
-          {isProfileOpen && isLoggedIn && (
-            <div className={styles.profileDropdown} id="profile-dropdown">
-              <div className={styles.profileDropdownHeader}>
-                <span className={styles.profileDropdownAvatar}>{initials}</span>
-                <div className={styles.profileDropdownInfo}>
-                  <span className={styles.profileDropdownName}>
-                    {displayName}
-                  </span>
-                  {user?.phone && (
-                    <span className={styles.profileDropdownPhone}>
-                      {user.phone}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className={styles.profileDropdownDivider} />
-              <button
-                className={styles.profileDropdownItem}
-                onClick={handleSignOut}
-                id="profile-logout-btn"
-              >
+            <button
+              className={`${styles.userIcon} ${isLoggedIn ? styles.userIconLoggedIn : ""}`}
+              onClick={handleProfileClick}
+              aria-label={isLoggedIn ? "Open profile menu" : "Sign in"}
+              id="header-profile-btn"
+            >
+              {isLoggedIn ? (
+                <span className={styles.avatarBubble}>{initials}</span>
+              ) : (
                 <svg
-                  width="16"
-                  height="16"
+                  width="20"
+                  height="20"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -181,33 +145,73 @@ export default function Header() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
                 </svg>
-                Log out
-              </button>
-            </div>
-          )}
-        </div>
+              )}
+            </button>
 
-        {/* Cart Button */}
-        <Link href="/pages/cart" className={styles.cartBtn} aria-label="Cart">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="9" cy="21" r="1"></circle>
-            <circle cx="20" cy="21" r="1"></circle>
-            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-          </svg>
-        </Link>
+            {/* Profile Dropdown */}
+            {isProfileOpen && isLoggedIn && (
+              <div className={styles.profileDropdown} id="profile-dropdown">
+                <div className={styles.profileDropdownHeader}>
+                  <span className={styles.profileDropdownAvatar}>
+                    {initials}
+                  </span>
+                  <div className={styles.profileDropdownInfo}>
+                    <span className={styles.profileDropdownName}>
+                      {displayName}
+                    </span>
+                    {user?.phone && (
+                      <span className={styles.profileDropdownPhone}>
+                        {user.phone}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className={styles.profileDropdownDivider} />
+                <button
+                  className={styles.profileDropdownItem}
+                  onClick={handleSignOut}
+                  id="profile-logout-btn"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Cart Button */}
+          <Link href="/pages/cart" className={styles.cartBtn} aria-label="Cart">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="9" cy="21" r="1"></circle>
+              <circle cx="20" cy="21" r="1"></circle>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+            </svg>
+          </Link>
         </div>
 
         {/* Mobile Hamburger Button */}
