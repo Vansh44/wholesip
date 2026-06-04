@@ -10,6 +10,7 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const profileRef = useRef(null);
   const { user, customer, loading, openAuthModal, signOut } = useAuth();
 
@@ -26,6 +27,16 @@ export default function Header() {
       document.body.style.overflow = "";
     };
   }, [isMenuOpen]);
+
+  // Track scroll position for header styling
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Close profile dropdown on outside click
   useEffect(() => {
@@ -63,7 +74,7 @@ export default function Header() {
     : "?";
 
   return (
-    <header className={styles.header}>
+    <header className={`${styles.header} ${isScrolled ? styles.headerScrolled : ""}`}>
       <div className={styles.headerLeft}>
         <Link href="/" className={styles.logo}>
           <Image
@@ -110,8 +121,9 @@ export default function Header() {
           </span>
         </div>
 
-        {/* Profile Button with Dropdown */}
-        <div className={styles.profileWrapper} ref={profileRef}>
+        <div className={styles.iconGroup}>
+          {/* Profile Button with Dropdown */}
+          <div className={styles.profileWrapper} ref={profileRef}>
           <button
             className={`${styles.userIcon} ${isLoggedIn ? styles.userIconLoggedIn : ""}`}
             onClick={handleProfileClick}
@@ -177,6 +189,25 @@ export default function Header() {
               </button>
             </div>
           )}
+        </div>
+
+        {/* Cart Button */}
+        <Link href="/pages/cart" className={styles.cartBtn} aria-label="Cart">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="9" cy="21" r="1"></circle>
+            <circle cx="20" cy="21" r="1"></circle>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+          </svg>
+        </Link>
         </div>
 
         {/* Mobile Hamburger Button */}
