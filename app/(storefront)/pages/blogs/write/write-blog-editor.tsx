@@ -12,6 +12,7 @@ import ImageExtension from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Placeholder from "@tiptap/extension-placeholder";
+import { SlashCommand } from "./slash-command";
 import { PREDEFINED_CATEGORIES, PREDEFINED_TAGS } from "@/lib/blog-config";
 import {
   uploadImage,
@@ -46,6 +47,8 @@ import {
   CheckCircle,
   FileText,
   Clock,
+  Plus,
+  Pencil,
 } from "lucide-react";
 
 type Mode = "write" | "edit" | "success" | "submissions";
@@ -108,7 +111,10 @@ export default function WriteBlogEditor() {
       ImageExtension,
       Underline,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Placeholder.configure({ placeholder: "Write your story..." }),
+      Placeholder.configure({
+        placeholder: 'Write your story, or press "/" for blocks...',
+      }),
+      SlashCommand,
     ],
     content: "",
     editorProps: {
@@ -278,6 +284,16 @@ export default function WriteBlogEditor() {
       return;
     }
 
+    if (selectedCategories.length === 0) {
+      toast.error("Please select at least one category");
+      return;
+    }
+
+    if (selectedTags.length === 0) {
+      toast.error("Please select at least one tag");
+      return;
+    }
+
     // We need a contact email to notify the author when the blog is approved
     // or rejected. Phone sign-up leaves email blank — prompt for it first.
     if (!customer?.email) {
@@ -411,91 +427,96 @@ export default function WriteBlogEditor() {
   if (mode === "submissions") {
     return (
       <div className="write-blog-page">
-        <div className="max-w-[1000px] mx-auto py-12 px-6">
-          <div className="flex justify-between items-center mb-8">
+        <div className="write-blog-submissions">
+          <div className="write-blog-subs-head">
             <div>
-              <Link
-                href="/pages/blogs"
-                className="flex items-center gap-2 text-[var(--blog-muted)] hover:text-[var(--blog-dark)] transition-colors mb-4 text-sm font-medium"
-              >
+              <Link href="/pages/blogs" className="write-blog-subs-back">
                 <ArrowLeft size={16} /> Back to Blogs
               </Link>
-              <h1 className="text-3xl font-semibold text-[var(--blog-dark)]">
-                My Submissions
-              </h1>
+              <h1 className="write-blog-subs-title">My Submissions</h1>
+              {!loadingSubmissions && submissions.length > 0 && (
+                <p className="write-blog-subs-count">
+                  {submissions.length}{" "}
+                  {submissions.length === 1 ? "post" : "posts"}
+                </p>
+              )}
             </div>
             <button
               className="write-blog-submit-btn"
               onClick={() => setMode("write")}
             >
-              Write New Blog
+              <Plus size={18} /> Write New Blog
             </button>
           </div>
 
           {loadingSubmissions ? (
-            <div className="py-20 text-center text-[var(--blog-muted)]">
-              Loading...
+            <div className="write-blog-subs-grid">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="write-blog-skeleton-card">
+                  <div className="write-blog-skeleton-cover" />
+                  <div className="write-blog-skeleton-body">
+                    <div className="write-blog-skeleton-line short" />
+                    <div className="write-blog-skeleton-line" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : submissions.length === 0 ? (
-            <div className="write-blog-success p-12">
-              <FileText
-                size={48}
-                className="text-[var(--blog-border)] mx-auto mb-4"
-              />
-              <h2 className="text-xl font-semibold mb-2">No submissions yet</h2>
-              <p className="text-[var(--blog-muted)] mb-6 max-w-md mx-auto">
+            <div className="write-blog-subs-empty">
+              <div className="write-blog-subs-empty-icon">
+                <FileText size={32} />
+              </div>
+              <h2>No submissions yet</h2>
+              <p>
                 You haven&apos;t submitted any blogs yet. Start writing to share
-                your story!
+                your story with the community.
               </p>
               <button
                 className="write-blog-submit-btn"
                 onClick={() => setMode("write")}
               >
-                Write Your First Blog
+                <Plus size={18} /> Write Your First Blog
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="write-blog-subs-grid">
               {submissions.map((blog) => (
                 <div key={blog.id} className="write-blog-submission-card">
-                  {blog.cover_image_url ? (
-                    <div className="h-40 overflow-hidden bg-[var(--blog-bg-alt)]">
-                      <img
-                        src={blog.cover_image_url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-40 bg-[var(--blog-bg-alt)] flex items-center justify-center text-[var(--blog-border)]">
-                      <ImageIcon size={32} />
-                    </div>
-                  )}
-                  <div className="p-5">
-                    <div className="flex justify-between items-start mb-3">
-                      <span
-                        className={`write-blog-status-badge ${blog.status === "published" ? "published" : "pending"}`}
-                      >
-                        {blog.status === "published"
-                          ? "Published"
-                          : "Pending Review"}
-                      </span>
-                      <span className="text-xs text-[var(--blog-muted)] flex items-center gap-1">
-                        <Clock size={12} />{" "}
+                  <div className="write-blog-subs-cover">
+                    {blog.cover_image_url ? (
+                      <img src={blog.cover_image_url} alt="" />
+                    ) : (
+                      <div className="write-blog-subs-cover-empty">
+                        <ImageIcon size={28} />
+                      </div>
+                    )}
+                    <span
+                      className={`write-blog-status-badge ${blog.status === "published" ? "published" : "pending"}`}
+                    >
+                      {blog.status === "published"
+                        ? "Published"
+                        : "Pending Review"}
+                    </span>
+                  </div>
+                  <div className="write-blog-subs-body">
+                    <h3 className="write-blog-subs-card-title">{blog.title}</h3>
+                    {blog.excerpt && (
+                      <p className="write-blog-subs-excerpt">{blog.excerpt}</p>
+                    )}
+                    <div className="write-blog-subs-meta">
+                      <span className="write-blog-subs-date">
+                        <Clock size={13} />
                         {new Date(blog.created_at).toLocaleDateString()}
                       </span>
+                      {blog.status === "pending_review" && (
+                        <button
+                          onClick={() => handleEditSubmission(blog)}
+                          className="write-blog-subs-edit"
+                        >
+                          <Pencil size={13} /> Edit
+                        </button>
+                      )}
                     </div>
-                    <h3 className="font-semibold text-[var(--blog-dark)] mb-2 line-clamp-2">
-                      {blog.title}
-                    </h3>
-                    {blog.status === "pending_review" && (
-                      <button
-                        onClick={() => handleEditSubmission(blog)}
-                        className="mt-4 text-sm font-medium text-[var(--blog-accent)] hover:text-[var(--blog-dark)] transition-colors flex items-center gap-1"
-                      >
-                        Edit Submission
-                      </button>
-                    )}
                   </div>
                 </div>
               ))}
@@ -611,7 +632,11 @@ export default function WriteBlogEditor() {
           <span className="wb-label">Content</span>
           <div className="write-blog-editor-area">
             {editor && (
-              <div className="write-blog-toolbar">
+              <BubbleMenu
+                editor={editor}
+                className="write-blog-bubble-menu"
+                options={{ placement: "top", offset: 8 }}
+              >
                 <button
                   type="button"
                   onClick={() =>
@@ -622,166 +647,8 @@ export default function WriteBlogEditor() {
                   }
                   title="Heading 1"
                 >
-                  <Heading1 size={18} />
+                  <Heading1 size={16} />
                 </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    editor.chain().focus().toggleHeading({ level: 2 }).run()
-                  }
-                  className={
-                    editor.isActive("heading", { level: 2 }) ? "active" : ""
-                  }
-                  title="Heading 2"
-                >
-                  <Heading2 size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    editor.chain().focus().toggleHeading({ level: 3 }).run()
-                  }
-                  className={
-                    editor.isActive("heading", { level: 3 }) ? "active" : ""
-                  }
-                  title="Heading 3"
-                >
-                  <Heading3 size={18} />
-                </button>
-
-                <div className="write-blog-toolbar-divider" />
-
-                <button
-                  type="button"
-                  onClick={() => editor.chain().focus().toggleBold().run()}
-                  className={editor.isActive("bold") ? "active" : ""}
-                  title="Bold"
-                >
-                  <Bold size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => editor.chain().focus().toggleItalic().run()}
-                  className={editor.isActive("italic") ? "active" : ""}
-                  title="Italic"
-                >
-                  <Italic size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => editor.chain().focus().toggleUnderline().run()}
-                  className={editor.isActive("underline") ? "active" : ""}
-                  title="Underline"
-                >
-                  <UnderlineIcon size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => editor.chain().focus().toggleStrike().run()}
-                  className={editor.isActive("strike") ? "active" : ""}
-                  title="Strikethrough"
-                >
-                  <Strikethrough size={18} />
-                </button>
-
-                <div className="write-blog-toolbar-divider" />
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    editor.chain().focus().toggleBulletList().run()
-                  }
-                  className={editor.isActive("bulletList") ? "active" : ""}
-                  title="Bullet List"
-                >
-                  <List size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    editor.chain().focus().toggleOrderedList().run()
-                  }
-                  className={editor.isActive("orderedList") ? "active" : ""}
-                  title="Numbered List"
-                >
-                  <ListOrdered size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    editor.chain().focus().toggleBlockquote().run()
-                  }
-                  className={editor.isActive("blockquote") ? "active" : ""}
-                  title="Quote"
-                >
-                  <Quote size={18} />
-                </button>
-
-                <div className="write-blog-toolbar-divider" />
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    editor.chain().focus().setTextAlign("left").run()
-                  }
-                  className={
-                    editor.isActive({ textAlign: "left" }) ? "active" : ""
-                  }
-                  title="Align Left"
-                >
-                  <AlignLeft size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    editor.chain().focus().setTextAlign("center").run()
-                  }
-                  className={
-                    editor.isActive({ textAlign: "center" }) ? "active" : ""
-                  }
-                  title="Align Center"
-                >
-                  <AlignCenter size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    editor.chain().focus().setTextAlign("right").run()
-                  }
-                  className={
-                    editor.isActive({ textAlign: "right" }) ? "active" : ""
-                  }
-                  title="Align Right"
-                >
-                  <AlignRight size={18} />
-                </button>
-
-                <div className="write-blog-toolbar-divider" />
-
-                <button
-                  type="button"
-                  onClick={addEditorLink}
-                  title="Add Link"
-                  className={editor.isActive("link") ? "active" : ""}
-                >
-                  <LinkIcon size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={addEditorImage}
-                  title="Add Image"
-                >
-                  <ImageIcon size={18} />
-                </button>
-              </div>
-            )}
-
-            {editor && (
-              <BubbleMenu
-                editor={editor}
-                className="write-blog-bubble-menu"
-                options={{ placement: "top", offset: 8 }}
-              >
                 <button
                   type="button"
                   onClick={() =>
@@ -847,6 +714,26 @@ export default function WriteBlogEditor() {
                 <button
                   type="button"
                   onClick={() =>
+                    editor.chain().focus().toggleBulletList().run()
+                  }
+                  className={editor.isActive("bulletList") ? "active" : ""}
+                  title="Bullet List"
+                >
+                  <List size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    editor.chain().focus().toggleOrderedList().run()
+                  }
+                  className={editor.isActive("orderedList") ? "active" : ""}
+                  title="Numbered List"
+                >
+                  <ListOrdered size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
                     editor.chain().focus().toggleBlockquote().run()
                   }
                   className={editor.isActive("blockquote") ? "active" : ""}
@@ -854,6 +741,48 @@ export default function WriteBlogEditor() {
                 >
                   <Quote size={16} />
                 </button>
+
+                <div className="write-blog-bubble-divider" />
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("left").run()
+                  }
+                  className={
+                    editor.isActive({ textAlign: "left" }) ? "active" : ""
+                  }
+                  title="Align Left"
+                >
+                  <AlignLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("center").run()
+                  }
+                  className={
+                    editor.isActive({ textAlign: "center" }) ? "active" : ""
+                  }
+                  title="Align Center"
+                >
+                  <AlignCenter size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    editor.chain().focus().setTextAlign("right").run()
+                  }
+                  className={
+                    editor.isActive({ textAlign: "right" }) ? "active" : ""
+                  }
+                  title="Align Right"
+                >
+                  <AlignRight size={16} />
+                </button>
+
+                <div className="write-blog-bubble-divider" />
+
                 <button
                   type="button"
                   onClick={addEditorLink}
@@ -861,6 +790,13 @@ export default function WriteBlogEditor() {
                   title="Add Link"
                 >
                   <LinkIcon size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={addEditorImage}
+                  title="Add Image"
+                >
+                  <ImageIcon size={16} />
                 </button>
               </BubbleMenu>
             )}
@@ -874,7 +810,9 @@ export default function WriteBlogEditor() {
         {/* Categories & Tags */}
         <div className="write-blog-meta-grid">
           <section className="wb-section">
-            <span className="wb-label">Categories</span>
+            <span className="wb-label">
+              Categories <span className="wb-required">*</span>
+            </span>
             <div className="write-blog-pills">
               {PREDEFINED_CATEGORIES.map((cat) => (
                 <button
@@ -890,7 +828,9 @@ export default function WriteBlogEditor() {
           </section>
 
           <section className="wb-section">
-            <span className="wb-label">Tags</span>
+            <span className="wb-label">
+              Tags <span className="wb-required">*</span>
+            </span>
             <div className="write-blog-pills">
               {PREDEFINED_TAGS.map((tag) => (
                 <button

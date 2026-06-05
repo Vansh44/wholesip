@@ -6,7 +6,6 @@
 .write-blog-page {
   /* Neutral light palette — scoped here so the page is self-contained
      and doesn't depend on blogs.css being loaded. */
-  --wb-header-h: 10vh; /* matches the fixed site header (height: 10%) */
   --blog-bg: #ffffff;
   --blog-bg-alt: #f7f7f8;
   --blog-surface: #ffffff;
@@ -172,6 +171,11 @@
   color: var(--blog-faint);
 }
 
+.wb-required {
+  color: #dc2626;
+  font-weight: 700;
+}
+
 /* ============================================
    COVER IMAGE
    ============================================ */
@@ -248,7 +252,9 @@
   background: var(--blog-surface);
   resize: vertical;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   font-family: inherit;
   line-height: 1.6;
 }
@@ -276,75 +282,18 @@
   background: var(--blog-surface);
   border-radius: 16px;
   border: 1px solid var(--blog-border);
-  /* No overflow:hidden — it would clip/scope the sticky toolbar below. */
-}
-
-/* Toolbar stays pinned just under the fixed site header while writing,
-   so it's always reachable in long posts. */
-.write-blog-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  padding: 10px 14px;
-  background: #fbfbfb;
-  border-bottom: 1px solid var(--blog-border-light);
-  align-items: center;
-  border-radius: 16px 16px 0 0;
-  position: sticky;
-  top: var(--wb-header-h);
-  z-index: 20;
-}
-
-/* Soft shadow reads as a subtle lift once the toolbar is pinned. */
-.write-blog-toolbar::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -12px;
-  height: 12px;
-  background: linear-gradient(
-    to bottom,
-    rgba(24, 24, 27, 0.04),
-    transparent
-  );
-  pointer-events: none;
-}
-
-.write-blog-toolbar button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  color: var(--blog-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.write-blog-toolbar button:hover {
-  background: var(--blog-tag-bg);
-  color: var(--blog-dark);
-}
-
-.write-blog-toolbar button.active {
-  background: var(--blog-dark);
-  color: #ffffff;
-}
-
-.write-blog-toolbar-divider {
-  width: 1px;
-  height: 20px;
-  background: var(--blog-border);
-  margin: 0 7px;
 }
 
 .write-blog-editor-body {
-  padding: 32px 36px 56px;
-  border-radius: 0 0 16px 16px;
+  padding: 36px 40px 56px;
+  border-radius: 16px;
+  min-height: 420px;
+}
+
+@media (max-width: 768px) {
+  .write-blog-editor-body {
+    padding: 24px 20px 40px;
+  }
 }
 
 /* ============================================
@@ -396,10 +345,80 @@
   margin: 0 4px;
 }
 
-@media (max-width: 768px) {
-  .write-blog-editor-body {
-    padding: 24px 20px 40px;
-  }
+/* ============================================
+   SLASH (/) COMMAND MENU
+   ============================================ */
+
+.slash-menu {
+  width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid var(--blog-border, #ececec);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow:
+    0 12px 32px rgba(24, 24, 27, 0.14),
+    0 2px 8px rgba(24, 24, 27, 0.08);
+}
+
+.slash-menu-empty {
+  padding: 12px 14px;
+  font-size: 0.88rem;
+  color: var(--blog-faint, #a1a1aa);
+}
+
+.slash-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.slash-menu-item.active {
+  background: var(--blog-bg-alt, #f7f7f8);
+}
+
+.slash-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid var(--blog-border, #ececec);
+  color: var(--blog-dark, #18181b);
+}
+
+.slash-menu-item.active .slash-menu-icon {
+  border-color: var(--blog-dark, #18181b);
+}
+
+.slash-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.slash-menu-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--blog-dark, #18181b);
+}
+
+.slash-menu-desc {
+  font-size: 0.78rem;
+  color: var(--blog-muted, #71717a);
 }
 
 /* Editor content typography (scoped — blogs.css isn't loaded here) */
@@ -553,6 +572,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   padding: 11px 24px;
   background: var(--blog-dark);
   color: #ffffff;
@@ -634,35 +654,277 @@
   margin-bottom: 36px;
 }
 
+/* ---- My Submissions page ---- */
+
+.write-blog-submissions {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 8px 24px 120px;
+}
+
+.write-blog-subs-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 36px;
+}
+
+.write-blog-subs-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--blog-muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-decoration: none;
+  margin-bottom: 10px;
+  transition: color 0.2s;
+}
+
+.write-blog-subs-back:hover {
+  color: var(--blog-dark);
+}
+
+.write-blog-subs-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--blog-dark);
+  line-height: 1.1;
+}
+
+.write-blog-subs-count {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: var(--blog-muted);
+}
+
+@media (max-width: 600px) {
+  .write-blog-subs-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.write-blog-subs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+/* ---- Submission card ---- */
+
 .write-blog-submission-card {
+  display: flex;
+  flex-direction: column;
   background: var(--blog-surface);
   border-radius: 16px;
   border: 1px solid var(--blog-border);
   overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    transform 0.2s;
 }
 
 .write-blog-submission-card:hover {
   transform: translateY(-3px);
-  border-color: var(--blog-border);
-  box-shadow: 0 8px 24px rgba(24, 24, 27, 0.06);
+  box-shadow: 0 12px 28px rgba(24, 24, 27, 0.08);
 }
 
-.write-blog-status-badge {
-  padding: 4px 12px;
-  border-radius: 100px;
-  font-size: 0.7rem;
+.write-blog-subs-cover {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--blog-bg-alt);
+  overflow: hidden;
+}
+
+.write-blog-subs-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.write-blog-subs-cover-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cbcbd1;
+}
+
+.write-blog-subs-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 18px 20px 20px;
+}
+
+.write-blog-subs-card-title {
+  font-size: 1.05rem;
   font-weight: 600;
-  letter-spacing: 0.03em;
+  color: var(--blog-dark);
+  line-height: 1.35;
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.write-blog-subs-excerpt {
+  font-size: 0.88rem;
+  color: var(--blog-muted);
+  line-height: 1.55;
+  margin-bottom: 14px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.write-blog-subs-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--blog-border-light);
+}
+
+.write-blog-subs-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--blog-faint);
+}
+
+.write-blog-subs-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--blog-dark);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.write-blog-subs-edit:hover {
+  background: var(--blog-bg-alt);
+}
+
+/* Status badge (overlaid on the cover) */
+.write-blog-status-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 5px 11px;
+  border-radius: 100px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  backdrop-filter: blur(6px);
 }
 
 .write-blog-status-badge.published {
-  background: rgba(22, 163, 74, 0.1);
-  color: #16a34a;
+  background: rgba(22, 163, 74, 0.92);
+  color: #ffffff;
 }
 
 .write-blog-status-badge.pending {
-  background: rgba(217, 119, 6, 0.1);
-  color: #d97706;
+  background: rgba(217, 119, 6, 0.92);
+  color: #ffffff;
+}
+
+/* ---- Empty state ---- */
+
+.write-blog-subs-empty {
+  max-width: 480px;
+  margin: 40px auto;
+  padding: 56px 40px;
+  background: var(--blog-surface);
+  border: 1px solid var(--blog-border);
+  border-radius: 20px;
+  text-align: center;
+}
+
+.write-blog-subs-empty-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: var(--blog-bg-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--blog-muted);
+}
+
+.write-blog-subs-empty h2 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--blog-dark);
+  margin-bottom: 10px;
+}
+
+.write-blog-subs-empty p {
+  font-size: 0.95rem;
+  color: var(--blog-muted);
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+
+.write-blog-subs-empty .write-blog-submit-btn {
+  margin: 0 auto;
+}
+
+/* ---- Loading skeletons ---- */
+
+.write-blog-skeleton-card {
+  border: 1px solid var(--blog-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.write-blog-skeleton-cover {
+  aspect-ratio: 16 / 9;
+}
+
+.write-blog-skeleton-body {
+  padding: 18px 20px 22px;
+}
+
+.write-blog-skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.write-blog-skeleton-line.short {
+  width: 55%;
+}
+
+.write-blog-skeleton-cover,
+.write-blog-skeleton-line {
+  background: linear-gradient(90deg, #f0f0f2 25%, #e6e6ea 37%, #f0f0f2 63%);
+  background-size: 400% 100%;
+  animation: wb-shimmer 1.4s ease infinite;
+}
+
+@keyframes wb-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
 }

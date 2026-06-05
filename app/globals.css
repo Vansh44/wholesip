@@ -4,10 +4,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+/* Keep this reset in the base layer so Tailwind's utility classes
+   (m-*, p-*, mx-auto, …) — which live in @layer utilities — can still
+   override it. An UNlayered `* { margin: 0; padding: 0 }` would beat every
+   layered utility and silently break all spacing utilities app-wide. */
+@layer base {
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
 }
 
 html,
