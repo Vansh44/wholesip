@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 const breadcrumbMap: Record<string, string> = {
   "/dashboard": "Overview",
-  "/dashboard/users": "Users",
+  "/dashboard/admins": "Admins",
 };
 
 export function ActiveBreadcrumb() {
