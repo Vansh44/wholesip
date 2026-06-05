@@ -1,30 +1,63 @@
-/* Premium operations center — scoped to .dashboard-shell */
+/* ============================================================
+   Soakd Operations Center — premium design system
+   Neutral + indigo, light theme. Scoped to .dashboard-shell
+   ============================================================ */
 .dashboard-shell {
-  --dash-bg: #f2f4f7;
+  /* Surfaces */
+  --dash-bg: #f6f7f9;
   --dash-surface: #ffffff;
-  --dash-surface-2: #eaecf2;
-  --dash-surface-3: #dde0ea;
-  --dash-border: rgba(255, 255, 255, 0.06);
-  --dash-border-hover: rgba(255, 255, 255, 0.12);
-  --dash-accent: #4f6ef7;
-  --dash-accent-2: #7c3aed;
-  --dash-accent-soft: rgba(79, 110, 247, 0.12);
-  --dash-green: #10b981;
-  --dash-green-soft: rgba(16, 185, 129, 0.12);
-  --dash-amber: #f59e0b;
-  --dash-amber-soft: rgba(245, 158, 11, 0.12);
-  --dash-red: #ef4444;
-  --dash-red-soft: rgba(239, 68, 68, 0.12);
-  --dash-text: #000000;
-  --dash-text-2: #000000;
-  --dash-text-3: #000000;
+  --dash-surface-2: #f3f4f6;
+  --dash-surface-3: #e9ebef;
+
+  /* Borders */
+  --dash-border: rgba(17, 24, 39, 0.08);
+  --dash-border-strong: rgba(17, 24, 39, 0.12);
+  --dash-border-hover: rgba(17, 24, 39, 0.16);
+
+  /* Accent — indigo */
+  --dash-accent: #4f46e5;
+  --dash-accent-hover: #4338ca;
+  --dash-accent-2: #6366f1;
+  --dash-accent-soft: rgba(79, 70, 229, 0.1);
+  --dash-accent-ring: rgba(79, 70, 229, 0.35);
+
+  /* Semantic */
+  --dash-green: #15a34a;
+  --dash-green-soft: rgba(21, 163, 74, 0.12);
+  --dash-amber: #d97706;
+  --dash-amber-soft: rgba(217, 119, 6, 0.12);
+  --dash-red: #dc2626;
+  --dash-red-soft: rgba(220, 38, 38, 0.12);
+  --dash-violet: #7c3aed;
+  --dash-violet-soft: rgba(124, 58, 237, 0.12);
+
+  /* Text */
+  --dash-text: #111827;
+  --dash-text-2: #5b6472;
+  --dash-text-3: #8b93a3;
+
+  /* Geometry */
+  --dash-radius-lg: 16px;
   --dash-radius: 12px;
-  --dash-radius-sm: 8px;
-  --dash-sidebar-w: 240px;
+  --dash-radius-sm: 9px;
+  --dash-radius-xs: 7px;
+  --dash-sidebar-w: 248px;
+
+  /* Elevation */
+  --dash-shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --dash-shadow-sm:
+    0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --dash-shadow-md:
+    0 2px 4px rgba(16, 24, 40, 0.05), 0 8px 20px -6px rgba(16, 24, 40, 0.1);
+  --dash-shadow-lg:
+    0 12px 32px -8px rgba(16, 24, 40, 0.16),
+    0 4px 12px -4px rgba(16, 24, 40, 0.08);
 
   background: var(--dash-bg);
   color: var(--dash-text);
   font-family: var(--font-dash), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   height: 100vh;
   width: 100%;
   overflow: hidden;
@@ -32,8 +65,10 @@
 
 .dashboard-shell .font-mono-dash {
   font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-feature-settings: "tnum" 1;
 }
 
+/* ---------- Layout shell ---------- */
 .dashboard-shell .dash-main {
   flex: 1 1 0%;
   min-width: 0;
@@ -47,14 +82,42 @@
   flex: 1;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 24px;
+  padding: 28px 32px 40px;
   scrollbar-width: thin;
   scrollbar-color: var(--dash-surface-3) transparent;
 }
 
-/* Page header (in content area) */
+.dashboard-shell .dash-content::-webkit-scrollbar {
+  width: 10px;
+}
+.dashboard-shell .dash-content::-webkit-scrollbar-thumb {
+  background: var(--dash-surface-3);
+  border-radius: 99px;
+  border: 3px solid var(--dash-bg);
+}
+
+/* ---------- Sidebar (brand + nav) ---------- */
+.dashboard-shell .dash-sidebar {
+  width: var(--dash-sidebar-w);
+}
+
+.dashboard-shell .dash-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 20px 18px;
+}
+
+.dashboard-shell .dash-nav-scroll {
+  scrollbar-width: none;
+}
+.dashboard-shell .dash-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- Page header ---------- */
 .dashboard-shell .dash-page-header {
-  margin-bottom: 24px;
+  margin-bottom: 4px;
 }
 
 .dashboard-shell .dash-page-header.row {
@@ -65,29 +128,30 @@
 }
 
 .dashboard-shell .dash-page-header h1 {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.4px;
-  color: #000000;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--dash-text);
   line-height: 1.2;
 }
 
 .dashboard-shell .dash-page-header p {
-  color: #000000;
-  font-size: 13.5px;
-  margin-top: 3px;
+  color: var(--dash-text-2);
+  font-size: 14px;
+  margin-top: 5px;
 }
 
-/* Cards */
+/* ---------- Cards ---------- */
 .dashboard-shell .dash-card {
   background: var(--dash-surface);
   border: 1px solid var(--dash-border);
   border-radius: var(--dash-radius);
+  box-shadow: var(--dash-shadow-sm);
   overflow: hidden;
 }
 
 .dashboard-shell .dash-card-header {
-  padding: 16px 20px;
+  padding: 18px 22px;
   border-bottom: 1px solid var(--dash-border);
   display: flex;
   align-items: center;
@@ -96,42 +160,45 @@
 }
 
 .dashboard-shell .dash-card-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: -0.02em;
-  color: #000000;
+  letter-spacing: -0.2px;
+  color: var(--dash-text);
 }
 
 .dashboard-shell .dash-card-sub {
-  font-size: 12px;
-  color: #000000;
-  margin-top: 1px;
+  font-size: 12.5px;
+  color: var(--dash-text-3);
+  margin-top: 2px;
 }
 
 .dashboard-shell .dash-card-body {
-  padding: 16px 20px;
+  padding: 20px 22px;
 }
 
-/* Stat cards */
+/* ---------- Stat cards ---------- */
 .dashboard-shell .dash-stat-card {
   background: var(--dash-surface);
   border: 1px solid var(--dash-border);
   border-radius: var(--dash-radius);
-  padding: 18px 20px;
+  box-shadow: var(--dash-shadow-sm);
+  padding: 20px 20px 18px;
   transition:
     border-color 0.2s ease,
+    box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 
 .dashboard-shell .dash-stat-card:hover {
-  border-color: var(--dash-border-hover);
-  transform: translateY(-1px);
+  border-color: var(--dash-border-strong);
+  box-shadow: var(--dash-shadow-md);
+  transform: translateY(-2px);
 }
 
 .dashboard-shell .dash-stat-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--dash-radius-sm);
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -153,11 +220,18 @@
   background: var(--dash-red-soft);
   color: var(--dash-red);
 }
+.dashboard-shell .dash-stat-icon.violet {
+  background: var(--dash-violet-soft);
+  color: var(--dash-violet);
+}
 
 .dashboard-shell .dash-trend {
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 3px 7px;
+  padding: 3px 8px;
   border-radius: 20px;
   font-family: var(--font-dash-mono), monospace;
 }
@@ -173,28 +247,39 @@
 }
 
 .dashboard-shell .dash-stat-val {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.8px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -1px;
   font-family: var(--font-dash-mono), monospace;
-  line-height: 1.1;
-  color: #000000;
+  line-height: 1.05;
+  color: var(--dash-text);
 }
 
 .dashboard-shell .dash-stat-label {
-  font-size: 12px;
-  color: #000000;
-  margin-top: 4px;
+  font-size: 13px;
+  color: var(--dash-text-2);
+  margin-top: 6px;
 }
 
-/* Badges */
+/* ---------- Badges ---------- */
 .dashboard-shell .dash-badge {
   display: inline-flex;
   align-items: center;
-  padding: 3px 9px;
+  gap: 5px;
+  padding: 3px 10px;
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
+  letter-spacing: 0.1px;
+}
+
+.dashboard-shell .dash-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.9;
 }
 
 .dashboard-shell .dash-badge-green {
@@ -214,24 +299,27 @@
   color: var(--dash-accent);
 }
 .dashboard-shell .dash-badge-grey {
-  background: rgba(255, 255, 255, 0.06);
-  color: #000000;
+  background: var(--dash-surface-3);
+  color: var(--dash-text-2);
+}
+.dashboard-shell .dash-badge-grey::before {
+  background: var(--dash-text-3);
 }
 
-/* Role pills (reference design) */
+/* ---------- Role pills ---------- */
 .dashboard-shell .dash-role-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
 }
 
 .dashboard-shell .dash-role-super {
-  background: rgba(124, 58, 237, 0.15);
-  color: #a78bfa;
+  background: var(--dash-violet-soft);
+  color: var(--dash-violet);
 }
 
 .dashboard-shell .dash-role-admin {
@@ -239,16 +327,16 @@
   color: var(--dash-accent);
 }
 
-/* User avatar in tables */
+/* ---------- Table user cell ---------- */
 .dashboard-shell .dash-flex-row {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
 }
 
 .dashboard-shell .dash-user-avatar {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -259,11 +347,12 @@
   flex-shrink: 0;
 }
 
-/* Filter tabs */
+/* ---------- Filter tabs (segmented) ---------- */
 .dashboard-shell .dash-filter-tabs {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   background: var(--dash-surface-2);
+  border: 1px solid var(--dash-border);
   border-radius: var(--dash-radius-sm);
   padding: 3px;
 }
@@ -271,10 +360,10 @@
 .dashboard-shell .dash-filter-tab {
   padding: 5px 14px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
-  color: #000000;
+  color: var(--dash-text-2);
   transition: all 0.15s ease;
   border: none;
   background: transparent;
@@ -283,21 +372,21 @@
 
 .dashboard-shell .dash-filter-tab.active {
   background: var(--dash-surface);
-  color: #000000;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  color: var(--dash-text);
+  box-shadow: var(--dash-shadow-xs);
 }
 
 .dashboard-shell .dash-filter-tab:hover:not(.active) {
-  color: #000000;
+  color: var(--dash-text);
 }
 
-/* Buttons */
+/* ---------- Buttons ---------- */
 .dashboard-shell .dash-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 7px 14px;
+  padding: 8px 15px;
   border-radius: var(--dash-radius-sm);
   font-size: 13px;
   font-weight: 500;
@@ -311,28 +400,30 @@
 .dashboard-shell .dash-btn-primary {
   background: var(--dash-accent);
   color: #fff;
+  box-shadow: var(--dash-shadow-xs);
 }
 .dashboard-shell .dash-btn-primary:hover {
-  background: #3d5ce5;
+  background: var(--dash-accent-hover);
+  box-shadow: var(--dash-shadow-sm);
 }
 
 .dashboard-shell .dash-btn-ghost {
-  background: transparent;
-  border: 1px solid var(--dash-border);
-  color: #000000;
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border-strong);
+  color: var(--dash-text-2);
 }
 .dashboard-shell .dash-btn-ghost:hover {
   border-color: var(--dash-border-hover);
-  color: #000000;
+  color: var(--dash-text);
   background: var(--dash-surface-2);
 }
 
 .dashboard-shell .dash-btn-sm {
-  padding: 5px 10px;
-  font-size: 12px;
+  padding: 6px 11px;
+  font-size: 12.5px;
 }
 
-/* Data table */
+/* ---------- Data table ---------- */
 .dashboard-shell .dash-table {
   width: 100%;
   border-collapse: collapse;
@@ -344,16 +435,16 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #000000;
-  padding: 10px 16px;
+  color: var(--dash-text-3);
+  padding: 11px 22px;
   border-bottom: 1px solid var(--dash-border);
   background: var(--dash-surface-2);
 }
 
 .dashboard-shell .dash-table td {
-  padding: 11px 16px;
-  font-size: 13px;
-  color: #000000;
+  padding: 13px 22px;
+  font-size: 13.5px;
+  color: var(--dash-text);
   border-bottom: 1px solid var(--dash-border);
   vertical-align: middle;
 }
@@ -362,23 +453,27 @@
   border-bottom: none;
 }
 
+.dashboard-shell .dash-table tbody tr {
+  transition: background 0.12s ease;
+}
+
 .dashboard-shell .dash-table tbody tr:hover td {
   background: var(--dash-surface-2);
 }
 
 .dashboard-shell .dash-table .text-muted {
-  color: #000000;
-  font-size: 12px;
+  color: var(--dash-text-2);
+  font-size: 12.5px;
 }
 
 .dashboard-shell .dash-table .text-dim {
-  color: #000000;
-  font-size: 12px;
+  color: var(--dash-text-3);
+  font-size: 12.5px;
 }
 
-/* Progress */
+/* ---------- Progress rows ---------- */
 .dashboard-shell .dash-progress-row {
-  margin-bottom: 14px;
+  margin-bottom: 18px;
 }
 .dashboard-shell .dash-progress-row:last-child {
   margin-bottom: 0;
@@ -387,19 +482,22 @@
 .dashboard-shell .dash-progress-label {
   display: flex;
   justify-content: space-between;
-  font-size: 12.5px;
-  margin-bottom: 5px;
-  color: #000000;
+  align-items: baseline;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 7px;
+  color: var(--dash-text);
 }
 
 .dashboard-shell .dash-progress-label span:last-child {
-  color: #000000;
+  color: var(--dash-text-2);
   font-family: var(--font-dash-mono), monospace;
-  font-size: 12px;
+  font-size: 12.5px;
+  font-weight: 500;
 }
 
 .dashboard-shell .dash-progress-track {
-  height: 5px;
+  height: 7px;
   background: var(--dash-surface-3);
   border-radius: 99px;
   overflow: hidden;
@@ -408,55 +506,14 @@
 .dashboard-shell .dash-progress-fill {
   height: 100%;
   border-radius: 99px;
-  transition: width 0.6s ease;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Bar chart */
-.dashboard-shell .dash-bar-chart {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  height: 140px;
-  padding: 0 4px;
-}
-
-.dashboard-shell .dash-bar-wrap {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  height: 100%;
-  min-width: 0;
-}
-
-.dashboard-shell .dash-bar-spacer {
-  flex: 1;
-}
-
-.dashboard-shell .dash-bar-fill {
-  width: 100%;
-  border-radius: 4px 4px 0 0;
-  transition: all 0.3s ease;
-}
-
-.dashboard-shell .dash-bar-fill.muted {
-  background: var(--dash-surface-3);
-}
-.dashboard-shell .dash-bar-fill.accent {
-  background: var(--dash-accent);
-}
-
-.dashboard-shell .dash-bar-label {
-  font-size: 10px;
-  color: #000000;
-}
-
-/* Activity */
+/* ---------- Activity feed ---------- */
 .dashboard-shell .dash-activity-item {
   display: flex;
-  gap: 12px;
-  padding: 10px 0;
+  gap: 13px;
+  padding: 13px 0;
   border-bottom: 1px solid var(--dash-border);
 }
 
@@ -465,165 +522,192 @@
 }
 
 .dashboard-shell .dash-activity-dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   margin-top: 5px;
   flex-shrink: 0;
+  box-shadow: 0 0 0 4px var(--dash-surface);
+  outline: 3px solid transparent;
 }
 
 .dashboard-shell .dash-activity-text {
-  font-size: 13px;
-  color: #000000;
+  font-size: 13.5px;
+  color: var(--dash-text-2);
+  line-height: 1.45;
 }
 
 .dashboard-shell .dash-activity-text strong {
-  color: #000000;
+  color: var(--dash-text);
   font-weight: 600;
 }
 
 .dashboard-shell .dash-activity-time {
-  font-size: 11px;
-  color: #000000;
-  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--dash-text-3);
+  margin-top: 3px;
   font-family: var(--font-dash-mono), monospace;
 }
 
-/* Topbar */
+/* ---------- Topbar ---------- */
 .dashboard-shell .dash-topbar {
-  height: 56px;
+  height: 64px;
   flex-shrink: 0;
-  background: var(--dash-surface);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--dash-border);
   display: flex;
   align-items: center;
-  padding: 0 24px;
-  gap: 12px;
+  padding: 0 32px;
+  gap: 14px;
 }
 
 .dashboard-shell .dash-topbar-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.2px;
-  color: #000000;
+  color: var(--dash-text);
 }
 
 .dashboard-shell .dash-topbar-bc {
   font-size: 12px;
-  color: #000000;
+  color: var(--dash-text-3);
   margin-top: 2px;
 }
 
 .dashboard-shell .dash-search-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   background: var(--dash-surface-2);
   border: 1px solid var(--dash-border);
   border-radius: var(--dash-radius-sm);
-  padding: 7px 12px;
-  width: 220px;
-  transition: border-color 0.15s;
+  padding: 8px 13px;
+  width: 260px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
 }
 
-.dashboard-shell .dash-search-bar:hover {
-  border-color: var(--dash-border-hover);
+.dashboard-shell .dash-search-bar:focus-within {
+  border-color: var(--dash-accent);
+  background: var(--dash-surface);
+  box-shadow: 0 0 0 3px var(--dash-accent-soft);
 }
 
 .dashboard-shell .dash-search-bar input {
   background: none;
   border: none;
   outline: none;
-  color: #000000;
+  color: var(--dash-text);
   font-size: 13px;
   font-family: inherit;
   width: 100%;
 }
 
 .dashboard-shell .dash-search-bar input::placeholder {
-  color: #000000;
+  color: var(--dash-text-3);
+}
+
+.dashboard-shell .dash-search-kbd {
+  font-family: var(--font-dash-mono), monospace;
+  font-size: 10.5px;
+  color: var(--dash-text-3);
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  border-radius: 5px;
+  padding: 1px 6px;
 }
 
 .dashboard-shell .dash-icon-btn {
-  width: 34px;
-  height: 34px;
-  background: var(--dash-surface-2);
-  border: 1px solid var(--dash-border);
+  width: 38px;
+  height: 38px;
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border-strong);
   border-radius: var(--dash-radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #000000;
+  color: var(--dash-text-2);
   transition: all 0.15s;
   position: relative;
 }
 
 .dashboard-shell .dash-icon-btn:hover {
   border-color: var(--dash-border-hover);
-  color: #000000;
-  background: var(--dash-surface-3);
+  color: var(--dash-text);
+  background: var(--dash-surface-2);
 }
 
-/* Sidebar nav */
+/* ---------- Sidebar nav ---------- */
 .dashboard-shell .dash-nav-label {
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #000000;
-  padding: 10px 8px 4px;
+  color: var(--dash-text-3);
+  padding: 14px 10px 6px;
 }
 
 .dashboard-shell .dash-nav-item {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
+  gap: 11px;
+  padding: 9px 11px;
   border-radius: var(--dash-radius-sm);
   font-size: 13.5px;
   font-weight: 500;
-  color: #000000;
+  color: var(--dash-text-2);
   transition: all 0.15s ease;
   position: relative;
-  margin-bottom: 1px;
+  margin-bottom: 2px;
 }
 
 .dashboard-shell .dash-nav-item:hover {
   background: var(--dash-surface-2);
-  color: #000000;
+  color: var(--dash-text);
 }
 
 .dashboard-shell .dash-nav-item.active {
   background: var(--dash-accent-soft);
-  color: #000000;
+  color: var(--dash-accent);
+  font-weight: 600;
 }
 
 .dashboard-shell .dash-nav-item.active::before {
   content: "";
   position: absolute;
-  left: 0;
+  left: -10px;
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 18px;
+  height: 20px;
   background: var(--dash-accent);
   border-radius: 0 3px 3px 0;
 }
 
 .dashboard-shell .dash-nav-icon {
-  width: 16px;
-  text-align: center;
-  font-size: 14px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  line-height: 1;
+  color: currentColor;
+  opacity: 0.85;
+}
+
+.dashboard-shell .dash-nav-item.active .dash-nav-icon {
+  opacity: 1;
 }
 
 .dashboard-shell .dash-nav-badge {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
-  padding: 2px 6px;
+  padding: 1px 7px;
   border-radius: 20px;
   font-family: var(--font-dash-mono), monospace;
   color: #fff;
@@ -637,10 +721,22 @@
   background: var(--dash-amber);
 }
 
+/* ---------- Recharts polish ---------- */
+.dashboard-shell .recharts-cartesian-axis-tick text {
+  fill: var(--dash-text-3);
+  font-size: 11px;
+  font-family: var(--font-dash-mono), monospace;
+}
+
+.dashboard-shell .recharts-cartesian-grid line {
+  stroke: var(--dash-border);
+}
+
+/* ---------- Entry animation ---------- */
 @keyframes dash-fade-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -649,5 +745,21 @@
 }
 
 .dashboard-shell .dash-page-enter {
-  animation: dash-fade-in 0.2s ease;
+  animation: dash-fade-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dashboard-shell .dash-page-enter > * {
+  animation: dash-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.dashboard-shell .dash-page-enter > *:nth-child(1) {
+  animation-delay: 0.02s;
+}
+.dashboard-shell .dash-page-enter > *:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.dashboard-shell .dash-page-enter > *:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.dashboard-shell .dash-page-enter > *:nth-child(4) {
+  animation-delay: 0.14s;
 }

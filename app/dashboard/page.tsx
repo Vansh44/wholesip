@@ -7,14 +7,14 @@ import { RecentOrdersTable } from "./components/recent-orders-table";
 
 export default async function DashboardHomePage() {
   return (
-    <div className="dash-page-enter flex flex-col gap-[22px]">
+    <div className="dash-page-enter flex flex-col gap-5">
       <HeroPanel />
       <ExecutiveMetrics />
-      <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-[1fr_360px]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_380px]">
         <RevenueChart />
         <TopCategories />
       </div>
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <RecentOrdersTable />
         <ActivityFeed />
       </div>

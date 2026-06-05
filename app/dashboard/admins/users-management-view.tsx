@@ -111,8 +111,8 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
     <div className="dash-page-enter">
       <header className="dash-page-header row">
         <div>
-          <h1>Users</h1>
-          <p>Manage dashboard access — only authorised users</p>
+          <h1>Admins</h1>
+          <p>Manage dashboard access — only authorised admins</p>
         </div>
         <InviteUserDialog
           className="dash-btn dash-btn-primary shrink-0"
@@ -123,7 +123,7 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
 
       <div className="dash-card">
         <div className="dash-card-header">
-          <div className="dash-card-title">Dashboard Users</div>
+          <div className="dash-card-title">Dashboard Admins</div>
         </div>
         <table className="dash-table">
           <thead>

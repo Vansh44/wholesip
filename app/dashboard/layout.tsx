@@ -26,38 +26,38 @@ export const metadata = {
 };
 
 const workspaceLinks: SidebarNavItem[] = [
-  { href: "/dashboard", label: "Dashboard", emoji: "⊞" },
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   {
     href: "/dashboard/orders",
     label: "Orders",
-    emoji: "📦",
+    icon: "orders",
     badge: "12",
     badgeTone: "accent",
   },
-  { href: "/dashboard/products", label: "Products", emoji: "🛍" },
-  { href: "/dashboard/customers", label: "Customers", emoji: "👥" },
+  { href: "/dashboard/products", label: "Products", icon: "products" },
+  { href: "/dashboard/users", label: "Users", icon: "customers" },
   {
     href: "/dashboard/inventory",
     label: "Inventory",
-    emoji: "🗄",
+    icon: "inventory",
     badge: "3",
     badgeTone: "amber",
   },
-  { href: "/dashboard/analytics", label: "Analytics", emoji: "📊" },
+  { href: "/dashboard/analytics", label: "Analytics", icon: "analytics" },
 ];
 
 const contentLinks: SidebarNavItem[] = [
-  { href: "/dashboard/blogs", label: "Blogs", emoji: "✍️" },
-  { href: "/dashboard/marketing", label: "Marketing", emoji: "📢" },
-  { href: "/dashboard/promotions", label: "Promotions", emoji: "🎁" },
+  { href: "/dashboard/blogs", label: "Blogs", icon: "blogs" },
+  { href: "/dashboard/marketing", label: "Marketing", icon: "marketing" },
+  { href: "/dashboard/promotions", label: "Promotions", icon: "promotions" },
 ];
 
 const adminLinks: SidebarNavItem[] = [
-  { href: "/dashboard/users", label: "Users", emoji: "🔐" },
-  { href: "/dashboard/media", label: "Media Library", emoji: "🖼" },
-  { href: "/dashboard/roles", label: "Roles & Permissions", emoji: "🛡" },
-  { href: "/dashboard/activity", label: "Activity Logs", emoji: "🕐" },
-  { href: "/dashboard/settings", label: "Settings", emoji: "⚙️" },
+  { href: "/dashboard/admins", label: "Admins", icon: "users" },
+  { href: "/dashboard/media", label: "Media Library", icon: "media" },
+  { href: "/dashboard/roles", label: "Roles & Permissions", icon: "roles" },
+  { href: "/dashboard/activity", label: "Activity Logs", icon: "activity" },
+  { href: "/dashboard/settings", label: "Settings", icon: "settings" },
 ];
 
 export default async function DashboardLayout({
@@ -86,26 +86,26 @@ export default async function DashboardLayout({
       console.error("Dashboard layout profile fetch error:", profileError);
     }
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0d0f14] px-4 text-[#e8ecf4]">
-        <div className="max-w-lg space-y-4 rounded-xl border border-white/10 bg-[#141720] p-8 shadow-2xl">
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f7f9] px-4 text-[#111827]">
+        <div className="max-w-lg space-y-4 rounded-2xl border border-[rgba(17,24,39,0.08)] bg-white p-8 shadow-[0_12px_32px_-8px_rgba(16,24,40,0.16)]">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-lg font-bold text-amber-400">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-lg font-bold text-amber-600">
               ⚠️
             </div>
             <div>
               <h1 className="text-lg font-bold">Profile Not Found</h1>
-              <p className="text-sm text-[#8b93a8]">
+              <p className="text-sm text-[#5b6472]">
                 Your auth account exists but has no profile row.
               </p>
             </div>
           </div>
-          <p className="text-sm text-[#8b93a8]">
+          <p className="text-sm text-[#5b6472]">
             Run the following SQL in your Supabase SQL Editor:
           </p>
-          <pre className="overflow-auto rounded-lg border border-white/10 bg-[#1a1f2e] p-3 text-xs">
+          <pre className="overflow-auto rounded-lg border border-[rgba(17,24,39,0.08)] bg-[#f3f4f6] p-3 text-xs text-[#111827]">
             {`INSERT INTO profiles (id, email, role, force_password_reset)\nVALUES ('${user.id}', '${user.email}', 'superadmin', false);`}
           </pre>
-          <p className="text-xs text-[#4f5768]">
+          <p className="text-xs text-[#8b93a3]">
             After inserting, refresh this page.
           </p>
         </div>
@@ -119,21 +119,21 @@ export default async function DashboardLayout({
     <div
       className={`dashboard-shell ${dashFont.variable} ${dashMono.variable} flex`}
     >
-      <aside className="hidden h-screen w-[240px] shrink-0 flex-col border-r border-[var(--dash-border)] bg-[var(--dash-surface)] md:flex">
-        <div className="mb-2 flex items-center gap-2.5 border-b border-[var(--dash-border)] px-[18px] py-5">
+      <aside className="dash-sidebar hidden h-screen shrink-0 flex-col border-r border-[var(--dash-border)] bg-[var(--dash-surface)] md:flex">
+        <div className="dash-brand">
           <Link href="/dashboard" className="flex items-center gap-2.5">
             <Image
               src={siteConfig.assets.logoUrl}
               alt="Soakd Logo"
-              width={180}
-              height={60}
+              width={150}
+              height={50}
               priority
-              style={{ height: "auto" }}
+              style={{ height: "auto", width: "auto", maxHeight: 36 }}
             />
           </Link>
         </div>
 
-        <div className="flex flex-1 flex-col overflow-y-auto px-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="dash-nav-scroll flex flex-1 flex-col overflow-y-auto px-[14px]">
           <NavSection label="Workspace">
             {workspaceLinks.map((item) => (
               <SidebarNavLink key={item.href} {...item} />
@@ -153,10 +153,20 @@ export default async function DashboardLayout({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-[var(--dash-border)] p-2.5">
-          <div className="dash-nav-item cursor-default text-[12px] text-[var(--dash-text-3)] hover:bg-transparent hover:text-[var(--dash-text-3)]">
-            <span className="dash-nav-icon">🌐</span>
-            <span className="font-mono-dash text-[11px]">localhost:3000</span>
+        <div className="shrink-0 border-t border-[var(--dash-border)] p-[14px]">
+          <div className="flex items-center gap-2.5 rounded-[var(--dash-radius-sm)] bg-[var(--dash-surface-2)] px-3 py-2.5">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--dash-green)] opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--dash-green)]" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-[12px] font-medium text-[var(--dash-text)]">
+                All systems operational
+              </div>
+              <div className="font-mono-dash text-[10.5px] text-[var(--dash-text-3)]">
+                v0.1.0 · uptime 99.9%
+              </div>
+            </div>
           </div>
         </div>
       </aside>
@@ -171,15 +181,7 @@ export default async function DashboardLayout({
         <div className="dash-content">{children}</div>
       </div>
 
-      <Toaster
-        richColors
-        position="top-right"
-        toastOptions={{
-          classNames: {
-            toast: "bg-[#1a1f2e] border-white/10 text-[#e8ecf4] shadow-xl",
-          },
-        }}
-      />
+      <Toaster richColors position="top-right" />
     </div>
   );
 }

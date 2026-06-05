@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Settings, KeyRound, Smartphone, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useRef, useState } from "react";
 
@@ -93,7 +94,7 @@ export function TopbarProfile({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-[var(--dash-border)] bg-[var(--dash-surface-2)] py-1 pl-1 pr-2 transition-all hover:border-[var(--dash-border-hover)] hover:bg-[var(--dash-surface-3)]"
+        className="flex items-center gap-2 rounded-full border border-[var(--dash-border-strong)] bg-[var(--dash-surface)] py-1 pl-1 pr-2.5 transition-all hover:border-[var(--dash-border-hover)] hover:bg-[var(--dash-surface-2)]"
       >
         <div
           className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
@@ -126,34 +127,44 @@ export function TopbarProfile({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-[200] w-[200px] overflow-hidden rounded-[var(--dash-radius)] border border-[var(--dash-border)] bg-[var(--dash-surface-2)] shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
-          <div className="border-b border-[var(--dash-border)] px-3.5 py-3">
-            <div className="text-[13px] font-semibold">{name}</div>
+        <div className="absolute right-0 top-[calc(100%+8px)] z-[200] w-[214px] overflow-hidden rounded-[var(--dash-radius)] border border-[var(--dash-border-strong)] bg-[var(--dash-surface)] shadow-[var(--dash-shadow-lg)]">
+          <div className="border-b border-[var(--dash-border)] px-4 py-3">
+            <div className="text-[13px] font-semibold text-[var(--dash-text)]">
+              {name}
+            </div>
             <div className="mt-0.5 text-[11px] text-[var(--dash-text-3)]">
               {email}
             </div>
           </div>
-          <Link
-            href="/dashboard/settings"
-            onClick={() => setOpen(false)}
-            className="block px-3.5 py-2.5 text-[13px] text-[var(--dash-text-2)] hover:bg-[var(--dash-surface-3)] hover:text-[var(--dash-text)]"
-          >
-            ⚙️ &nbsp;Account Settings
-          </Link>
-          <div className="block cursor-default px-3.5 py-2.5 text-[13px] text-[var(--dash-text-2)]">
-            🔑 &nbsp;Change Password
-          </div>
-          <div className="block cursor-default px-3.5 py-2.5 text-[13px] text-[var(--dash-text-2)]">
-            📱 &nbsp;Update Phone
+          <div className="p-1.5">
+            <Link
+              href="/dashboard/settings"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 rounded-[var(--dash-radius-xs)] px-2.5 py-2 text-[13px] text-[var(--dash-text-2)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+            >
+              <Settings className="h-4 w-4 text-[var(--dash-text-3)]" />
+              Account Settings
+            </Link>
+            <div className="flex cursor-default items-center gap-2.5 rounded-[var(--dash-radius-xs)] px-2.5 py-2 text-[13px] text-[var(--dash-text-2)]">
+              <KeyRound className="h-4 w-4 text-[var(--dash-text-3)]" />
+              Change Password
+            </div>
+            <div className="flex cursor-default items-center gap-2.5 rounded-[var(--dash-radius-xs)] px-2.5 py-2 text-[13px] text-[var(--dash-text-2)]">
+              <Smartphone className="h-4 w-4 text-[var(--dash-text-3)]" />
+              Update Phone
+            </div>
           </div>
           <div className="h-px bg-[var(--dash-border)]" />
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="block w-full px-3.5 py-2.5 text-left text-[13px] text-[var(--dash-red)] hover:bg-[var(--dash-red-soft)]"
-          >
-            🚪 &nbsp;Log Out
-          </button>
+          <div className="p-1.5">
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="flex w-full items-center gap-2.5 rounded-[var(--dash-radius-xs)] px-2.5 py-2 text-left text-[13px] font-medium text-[var(--dash-red)] transition-colors hover:bg-[var(--dash-red-soft)]"
+            >
+              <LogOut className="h-4 w-4" />
+              Log Out
+            </button>
+          </div>
         </div>
       )}
     </div>

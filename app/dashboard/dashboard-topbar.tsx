@@ -11,9 +11,9 @@ const routeMeta: Record<string, { title: string; breadcrumb: string }> = {
     title: "Products",
     breadcrumb: "Workspace / Products",
   },
-  "/dashboard/customers": {
-    title: "Customers",
-    breadcrumb: "Workspace / Customers",
+  "/dashboard/users": {
+    title: "Users",
+    breadcrumb: "Workspace / Users",
   },
   "/dashboard/inventory": {
     title: "Inventory",
@@ -32,7 +32,10 @@ const routeMeta: Record<string, { title: string; breadcrumb: string }> = {
     title: "Promotions",
     breadcrumb: "Content / Promotions",
   },
-  "/dashboard/users": { title: "Users", breadcrumb: "Administration / Users" },
+  "/dashboard/admins": {
+    title: "Admins",
+    breadcrumb: "Administration / Admins",
+  },
   "/dashboard/media": {
     title: "Media Library",
     breadcrumb: "Administration / Media Library",
@@ -82,8 +85,12 @@ export function DashboardTopbar({
       </div>
 
       <div className="dash-search-bar hidden md:flex">
-        <Search className="h-3.5 w-3.5 shrink-0 text-[var(--dash-text-3)]" />
-        <input type="search" placeholder="Search anything…" />
+        <Search className="h-4 w-4 shrink-0 text-[var(--dash-text-3)]" />
+        <input
+          type="search"
+          placeholder="Search orders, products, customers…"
+        />
+        <kbd className="dash-search-kbd shrink-0">⌘K</kbd>
       </div>
 
       <div className="flex items-center gap-2">
