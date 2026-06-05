@@ -305,7 +305,7 @@ export default function BlogListingClient({
               </button>
 
               <button
-                className="blog-publish-cta-btn"
+                className="blog-publish-cta-btn blog-publish-cta-btn--ghost"
                 onClick={() => router.push("/pages/blogs/my-submissions")}
                 id="blog-my-submissions-cta"
                 style={{ padding: "10px 20px", marginLeft: 12 }}
@@ -380,7 +380,7 @@ export default function BlogListingClient({
           {filteredBlogs.length > 0 && (
             <p
               className="blog-results-count"
-              style={{ marginBottom: "1.5rem", color: "#666" }}
+              style={{ marginBottom: "1.5rem" }}
             >
               Showing {(currentPage - 1) * blogsPerPage + 1}-
               {Math.min(currentPage * blogsPerPage, filteredBlogs.length)} of{" "}
@@ -399,16 +399,9 @@ export default function BlogListingClient({
               </div>
 
               {totalPages > 1 && (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    gap: "1rem",
-                    marginTop: "3rem",
-                  }}
-                >
+                <div className="blog-pagination">
                   <button
+                    className="blog-pagination-btn"
                     onClick={() => {
                       setCurrentPage((p) => Math.max(1, p - 1));
                       document.getElementById("blog-grid")?.scrollIntoView({
@@ -417,30 +410,14 @@ export default function BlogListingClient({
                       });
                     }}
                     disabled={currentPage === 1}
-                    style={{
-                      padding: "8px 16px",
-                      border: "1px solid #1a1a1a",
-                      borderRadius: "8px",
-                      background: currentPage === 1 ? "#f5f5f5" : "transparent",
-                      color: currentPage === 1 ? "#a0a0a0" : "#1a1a1a",
-                      borderColor: currentPage === 1 ? "#e0e0e0" : "#1a1a1a",
-                      cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                      fontFamily: "var(--font-outfit), sans-serif",
-                      fontWeight: 500,
-                    }}
                   >
                     Previous
                   </button>
-                  <span
-                    style={{
-                      fontFamily: "var(--font-outfit), sans-serif",
-                      fontWeight: 500,
-                      color: "#555",
-                    }}
-                  >
+                  <span className="blog-pagination-status">
                     Page {currentPage} of {totalPages}
                   </span>
                   <button
+                    className="blog-pagination-btn"
                     onClick={() => {
                       setCurrentPage((p) => Math.min(totalPages, p + 1));
                       document.getElementById("blog-grid")?.scrollIntoView({
@@ -449,20 +426,6 @@ export default function BlogListingClient({
                       });
                     }}
                     disabled={currentPage === totalPages}
-                    style={{
-                      padding: "8px 16px",
-                      border: "1px solid #1a1a1a",
-                      borderRadius: "8px",
-                      background:
-                        currentPage === totalPages ? "#f5f5f5" : "transparent",
-                      color: currentPage === totalPages ? "#a0a0a0" : "#1a1a1a",
-                      borderColor:
-                        currentPage === totalPages ? "#e0e0e0" : "#1a1a1a",
-                      cursor:
-                        currentPage === totalPages ? "not-allowed" : "pointer",
-                      fontFamily: "var(--font-outfit), sans-serif",
-                      fontWeight: 500,
-                    }}
                   >
                     Next
                   </button>

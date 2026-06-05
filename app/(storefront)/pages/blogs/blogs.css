@@ -4,23 +4,27 @@
 
 @import url("https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600&display=swap");
 
-/* — Color tokens — */
+/* — Color tokens —
+   Warm, premium palette aligned with the Soakd brand: white canvas,
+   soft cream surfaces, and a terracotta accent (matching the header). */
 :root {
   --blog-bg: #ffffff;
-  --blog-bg-alt: #f5f5f5;
+  --blog-bg-alt: #faf8f4; /* warm off-white for image wells / soft fills */
   --blog-card: #ffffff;
   --blog-card-hover: #ffffff;
-  --blog-border: #e5e5e5;
-  --blog-border-light: #f0f0f0;
-  --blog-dark: #111111;
-  --blog-body: #333333;
-  --blog-muted: #666666;
-  --blog-accent: #000000;
-  --blog-accent-light: #888888;
-  --blog-tag-bg: #f5f5f5;
-  --blog-tag-hover: #e5e5e5;
-  --blog-hero-gradient-start: rgba(0, 0, 0, 0.7);
-  --blog-hero-gradient-end: rgba(0, 0, 0, 0.3);
+  --blog-border: #ece7df; /* warm light border */
+  --blog-border-light: #f4f1ea;
+  --blog-dark: #20242e; /* warm near-black ink */
+  --blog-body: #4b4b4b;
+  --blog-muted: #8c867c; /* warm grey */
+  --blog-accent: #e09771; /* terracotta */
+  --blog-accent-deep: #ce7e54; /* accent hover */
+  --blog-accent-soft: #fbeee4; /* accent tint for chips/badges */
+  --blog-accent-light: #c9b9a6;
+  --blog-cream: #f5f0e8;
+  --blog-tag-bg: #f5f1ea;
+  --blog-tag-hover: #ece4d7;
+  --blog-shadow: 28px 28px 18px;
 }
 
 /* ============================================
@@ -46,10 +50,14 @@
   background:
     radial-gradient(
       ellipse at 30% 20%,
-      rgba(0, 0, 0, 0.03) 0%,
-      transparent 50%
+      rgba(224, 151, 113, 0.08) 0%,
+      transparent 55%
     ),
-    radial-gradient(ellipse at 70% 80%, rgba(0, 0, 0, 0.02) 0%, transparent 50%);
+    radial-gradient(
+      ellipse at 70% 80%,
+      rgba(245, 240, 232, 0.6) 0%,
+      transparent 55%
+    );
   pointer-events: none;
 }
 
@@ -67,7 +75,7 @@
   font-weight: 1000;
   letter-spacing: 0.2em;
   /* text-transform: uppercase; */
-  color: var(--blog-accent);
+  color: var(--blog-dark);
   margin-bottom: 4px;
 }
 
@@ -90,10 +98,16 @@
 }
 
 .blog-hero-divider {
-  width: 60px;
-  height: 1px;
-  background: var(--blog-accent-light);
-  margin: 12px auto 0;
+  width: 56px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--blog-accent),
+    transparent
+  );
+  margin: 14px auto 0;
 }
 
 /* ============================================
@@ -169,10 +183,10 @@
   align-items: center;
   gap: 8px;
   padding: 12px 28px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 100px;
-  background: var(--blog-dark);
-  color: #fffbf7;
+  background: var(--blog-accent);
+  color: #ffffff;
   font-size: 0.88rem;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -184,13 +198,27 @@
 }
 
 .blog-publish-cta-btn:hover {
-  background: var(--blog-accent);
+  background: var(--blog-accent-deep);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 20px rgba(224, 151, 113, 0.28);
 }
 
 .blog-publish-cta-btn:active {
   transform: translateY(0);
+}
+
+/* Secondary / ghost variant — quieter companion to the accent CTA */
+.blog-publish-cta-btn--ghost {
+  background: transparent;
+  color: var(--blog-dark);
+  border-color: var(--blog-border);
+}
+
+.blog-publish-cta-btn--ghost:hover {
+  background: var(--blog-cream);
+  border-color: var(--blog-accent);
+  color: var(--blog-dark);
+  box-shadow: none;
 }
 
 @media (max-width: 640px) {
@@ -282,8 +310,8 @@
 }
 
 .blog-search-input:focus {
-  border-color: var(--blog-accent-light);
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+  border-color: var(--blog-accent);
+  box-shadow: 0 0 0 3px rgba(224, 151, 113, 0.16);
 }
 
 .blog-search-clear {
@@ -329,14 +357,14 @@
 }
 
 .blog-category-tab:hover {
-  border-color: var(--blog-accent-light);
+  border-color: var(--blog-accent);
   color: var(--blog-dark);
 }
 
 .blog-category-tab[data-active="true"] {
   background: var(--blog-dark);
   border-color: var(--blog-dark);
-  color: #fffbf7;
+  color: #ffffff;
 }
 
 .blog-tag-pills {
@@ -366,7 +394,7 @@
 
 .blog-tag-pill[data-active="true"] {
   background: var(--blog-accent);
-  color: #fffbf7;
+  color: #ffffff;
 }
 
 /* ============================================
@@ -378,6 +406,50 @@
   font-size: 0.82rem;
   color: var(--blog-muted);
   margin-bottom: 8px;
+}
+
+/* ============================================
+   PAGINATION
+   ============================================ */
+
+.blog-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 3rem;
+}
+
+.blog-pagination-btn {
+  padding: 9px 20px;
+  border: 1px solid var(--blog-border);
+  border-radius: 100px;
+  background: var(--blog-card);
+  color: var(--blog-dark);
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.blog-pagination-btn:hover:not(:disabled) {
+  border-color: var(--blog-accent);
+  background: var(--blog-cream);
+}
+
+.blog-pagination-btn:disabled {
+  color: var(--blog-accent-light);
+  background: var(--blog-bg-alt);
+  border-color: var(--blog-border-light);
+  cursor: not-allowed;
+}
+
+.blog-pagination-status {
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--blog-muted);
 }
 
 /* ============================================
@@ -422,9 +494,10 @@
   display: flex;
   flex-direction: column;
   background: var(--blog-card);
-  border: 1px solid var(--blog-border-light);
-  border-radius: 16px;
+  border: 1px solid var(--blog-border);
+  border-radius: 18px;
   overflow: hidden;
+  box-shadow: 0 1px 2px rgba(32, 36, 46, 0.04);
   transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   text-decoration: none;
   color: inherit;
@@ -433,9 +506,9 @@
 .blog-card:hover {
   transform: translateY(-6px);
   box-shadow:
-    0 20px 40px rgba(45, 32, 22, 0.08),
-    0 8px 16px rgba(45, 32, 22, 0.04);
-  border-color: var(--blog-border);
+    0 22px 44px rgba(45, 32, 22, 0.1),
+    0 8px 16px rgba(45, 32, 22, 0.05);
+  border-color: var(--blog-accent);
   background: var(--blog-card-hover);
 }
 
@@ -480,13 +553,14 @@
   left: 14px;
   padding: 5px 12px;
   border-radius: 100px;
-  background: rgba(255, 251, 247, 0.92);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(8px);
   font-size: 0.68rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--blog-dark);
+  color: var(--blog-accent-deep);
+  box-shadow: 0 2px 8px rgba(32, 36, 46, 0.1);
 }
 
 .blog-card-body {
@@ -506,6 +580,11 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  transition: color 0.25s ease;
+}
+
+.blog-card:hover .blog-card-title {
+  color: var(--blog-accent-deep);
 }
 
 .blog-card-excerpt {
@@ -606,8 +685,8 @@
 }
 
 .blog-empty-reset:hover {
-  background: var(--blog-card);
-  border-color: var(--blog-accent-light);
+  background: var(--blog-cream);
+  border-color: var(--blog-accent);
 }
 
 /* ============================================
