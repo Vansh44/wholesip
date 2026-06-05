@@ -503,6 +503,14 @@ export async function submitCustomerBlog(
     return { error: "Blog content is required." };
   }
 
+  if (!formData.categories || formData.categories.length === 0) {
+    return { error: "Please select at least one category." };
+  }
+
+  if (!formData.tags || formData.tags.length === 0) {
+    return { error: "Please select at least one tag." };
+  }
+
   const readingTime = calculateReadingTime(formData.content);
   const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
 
@@ -574,6 +582,14 @@ export async function updateCustomerBlog(
 
   if (!formData.content.trim()) {
     return { error: "Blog content is required." };
+  }
+
+  if (!formData.categories || formData.categories.length === 0) {
+    return { error: "Please select at least one category." };
+  }
+
+  if (!formData.tags || formData.tags.length === 0) {
+    return { error: "Please select at least one tag." };
   }
 
   const readingTime = calculateReadingTime(formData.content);
