@@ -17,7 +17,7 @@ export interface BlogFormData {
   author: string;
   categories: string[];
   tags: string[];
-  status: "draft" | "published";
+  status: "draft" | "published" | "pending_review";
   featured: boolean;
   seo_title: string;
   seo_description: string;
@@ -378,5 +378,280 @@ export async function autosaveBlog(
     return { error: error.message };
   }
 
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Customer Blog Submission Types
+// ---------------------------------------------------------------------------
+
+export interface CustomerBlogFormData {
+  title: string;
+  excerpt: string;
+  content: string;
+  cover_image_url: string;
+  categories: string[];
+  tags: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Submit Customer Blog (creates with 'pending_review' status)
+// ---------------------------------------------------------------------------
+
+export async function submitCustomerBlog(
+  formData: CustomerBlogFormData,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated. Please sign in to submit a blog." };
+  }
+
+  // Verify user is a customer
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("id, first_name, last_name")
+    .eq("id", user.id)
+    .single();
+
+  if (!customer) {
+    return {
+      error: "Customer profile not found. Please complete your profile first.",
+    };
+  }
+
+  if (!formData.title.trim()) {
+    return { error: "Title is required." };
+  }
+
+  if (!formData.content.trim()) {
+    return { error: "Blog content is required." };
+  }
+
+  const readingTime = calculateReadingTime(formData.content);
+  const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
+
+  let slug = slugify(formData.title);
+
+  // Handle duplicate slugs
+  const { data: existingSlugs } = await supabase
+    .from("blogs")
+    .select("slug")
+    .like("slug", `${slug}%`);
+
+  if (existingSlugs && existingSlugs.length > 0) {
+    const slugSet = new Set(existingSlugs.map((b) => b.slug));
+    if (slugSet.has(slug)) {
+      let counter = 2;
+      while (slugSet.has(`${slug}-${counter}`)) {
+        counter++;
+      }
+      slug = `${slug}-${counter}`;
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("blogs")
+    .insert({
+      title: formData.title.trim(),
+      slug,
+      excerpt: formData.excerpt.trim() || null,
+      content: sanitizeHtml(formData.content, {
+        allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+          "img",
+          "h1",
+          "h2",
+          "h3",
+          "h4",
+          "s",
+          "u",
+        ]),
+        allowedAttributes: {
+          ...sanitizeHtml.defaults.allowedAttributes,
+          img: ["src", "alt", "width", "height"],
+          "*": ["class", "style", "id", "data-*"],
+        },
+      }),
+      cover_image_url: formData.cover_image_url || null,
+      author: authorName,
+      categories: formData.categories.length > 0 ? formData.categories : [],
+      tags: formData.tags.length > 0 ? formData.tags : [],
+      status: "pending_review",
+      featured: false,
+      reading_time: readingTime,
+      submitted_by: user.id,
+      is_customer_submission: true,
+      created_by: user.id,
+      updated_by: user.id,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("submitCustomerBlog error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/blogs");
+  return { success: true, data: data as Record<string, unknown> };
+}
+
+// ---------------------------------------------------------------------------
+// Update Customer Blog (only while status is 'pending_review')
+// ---------------------------------------------------------------------------
+
+export async function updateCustomerBlog(
+  id: string,
+  formData: CustomerBlogFormData,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated." };
+  }
+
+  if (!formData.title.trim()) {
+    return { error: "Title is required." };
+  }
+
+  if (!formData.content.trim()) {
+    return { error: "Blog content is required." };
+  }
+
+  const readingTime = calculateReadingTime(formData.content);
+
+  const { error } = await supabase
+    .from("blogs")
+    .update({
+      title: formData.title.trim(),
+      excerpt: formData.excerpt.trim() || null,
+      content: sanitizeHtml(formData.content, {
+        allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+          "img",
+          "h1",
+          "h2",
+          "h3",
+          "h4",
+          "s",
+          "u",
+        ]),
+        allowedAttributes: {
+          ...sanitizeHtml.defaults.allowedAttributes,
+          img: ["src", "alt", "width", "height"],
+          "*": ["class", "style", "id", "data-*"],
+        },
+      }),
+      cover_image_url: formData.cover_image_url || null,
+      categories: formData.categories.length > 0 ? formData.categories : [],
+      tags: formData.tags.length > 0 ? formData.tags : [],
+      reading_time: readingTime,
+      updated_by: user.id,
+    })
+    .eq("id", id)
+    .eq("submitted_by", user.id)
+    .eq("status", "pending_review");
+
+  if (error) {
+    console.error("updateCustomerBlog error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/blogs");
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Get My Submissions (customer's own blog submissions)
+// ---------------------------------------------------------------------------
+
+export async function getMySubmissions(): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated." };
+  }
+
+  const { data, error } = await supabase
+    .from("blogs")
+    .select(
+      "id, title, slug, excerpt, content, cover_image_url, author, status, categories, tags, reading_time, created_at, updated_at, submitted_by, is_customer_submission",
+    )
+    .eq("submitted_by", user.id)
+    .eq("is_customer_submission", true)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("getMySubmissions error:", error);
+    return { error: error.message };
+  }
+
+  return { success: true, data: { submissions: data } };
+}
+
+// ---------------------------------------------------------------------------
+// Approve Customer Blog (admin only — sets status to 'published')
+// ---------------------------------------------------------------------------
+
+export async function approveCustomerBlog(id: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const userId = await getAdminUserId();
+
+  if (!userId) {
+    return { error: "Not authenticated" };
+  }
+
+  const { error } = await supabase
+    .from("blogs")
+    .update({
+      status: "published",
+      published_at: new Date().toISOString(),
+      updated_by: userId,
+    })
+    .eq("id", id)
+    .eq("status", "pending_review");
+
+  if (error) {
+    console.error("approveCustomerBlog error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/blogs");
+  revalidatePath("/pages/blogs");
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Reject Customer Blog (admin only — deletes the blog)
+// ---------------------------------------------------------------------------
+
+export async function rejectCustomerBlog(id: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const userId = await getAdminUserId();
+
+  if (!userId) {
+    return { error: "Not authenticated" };
+  }
+
+  const { error } = await supabase
+    .from("blogs")
+    .delete()
+    .eq("id", id)
+    .eq("status", "pending_review");
+
+  if (error) {
+    console.error("rejectCustomerBlog error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/blogs");
   return { success: true };
 }

@@ -134,7 +134,9 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
   const [author, setAuthor] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
-  const [status, setStatus] = useState<"draft" | "published">("draft");
+  const [status, setStatus] = useState<
+    "draft" | "published" | "pending_review"
+  >("draft");
   const [featured, setFeatured] = useState(false);
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");

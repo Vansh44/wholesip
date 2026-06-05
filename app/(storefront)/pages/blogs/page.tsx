@@ -44,7 +44,7 @@ export default async function BlogsPage() {
       <section className="blog-hero">
         <div className="blog-hero-content blog-animate-in">
           <span className="blog-hero-kicker">The Soakd Journal</span>
-          <h1 className="blog-hero-title">Our Blog</h1>
+          {/* <h1 className="blog-hero-title">Our Blog</h1> */}
           <p className="blog-hero-subtitle">
             Stories, insights and updates from our team
           </p>

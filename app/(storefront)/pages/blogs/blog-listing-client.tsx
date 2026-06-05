@@ -3,6 +3,8 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/app/components/auth/AuthProvider";
 
 interface Blog {
   id: string;
@@ -122,11 +124,21 @@ export default function BlogListingClient({
   categories,
   allTags,
 }: BlogListingClientProps) {
+  const { user, customer, openAuthModal } = useAuth();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const blogsPerPage = 9;
+
+  const handlePublishClick = () => {
+    if (user && customer) {
+      router.push("/pages/blogs/write");
+    } else {
+      openAuthModal();
+    }
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -195,42 +207,75 @@ export default function BlogListingClient({
   return (
     <>
       {/* Search & Filters */}
-      <section className="blog-filters-section">
+      <section className="blog-filters-section" style={{ paddingTop: "24px" }}>
         <div className="blog-filters-container">
-          {/* Search Bar */}
-          <div className="blog-search-wrapper">
-            <svg
-              className="blog-search-icon"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-              />
-            </svg>
-            <input
-              id="blog-search-input"
-              type="text"
-              className="blog-search-input"
-              placeholder="Search articles..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                className="blog-search-clear"
-                onClick={() => setSearchQuery("")}
-                aria-label="Clear search"
-                id="blog-search-clear"
+          {/* Search Row */}
+          <div className="blog-search-and-cta-row">
+            <div className="spacer"></div>
+
+            <div className="blog-search-wrapper">
+              <svg
+                className="blog-search-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
               >
-                ✕
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+                />
+              </svg>
+              <input
+                id="blog-search-input"
+                type="text"
+                className="blog-search-input"
+                placeholder="Search articles..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button
+                  className="blog-search-clear"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
+                  id="blog-search-clear"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div
+              className="cta-container"
+              style={{ display: "flex", justifyContent: "flex-end" }}
+            >
+              <button
+                className="blog-publish-cta-btn"
+                onClick={handlePublishClick}
+                id="blog-publish-cta"
+                style={{ padding: "10px 20px" }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  width={18}
+                  height={18}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
+                Post your own blog
               </button>
-            )}
+            </div>
           </div>
 
           {/* Category Tabs */}
@@ -314,12 +359,10 @@ export default function BlogListingClient({
                   <button
                     onClick={() => {
                       setCurrentPage((p) => Math.max(1, p - 1));
-                      document
-                        .getElementById("blog-grid")
-                        ?.scrollIntoView({
-                          behavior: "smooth",
-                          block: "start",
-                        });
+                      document.getElementById("blog-grid")?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      });
                     }}
                     disabled={currentPage === 1}
                     style={{
@@ -348,12 +391,10 @@ export default function BlogListingClient({
                   <button
                     onClick={() => {
                       setCurrentPage((p) => Math.min(totalPages, p + 1));
-                      document
-                        .getElementById("blog-grid")
-                        ?.scrollIntoView({
-                          behavior: "smooth",
-                          block: "start",
-                        });
+                      document.getElementById("blog-grid")?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                      });
                     }}
                     disabled={currentPage === totalPages}
                     style={{
