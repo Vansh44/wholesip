@@ -71,7 +71,11 @@ interface Submission {
   is_customer_submission: boolean;
 }
 
-export default function WriteBlogEditor() {
+export default function WriteBlogEditor({
+  initialMode = "write",
+}: {
+  initialMode?: Mode;
+} = {}) {
   const {
     user,
     customer,
@@ -81,7 +85,7 @@ export default function WriteBlogEditor() {
   } = useAuth();
   const [isPending, startTransition] = useTransition();
 
-  const [mode, setMode] = useState<Mode>("write");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [editingBlogId, setEditingBlogId] = useState<string | null>(null);
 
   // Email is required before a submission can go to review (so the author can
