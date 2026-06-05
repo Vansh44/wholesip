@@ -86,7 +86,10 @@ export function DashboardTopbar({
 
       <div className="dash-search-bar hidden md:flex">
         <Search className="h-4 w-4 shrink-0 text-[var(--dash-text-3)]" />
-        <input type="search" placeholder="Search orders, products, customers…" />
+        <input
+          type="search"
+          placeholder="Search orders, products, customers…"
+        />
         <kbd className="dash-search-kbd shrink-0">⌘K</kbd>
       </div>
 

@@ -105,7 +105,9 @@ export default async function DashboardLayout({
           <pre className="overflow-auto rounded-lg border border-[rgba(17,24,39,0.08)] bg-[#f3f4f6] p-3 text-xs text-[#111827]">
             {`INSERT INTO profiles (id, email, role, force_password_reset)\nVALUES ('${user.id}', '${user.email}', 'superadmin', false);`}
           </pre>
-          <p className="text-xs text-[#8b93a3]">After inserting, refresh this page.</p>
+          <p className="text-xs text-[#8b93a3]">
+            After inserting, refresh this page.
+          </p>
         </div>
       </div>
     );
