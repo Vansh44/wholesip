@@ -28,6 +28,8 @@ export async function setPassword(formData: FormData) {
 
   const supabase = await createClient();
 
+  // Set the password first — if this fails we must NOT clear the
+  // force_password_reset flag (the user still hasn't chosen a password).
   const { error: updateError } = await supabase.auth.updateUser({
     password,
   });
@@ -56,6 +58,11 @@ export async function setPassword(formData: FormData) {
         phone: phone.trim(),
       })
       .eq("id", user.id);
+
+    // Mint a fresh JWT so the custom access token hook re-reads the now-cleared
+    // force_password_reset flag into the claims; otherwise the claims-based
+    // middleware would bounce the user straight back to /auth/set-password.
+    await supabase.auth.refreshSession();
   }
 
   redirect("/dashboard");

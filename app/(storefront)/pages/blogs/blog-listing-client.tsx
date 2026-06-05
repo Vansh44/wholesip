@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -132,6 +132,16 @@ export default function BlogListingClient({
   const [currentPage, setCurrentPage] = useState(1);
   const blogsPerPage = 9;
 
+  // Reset to the first page whenever the filters change. Done during render
+  // (the recommended pattern) rather than in an effect, which avoids the
+  // cascading re-render of setState-in-effect.
+  const filterKey = `${searchQuery}|${activeCategory}|${activeTag ?? ""}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setCurrentPage(1);
+  }
+
   const handlePublishClick = () => {
     if (user && customer) {
       router.push("/pages/blogs/write");
@@ -139,10 +149,6 @@ export default function BlogListingClient({
       openAuthModal();
     }
   };
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, activeCategory, activeTag]);
 
   const filteredBlogs = useMemo(() => {
     let result = blogs;

@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import sanitizeHtml from "sanitize-html";
+import { sanitizeBlogContent } from "@/lib/sanitize";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,13 +53,78 @@ function calculateReadingTime(html: string): number {
   return Math.max(1, Math.ceil(wordCount / 200));
 }
 
+// Returns the caller's id only if they hold an admin role (superadmin/member).
+// RLS already enforces this at the DB layer; this is an app-layer backstop so
+// a misconfigured policy can't silently open these actions to any user.
 async function getAdminUserId(): Promise<string | null> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  return user?.id ?? null;
+
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "superadmin" && profile?.role !== "member") {
+    return null;
+  }
+
+  return user.id;
 }
+
+// Postgres unique_violation — raised when the blogs.slug UNIQUE constraint is hit.
+const UNIQUE_VIOLATION = "23505";
+
+function isUniqueViolation(error: { code?: string } | null): boolean {
+  return error?.code === UNIQUE_VIOLATION;
+}
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Picks the first slug starting from `base` that isn't already taken, based on
+ * a pre-check query. Returns a cursor so the caller can keep bumping the suffix
+ * if a concurrent insert wins the race (the pre-check is best-effort; the DB
+ * UNIQUE constraint is the source of truth).
+ */
+async function resolveSlug(
+  supabase: SupabaseClient,
+  base: string,
+  excludeId?: string,
+) {
+  let query = supabase.from("blogs").select("slug").like("slug", `${base}%`);
+  if (excludeId) {
+    query = query.neq("id", excludeId);
+  }
+  const { data } = await query;
+
+  const taken = new Set((data ?? []).map((b: { slug: string }) => b.slug));
+  let counter = 2;
+  let slug = base;
+  while (taken.has(slug)) {
+    slug = `${base}-${counter}`;
+    counter++;
+  }
+
+  // bump() advances to the next free candidate after a unique-violation retry.
+  const bump = (collided: string) => {
+    taken.add(collided);
+    while (taken.has(slug)) {
+      slug = `${base}-${counter}`;
+      counter++;
+    }
+    return slug;
+  };
+
+  return { slug, bump };
+}
+
+const MAX_SLUG_ATTEMPTS = 6;
 
 // ---------------------------------------------------------------------------
 // Create Blog
@@ -79,74 +144,53 @@ export async function createBlog(
     ? calculateReadingTime(formData.content)
     : 0;
 
-  let slug = formData.slug || slugify(formData.title);
+  const base = formData.slug || slugify(formData.title);
+  const { slug: firstSlug, bump } = await resolveSlug(supabase, base);
+  let slug = firstSlug;
 
-  // Handle duplicate slugs
-  const { data: existingSlugs } = await supabase
-    .from("blogs")
-    .select("slug")
-    .like("slug", `${slug}%`);
+  const row = (s: string) => ({
+    title: formData.title,
+    slug: s,
+    excerpt: formData.excerpt || null,
+    content: formData.content ? sanitizeBlogContent(formData.content) : null,
+    cover_image_url: formData.cover_image_url || null,
+    author: formData.author || null,
+    categories: formData.categories.length > 0 ? formData.categories : [],
+    tags: formData.tags.length > 0 ? formData.tags : [],
+    status: formData.status,
+    featured: formData.featured,
+    seo_title: formData.seo_title || null,
+    seo_description: formData.seo_description || null,
+    reading_time: readingTime,
+    published_at:
+      formData.status === "published" ? new Date().toISOString() : null,
+    created_by: userId,
+    updated_by: userId,
+  });
 
-  if (existingSlugs && existingSlugs.length > 0) {
-    const slugSet = new Set(existingSlugs.map((b) => b.slug));
-    if (slugSet.has(slug)) {
-      let counter = 2;
-      while (slugSet.has(`${slug}-${counter}`)) {
-        counter++;
-      }
-      slug = `${slug}-${counter}`;
+  for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
+    const { data, error } = await supabase
+      .from("blogs")
+      .insert(row(slug))
+      .select()
+      .single();
+
+    if (!error) {
+      revalidatePath("/dashboard/blogs");
+      revalidatePath("/pages/blogs");
+      return { success: true, data: data as Record<string, unknown> };
     }
+
+    if (!isUniqueViolation(error)) {
+      console.error("createBlog error:", error);
+      return { error: error.message };
+    }
+
+    // Lost the slug race to a concurrent insert — pick the next free slug.
+    slug = bump(slug);
   }
 
-  const { data, error } = await supabase
-    .from("blogs")
-    .insert({
-      title: formData.title,
-      slug,
-      excerpt: formData.excerpt || null,
-      content: formData.content
-        ? sanitizeHtml(formData.content, {
-            allowedTags: sanitizeHtml.defaults.allowedTags.concat([
-              "img",
-              "h1",
-              "h2",
-              "h3",
-              "h4",
-              "s",
-              "u",
-            ]),
-            allowedAttributes: {
-              ...sanitizeHtml.defaults.allowedAttributes,
-              img: ["src", "alt", "width", "height"],
-              "*": ["class", "style", "id", "data-*"],
-            },
-          })
-        : null,
-      cover_image_url: formData.cover_image_url || null,
-      author: formData.author || null,
-      categories: formData.categories.length > 0 ? formData.categories : [],
-      tags: formData.tags.length > 0 ? formData.tags : [],
-      status: formData.status,
-      featured: formData.featured,
-      seo_title: formData.seo_title || null,
-      seo_description: formData.seo_description || null,
-      reading_time: readingTime,
-      published_at:
-        formData.status === "published" ? new Date().toISOString() : null,
-      created_by: userId,
-      updated_by: userId,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("createBlog error:", error);
-    return { error: error.message };
-  }
-
-  revalidatePath("/dashboard/blogs");
-  revalidatePath("/pages/blogs");
-  return { success: true, data: data as Record<string, unknown> };
+  return { error: "Could not generate a unique slug. Please try again." };
 }
 
 // ---------------------------------------------------------------------------
@@ -169,24 +213,9 @@ export async function updateBlog(
     : 0;
 
   // Check slug uniqueness (exclude current blog)
-  let slug = formData.slug || slugify(formData.title);
-
-  const { data: existingSlugs } = await supabase
-    .from("blogs")
-    .select("slug, id")
-    .like("slug", `${slug}%`)
-    .neq("id", id);
-
-  if (existingSlugs && existingSlugs.length > 0) {
-    const slugSet = new Set(existingSlugs.map((b) => b.slug));
-    if (slugSet.has(slug)) {
-      let counter = 2;
-      while (slugSet.has(`${slug}-${counter}`)) {
-        counter++;
-      }
-      slug = `${slug}-${counter}`;
-    }
-  }
+  const base = formData.slug || slugify(formData.title);
+  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, id);
+  let slug = firstSlug;
 
   // Get current blog to check if it was previously unpublished
   const { data: currentBlog } = await supabase
@@ -200,53 +229,46 @@ export async function updateBlog(
       ? (currentBlog?.published_at ?? new Date().toISOString())
       : null;
 
-  const { error } = await supabase
-    .from("blogs")
-    .update({
-      title: formData.title,
-      slug,
-      excerpt: formData.excerpt || null,
-      content: formData.content
-        ? sanitizeHtml(formData.content, {
-            allowedTags: sanitizeHtml.defaults.allowedTags.concat([
-              "img",
-              "h1",
-              "h2",
-              "h3",
-              "h4",
-              "s",
-              "u",
-            ]),
-            allowedAttributes: {
-              ...sanitizeHtml.defaults.allowedAttributes,
-              img: ["src", "alt", "width", "height"],
-              "*": ["class", "style", "id", "data-*"],
-            },
-          })
-        : null,
-      cover_image_url: formData.cover_image_url || null,
-      author: formData.author || null,
-      categories: formData.categories.length > 0 ? formData.categories : [],
-      tags: formData.tags.length > 0 ? formData.tags : [],
-      status: formData.status,
-      featured: formData.featured,
-      seo_title: formData.seo_title || null,
-      seo_description: formData.seo_description || null,
-      reading_time: readingTime,
-      published_at: publishedAt,
-      updated_by: userId,
-    })
-    .eq("id", id);
+  const row = (s: string) => ({
+    title: formData.title,
+    slug: s,
+    excerpt: formData.excerpt || null,
+    content: formData.content ? sanitizeBlogContent(formData.content) : null,
+    cover_image_url: formData.cover_image_url || null,
+    author: formData.author || null,
+    categories: formData.categories.length > 0 ? formData.categories : [],
+    tags: formData.tags.length > 0 ? formData.tags : [],
+    status: formData.status,
+    featured: formData.featured,
+    seo_title: formData.seo_title || null,
+    seo_description: formData.seo_description || null,
+    reading_time: readingTime,
+    published_at: publishedAt,
+    updated_by: userId,
+  });
 
-  if (error) {
-    console.error("updateBlog error:", error);
-    return { error: error.message };
+  for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
+    const { error } = await supabase
+      .from("blogs")
+      .update(row(slug))
+      .eq("id", id);
+
+    if (!error) {
+      revalidatePath("/dashboard/blogs");
+      revalidatePath("/pages/blogs");
+      revalidatePath(`/pages/blogs/${slug}`);
+      return { success: true };
+    }
+
+    if (!isUniqueViolation(error)) {
+      console.error("updateBlog error:", error);
+      return { error: error.message };
+    }
+
+    slug = bump(slug);
   }
 
-  revalidatePath("/dashboard/blogs");
-  revalidatePath("/pages/blogs");
-  revalidatePath(`/pages/blogs/${slug}`);
-  return { success: true };
+  return { error: "Could not generate a unique slug. Please try again." };
 }
 
 // ---------------------------------------------------------------------------
@@ -354,7 +376,7 @@ export async function autosaveBlog(
 
   if (fields.title !== undefined) updateData.title = fields.title;
   if (fields.content !== undefined) {
-    updateData.content = fields.content;
+    updateData.content = sanitizeBlogContent(fields.content);
     updateData.reading_time = calculateReadingTime(fields.content);
   }
   if (fields.excerpt !== undefined) updateData.excerpt = fields.excerpt;
@@ -434,69 +456,49 @@ export async function submitCustomerBlog(
   const readingTime = calculateReadingTime(formData.content);
   const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
 
-  let slug = slugify(formData.title);
+  const base = slugify(formData.title);
+  const { slug: firstSlug, bump } = await resolveSlug(supabase, base);
+  let slug = firstSlug;
 
-  // Handle duplicate slugs
-  const { data: existingSlugs } = await supabase
-    .from("blogs")
-    .select("slug")
-    .like("slug", `${slug}%`);
+  const row = (s: string) => ({
+    title: formData.title.trim(),
+    slug: s,
+    excerpt: formData.excerpt.trim() || null,
+    content: sanitizeBlogContent(formData.content),
+    cover_image_url: formData.cover_image_url || null,
+    author: authorName,
+    categories: formData.categories.length > 0 ? formData.categories : [],
+    tags: formData.tags.length > 0 ? formData.tags : [],
+    status: "pending_review",
+    featured: false,
+    reading_time: readingTime,
+    submitted_by: user.id,
+    is_customer_submission: true,
+    created_by: user.id,
+    updated_by: user.id,
+  });
 
-  if (existingSlugs && existingSlugs.length > 0) {
-    const slugSet = new Set(existingSlugs.map((b) => b.slug));
-    if (slugSet.has(slug)) {
-      let counter = 2;
-      while (slugSet.has(`${slug}-${counter}`)) {
-        counter++;
-      }
-      slug = `${slug}-${counter}`;
+  for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
+    const { data, error } = await supabase
+      .from("blogs")
+      .insert(row(slug))
+      .select()
+      .single();
+
+    if (!error) {
+      revalidatePath("/dashboard/blogs");
+      return { success: true, data: data as Record<string, unknown> };
     }
+
+    if (!isUniqueViolation(error)) {
+      console.error("submitCustomerBlog error:", error);
+      return { error: error.message };
+    }
+
+    slug = bump(slug);
   }
 
-  const { data, error } = await supabase
-    .from("blogs")
-    .insert({
-      title: formData.title.trim(),
-      slug,
-      excerpt: formData.excerpt.trim() || null,
-      content: sanitizeHtml(formData.content, {
-        allowedTags: sanitizeHtml.defaults.allowedTags.concat([
-          "img",
-          "h1",
-          "h2",
-          "h3",
-          "h4",
-          "s",
-          "u",
-        ]),
-        allowedAttributes: {
-          ...sanitizeHtml.defaults.allowedAttributes,
-          img: ["src", "alt", "width", "height"],
-          "*": ["class", "style", "id", "data-*"],
-        },
-      }),
-      cover_image_url: formData.cover_image_url || null,
-      author: authorName,
-      categories: formData.categories.length > 0 ? formData.categories : [],
-      tags: formData.tags.length > 0 ? formData.tags : [],
-      status: "pending_review",
-      featured: false,
-      reading_time: readingTime,
-      submitted_by: user.id,
-      is_customer_submission: true,
-      created_by: user.id,
-      updated_by: user.id,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("submitCustomerBlog error:", error);
-    return { error: error.message };
-  }
-
-  revalidatePath("/dashboard/blogs");
-  return { success: true, data: data as Record<string, unknown> };
+  return { error: "Could not generate a unique slug. Please try again." };
 }
 
 // ---------------------------------------------------------------------------
@@ -531,22 +533,7 @@ export async function updateCustomerBlog(
     .update({
       title: formData.title.trim(),
       excerpt: formData.excerpt.trim() || null,
-      content: sanitizeHtml(formData.content, {
-        allowedTags: sanitizeHtml.defaults.allowedTags.concat([
-          "img",
-          "h1",
-          "h2",
-          "h3",
-          "h4",
-          "s",
-          "u",
-        ]),
-        allowedAttributes: {
-          ...sanitizeHtml.defaults.allowedAttributes,
-          img: ["src", "alt", "width", "height"],
-          "*": ["class", "style", "id", "data-*"],
-        },
-      }),
+      content: sanitizeBlogContent(formData.content),
       cover_image_url: formData.cover_image_url || null,
       categories: formData.categories.length > 0 ? formData.categories : [],
       tags: formData.tags.length > 0 ? formData.tags : [],

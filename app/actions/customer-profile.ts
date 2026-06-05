@@ -35,16 +35,23 @@ export async function updateCustomerProfile(formData: FormData) {
     }
   }
 
-  const { error: upsertError } = await supabase.from("customers").upsert(
-    {
-      id: user.id,
-      phone: user.phone || "",
-      first_name: firstName.trim(),
-      last_name: lastName?.trim() || null,
-      email: email?.trim() || null,
-    },
-    { onConflict: "id" },
-  );
+  // `customers.phone` is NOT NULL UNIQUE — never write an empty string (it
+  // would collide across every phone-less customer). Only set it when the
+  // authenticated user actually has a verified phone; otherwise leave the
+  // existing value untouched.
+  const profilePayload: Record<string, unknown> = {
+    id: user.id,
+    first_name: firstName.trim(),
+    last_name: lastName?.trim() || null,
+    email: email?.trim() || null,
+  };
+  if (user.phone) {
+    profilePayload.phone = user.phone;
+  }
+
+  const { error: upsertError } = await supabase
+    .from("customers")
+    .upsert(profilePayload, { onConflict: "id" });
 
   if (upsertError) {
     console.error("Failed to update customer profile:", upsertError);

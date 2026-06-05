@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -13,7 +12,11 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Placeholder from "@tiptap/extension-placeholder";
 import { PREDEFINED_CATEGORIES, PREDEFINED_TAGS } from "@/lib/blog-config";
-import { uploadImage } from "@/lib/supabase/storage";
+import {
+  uploadImage,
+  deleteImage,
+  extractPathFromUrl,
+} from "@/lib/supabase/storage";
 import {
   submitCustomerBlog,
   updateCustomerBlog,
@@ -30,8 +33,6 @@ import {
   List,
   ListOrdered,
   Quote,
-  Code,
-  Minus,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -47,9 +48,26 @@ import {
 
 type Mode = "write" | "edit" | "success" | "submissions";
 
+interface Submission {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content: string | null;
+  cover_image_url: string | null;
+  author: string | null;
+  status: "draft" | "published" | "pending_review";
+  categories: string[] | null;
+  tags: string[] | null;
+  reading_time: number | null;
+  created_at: string;
+  updated_at: string;
+  submitted_by: string | null;
+  is_customer_submission: boolean;
+}
+
 export default function WriteBlogEditor() {
   const { user, customer, loading: authLoading, openAuthModal } = useAuth();
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [mode, setMode] = useState<Mode>("write");
@@ -60,8 +78,11 @@ export default function WriteBlogEditor() {
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [sessionUploadedImages, setSessionUploadedImages] = useState<string[]>(
+    [],
+  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,7 +113,7 @@ export default function WriteBlogEditor() {
     setLoadingSubmissions(true);
     const result = await getMySubmissions();
     if (result.success && result.data) {
-      setSubmissions(result.data.submissions as any[]);
+      setSubmissions(result.data.submissions as Submission[]);
     } else {
       toast.error(result.error || "Failed to load submissions");
     }
@@ -124,8 +145,17 @@ export default function WriteBlogEditor() {
     const toastId = toast.loading("Uploading image...");
 
     try {
+      // If there's an existing image that was uploaded during this session, clean it up
+      if (coverImageUrl && sessionUploadedImages.includes(coverImageUrl)) {
+        const oldPath = extractPathFromUrl(coverImageUrl);
+        if (oldPath) {
+          deleteImage(oldPath).catch(console.error);
+        }
+      }
+
       const url = await uploadImage(file, { folder: "blog-covers" });
       setCoverImageUrl(url);
+      setSessionUploadedImages((prev) => [...prev, url]);
       toast.success("Image uploaded successfully!", { id: toastId });
     } catch (error) {
       console.error(error);
@@ -138,6 +168,13 @@ export default function WriteBlogEditor() {
   };
 
   const removeCoverImage = () => {
+    // Clean up if the image was uploaded during this session
+    if (coverImageUrl && sessionUploadedImages.includes(coverImageUrl)) {
+      const path = extractPathFromUrl(coverImageUrl);
+      if (path) {
+        deleteImage(path).catch(console.error);
+      }
+    }
     setCoverImageUrl("");
   };
 
@@ -223,7 +260,7 @@ export default function WriteBlogEditor() {
     });
   };
 
-  const handleEditSubmission = (blog: any) => {
+  const handleEditSubmission = (blog: Submission) => {
     setTitle(blog.title);
     setExcerpt(blog.excerpt || "");
     setCoverImageUrl(blog.cover_image_url || "");
@@ -346,8 +383,8 @@ export default function WriteBlogEditor() {
               />
               <h2 className="text-xl font-semibold mb-2">No submissions yet</h2>
               <p className="text-[var(--blog-muted)] mb-6 max-w-md mx-auto">
-                You haven't submitted any blogs yet. Start writing to share your
-                story!
+                You haven&apos;t submitted any blogs yet. Start writing to share
+                your story!
               </p>
               <button
                 className="write-blog-submit-btn"
@@ -644,7 +681,12 @@ export default function WriteBlogEditor() {
               ) : (
                 <div
                   className="write-blog-cover-upload"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={(e) => {
+                    if (e.target !== fileInputRef.current) {
+                      fileInputRef.current?.click();
+                    }
+                  }}
+                  style={{ cursor: "pointer" }}
                 >
                   <Upload size={24} className="mb-2 text-[var(--blog-muted)]" />
                   <p className="text-sm font-medium text-[var(--blog-dark)]">
