@@ -21,7 +21,28 @@ export async function deleteUser(userId: string) {
     return { error: "Unauthorized" };
   }
 
+  if (userId === caller.id) {
+    return { error: "You cannot delete your own account." };
+  }
+
   const adminClient = createAdminClient();
+
+  // Don't allow deleting the last remaining superadmin (would lock everyone out).
+  const { data: target } = await adminClient
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single();
+
+  if (target?.role === "superadmin") {
+    const { count } = await adminClient
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "superadmin");
+    if ((count ?? 0) <= 1) {
+      return { error: "Cannot delete the last superadmin." };
+    }
+  }
 
   // Delete user from auth (this cascades to profiles if set up, otherwise we delete profile too)
   const { error: deleteAuthError } =
@@ -54,6 +75,27 @@ export async function changeUserRole(userId: string, role: string) {
   }
 
   const adminClient = createAdminClient();
+
+  // Prevent demoting the last superadmin (e.g. yourself), which would leave
+  // the dashboard with no one able to manage users.
+  if (role !== "superadmin") {
+    const { data: target } = await adminClient
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .single();
+
+    if (target?.role === "superadmin") {
+      const { count } = await adminClient
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "superadmin");
+      if ((count ?? 0) <= 1) {
+        return { error: "Cannot demote the last superadmin." };
+      }
+    }
+  }
+
   const { error } = await adminClient
     .from("profiles")
     .update({ role })
@@ -84,6 +126,10 @@ export async function toggleUserSuspension(
     return { error: "Unauthorized" };
   }
 
+  if (userId === caller.id && isSuspended) {
+    return { error: "You cannot suspend your own account." };
+  }
+
   const adminClient = createAdminClient();
   const { error } = await adminClient
     .from("profiles")
@@ -99,8 +145,8 @@ export async function toggleUserSuspension(
 }
 
 export async function changeOwnPassword(newPassword: string) {
-  if (newPassword.length < 6)
-    return { error: "Password must be at least 6 characters" };
+  if (!newPassword || newPassword.length < 8)
+    return { error: "Password must be at least 8 characters" };
 
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({

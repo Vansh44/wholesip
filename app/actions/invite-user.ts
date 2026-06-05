@@ -4,15 +4,27 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Resend } from "resend";
 import { siteConfig } from "@/config/site";
+import { randomInt } from "crypto";
 
 function generateTempPassword(): string {
   const chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*";
   let password = "";
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  for (let i = 0; i < 16; i++) {
+    // randomInt is cryptographically secure (unlike Math.random).
+    password += chars.charAt(randomInt(chars.length));
   }
   return password;
+}
+
+/** Escape user-supplied values before interpolating into email HTML. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export async function inviteUser(formData: FormData) {
@@ -56,6 +68,20 @@ export async function inviteUser(formData: FormData) {
   const tempPassword = generateTempPassword();
   const adminClient = createAdminClient();
 
+  // Reject emails already attached to a dashboard profile. Supabase Auth
+  // blocks duplicate auth emails, but an auth account created without an email
+  // (e.g. phone sign-up) can still collide at the profile layer.
+  const normalizedEmail = email.trim().toLowerCase();
+  const { data: existingProfile } = await adminClient
+    .from("profiles")
+    .select("id")
+    .ilike("email", normalizedEmail)
+    .maybeSingle();
+
+  if (existingProfile) {
+    return { error: "A user with this email already exists." };
+  }
+
   // Create user in Supabase Auth
   const { data: newUser, error: createError } =
     await adminClient.auth.admin.createUser({
@@ -71,7 +97,7 @@ export async function inviteUser(formData: FormData) {
   // Insert profile
   const { error: profileError } = await adminClient.from("profiles").upsert({
     id: newUser.user.id,
-    email,
+    email: normalizedEmail,
     first_name: firstName.trim(),
     last_name: lastName?.trim() || null,
     role,
@@ -116,11 +142,11 @@ export async function inviteUser(formData: FormData) {
       <div style="padding: 32px 24px;">
         <h2 style="margin-top: 0;">You've Been Invited 🎉</h2>
 
-        <p>Hello ${firstName}${lastName ? " " + lastName : ""},</p>
+        <p>Hello ${escapeHtml(firstName)}${lastName ? " " + escapeHtml(lastName) : ""},</p>
 
         <p>
           You have been invited to join the <strong>Soakd Admin Dashboard</strong>
-          as a <strong>${role}</strong>.
+          as a <strong>${escapeHtml(role)}</strong>.
         </p>
 
         <div
@@ -135,7 +161,7 @@ export async function inviteUser(formData: FormData) {
           <h3 style="margin-top: 0;">Temporary Login Credentials</h3>
 
           <p style="margin: 8px 0;">
-            <strong>Email:</strong> ${email}
+            <strong>Email:</strong> ${escapeHtml(email)}
           </p>
 
           <p style="margin: 8px 0;">
@@ -188,14 +214,17 @@ export async function inviteUser(formData: FormData) {
     }
   }
 
-  // Always log to console for dev
-  console.log("\n" + "=".repeat(60));
-  console.log("📨 USER INVITED");
-  console.log(`Name: ${firstName}${lastName ? " " + lastName : ""}`);
-  console.log(`Email: ${email}`);
-  console.log(`Role: ${role}`);
-  console.log(`Temporary Password: ${tempPassword}`);
-  console.log("=".repeat(60) + "\n");
+  // Dev fallback only: if no email provider is configured there is no other
+  // way to deliver the credential, so print it. Never log the password when an
+  // email was actually sent (avoids plaintext credentials in production logs).
+  if (!isResendAvailable) {
+    console.log("\n" + "=".repeat(60));
+    console.log("📨 USER INVITED (email not configured — dev fallback)");
+    console.log(`Email: ${email}`);
+    console.log(`Role: ${role}`);
+    console.log(`Temporary Password: ${tempPassword}`);
+    console.log("=".repeat(60) + "\n");
+  }
 
   return { success: true };
 }

@@ -58,6 +58,21 @@ describe("User Management Actions", () => {
         update: vi.fn().mockReturnValue({
           eq: vi.fn().mockResolvedValue({ error: null }),
         }),
+        // Target-role lookup used by the last-superadmin guards. Default the
+        // target to a non-superadmin so the guards don't trip.
+        select: vi.fn().mockImplementation((_cols: string, opts?: any) => {
+          if (opts?.head) {
+            // Superadmin count query — only reached when target is superadmin.
+            return {
+              eq: vi.fn().mockResolvedValue({ count: 2, error: null }),
+            };
+          }
+          return {
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { role: "member" } }),
+            }),
+          };
+        }),
       }),
     };
 
@@ -98,6 +113,37 @@ describe("User Management Actions", () => {
       expect(mockAdminClient.auth.admin.deleteUser).toHaveBeenCalledWith(
         "user-1",
       );
+    });
+
+    it("should not allow deleting your own account", async () => {
+      const result = await deleteUser(mockAuthUser.id);
+
+      expect(result.error).toBe("You cannot delete your own account.");
+      expect(mockAdminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it("should not allow deleting the last superadmin", async () => {
+      mockAdminClient.from.mockReturnValue({
+        select: vi.fn().mockImplementation((_cols: string, opts?: any) => {
+          if (opts?.head) {
+            return {
+              eq: vi.fn().mockResolvedValue({ count: 1, error: null }),
+            };
+          }
+          return {
+            eq: vi.fn().mockReturnValue({
+              single: vi
+                .fn()
+                .mockResolvedValue({ data: { role: "superadmin" } }),
+            }),
+          };
+        }),
+      });
+
+      const result = await deleteUser("user-1");
+
+      expect(result.error).toBe("Cannot delete the last superadmin.");
+      expect(mockAdminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
     });
   });
 

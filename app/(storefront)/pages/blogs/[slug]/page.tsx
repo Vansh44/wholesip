@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
+import { sanitizeBlogContent } from "@/lib/sanitize";
 import { BlogCard } from "../blog-listing-client";
 import "../blogs.css";
 
@@ -166,7 +167,9 @@ export default async function BlogDetailPage({ params }: Props) {
   }
 
   const relatedBlogs = await getRelatedBlogs(blog);
-  const sanitizedContent = blog.content;
+  // Never trust stored HTML at the render boundary — sanitize even though the
+  // write path also sanitizes (defense in depth).
+  const sanitizedContent = sanitizeBlogContent(blog.content);
 
   const hasCoverImage = !!blog.cover_image_url;
 

@@ -10,7 +10,7 @@ export interface Blog {
   content: string | null;
   cover_image_url: string | null;
   author: string | null;
-  status: "draft" | "published";
+  status: "draft" | "published" | "pending_review";
   tags: string[];
   categories: string[] | null;
   featured: boolean;
@@ -22,6 +22,10 @@ export interface Blog {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  submitted_by: string | null;
+  is_customer_submission: boolean;
+  // Joined field
+  submitter_name?: string | null;
 }
 
 export default async function BlogsPage() {
@@ -54,5 +58,33 @@ export default async function BlogsPage() {
     );
   }
 
-  return <BlogsManagementView blogs={(blogs ?? []) as Blog[]} />;
+  // Fetch submitter names for customer submissions
+  const blogsWithSubmitters = (blogs ?? []) as Blog[];
+  const submitterIds = blogsWithSubmitters
+    .filter((b) => b.submitted_by)
+    .map((b) => b.submitted_by as string);
+
+  if (submitterIds.length > 0) {
+    const uniqueIds = [...new Set(submitterIds)];
+    const { data: customers } = await supabase
+      .from("customers")
+      .select("id, first_name, last_name")
+      .in("id", uniqueIds);
+
+    if (customers) {
+      const nameMap = new Map(
+        customers.map((c) => [
+          c.id,
+          [c.first_name, c.last_name].filter(Boolean).join(" ") || "Unknown",
+        ]),
+      );
+      blogsWithSubmitters.forEach((blog) => {
+        if (blog.submitted_by) {
+          blog.submitter_name = nameMap.get(blog.submitted_by) ?? null;
+        }
+      });
+    }
+  }
+
+  return <BlogsManagementView blogs={blogsWithSubmitters} />;
 }

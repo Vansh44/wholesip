@@ -38,18 +38,7 @@ export default function Header() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Close profile dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
-        setIsProfileOpen(false);
-      }
-    }
-    if (isProfileOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isProfileOpen]);
+  // Removed handleClickOutside temporarily for debugging
 
   const handleProfileClick = () => {
     if (loading) return;
@@ -170,6 +159,14 @@ export default function Header() {
                   </div>
                 </div>
                 <div className={styles.profileDropdownDivider} />
+                <Link
+                  href="/pages/profile"
+                  className={styles.profileDropdownItem}
+                  onClick={() => setIsProfileOpen(false)}
+                >
+                  <span style={{ marginRight: "8px" }}>👤</span>
+                  Profile
+                </Link>
                 <button
                   className={styles.profileDropdownItem}
                   onClick={handleSignOut}
@@ -298,6 +295,14 @@ export default function Header() {
                 <span className={styles.drawerAuthAvatar}>{initials}</span>
                 <span className={styles.drawerAuthName}>{displayName}</span>
               </div>
+              <Link
+                href="/pages/profile"
+                className={styles.drawerAuthBtn}
+                onClick={() => setIsMenuOpen(false)}
+                style={{ marginBottom: "12px", display: "block" }}
+              >
+                Profile
+              </Link>
               <button
                 className={styles.drawerAuthBtn}
                 onClick={() => {

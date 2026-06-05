@@ -3,8 +3,38 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
   try {
-    const { supabase, user, supabaseResponse } = await updateSession(request);
+    const { supabase, user, supabaseResponse, claims } =
+      await updateSession(request);
     const pathname = request.nextUrl.pathname;
+
+    // Resolve role / force_password_reset from JWT claims when available
+    // (no DB query). Falls back to a profiles lookup when the custom access
+    // token hook isn't enabled or the token is legacy — keeps behaviour
+    // identical during/without migration.
+    async function getProfileState(): Promise<{
+      role: string | null;
+      forcePasswordReset: boolean;
+      exists: boolean;
+    } | null> {
+      if (claims.hasClaims) {
+        return {
+          role: claims.role,
+          forcePasswordReset: claims.forcePasswordReset,
+          exists: claims.role !== null,
+        };
+      }
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("role, force_password_reset")
+        .eq("id", user!.id)
+        .single();
+      if (!profile || error) return null;
+      return {
+        role: profile.role,
+        forcePasswordReset: profile.force_password_reset,
+        exists: true,
+      };
+    }
 
     // --- Gate 1: Auth check for /dashboard routes ---
     if (pathname.startsWith("/dashboard")) {
@@ -14,18 +44,13 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(url);
       }
 
-      // Fetch profile for role and force_password_reset checks
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("role, force_password_reset")
-        .eq("id", user.id)
-        .single();
+      const state = await getProfileState();
 
       // If profile doesn't exist (table missing or no row), let the page handle it
       // Don't redirect — this prevents loops when profiles table isn't set up yet
-      if (profile && !profileError) {
+      if (state && state.exists) {
         // --- Gate 2: Force password reset ---
-        if (profile.force_password_reset) {
+        if (state.forcePasswordReset) {
           const url = request.nextUrl.clone();
           url.pathname = "/auth/set-password";
           return NextResponse.redirect(url);
@@ -35,7 +60,7 @@ export async function proxy(request: NextRequest) {
         if (
           (pathname.startsWith("/dashboard/users") ||
             pathname.startsWith("/dashboard/media")) &&
-          profile.role !== "superadmin"
+          state.role !== "superadmin"
         ) {
           const url = request.nextUrl.clone();
           url.pathname = "/dashboard";
@@ -55,17 +80,13 @@ export async function proxy(request: NextRequest) {
 
     // --- Redirect authenticated users away from login page ---
     if (pathname === "/auth/login" && user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("force_password_reset")
-        .eq("id", user.id)
-        .single();
+      const state = await getProfileState();
 
       // Only redirect away from login if we have a profile
       // If no profile exists, let them stay on login (avoids loop)
-      if (profile) {
+      if (state && state.exists) {
         const url = request.nextUrl.clone();
-        if (profile.force_password_reset) {
+        if (state.forcePasswordReset) {
           url.pathname = "/auth/set-password";
         } else {
           url.pathname = "/dashboard";
@@ -76,10 +97,10 @@ export async function proxy(request: NextRequest) {
 
     return supabaseResponse;
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    const stack = error instanceof Error ? error.stack : undefined;
+    // Log details server-side only; never leak messages/stack traces to clients.
+    console.error("Middleware exception:", error);
     return new NextResponse(
-      JSON.stringify({ error: "Middleware Exception", message, stack }),
+      JSON.stringify({ error: "Internal Server Error" }),
       { status: 500, headers: { "content-type": "application/json" } },
     );
   }

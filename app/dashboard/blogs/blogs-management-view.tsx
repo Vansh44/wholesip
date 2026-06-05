@@ -24,11 +24,13 @@ import {
   deleteBlog,
   publishBlog,
   unpublishBlog,
+  approveCustomerBlog,
+  rejectCustomerBlog,
 } from "@/app/actions/blog-actions";
 import { BlogEditorDialog } from "./blog-editor-dialog";
 import type { Blog } from "./page";
 
-type FilterTab = "all" | "published" | "drafts" | "featured";
+type FilterTab = "all" | "published" | "drafts" | "featured" | "pending";
 
 type Props = {
   blogs: Blog[];
@@ -40,6 +42,7 @@ export function BlogsManagementView({ blogs }: Props) {
   const [filter, setFilter] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Blog | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<Blog | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingBlog, setEditingBlog] = useState<Blog | null>(null);
 
@@ -57,6 +60,9 @@ export function BlogsManagementView({ blogs }: Props) {
         break;
       case "featured":
         result = result.filter((b) => b.featured);
+        break;
+      case "pending":
+        result = result.filter((b) => b.status === "pending_review");
         break;
     }
 
@@ -82,6 +88,7 @@ export function BlogsManagementView({ blogs }: Props) {
       published: blogs.filter((b) => b.status === "published").length,
       drafts: blogs.filter((b) => b.status === "draft").length,
       featured: blogs.filter((b) => b.featured).length,
+      pending: blogs.filter((b) => b.status === "pending_review").length,
     }),
     [blogs],
   );
@@ -111,6 +118,32 @@ export function BlogsManagementView({ blogs }: Props) {
         toast.success(
           blog.status === "published" ? "Blog unpublished" : "Blog published",
         );
+        router.refresh();
+      }
+    });
+  };
+
+  const handleApprove = (blog: Blog) => {
+    startTransition(async () => {
+      const result = await approveCustomerBlog(blog.id);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Blog approved and published!");
+        router.refresh();
+      }
+    });
+  };
+
+  const handleReject = () => {
+    if (!rejectTarget) return;
+    startTransition(async () => {
+      const result = await rejectCustomerBlog(rejectTarget.id);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Blog rejected and deleted");
+        setRejectTarget(null);
         router.refresh();
       }
     });
@@ -146,6 +179,7 @@ export function BlogsManagementView({ blogs }: Props) {
     { key: "published", label: `Published (${counts.published})` },
     { key: "drafts", label: `Drafts (${counts.drafts})` },
     { key: "featured", label: `Featured (${counts.featured})` },
+    { key: "pending", label: `Pending (${counts.pending})` },
   ];
 
   // ── Render ────────────────────────────────────────────────
@@ -182,6 +216,14 @@ export function BlogsManagementView({ blogs }: Props) {
               key={tab.key}
               className={`dash-filter-tab${filter === tab.key ? " active" : ""}`}
               onClick={() => setFilter(tab.key)}
+              style={
+                tab.key === "pending" && counts.pending > 0
+                  ? {
+                      color: "#f59e0b",
+                      borderColor: filter === "pending" ? "#f59e0b" : undefined,
+                    }
+                  : undefined
+              }
             >
               {tab.label}
             </button>
@@ -376,7 +418,31 @@ export function BlogsManagementView({ blogs }: Props) {
                   </td>
 
                   {/* Author */}
-                  <td className="text-muted">{blog.author || "—"}</td>
+                  <td className="text-muted">
+                    {blog.author || "—"}
+                    {blog.is_customer_submission && blog.submitter_name && (
+                      <div style={{ marginTop: 2 }}>
+                        <span style={{ fontSize: 11, opacity: 0.7 }}>
+                          {blog.submitter_name}
+                        </span>
+                        <span
+                          style={{
+                            marginLeft: 6,
+                            padding: "1px 6px",
+                            fontSize: 9,
+                            fontWeight: 600,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                            background: "rgba(139, 92, 246, 0.15)",
+                            color: "#a78bfa",
+                            borderRadius: 4,
+                          }}
+                        >
+                          Community
+                        </span>
+                      </div>
+                    )}
+                  </td>
 
                   {/* Status */}
                   <td>
@@ -384,10 +450,24 @@ export function BlogsManagementView({ blogs }: Props) {
                       className={`dash-badge ${
                         blog.status === "published"
                           ? "dash-badge-green"
-                          : "dash-badge-amber"
+                          : blog.status === "pending_review"
+                            ? "dash-badge-amber"
+                            : "dash-badge-amber"
                       }`}
+                      style={
+                        blog.status === "pending_review"
+                          ? {
+                              background: "rgba(139, 92, 246, 0.15)",
+                              color: "#a78bfa",
+                            }
+                          : undefined
+                      }
                     >
-                      {blog.status === "published" ? "Published" : "Draft"}
+                      {blog.status === "published"
+                        ? "Published"
+                        : blog.status === "pending_review"
+                          ? "Pending"
+                          : "Draft"}
                     </span>
                   </td>
 
@@ -438,36 +518,71 @@ export function BlogsManagementView({ blogs }: Props) {
                         align="end"
                         className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
                       >
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                          onClick={() => openEditor(blog)}
-                        >
-                          ✏️ Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                          onClick={() => handleTogglePublish(blog)}
-                          disabled={isPending}
-                        >
-                          {blog.status === "published"
-                            ? "📥 Unpublish"
-                            : "🚀 Publish"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                          onClick={() =>
-                            window.open(`/pages/blogs/${blog.slug}`, "_blank")
-                          }
-                        >
-                          👁 Preview
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
-                          onClick={() => setDeleteTarget(blog)}
-                        >
-                          🗑 Delete
-                        </DropdownMenuItem>
+                        {blog.status === "pending_review" ? (
+                          <>
+                            <DropdownMenuItem
+                              className="cursor-pointer text-[#22c55e] focus:bg-[rgba(34,197,94,0.12)] focus:text-[#22c55e]"
+                              onClick={() => handleApprove(blog)}
+                              disabled={isPending}
+                            >
+                              ✅ Approve
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                              onClick={() => setRejectTarget(blog)}
+                            >
+                              ❌ Reject
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                            <DropdownMenuItem
+                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                              onClick={() =>
+                                window.open(
+                                  `/pages/blogs/${blog.slug}`,
+                                  "_blank",
+                                )
+                              }
+                            >
+                              👁 Preview
+                            </DropdownMenuItem>
+                          </>
+                        ) : (
+                          <>
+                            <DropdownMenuItem
+                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                              onClick={() => openEditor(blog)}
+                            >
+                              ✏️ Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                              onClick={() => handleTogglePublish(blog)}
+                              disabled={isPending}
+                            >
+                              {blog.status === "published"
+                                ? "📥 Unpublish"
+                                : "🚀 Publish"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                              onClick={() =>
+                                window.open(
+                                  `/pages/blogs/${blog.slug}`,
+                                  "_blank",
+                                )
+                              }
+                            >
+                              👁 Preview
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                            <DropdownMenuItem
+                              className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                              onClick={() => setDeleteTarget(blog)}
+                            >
+                              🗑 Delete
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </td>
@@ -511,6 +626,50 @@ export function BlogsManagementView({ blogs }: Props) {
               disabled={isPending}
             >
               {isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Confirmation Dialog */}
+      <Dialog
+        open={rejectTarget !== null}
+        onOpenChange={(open) => !open && setRejectTarget(null)}
+      >
+        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-[#e8ecf4]">
+              Reject Submission
+            </DialogTitle>
+            <DialogDescription className="text-[#8b93a8]">
+              Are you sure you want to reject &ldquo;{rejectTarget?.title}
+              &rdquo;
+              {rejectTarget?.submitter_name
+                ? ` by ${rejectTarget.submitter_name}`
+                : ""}
+              ? This will permanently delete the submission.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-[#8b93a8]">
+              Slug: /{rejectTarget?.slug}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRejectTarget(null)}
+              disabled={isPending}
+              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReject}
+              disabled={isPending}
+            >
+              {isPending ? "Rejecting…" : "Reject"}
             </Button>
           </DialogFooter>
         </DialogContent>
