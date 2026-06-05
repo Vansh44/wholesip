@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { useEditor, EditorContent } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import LinkExtension from "@tiptap/extension-link";
 import ImageExtension from "@tiptap/extension-image";
@@ -515,13 +516,13 @@ export default function WriteBlogEditor() {
           >
             <ArrowLeft size={16} /> Back to Blogs
           </Link>
-          <h1 className="text-2xl font-semibold text-[var(--blog-dark)]">
+          <h1 className="text-xl font-semibold text-[var(--blog-dark)]">
             {mode === "edit" ? "Edit Submission" : "Write Your Blog"}
           </h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="write-blog-header-actions">
           <button
-            className="px-5 py-2.5 rounded-full border border-[var(--blog-border)] bg-transparent text-[var(--blog-dark)] font-medium hover:bg-white transition-colors"
+            className="write-blog-ghost-btn"
             onClick={() => setMode("submissions")}
           >
             My Submissions
@@ -540,18 +541,75 @@ export default function WriteBlogEditor() {
         </div>
       </div>
 
-      <div className="max-w-[1200px] mx-auto px-6 pb-24">
-        <div className="write-blog-layout">
-          {/* Editor Area */}
-          <div className="write-blog-editor-area">
-            <input
-              type="text"
-              placeholder="Your blog title..."
-              className="write-blog-title-input"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
+      <div className="write-blog-canvas">
+        {/* Title */}
+        <input
+          type="text"
+          placeholder="Your blog title..."
+          className="write-blog-title-input"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
 
+        {/* Cover Image */}
+        <section className="wb-section">
+          <span className="wb-label">Cover Image</span>
+          {coverImageUrl ? (
+            <div className="write-blog-cover-preview">
+              <img src={coverImageUrl} alt="Cover" />
+              <button
+                type="button"
+                className="remove-btn"
+                onClick={removeCoverImage}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ) : (
+            <div
+              className="write-blog-cover-upload"
+              onClick={(e) => {
+                if (e.target !== fileInputRef.current) {
+                  fileInputRef.current?.click();
+                }
+              }}
+            >
+              <Upload size={26} className="mb-3 text-[var(--blog-muted)]" />
+              <p className="text-sm font-medium text-[var(--blog-dark)]">
+                Click to upload cover
+              </p>
+              <p className="text-xs text-[var(--blog-faint)] mt-1">
+                16:9 ratio recommended
+              </p>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                ref={fileInputRef}
+                onChange={handleImageUpload}
+              />
+            </div>
+          )}
+        </section>
+
+        {/* Excerpt */}
+        <section className="wb-section">
+          <span className="wb-label">Excerpt</span>
+          <textarea
+            className="write-blog-textarea"
+            placeholder="A brief summary of your post..."
+            value={excerpt}
+            onChange={(e) => setExcerpt(e.target.value)}
+            maxLength={200}
+            rows={3}
+          />
+          <div className="write-blog-char-count">{excerpt.length}/200</div>
+        </section>
+
+        {/* Content */}
+        <section className="wb-section">
+          <span className="wb-label">Content</span>
+          <div className="write-blog-editor-area">
             {editor && (
               <div className="write-blog-toolbar">
                 <button
@@ -718,110 +776,139 @@ export default function WriteBlogEditor() {
               </div>
             )}
 
-            <div className="p-6 md:p-10">
+            {editor && (
+              <BubbleMenu
+                editor={editor}
+                className="write-blog-bubble-menu"
+                options={{ placement: "top", offset: 8 }}
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    editor.chain().focus().toggleHeading({ level: 2 }).run()
+                  }
+                  className={
+                    editor.isActive("heading", { level: 2 }) ? "active" : ""
+                  }
+                  title="Heading 2"
+                >
+                  <Heading2 size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    editor.chain().focus().toggleHeading({ level: 3 }).run()
+                  }
+                  className={
+                    editor.isActive("heading", { level: 3 }) ? "active" : ""
+                  }
+                  title="Heading 3"
+                >
+                  <Heading3 size={16} />
+                </button>
+
+                <div className="write-blog-bubble-divider" />
+
+                <button
+                  type="button"
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                  className={editor.isActive("bold") ? "active" : ""}
+                  title="Bold"
+                >
+                  <Bold size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                  className={editor.isActive("italic") ? "active" : ""}
+                  title="Italic"
+                >
+                  <Italic size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => editor.chain().focus().toggleUnderline().run()}
+                  className={editor.isActive("underline") ? "active" : ""}
+                  title="Underline"
+                >
+                  <UnderlineIcon size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => editor.chain().focus().toggleStrike().run()}
+                  className={editor.isActive("strike") ? "active" : ""}
+                  title="Strikethrough"
+                >
+                  <Strikethrough size={16} />
+                </button>
+
+                <div className="write-blog-bubble-divider" />
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    editor.chain().focus().toggleBlockquote().run()
+                  }
+                  className={editor.isActive("blockquote") ? "active" : ""}
+                  title="Quote"
+                >
+                  <Quote size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={addEditorLink}
+                  className={editor.isActive("link") ? "active" : ""}
+                  title="Add Link"
+                >
+                  <LinkIcon size={16} />
+                </button>
+              </BubbleMenu>
+            )}
+
+            <div className="write-blog-editor-body">
               <EditorContent editor={editor} />
             </div>
           </div>
+        </section>
 
-          {/* Settings Sidebar */}
-          <div className="write-blog-sidebar">
-            <div className="write-blog-sidebar-card">
-              <h3 className="write-blog-sidebar-title">Cover Image</h3>
-              {coverImageUrl ? (
-                <div className="write-blog-cover-preview">
-                  <img src={coverImageUrl} alt="Cover" />
-                  <button
-                    type="button"
-                    className="remove-btn"
-                    onClick={removeCoverImage}
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              ) : (
-                <div
-                  className="write-blog-cover-upload"
-                  onClick={(e) => {
-                    if (e.target !== fileInputRef.current) {
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                  style={{ cursor: "pointer" }}
+        {/* Categories & Tags */}
+        <div className="write-blog-meta-grid">
+          <section className="wb-section">
+            <span className="wb-label">Categories</span>
+            <div className="write-blog-pills">
+              {PREDEFINED_CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  className={`write-blog-pill ${selectedCategories.includes(cat) ? "active" : ""}`}
+                  onClick={() => toggleCategory(cat)}
                 >
-                  <Upload size={24} className="mb-2 text-[var(--blog-muted)]" />
-                  <p className="text-sm font-medium text-[var(--blog-dark)]">
-                    Click to upload cover
-                  </p>
-                  <p className="text-xs text-[var(--blog-muted)] mt-1">
-                    16:9 ratio recommended
-                  </p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    ref={fileInputRef}
-                    onChange={handleImageUpload}
-                  />
-                </div>
-              )}
+                  {cat}
+                </button>
+              ))}
             </div>
+          </section>
 
-            <div className="write-blog-sidebar-card">
-              <h3 className="write-blog-sidebar-title">Excerpt</h3>
-              <textarea
-                className="write-blog-textarea"
-                placeholder="A brief summary of your post..."
-                value={excerpt}
-                onChange={(e) => setExcerpt(e.target.value)}
-                maxLength={200}
-                rows={3}
-              />
-              <div className="text-right text-xs text-[var(--blog-muted)] mt-1">
-                {excerpt.length}/200
-              </div>
+          <section className="wb-section">
+            <span className="wb-label">Tags</span>
+            <div className="write-blog-pills">
+              {PREDEFINED_TAGS.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  className={`write-blog-pill ${selectedTags.includes(tag) ? "active" : ""}`}
+                  onClick={() => toggleTag(tag)}
+                >
+                  {tag}
+                </button>
+              ))}
             </div>
+          </section>
+        </div>
 
-            <div className="write-blog-sidebar-card">
-              <h3 className="write-blog-sidebar-title">Categories</h3>
-              <div className="write-blog-pills">
-                {PREDEFINED_CATEGORIES.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    className={`write-blog-pill ${selectedCategories.includes(cat) ? "active" : ""}`}
-                    onClick={() => toggleCategory(cat)}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="write-blog-sidebar-card">
-              <h3 className="write-blog-sidebar-title">Tags</h3>
-              <div className="write-blog-pills">
-                {PREDEFINED_TAGS.map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    className={`write-blog-pill ${selectedTags.includes(tag) ? "active" : ""}`}
-                    onClick={() => toggleTag(tag)}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="write-blog-sidebar-card flex items-center justify-between">
-              <span className="text-sm font-medium text-[var(--blog-dark)]">
-                Est. Reading Time
-              </span>
-              <span className="text-sm text-[var(--blog-muted)] bg-[var(--blog-bg)] px-3 py-1 rounded-full">
-                {readingTime} min
-              </span>
-            </div>
-          </div>
+        {/* Reading time */}
+        <div className="write-blog-reading-time">
+          <Clock size={14} /> Est. reading time · {readingTime} min
         </div>
       </div>
 
