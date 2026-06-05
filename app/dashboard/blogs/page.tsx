@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { BlogsManagementView } from "./blogs-management-view";
 
 export interface Blog {
@@ -66,7 +67,10 @@ export default async function BlogsPage() {
 
   if (submitterIds.length > 0) {
     const uniqueIds = [...new Set(submitterIds)];
-    const { data: customers } = await supabase
+    // Use the service-role client: `customers` RLS only lets a customer read
+    // their own row, so the admin session can't resolve submitter names.
+    const adminClient = createAdminClient();
+    const { data: customers } = await adminClient
       .from("customers")
       .select("id, first_name, last_name")
       .in("id", uniqueIds);

@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Resend } from "resend";
-import { siteConfig } from "@/config/site";
+import { wrapBrandedEmail } from "@/lib/email/layout";
 import { randomInt } from "crypto";
 
 function generateTempPassword(): string {
@@ -123,23 +123,7 @@ export async function inviteUser(formData: FormData) {
         from: "Soakd Dashboard <admin@getsoakd.in>",
         to: email,
         subject: "Welcome to Soakd Dashboard",
-        html: `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-      
-      <div style="background: #ffffff; padding: 24px; text-align: center;">
-        <img
-          src="${siteConfig.assets.logoUrl}"
-          alt="Soakd"
-          style="
-            max-height: 80px;
-            width: auto;
-            display: block;
-            margin: 0 auto;
-          "
-        />
-      </div>
-
-      <div style="padding: 32px 24px;">
+        html: wrapBrandedEmail(`
         <h2 style="margin-top: 0;">You've Been Invited 🎉</h2>
 
         <p>Hello ${escapeHtml(firstName)}${lastName ? " " + escapeHtml(lastName) : ""},</p>
@@ -205,9 +189,7 @@ export async function inviteUser(formData: FormData) {
           Regards,<br />
           <strong>Team Soakd</strong>
         </p>
-      </div>
-    </div>
-  `,
+      `),
       });
     } catch (e) {
       console.error("Failed to send invite email via Resend:", e);

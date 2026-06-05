@@ -521,6 +521,13 @@ export function BlogsManagementView({ blogs }: Props) {
                         {blog.status === "pending_review" ? (
                           <>
                             <DropdownMenuItem
+                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                              onClick={() => openEditor(blog)}
+                            >
+                              📝 Review &amp; Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                            <DropdownMenuItem
                               className="cursor-pointer text-[#22c55e] focus:bg-[rgba(34,197,94,0.12)] focus:text-[#22c55e]"
                               onClick={() => handleApprove(blog)}
                               disabled={isPending}
@@ -532,18 +539,6 @@ export function BlogsManagementView({ blogs }: Props) {
                               onClick={() => setRejectTarget(blog)}
                             >
                               ❌ Reject
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
-                            <DropdownMenuItem
-                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                              onClick={() =>
-                                window.open(
-                                  `/pages/blogs/${blog.slug}`,
-                                  "_blank",
-                                )
-                              }
-                            >
-                              👁 Preview
                             </DropdownMenuItem>
                           </>
                         ) : (

@@ -998,6 +998,25 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                   </div>
                 </div>
 
+                {blog?.status === "pending_review" && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      lineHeight: 1.5,
+                      color: "#b45309",
+                      background: "rgba(245,158,11,0.12)",
+                      border: "1px solid rgba(245,158,11,0.3)",
+                      borderRadius: 6,
+                      padding: "8px 10px",
+                      marginBottom: 12,
+                    }}
+                  >
+                    Community submission pending review — set status to{" "}
+                    <strong>Published</strong> and save to approve it (the
+                    author is emailed automatically).
+                  </div>
+                )}
+
                 <label
                   style={{
                     display: "flex",

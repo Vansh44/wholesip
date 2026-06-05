@@ -3,6 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sanitizeBlogContent } from "@/lib/sanitize";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  sendBlogApprovedEmail,
+  sendBlogRejectedEmail,
+} from "@/lib/email/blog-notifications";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,6 +80,29 @@ async function getAdminUserId(): Promise<string | null> {
   }
 
   return user.id;
+}
+
+// Looks up a customer's email + first name by id, bypassing RLS via the
+// service-role client. The customers table only lets a customer read their own
+// row, so an admin session can't read a submitter — this is used purely to
+// address review-notification emails after an admin action.
+async function getCustomerContact(
+  submittedBy: string | null,
+): Promise<{ email: string | null; firstName: string | null } | null> {
+  if (!submittedBy) return null;
+  try {
+    const adminClient = createAdminClient();
+    const { data } = await adminClient
+      .from("customers")
+      .select("email, first_name")
+      .eq("id", submittedBy)
+      .single();
+    if (!data) return null;
+    return { email: data.email, firstName: data.first_name };
+  } catch (e) {
+    console.error("getCustomerContact error:", e);
+    return null;
+  }
 }
 
 // Postgres unique_violation — raised when the blogs.slug UNIQUE constraint is hit.
@@ -217,10 +245,12 @@ export async function updateBlog(
   const { slug: firstSlug, bump } = await resolveSlug(supabase, base, id);
   let slug = firstSlug;
 
-  // Get current blog to check if it was previously unpublished
+  // Get current blog to check if it was previously unpublished, and whether
+  // this is a customer submission awaiting review (so we can notify the author
+  // when an admin approves it by publishing from the editor).
   const { data: currentBlog } = await supabase
     .from("blogs")
-    .select("status, published_at")
+    .select("status, published_at, submitted_by, is_customer_submission")
     .eq("id", id)
     .single();
 
@@ -254,6 +284,26 @@ export async function updateBlog(
       .eq("id", id);
 
     if (!error) {
+      // Approving a customer submission by publishing it from the editor:
+      // notify the author (best-effort), mirroring approveCustomerBlog.
+      const isApproval =
+        currentBlog?.status === "pending_review" &&
+        formData.status === "published" &&
+        currentBlog?.submitted_by;
+      if (isApproval) {
+        const contact = await getCustomerContact(
+          currentBlog!.submitted_by as string,
+        );
+        if (contact?.email) {
+          await sendBlogApprovedEmail({
+            to: contact.email,
+            firstName: contact.firstName,
+            title: formData.title,
+            slug,
+          });
+        }
+      }
+
       revalidatePath("/dashboard/blogs");
       revalidatePath("/pages/blogs");
       revalidatePath(`/pages/blogs/${slug}`);
@@ -596,7 +646,7 @@ export async function approveCustomerBlog(id: string): Promise<ActionResult> {
     return { error: "Not authenticated" };
   }
 
-  const { error } = await supabase
+  const { data: approved, error } = await supabase
     .from("blogs")
     .update({
       status: "published",
@@ -604,11 +654,27 @@ export async function approveCustomerBlog(id: string): Promise<ActionResult> {
       updated_by: userId,
     })
     .eq("id", id)
-    .eq("status", "pending_review");
+    .eq("status", "pending_review")
+    .select("title, slug, submitted_by")
+    .single();
 
   if (error) {
     console.error("approveCustomerBlog error:", error);
     return { error: error.message };
+  }
+
+  // Notify the author that their blog is live (best-effort — a mail failure
+  // must not undo the approval).
+  if (approved?.submitted_by) {
+    const contact = await getCustomerContact(approved.submitted_by);
+    if (contact?.email) {
+      await sendBlogApprovedEmail({
+        to: contact.email,
+        firstName: contact.firstName,
+        title: approved.title,
+        slug: approved.slug,
+      });
+    }
   }
 
   revalidatePath("/dashboard/blogs");
@@ -628,6 +694,14 @@ export async function rejectCustomerBlog(id: string): Promise<ActionResult> {
     return { error: "Not authenticated" };
   }
 
+  // Capture the author + title before deleting so we can email them after.
+  const { data: target } = await supabase
+    .from("blogs")
+    .select("title, submitted_by")
+    .eq("id", id)
+    .eq("status", "pending_review")
+    .single();
+
   const { error } = await supabase
     .from("blogs")
     .delete()
@@ -637,6 +711,18 @@ export async function rejectCustomerBlog(id: string): Promise<ActionResult> {
   if (error) {
     console.error("rejectCustomerBlog error:", error);
     return { error: error.message };
+  }
+
+  // Notify the author that their submission wasn't approved (best-effort).
+  if (target?.submitted_by) {
+    const contact = await getCustomerContact(target.submitted_by);
+    if (contact?.email) {
+      await sendBlogRejectedEmail({
+        to: contact.email,
+        firstName: contact.firstName,
+        title: target.title,
+      });
+    }
   }
 
   revalidatePath("/dashboard/blogs");

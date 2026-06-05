@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -14,7 +14,7 @@ interface Blog {
   content: string | null;
   cover_image_url: string | null;
   author: string | null;
-  status: "draft" | "published";
+  status: "draft" | "published" | "pending_review";
   tags: string[];
   categories: string[] | null;
   featured: boolean;
@@ -124,8 +124,12 @@ export default function BlogListingClient({
   categories,
   allTags,
 }: BlogListingClientProps) {
-  const { user, customer, openAuthModal } = useAuth();
+  const { user, customer, isAuthModalOpen, openAuthModal } = useAuth();
   const router = useRouter();
+  // When a logged-out visitor clicks "Post your own blog", we open the auth
+  // modal and remember the intent (in a ref, to avoid extra renders) so we can
+  // forward them to the editor once they finish signing in.
+  const pendingWriteRef = useRef(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -146,9 +150,27 @@ export default function BlogListingClient({
     if (user && customer) {
       router.push("/pages/blogs/write");
     } else {
+      pendingWriteRef.current = true;
       openAuthModal();
     }
   };
+
+  // Once the visitor has signed in (and their customer profile is loaded),
+  // complete the pending "write" intent by forwarding to the editor.
+  useEffect(() => {
+    if (pendingWriteRef.current && user && customer) {
+      pendingWriteRef.current = false;
+      router.push("/pages/blogs/write");
+    }
+  }, [user, customer, router]);
+
+  // If they closed the auth modal without signing in, drop the pending intent
+  // so a later, unrelated sign-in doesn't yank them to the editor.
+  useEffect(() => {
+    if (!isAuthModalOpen && !user) {
+      pendingWriteRef.current = false;
+    }
+  }, [isAuthModalOpen, user]);
 
   const filteredBlogs = useMemo(() => {
     let result = blogs;

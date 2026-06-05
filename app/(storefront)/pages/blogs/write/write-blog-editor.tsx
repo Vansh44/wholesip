@@ -22,6 +22,7 @@ import {
   updateCustomerBlog,
   getMySubmissions,
 } from "@/app/actions/blog-actions";
+import { updateCustomerProfile } from "@/app/actions/customer-profile";
 import {
   Heading1,
   Heading2,
@@ -67,11 +68,24 @@ interface Submission {
 }
 
 export default function WriteBlogEditor() {
-  const { user, customer, loading: authLoading, openAuthModal } = useAuth();
+  const {
+    user,
+    customer,
+    loading: authLoading,
+    openAuthModal,
+    refreshCustomer,
+  } = useAuth();
   const [isPending, startTransition] = useTransition();
 
   const [mode, setMode] = useState<Mode>("write");
   const [editingBlogId, setEditingBlogId] = useState<string | null>(null);
+
+  // Email is required before a submission can go to review (so the author can
+  // be notified on approve/reject). We only prompt when it's missing.
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailError, setEmailError] = useState("");
 
   const [title, setTitle] = useState("");
   const [excerpt, setExcerpt] = useState("");
@@ -216,17 +230,9 @@ export default function WriteBlogEditor() {
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   };
 
-  const handleSubmit = () => {
-    if (!title.trim()) {
-      toast.error("Please enter a title for your blog");
-      return;
-    }
-
-    if (!editor || editor.getText().trim().length < 50) {
-      toast.error("Please write a bit more content before submitting");
-      return;
-    }
-
+  // Actually sends the blog to review. Assumes validation already passed.
+  const performSubmit = () => {
+    if (!editor) return;
     startTransition(async () => {
       const formData = {
         title,
@@ -258,6 +264,60 @@ export default function WriteBlogEditor() {
         setEditingBlogId(null);
       }
     });
+  };
+
+  const handleSubmit = () => {
+    if (!title.trim()) {
+      toast.error("Please enter a title for your blog");
+      return;
+    }
+
+    if (!editor || editor.getText().trim().length < 50) {
+      toast.error("Please write a bit more content before submitting");
+      return;
+    }
+
+    // We need a contact email to notify the author when the blog is approved
+    // or rejected. Phone sign-up leaves email blank — prompt for it first.
+    if (!customer?.email) {
+      setEmailInput("");
+      setEmailError("");
+      setShowEmailModal(true);
+      return;
+    }
+
+    performSubmit();
+  };
+
+  // Saves the email the author entered, then proceeds with the submission.
+  const handleEmailContinue = async () => {
+    const email = emailInput.trim();
+    // Basic shape check; the server re-validates and enforces uniqueness.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError("Please enter a valid email address.");
+      return;
+    }
+    if (!customer) return;
+
+    setSavingEmail(true);
+    setEmailError("");
+
+    const fd = new FormData();
+    fd.set("firstName", customer.first_name);
+    fd.set("lastName", customer.last_name ?? "");
+    fd.set("email", email);
+
+    const result = await updateCustomerProfile(fd);
+    setSavingEmail(false);
+
+    if (result.error) {
+      setEmailError(result.error);
+      return;
+    }
+
+    await refreshCustomer();
+    setShowEmailModal(false);
+    performSubmit();
   };
 
   const handleEditSubmission = (blog: Submission) => {
@@ -764,6 +824,91 @@ export default function WriteBlogEditor() {
           </div>
         </div>
       </div>
+
+      {/* Email-required modal (only shown when the author has no email yet) */}
+      {showEmailModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !savingEmail) {
+              setShowEmailModal(false);
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              maxWidth: 440,
+              width: "100%",
+              padding: 28,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+            }}
+          >
+            <h2 className="text-xl font-semibold text-[var(--blog-dark)] mb-2">
+              Add your email
+            </h2>
+            <p className="text-sm text-[var(--blog-muted)] mb-5">
+              We&apos;ll use this to let you know when your blog is approved or
+              if it isn&apos;t accepted. An email is required to submit for
+              review.
+            </p>
+            <input
+              type="email"
+              autoFocus
+              placeholder="you@example.com"
+              value={emailInput}
+              onChange={(e) => {
+                setEmailInput(e.target.value);
+                if (emailError) setEmailError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !savingEmail) handleEmailContinue();
+              }}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                border: "1px solid var(--blog-border)",
+                borderRadius: 10,
+                fontSize: 15,
+                outline: "none",
+                color: "var(--blog-dark)",
+                background: "var(--blog-bg)",
+              }}
+            />
+            {emailError && (
+              <p className="text-sm text-red-600 mt-2">{emailError}</p>
+            )}
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                className="px-5 py-2.5 rounded-full border border-[var(--blog-border)] bg-transparent text-[var(--blog-dark)] font-medium hover:bg-[var(--blog-bg-alt)] transition-colors disabled:opacity-50"
+                onClick={() => setShowEmailModal(false)}
+                disabled={savingEmail}
+              >
+                Cancel
+              </button>
+              <button
+                className="write-blog-submit-btn"
+                onClick={handleEmailContinue}
+                disabled={savingEmail}
+              >
+                {savingEmail ? "Saving..." : "Save & Submit"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

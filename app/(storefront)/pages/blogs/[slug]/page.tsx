@@ -17,7 +17,7 @@ interface Blog {
   content: string | null;
   cover_image_url: string | null;
   author: string | null;
-  status: "draft" | "published";
+  status: "draft" | "published" | "pending_review";
   tags: string[];
   categories: string[] | null;
   featured: boolean;
@@ -35,12 +35,15 @@ type Props = {
 
 async function getBlog(slug: string): Promise<Blog | null> {
   const supabase = await createClient();
+  // No status filter — RLS decides visibility. Anonymous visitors can only read
+  // published blogs (so unpublished slugs 404 for them), while admins and a
+  // blog's own submitter are allowed to read drafts / pending submissions. This
+  // lets the dashboard "Preview" action work for blogs awaiting review.
   const { data } = await supabase
     .from("blogs")
     .select("*")
     .eq("slug", slug)
-    .eq("status", "published")
-    .single();
+    .maybeSingle();
   return data;
 }
 
@@ -172,11 +175,38 @@ export default async function BlogDetailPage({ params }: Props) {
   const sanitizedContent = sanitizeBlogContent(blog.content);
 
   const hasCoverImage = !!blog.cover_image_url;
+  // getBlog returns unpublished blogs only to admins / the author (RLS), so if
+  // we got a non-published row here it's a preview, not a public view.
+  const isPreview = blog.status !== "published";
 
   return (
     <main>
       <section className="blog-detail-page-section">
         <div className="blog-detail-content-container">
+          {isPreview && (
+            <div
+              style={{
+                background: "#fef3c7",
+                border: "1px solid #fcd34d",
+                color: "#92400e",
+                padding: "12px 16px",
+                borderRadius: 8,
+                marginBottom: 24,
+                fontSize: 14,
+                fontWeight: 500,
+                textAlign: "center",
+              }}
+            >
+              👁 Preview — this post is{" "}
+              <strong>
+                {blog.status === "pending_review"
+                  ? "pending review"
+                  : "a draft"}
+              </strong>{" "}
+              and is not publicly visible yet.
+            </div>
+          )}
+
           <BackLink />
 
           {hasCoverImage && (
