@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useAuth } from "@/app/components/auth/AuthProvider";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import LinkExtension from "@tiptap/extension-link";
@@ -145,13 +145,21 @@ export default function WriteBlogEditor({
     setLoadingSubmissions(false);
   };
 
-  const calculateReadingTime = (text: string) => {
-    const wpm = 225;
-    const words = text.trim().split(/\s+/).length;
-    return Math.ceil(words / wpm);
-  };
-
-  const readingTime = editor ? calculateReadingTime(editor.getText()) : 0;
+  // Reactive reading-time estimate. useEditorState re-subscribes to the editor
+  // so this recomputes on every content change (typing, paste, and programmatic
+  // setContent in edit mode) — a plain `editor.getText()` read during render
+  // would stay frozen because useEditor doesn't re-render on each keystroke.
+  const readingTime =
+    useEditorState({
+      editor,
+      selector: ({ editor }) => {
+        if (!editor) return 0;
+        const text = editor.getText().trim();
+        if (!text) return 0;
+        const words = text.split(/\s+/).length;
+        return Math.max(1, Math.ceil(words / 225));
+      },
+    }) ?? 0;
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

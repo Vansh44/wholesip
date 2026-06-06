@@ -168,7 +168,8 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--blog-faint);
+  color: #1e1b22;
+  /* color: var(--blog-faint); */
 }
 
 .wb-required {

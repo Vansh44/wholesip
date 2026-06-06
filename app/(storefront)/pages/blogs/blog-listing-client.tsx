@@ -232,6 +232,17 @@ export default function BlogListingClient({
     currentPage * blogsPerPage,
   );
 
+  // Article count per category (for the sidebar badges). "All" is the total.
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const category of categories) {
+      counts[category] = blogs.filter((blog) =>
+        blog.categories?.includes(category),
+      ).length;
+    }
+    return counts;
+  }, [blogs, categories]);
+
   return (
     <>
       {/* Search & Filters */}
@@ -330,32 +341,7 @@ export default function BlogListingClient({
             </div>
           </div>
 
-          {/* Category Tabs */}
-          {categories.length > 0 && (
-            <div className="blog-category-tabs" id="blog-category-tabs">
-              <button
-                className="blog-category-tab"
-                data-active={activeCategory === "All"}
-                onClick={() => handleCategoryClick("All")}
-                id="blog-category-all"
-              >
-                All
-              </button>
-              {categories.map((category) => (
-                <button
-                  key={category}
-                  className="blog-category-tab"
-                  data-active={activeCategory === category}
-                  onClick={() => handleCategoryClick(category)}
-                  id={`blog-category-${category.toLowerCase().replace(/\s+/g, "-")}`}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Tag Pills */}
+          {/* Tag Pills (centered, secondary filter) */}
           {allTags.length > 0 && (
             <div className="blog-tag-pills" id="blog-tag-pills">
               {allTags.map((tag) => (
@@ -374,112 +360,164 @@ export default function BlogListingClient({
         </div>
       </section>
 
-      {/* Blog Grid */}
+      {/* Two-column layout: category sidebar + article grid.
+          When there are no categories the sidebar is omitted and the grid
+          spans full width. */}
       <section className="blog-grid-section">
-        <div className="blog-grid-container">
-          {filteredBlogs.length > 0 && (
-            <p
-              className="blog-results-count"
-              style={{ marginBottom: "1.5rem" }}
-            >
-              Showing {(currentPage - 1) * blogsPerPage + 1}-
-              {Math.min(currentPage * blogsPerPage, filteredBlogs.length)} of{" "}
-              {filteredBlogs.length}{" "}
-              {filteredBlogs.length === 1 ? "article" : "articles"}
-              {hasActiveFilters && " (filtered)"}
-            </p>
-          )}
-
-          {filteredBlogs.length > 0 ? (
-            <>
-              <div className="blog-grid" id="blog-grid">
-                {paginatedBlogs.map((blog) => (
-                  <BlogCard key={blog.id} blog={blog} />
-                ))}
+        <div
+          className="blog-layout-container"
+          data-has-sidebar={categories.length > 0}
+        >
+          {/* Sidebar — category filter */}
+          {categories.length > 0 && (
+            <aside className="blog-sidebar" id="blog-sidebar">
+              <div className="blog-sidebar-block">
+                <h4 className="blog-sidebar-heading">Categories</h4>
+                <div className="blog-category-list" id="blog-category-list">
+                  <button
+                    className="blog-category-item"
+                    data-active={activeCategory === "All"}
+                    onClick={() => handleCategoryClick("All")}
+                    id="blog-category-all"
+                  >
+                    <span>All</span>
+                    <span className="blog-category-count">{blogs.length}</span>
+                  </button>
+                  {categories.map((category) => (
+                    <button
+                      key={category}
+                      className="blog-category-item"
+                      data-active={activeCategory === category}
+                      onClick={() => handleCategoryClick(category)}
+                      id={`blog-category-${category.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
+                      <span>{category}</span>
+                      <span className="blog-category-count">
+                        {categoryCounts[category] ?? 0}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {totalPages > 1 && (
-                <div className="blog-pagination">
-                  <button
-                    className="blog-pagination-btn"
-                    onClick={() => {
-                      setCurrentPage((p) => Math.max(1, p - 1));
-                      document.getElementById("blog-grid")?.scrollIntoView({
-                        behavior: "smooth",
-                        block: "start",
-                      });
-                    }}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </button>
-                  <span className="blog-pagination-status">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button
-                    className="blog-pagination-btn"
-                    onClick={() => {
-                      setCurrentPage((p) => Math.min(totalPages, p + 1));
-                      document.getElementById("blog-grid")?.scrollIntoView({
-                        behavior: "smooth",
-                        block: "start",
-                      });
-                    }}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="blog-empty-state" id="blog-empty-state">
-              <svg
-                className="blog-empty-icon"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"
-                />
-              </svg>
-              <h3 className="blog-empty-title">No articles found</h3>
-              <p className="blog-empty-description">
-                {hasActiveFilters
-                  ? "Try adjusting your search or filters to find what you're looking for."
-                  : "We're working on new content. Check back soon for fresh stories and insights."}
-              </p>
               {hasActiveFilters && (
                 <button
-                  className="blog-empty-reset"
+                  className="blog-sidebar-clear"
                   onClick={clearFilters}
-                  id="blog-empty-reset"
+                  id="blog-sidebar-clear"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.5}
-                    stroke="currentColor"
-                    width={16}
-                    height={16}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.992 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"
-                    />
-                  </svg>
-                  Clear all filters
+                  Clear filters
                 </button>
               )}
-            </div>
+            </aside>
           )}
+
+          {/* Main — results + grid */}
+          <div className="blog-main">
+            {filteredBlogs.length > 0 && (
+              <p
+                className="blog-results-count"
+                style={{ marginBottom: "1.5rem" }}
+              >
+                Showing {(currentPage - 1) * blogsPerPage + 1}-
+                {Math.min(currentPage * blogsPerPage, filteredBlogs.length)} of{" "}
+                {filteredBlogs.length}{" "}
+                {filteredBlogs.length === 1 ? "article" : "articles"}
+                {hasActiveFilters && " (filtered)"}
+              </p>
+            )}
+
+            {filteredBlogs.length > 0 ? (
+              <>
+                <div className="blog-grid" id="blog-grid">
+                  {paginatedBlogs.map((blog) => (
+                    <BlogCard key={blog.id} blog={blog} />
+                  ))}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="blog-pagination">
+                    <button
+                      className="blog-pagination-btn"
+                      onClick={() => {
+                        setCurrentPage((p) => Math.max(1, p - 1));
+                        document.getElementById("blog-grid")?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
+                      }}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </button>
+                    <span className="blog-pagination-status">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      className="blog-pagination-btn"
+                      onClick={() => {
+                        setCurrentPage((p) => Math.min(totalPages, p + 1));
+                        document.getElementById("blog-grid")?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
+                      }}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="blog-empty-state" id="blog-empty-state">
+                <svg
+                  className="blog-empty-icon"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"
+                  />
+                </svg>
+                <h3 className="blog-empty-title">No articles found</h3>
+                <p className="blog-empty-description">
+                  {hasActiveFilters
+                    ? "Try adjusting your search or filters to find what you're looking for."
+                    : "We're working on new content. Check back soon for fresh stories and insights."}
+                </p>
+                {hasActiveFilters && (
+                  <button
+                    className="blog-empty-reset"
+                    onClick={clearFilters}
+                    id="blog-empty-reset"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      width={16}
+                      height={16}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.992 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"
+                      />
+                    </svg>
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </section>
     </>
