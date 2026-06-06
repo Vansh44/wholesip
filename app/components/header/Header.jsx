@@ -6,12 +6,21 @@ import styles from "./Header.module.css";
 import Image from "next/image";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import {
+  User,
+  Package,
+  FileText,
+  MessageSquare,
+  LogOut,
+  ChevronRight,
+} from "lucide-react";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const profileRef = useRef(null);
+  const closeTimerRef = useRef(null);
   const { user, customer, loading, openAuthModal, signOut } = useAuth();
 
   const isLoggedIn = !!user && !!customer;
@@ -38,15 +47,37 @@ export default function Header() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Removed handleClickOutside temporarily for debugging
+  // Clean up any pending close timer on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
 
+  // Open the dropdown on hover (cancel any pending close)
+  const openProfile = () => {
+    if (loading) return;
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setIsProfileOpen(true);
+  };
+
+  // Close after a short grace period so the cursor can travel into the panel
+  const scheduleCloseProfile = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => setIsProfileOpen(false), 160);
+  };
+
+  // Tap/click toggle for touch devices (no hover)
   const handleProfileClick = () => {
     if (loading) return;
-    if (isLoggedIn) {
-      setIsProfileOpen((prev) => !prev);
-    } else {
+    if (!isLoggedIn) {
       openAuthModal();
+      return;
     }
+    setIsProfileOpen((prev) => !prev);
   };
 
   const handleSignOut = async () => {
@@ -114,11 +145,18 @@ export default function Header() {
 
         <div className={styles.iconGroup}>
           {/* Profile Button with Dropdown */}
-          <div className={styles.profileWrapper} ref={profileRef}>
+          <div
+            className={styles.profileWrapper}
+            ref={profileRef}
+            onMouseEnter={openProfile}
+            onMouseLeave={scheduleCloseProfile}
+          >
             <button
               className={`${styles.userIcon} ${isLoggedIn ? styles.userIconLoggedIn : ""}`}
               onClick={handleProfileClick}
               aria-label={isLoggedIn ? "Open profile menu" : "Sign in"}
+              aria-haspopup="menu"
+              aria-expanded={isProfileOpen}
               id="header-profile-btn"
             >
               {isLoggedIn ? (
@@ -140,54 +178,100 @@ export default function Header() {
               )}
             </button>
 
-            {/* Profile Dropdown */}
-            {isProfileOpen && isLoggedIn && (
-              <div className={styles.profileDropdown} id="profile-dropdown">
-                <div className={styles.profileDropdownHeader}>
-                  <span className={styles.profileDropdownAvatar}>
-                    {initials}
-                  </span>
-                  <div className={styles.profileDropdownInfo}>
-                    <span className={styles.profileDropdownName}>
-                      {displayName}
+            {/* Profile Dropdown — opens on hover */}
+            {isProfileOpen && !loading && (
+              <div
+                className={styles.profileDropdown}
+                id="profile-dropdown"
+                role="menu"
+              >
+                {isLoggedIn ? (
+                  <div className={styles.profileDropdownHeader}>
+                    <span className={styles.profileDropdownAvatar}>
+                      {initials}
                     </span>
-                    {user?.phone && (
-                      <span className={styles.profileDropdownPhone}>
-                        {user.phone}
+                    <div className={styles.profileDropdownInfo}>
+                      <span className={styles.profileDropdownName}>
+                        {displayName}
                       </span>
-                    )}
+                      {user?.phone && (
+                        <span className={styles.profileDropdownPhone}>
+                          {user.phone}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className={styles.profileDropdownLogin}>
+                    <div className={styles.profileDropdownLoginText}>
+                      <span className={styles.profileDropdownLoginSub}>
+                        Sign in to access your profile, orders, and more!
+                      </span>
+                    </div>
+                    <button
+                      className={styles.profileDropdownLoginBtn}
+                      onClick={() => {
+                        setIsProfileOpen(false);
+                        openAuthModal();
+                      }}
+                    >
+                      Login/Sign Up
+                    </button>
+                  </div>
+                )}
                 <div className={styles.profileDropdownDivider} />
                 <Link
                   href="/pages/profile"
                   className={styles.profileDropdownItem}
+                  role="menuitem"
                   onClick={() => setIsProfileOpen(false)}
                 >
-                  <span style={{ marginRight: "8px" }}>👤</span>
-                  Profile
+                  <User size={18} strokeWidth={1.75} />
+                  My Profile
+                  <ChevronRight size={16} className={styles.profileItemArrow} />
                 </Link>
-                <button
+                <Link
+                  href="/pages/track-order"
                   className={styles.profileDropdownItem}
-                  onClick={handleSignOut}
-                  id="profile-logout-btn"
+                  role="menuitem"
+                  onClick={() => setIsProfileOpen(false)}
                 >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                  <Package size={18} strokeWidth={1.75} />
+                  Track Order
+                  <ChevronRight size={16} className={styles.profileItemArrow} />
+                </Link>
+                <Link
+                  href="/pages/blogs/my-submissions"
+                  className={styles.profileDropdownItem}
+                  role="menuitem"
+                  onClick={() => setIsProfileOpen(false)}
+                >
+                  <FileText size={18} strokeWidth={1.75} />
+                  My Blogs
+                  <ChevronRight size={16} className={styles.profileItemArrow} />
+                </Link>
+                <Link
+                  href="/pages/enquiries"
+                  className={styles.profileDropdownItem}
+                  role="menuitem"
+                  onClick={() => setIsProfileOpen(false)}
+                >
+                  <MessageSquare size={18} strokeWidth={1.75} />
+                  Enquiries
+                  <ChevronRight size={16} className={styles.profileItemArrow} />
+                </Link>
+                <div className={styles.profileDropdownDivider} />
+                {isLoggedIn ? (
+                  <button
+                    className={styles.profileDropdownItem}
+                    role="menuitem"
+                    onClick={handleSignOut}
+                    id="profile-logout-btn"
                   >
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
-                  Log out
-                </button>
+                    <LogOut size={18} strokeWidth={1.75} />
+                    Log out
+                  </button>
+                ) : null}
               </div>
             )}
           </div>

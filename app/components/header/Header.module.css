@@ -188,7 +188,7 @@
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  width: 260px;
+  width: 268px;
   background: #ffffff;
   border-radius: 14px;
   box-shadow:
@@ -198,6 +198,17 @@
   z-index: 60;
   padding: 8px;
   animation: dropdownFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Invisible bridge across the gap so hover isn't lost between the
+   button and the panel */
+.profileDropdown::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
 }
 
 @keyframes dropdownFadeIn {
@@ -262,10 +273,59 @@
   margin: 4px 8px;
 }
 
+/* ---- Logged-out login CTA (Flipkart-style) ---- */
+.profileDropdownLogin {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 12px 14px;
+}
+
+.profileDropdownLoginText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profileDropdownLoginTitle {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.profileDropdownLoginSub {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 11.5px;
+  color: #999;
+}
+
+.profileDropdownLoginBtn {
+  flex-shrink: 0;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 8px;
+  background: #1a1a1a;
+  color: #fff;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.15s ease;
+}
+
+.profileDropdownLoginBtn:hover {
+  background: #0b6b53;
+  transform: translateY(-1px);
+}
+
 .profileDropdownItem {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
   padding: 10px 12px;
   border: none;
@@ -276,14 +336,41 @@
   font-weight: 500;
   color: #555;
   cursor: pointer;
+  text-align: left;
   transition:
     background 0.15s ease,
     color 0.15s ease;
 }
 
+.profileDropdownItem svg {
+  flex-shrink: 0;
+  color: #888;
+  transition: color 0.15s ease;
+}
+
 .profileDropdownItem:hover {
   background: #f8f8f8;
   color: #1a1a1a;
+}
+
+.profileDropdownItem:hover svg {
+  color: #0b6b53;
+}
+
+/* Trailing chevron pushed to the right edge */
+.profileItemArrow {
+  margin-left: auto;
+  color: #ccc !important;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.profileDropdownItem:hover .profileItemArrow {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 /* ---- Mobile Drawer Auth Section ---- */
