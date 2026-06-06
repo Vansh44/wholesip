@@ -153,7 +153,7 @@ export default function Header() {
           >
             <button
               className={`${styles.userIcon} ${isLoggedIn ? styles.userIconLoggedIn : ""}`}
-              onClick={handleProfileClick}
+              // onClick={handleProfileClick}
               aria-label={isLoggedIn ? "Open profile menu" : "Sign in"}
               aria-haspopup="menu"
               aria-expanded={isProfileOpen}
