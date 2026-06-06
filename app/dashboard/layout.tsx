@@ -35,6 +35,7 @@ const workspaceLinks: SidebarNavItem[] = [
     badgeTone: "accent",
   },
   { href: "/dashboard/products", label: "Products", icon: "products" },
+  { href: "/dashboard/categories", label: "Categories", icon: "categories" },
   { href: "/dashboard/users", label: "Users", icon: "customers" },
   {
     href: "/dashboard/inventory",

@@ -1,0 +1,93 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import ProductDetailClient, {
+  type DetailProduct,
+} from "./product-detail-client";
+import type { RelatedProduct } from "./related-products";
+import "../shop.css";
+
+export const dynamic = "force-dynamic";
+
+type PageProps = {
+  params: Promise<{ slug: string }>;
+};
+
+async function getProduct(slug: string): Promise<DetailProduct | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("products")
+    .select(
+      "id, name, slug, description, category_id, base_price, selling_price, image_url, images, status, seo_title, seo_description, category:categories(id, name, slug, status), variants:product_variants(id, name, base_price, selling_price, stock, sku, sort_order)",
+    )
+    .eq("slug", slug)
+    .eq("status", "published")
+    .single();
+
+  if (!data) return null;
+
+  const product = data as unknown as DetailProduct;
+  product.variants = (product.variants ?? []).sort(
+    (a, b) => a.sort_order - b.sort_order,
+  );
+  return product;
+}
+
+// Other published products in the same category (excluding the current one).
+async function getRelated(
+  categoryId: string | null,
+  excludeId: string,
+): Promise<RelatedProduct[]> {
+  if (!categoryId) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("products")
+    .select(
+      "id, name, slug, base_price, selling_price, image_url, featured, variants:product_variants(base_price, selling_price)",
+    )
+    .eq("status", "published")
+    .eq("category_id", categoryId)
+    .neq("id", excludeId)
+    .order("sort_order", { ascending: true })
+    .limit(4);
+
+  return (data ?? []) as unknown as RelatedProduct[];
+}
+
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const product = await getProduct(slug);
+  if (!product) return { title: "Product not found | Soakd" };
+
+  const title = product.seo_title || `${product.name} | Soakd`;
+  const description =
+    product.seo_description ||
+    product.description ||
+    `Shop ${product.name} at Soakd.`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      images: product.image_url ? [{ url: product.image_url }] : undefined,
+    },
+  };
+}
+
+export default async function ProductDetailPage({ params }: PageProps) {
+  const { slug } = await params;
+  const product = await getProduct(slug);
+
+  if (!product) {
+    notFound();
+  }
+
+  const related = await getRelated(product.category_id, product.id);
+
+  return <ProductDetailClient product={product} related={related} />;
+}

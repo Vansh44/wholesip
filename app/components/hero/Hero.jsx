@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from "react";
 import styles from "./Hero.module.css";
 import { siteConfig } from "@/config/site";
+import { useRouter } from "next/navigation";
 
 const slides = [
   {
@@ -14,6 +15,7 @@ const slides = [
     bottleAsset: siteConfig.assets.almondBottle,
     singleAsset: siteConfig.assets.singleAlmond,
     clusterAsset: siteConfig.assets.almonds,
+    redirectPath: "/pages/shop/almond-milk",
   },
   {
     id: "blueberries",
@@ -23,6 +25,7 @@ const slides = [
     bottleAsset: siteConfig.assets.blueberryBottle,
     singleAsset: siteConfig.assets.singleBlueberry,
     clusterAsset: siteConfig.assets.blueberries,
+    redirectPath: "/pages/shop",
   },
   {
     id: "pistachios",
@@ -32,6 +35,7 @@ const slides = [
     bottleAsset: siteConfig.assets.pistachioBottle,
     singleAsset: siteConfig.assets.singlePistachio,
     clusterAsset: siteConfig.assets.pistachios,
+    redirectPath: "/pages/shop",
   },
 ];
 
@@ -170,6 +174,7 @@ export default function Hero() {
   }, [isHovered]); // ✅ no stale closure — updater fn always has fresh prev
 
   const currentSlide = slides[activeSlide];
+  const router = useRouter();
 
   return (
     <section
@@ -241,6 +246,7 @@ export default function Hero() {
               src={slide.bottleAsset}
               alt={slide.name}
               className={`${styles.bottleImg} ${isActive ? styles.activeBottle : styles.inactiveBottle}`}
+              onClick={() => router.push(slide.redirectPath)}
             />
           );
         })}
