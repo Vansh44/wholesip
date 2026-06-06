@@ -17,7 +17,7 @@
 }
 
 .headerScrolled {
-  background-color: #ede5d8;
+  background-color: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
@@ -73,8 +73,8 @@
 .searchBar {
   display: flex;
   align-items: center;
-  background: #f5f0e8;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #f1f5f3;
+  border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 20px;
   padding: 0 16px;
   width: 280px;
@@ -440,7 +440,7 @@
 }
 
 .drawerNav a:hover {
-  color: #e09771;
+  color: #0b6b53;
   padding-left: 4px;
 }
 

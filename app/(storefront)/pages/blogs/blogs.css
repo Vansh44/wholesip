@@ -5,26 +5,25 @@
 @import url("https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600&display=swap");
 
 /* — Color tokens —
-   Warm, premium palette aligned with the Soakd brand: white canvas,
-   soft cream surfaces, and a terracotta accent (matching the header). */
+   Deep, premium palette: a white canvas with a rich emerald accent and
+   cool, faintly green-tinted neutral surfaces. Understated and expensive. */
 :root {
   --blog-bg: #ffffff;
-  --blog-bg-alt: #faf8f4; /* warm off-white for image wells / soft fills */
+  --blog-bg-alt: #f5f8f6; /* cool off-white for image wells / soft fills */
   --blog-card: #ffffff;
   --blog-card-hover: #ffffff;
-  --blog-border: #ece7df; /* warm light border */
-  --blog-border-light: #f4f1ea;
-  --blog-dark: #20242e; /* warm near-black ink */
-  --blog-body: #4b4b4b;
-  --blog-muted: #8c867c; /* warm grey */
-  --blog-accent: #e09771; /* terracotta */
-  --blog-accent-deep: #ce7e54; /* accent hover */
-  --blog-accent-soft: #fbeee4; /* accent tint for chips/badges */
-  --blog-accent-light: #c9b9a6;
-  --blog-cream: #f5f0e8;
-  --blog-tag-bg: #f5f1ea;
-  --blog-tag-hover: #ece4d7;
-  --blog-shadow: 28px 28px 18px;
+  --blog-border: #e3eae6; /* cool light border */
+  --blog-border-light: #eef3f0;
+  --blog-dark: #16211c; /* deep green-black ink */
+  --blog-body: #45504b;
+  --blog-muted: #7c847f; /* cool grey */
+  --blog-accent: #0b6b53; /* emerald */
+  --blog-accent-deep: #07543f; /* accent hover */
+  --blog-accent-soft: #e7f2ed; /* accent tint for chips/badges */
+  --blog-accent-light: #abc6bc;
+  --blog-surface: #edf4f0; /* soft emerald-tinted surface fill */
+  --blog-tag-bg: #eef3f0;
+  --blog-tag-hover: #e0ebe5;
 }
 
 /* ============================================
@@ -50,12 +49,12 @@
   background:
     radial-gradient(
       ellipse at 30% 20%,
-      rgba(224, 151, 113, 0.08) 0%,
+      rgba(11, 107, 83, 0.07) 0%,
       transparent 55%
     ),
     radial-gradient(
       ellipse at 70% 80%,
-      rgba(245, 240, 232, 0.6) 0%,
+      rgba(231, 242, 237, 0.8) 0%,
       transparent 55%
     );
   pointer-events: none;
@@ -200,7 +199,7 @@
 .blog-publish-cta-btn:hover {
   background: var(--blog-accent-deep);
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(224, 151, 113, 0.28);
+  box-shadow: 0 8px 20px rgba(11, 107, 83, 0.25);
 }
 
 .blog-publish-cta-btn:active {
@@ -215,7 +214,7 @@
 }
 
 .blog-publish-cta-btn--ghost:hover {
-  background: var(--blog-cream);
+  background: var(--blog-surface);
   border-color: var(--blog-accent);
   color: var(--blog-dark);
   box-shadow: none;
@@ -311,7 +310,7 @@
 
 .blog-search-input:focus {
   border-color: var(--blog-accent);
-  box-shadow: 0 0 0 3px rgba(224, 151, 113, 0.16);
+  box-shadow: 0 0 0 3px rgba(11, 107, 83, 0.16);
 }
 
 .blog-search-clear {
@@ -435,7 +434,7 @@
 
 .blog-pagination-btn:hover:not(:disabled) {
   border-color: var(--blog-accent);
-  background: var(--blog-cream);
+  background: var(--blog-surface);
 }
 
 .blog-pagination-btn:disabled {
@@ -685,7 +684,7 @@
 }
 
 .blog-empty-reset:hover {
-  background: var(--blog-cream);
+  background: var(--blog-surface);
   border-color: var(--blog-accent);
 }
 
