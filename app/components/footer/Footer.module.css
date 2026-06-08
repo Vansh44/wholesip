@@ -13,9 +13,9 @@
    ============================================ */
 
 .newsletterBar {
-  background: #f7f3ee;
+  background: #fafafa;
   padding: 42px 64px;
-  border-bottom: 1px solid #e3ddd4;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .newsletterInner {

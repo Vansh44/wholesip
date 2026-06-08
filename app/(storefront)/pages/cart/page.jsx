@@ -5,7 +5,7 @@ export default function Cart() {
         paddingTop: "120px",
         padding: "0 64px",
         minHeight: "100vh",
-        background: "#F5ECE3",
+        background: "#fafafa",
       }}
     >
       <h1>Shopping Cart</h1>

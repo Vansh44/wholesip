@@ -4,7 +4,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -153,6 +153,16 @@ export function ProductEditorDialog({
       ...f,
       variants: f.variants.filter((_, i) => i !== index),
     }));
+  // Move a variant up/down. Row order = sort_order on save, and the storefront
+  // selects the first (top) variant by default — so this also sets the default.
+  const moveVariant = (index: number, dir: -1 | 1) =>
+    setForm((f) => {
+      const target = index + dir;
+      if (target < 0 || target >= f.variants.length) return f;
+      const variants = [...f.variants];
+      [variants[index], variants[target]] = [variants[target], variants[index]];
+      return { ...f, variants };
+    });
 
   const handleSave = () => {
     if (!form.name.trim()) {
@@ -367,12 +377,14 @@ export function ProductEditorDialog({
             </div>
             <p className="mb-2 text-[11px] text-[#5b6478]">
               Optional — e.g. sizes or flavors, each with its own price and
-              stock. Leave empty for a single-price product.
+              stock. Leave empty for a single-price product. The top variant is
+              selected by default on the product page — use the arrows to
+              reorder.
             </p>
 
             {form.variants.length > 0 && (
               <div className="space-y-2">
-                <div className="grid grid-cols-[1fr_72px_72px_60px_84px_28px] gap-2 px-1 text-[10px] uppercase tracking-wide text-[#5b6478]">
+                <div className="grid grid-cols-[1fr_72px_72px_60px_84px_72px] gap-2 px-1 text-[10px] uppercase tracking-wide text-[#5b6478]">
                   <span>Name</span>
                   <span>Base ₹</span>
                   <span>Sell ₹</span>
@@ -383,7 +395,7 @@ export function ProductEditorDialog({
                 {form.variants.map((v, i) => (
                   <div
                     key={i}
-                    className="grid grid-cols-[1fr_72px_72px_60px_84px_28px] items-center gap-2"
+                    className="grid grid-cols-[1fr_72px_72px_60px_84px_72px] items-center gap-2"
                   >
                     <input
                       className={fieldClass}
@@ -415,13 +427,34 @@ export function ProductEditorDialog({
                       onChange={(e) => updateVariant(i, "sku", e.target.value)}
                       placeholder="SKU"
                     />
-                    <button
-                      type="button"
-                      onClick={() => removeVariant(i)}
-                      className="flex h-8 w-7 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[rgba(239,68,68,0.12)] hover:text-[#ef4444]"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => moveVariant(i, -1)}
+                        disabled={i === 0}
+                        title={i === 0 ? "Default variant" : "Move up"}
+                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#1a1f2e] disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveVariant(i, 1)}
+                        disabled={i === form.variants.length - 1}
+                        title="Move down"
+                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#1a1f2e] disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeVariant(i)}
+                        title="Remove variant"
+                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[rgba(239,68,68,0.12)] hover:text-[#ef4444]"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

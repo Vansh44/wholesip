@@ -1,13 +1,40 @@
 /* ============================================================
    Storefront Shop — listing + product detail
-   Matches the warm Soakd palette (cream #F5ECE3).
+   Neutral surfaces (white / grey) + natural green accent.
+   All colors are driven from the variables below — change them
+   here, never reintroduce raw warm/terracotta hex inline.
    ============================================================ */
+
+:root {
+  --shop-bg: #fafafa; /* page background (was cream) */
+  --shop-surface: #ffffff; /* cards / inputs */
+  --shop-surface-alt: #f4f4f5; /* image placeholders */
+
+  --shop-text: #18181b; /* headings + body (near-black) */
+  --shop-text-muted: #52525b; /* subtitles / labels */
+  --shop-text-subtle: #71717a; /* descriptions / breadcrumb */
+  --shop-text-faint: #a1a1aa; /* struck-through base price */
+
+  --shop-border: rgba(0, 0, 0, 0.1);
+  --shop-border-soft: rgba(0, 0, 0, 0.07);
+  --shop-shadow: rgba(0, 0, 0, 0.18);
+
+  --shop-accent: #0b6b53; /* green accent / primary CTA */
+  --shop-accent-hover: #07543f;
+  --shop-accent-soft: rgba(11, 107, 83, 0.08);
+  --shop-on-accent: #ffffff; /* text on green */
+
+  --shop-sale: #1f7a4d; /* discount badge */
+  --shop-sale-bg: rgba(31, 122, 77, 0.12);
+
+  --shop-overlay: rgba(9, 9, 11, 0.92); /* lightbox backdrop */
+}
 
 .shop-main {
   min-height: 100vh;
-  background: #f5ece3;
+  background: var(--shop-bg);
   padding: 120px 24px 80px;
-  color: #2a2118;
+  color: var(--shop-text);
 }
 
 @media (min-width: 768px) {
@@ -28,7 +55,7 @@
   font-size: 12px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #9a7b53;
+  color: var(--shop-accent);
   font-weight: 600;
   margin-bottom: 12px;
 }
@@ -38,12 +65,12 @@
   font-weight: 700;
   line-height: 1.1;
   margin: 0 0 12px;
-  color: #2a2118;
+  color: var(--shop-text);
 }
 
 .shop-subtitle {
   font-size: 1.05rem;
-  color: #6b5d4a;
+  color: var(--shop-text-muted);
   margin: 0;
 }
 
@@ -58,9 +85,9 @@
 }
 
 .shop-chip {
-  border: 1px solid rgba(42, 33, 24, 0.15);
+  border: 1px solid var(--shop-border);
   background: transparent;
-  color: #4a3f30;
+  color: var(--shop-text-muted);
   padding: 8px 18px;
   border-radius: 999px;
   font-size: 14px;
@@ -73,13 +100,14 @@
 }
 
 .shop-chip:hover {
-  border-color: #2a2118;
+  border-color: var(--shop-accent);
+  color: var(--shop-accent);
 }
 
 .shop-chip.active {
-  background: #2a2118;
-  color: #f5ece3;
-  border-color: #2a2118;
+  background: var(--shop-accent);
+  color: var(--shop-on-accent);
+  border-color: var(--shop-accent);
 }
 
 /* ── Product grid ─────────────────────────────────── */
@@ -94,8 +122,8 @@
 .shop-card {
   display: flex;
   flex-direction: column;
-  background: #fffaf3;
-  border: 1px solid rgba(42, 33, 24, 0.07);
+  background: var(--shop-surface);
+  border: 1px solid var(--shop-border-soft);
   border-radius: 16px;
   overflow: hidden;
   text-decoration: none;
@@ -107,14 +135,14 @@
 
 .shop-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 16px 40px -12px rgba(42, 33, 24, 0.22);
+  box-shadow: 0 16px 40px -12px var(--shop-shadow);
 }
 
 .shop-card-img {
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
-  background: #efe3d4;
+  background: var(--shop-surface-alt);
 }
 
 .shop-card-img-el {
@@ -135,8 +163,8 @@
   position: absolute;
   top: 12px;
   left: 12px;
-  background: #2a2118;
-  color: #f5ece3;
+  background: var(--shop-accent);
+  color: var(--shop-on-accent);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -161,7 +189,7 @@
 
 .shop-card-desc {
   font-size: 0.85rem;
-  color: #8a7c68;
+  color: var(--shop-text-subtle);
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -178,33 +206,33 @@
   gap: 7px;
   font-size: 1.05rem;
   font-weight: 700;
-  color: #2a2118;
+  color: var(--shop-text);
 }
 
 .shop-card-from {
   font-size: 0.78rem;
   font-weight: 500;
-  color: #9a8a72;
+  color: var(--shop-text-subtle);
 }
 
 .shop-card-sell {
   font-size: 1.05rem;
   font-weight: 700;
-  color: #2a2118;
+  color: var(--shop-text);
 }
 
 .shop-card-base {
   font-size: 0.85rem;
   font-weight: 500;
-  color: #a89880;
+  color: var(--shop-text-faint);
   text-decoration: line-through;
 }
 
 .shop-card-off {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #1f7a4d;
-  background: rgba(31, 122, 77, 0.12);
+  color: var(--shop-sale);
+  background: var(--shop-sale-bg);
   padding: 2px 7px;
   border-radius: 999px;
 }
@@ -214,7 +242,7 @@
   text-align: center;
   max-width: 480px;
   margin: 60px auto;
-  color: #6b5d4a;
+  color: var(--shop-text-muted);
 }
 
 .shop-empty-emoji {
@@ -226,7 +254,7 @@
   font-size: 1.4rem;
   font-weight: 700;
   margin: 0 0 8px;
-  color: #2a2118;
+  color: var(--shop-text);
 }
 
 /* ============================================================
@@ -240,20 +268,20 @@
   max-width: 1100px;
   margin: 0 auto 28px;
   font-size: 13px;
-  color: #8a7c68;
+  color: var(--shop-text-subtle);
 }
 
 .shop-breadcrumb a {
-  color: #8a7c68;
+  color: var(--shop-text-subtle);
   text-decoration: none;
 }
 
 .shop-breadcrumb a:hover {
-  color: #2a2118;
+  color: var(--shop-text);
 }
 
 .shop-breadcrumb-current {
-  color: #2a2118;
+  color: var(--shop-text);
   font-weight: 600;
 }
 
@@ -278,7 +306,7 @@
   display: block;
   width: 100%;
   aspect-ratio: 1 / 1;
-  background: #efe3d4;
+  background: var(--shop-surface-alt);
   border: none;
   border-radius: 20px;
   overflow: hidden;
@@ -294,8 +322,8 @@
   position: absolute;
   bottom: 12px;
   right: 12px;
-  background: rgba(42, 33, 24, 0.78);
-  color: #f5ece3;
+  background: var(--shop-overlay);
+  color: var(--shop-on-accent);
   font-size: 11px;
   font-weight: 500;
   padding: 5px 10px;
@@ -333,13 +361,13 @@
   border-radius: 12px;
   overflow: hidden;
   border: 2px solid transparent;
-  background: #efe3d4;
+  background: var(--shop-surface-alt);
   cursor: pointer;
   padding: 0;
 }
 
 .pdp-thumb.active {
-  border-color: #2a2118;
+  border-color: var(--shop-accent);
 }
 
 .pdp-thumb-el {
@@ -356,7 +384,7 @@
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #9a7b53;
+  color: var(--shop-accent);
   font-weight: 600;
   margin-bottom: 10px;
 }
@@ -379,13 +407,13 @@
 .pdp-price-sell {
   font-size: 1.6rem;
   font-weight: 700;
-  color: #2a2118;
+  color: var(--shop-text);
 }
 
 .pdp-price-base {
   font-size: 1.1rem;
   font-weight: 500;
-  color: #a89880;
+  color: var(--shop-text-faint);
   text-decoration: line-through;
 }
 
@@ -393,8 +421,8 @@
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: #1f7a4d;
-  background: rgba(31, 122, 77, 0.12);
+  color: var(--shop-sale);
+  background: var(--shop-sale-bg);
   padding: 4px 10px;
   border-radius: 999px;
 }
@@ -409,7 +437,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #6b5d4a;
+  color: var(--shop-text-muted);
   margin-bottom: 10px;
 }
 
@@ -420,9 +448,9 @@
 }
 
 .pdp-variant {
-  border: 1px solid rgba(42, 33, 24, 0.2);
-  background: #fffaf3;
-  color: #2a2118;
+  border: 1px solid var(--shop-border);
+  background: var(--shop-surface);
+  color: var(--shop-text);
   padding: 10px 18px;
   border-radius: 10px;
   font-size: 14px;
@@ -434,13 +462,13 @@
 }
 
 .pdp-variant:hover:not(.disabled) {
-  border-color: #2a2118;
+  border-color: var(--shop-accent);
 }
 
 .pdp-variant.active {
-  border-color: #2a2118;
-  background: #2a2118;
-  color: #f5ece3;
+  border-color: var(--shop-accent);
+  background: var(--shop-accent);
+  color: var(--shop-on-accent);
 }
 
 .pdp-variant.disabled {
@@ -481,22 +509,23 @@
 
 .pdp-btn-cart {
   background: transparent;
-  color: #2a2118;
-  border: 1.5px solid #2a2118;
+  color: var(--shop-accent);
+  border: 1.5px solid var(--shop-accent);
 }
 
 .pdp-btn-cart:hover:not(:disabled) {
-  background: rgba(42, 33, 24, 0.06);
+  background: var(--shop-accent-soft);
 }
 
 .pdp-btn-buy {
-  background: #2a2118;
-  color: #f5ece3;
-  border: 1.5px solid #2a2118;
+  background: var(--shop-accent);
+  color: var(--shop-on-accent);
+  border: 1.5px solid var(--shop-accent);
 }
 
 .pdp-btn-buy:hover:not(:disabled) {
-  background: #3d3122;
+  background: var(--shop-accent-hover);
+  border-color: var(--shop-accent-hover);
 }
 
 /* You may also like */
@@ -508,7 +537,7 @@
 .pdp-related-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #2a2118;
+  color: var(--shop-text);
   margin: 0 0 24px;
   text-align: center;
 }
@@ -518,7 +547,7 @@
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(20, 15, 10, 0.92);
+  background: var(--shop-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -555,20 +584,20 @@
   height: 44px;
   border-radius: 999px;
   border: none;
-  background: rgba(245, 236, 227, 0.15);
-  color: #f5ece3;
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
   font-size: 20px;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .pdp-lightbox-close:hover {
-  background: rgba(245, 236, 227, 0.3);
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .pdp-description {
   margin-top: 36px;
-  border-top: 1px solid rgba(42, 33, 24, 0.12);
+  border-top: 1px solid var(--shop-border);
   padding-top: 24px;
 }
 
@@ -581,7 +610,7 @@
 .pdp-description p {
   font-size: 0.95rem;
   line-height: 1.7;
-  color: #5a4d3a;
+  color: var(--shop-text-muted);
   margin: 0;
   white-space: pre-wrap;
 }

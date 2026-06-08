@@ -5,7 +5,7 @@ export default function Enquiries() {
         paddingTop: "120px",
         padding: "0 64px",
         minHeight: "100vh",
-        background: "#F5ECE3",
+        background: "#fafafa",
       }}
     >
       <h1 style={{ fontSize: "3rem", marginBottom: "20px" }}>Enquiries</h1>
