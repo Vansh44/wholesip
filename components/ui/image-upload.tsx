@@ -140,12 +140,12 @@ export function ImageUpload({
   if (previewUrl) {
     return (
       <div className={`w-full ${className}`}>
-        <div className="relative w-full h-48 rounded-lg border border-border/50 overflow-hidden">
+        <div className="relative w-full h-48 rounded-lg border border-border/50 overflow-hidden bg-muted/30">
           <Image
             src={previewUrl}
             alt="Uploaded"
             fill
-            className="object-cover"
+            className="object-contain"
             unoptimized
           />
           <button

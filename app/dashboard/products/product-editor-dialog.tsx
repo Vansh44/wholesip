@@ -1,10 +1,17 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { X, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  X,
+  Plus,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+  Sparkles,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +27,8 @@ import { slugify } from "@/lib/slug";
 import {
   createProduct,
   updateProduct,
+  generateProductDescription,
+  generateProductSeo,
   type ProductFormData,
   type VariantFormData,
 } from "@/app/actions/product-actions";
@@ -64,9 +73,29 @@ export function ProductEditorDialog({
 }: Props) {
   const [form, setForm] = useState<ProductFormData>(EMPTY);
   const [isPending, startTransition] = useTransition();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingSeo, setIsGeneratingSeo] = useState(false);
   // Once the user edits the slug by hand we stop auto-deriving it from the name.
   const [slugTouched, setSlugTouched] = useState(false);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const isEditing = !!product;
+
+  // Grow the description textarea to fit its content (typed, AI-generated, or loaded).
+  const autosize = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+  // Callback ref: fires whenever the textarea mounts (each dialog open), so it sizes
+  // correctly even when the form state is already populated before the field renders.
+  const setDescriptionRef = (el: HTMLTextAreaElement | null) => {
+    descriptionRef.current = el;
+    if (el) requestAnimationFrame(() => autosize(el));
+  };
+  // And re-size on any value change (loading a product, AI generation, etc.).
+  useEffect(() => {
+    requestAnimationFrame(() => autosize(descriptionRef.current));
+  }, [form.description, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -164,9 +193,76 @@ export function ProductEditorDialog({
       return { ...f, variants };
     });
 
+  // Run the AI pipeline: brand/brand.md (soul) + the current form fields →
+  // Gemini → a brand-voice paragraph dropped straight into the description.
+  const handleGenerate = async () => {
+    if (!form.name.trim()) {
+      toast.error("Add a product name first");
+      return;
+    }
+    setIsGenerating(true);
+    const categoryName =
+      categories.find((c) => c.id === form.category_id)?.name ?? null;
+    const result = await generateProductDescription({
+      name: form.name,
+      categoryName,
+      base_price: form.base_price,
+      selling_price: form.selling_price,
+      variants: form.variants.map((v) => v.name).filter((n) => n.trim()),
+      notes: form.description.trim() || undefined,
+    });
+    setIsGenerating(false);
+    if (result.error) {
+      toast.error(result.error);
+    } else if (result.description) {
+      set("description", result.description);
+      toast.success("Description generated");
+    }
+  };
+
+  // Same pipeline, SEO flavour: brand.md + seo-meta.md + form fields (incl. the
+  // current description) → Gemini → fills both SEO fields at once.
+  const handleGenerateSeo = async () => {
+    if (!form.name.trim()) {
+      toast.error("Add a product name first");
+      return;
+    }
+    if (!form.description.trim()) {
+      toast.error("Fill in the product description before generating SEO");
+      return;
+    }
+    setIsGeneratingSeo(true);
+    const categoryName =
+      categories.find((c) => c.id === form.category_id)?.name ?? null;
+    const result = await generateProductSeo({
+      name: form.name,
+      categoryName,
+      base_price: form.base_price,
+      selling_price: form.selling_price,
+      variants: form.variants.map((v) => v.name).filter((n) => n.trim()),
+      description: form.description.trim() || undefined,
+    });
+    setIsGeneratingSeo(false);
+    if (result.error) {
+      toast.error(result.error);
+    } else if (result.seo_title && result.seo_description) {
+      set("seo_title", result.seo_title);
+      set("seo_description", result.seo_description);
+      toast.success("SEO fields generated");
+    }
+  };
+
   const handleSave = () => {
     if (!form.name.trim()) {
       toast.error("Name is required");
+      return;
+    }
+    if (!form.description.trim()) {
+      toast.error("Description is required");
+      return;
+    }
+    if (!form.seo_title.trim() || !form.seo_description.trim()) {
+      toast.error("SEO title and description are required");
       return;
     }
     const badVariant = form.variants.find((v) => !v.name.trim());
@@ -253,12 +349,28 @@ export function ProductEditorDialog({
           </div>
 
           <div>
-            <label className={labelClass}>Description</label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className={`${labelClass} mb-0`}>Description *</label>
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={isGenerating || isPending}
+                title="Generate from your brand guide with AI"
+                className="flex items-center gap-1 rounded-md border border-[rgba(99,102,241,0.4)] px-2 py-1 text-xs text-[#a5b4fc] hover:bg-[rgba(99,102,241,0.12)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {isGenerating ? "Generating…" : "Generate with AI"}
+              </button>
+            </div>
             <textarea
-              className={`${fieldClass} min-h-[88px] resize-y`}
+              ref={setDescriptionRef}
+              className={`${fieldClass} min-h-[88px] resize-none overflow-hidden`}
               value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Describe the product…"
+              onChange={(e) => {
+                set("description", e.target.value);
+                autosize(e.target);
+              }}
+              placeholder="Describe the product… or type rough notes and click Generate with AI"
             />
           </div>
 
@@ -461,27 +573,59 @@ export function ProductEditorDialog({
             )}
           </div>
 
-          {/* SEO */}
-          <details className="rounded-md border border-[rgba(255,255,255,0.08)] p-3">
+          {/* SEO — required */}
+          <details
+            open
+            className="rounded-md border border-[rgba(255,255,255,0.08)] p-3"
+          >
             <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-[#8b93a8]">
-              SEO (optional)
+              SEO *
             </summary>
             <div className="mt-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-[#5b6478]">
+                  {form.description.trim()
+                    ? "Generated from the product description above."
+                    : "Fill in the description first to generate SEO."}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleGenerateSeo}
+                  disabled={
+                    isGeneratingSeo || isPending || !form.description.trim()
+                  }
+                  title={
+                    form.description.trim()
+                      ? "Generate SEO title & description from your brand guide with AI"
+                      : "Add a product description first"
+                  }
+                  className="flex shrink-0 items-center gap-1 rounded-md border border-[rgba(99,102,241,0.4)] px-2 py-1 text-xs text-[#a5b4fc] hover:bg-[rgba(99,102,241,0.12)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {isGeneratingSeo ? "Generating…" : "Generate with AI"}
+                </button>
+              </div>
               <div>
-                <label className={labelClass}>SEO title</label>
+                <label className={labelClass}>SEO title *</label>
                 <input
                   className={fieldClass}
                   value={form.seo_title}
                   onChange={(e) => set("seo_title", e.target.value)}
                 />
+                <p className="mt-1 text-[11px] text-[#5b6478]">
+                  {form.seo_title.length}/60 characters
+                </p>
               </div>
               <div>
-                <label className={labelClass}>SEO description</label>
+                <label className={labelClass}>SEO description *</label>
                 <textarea
                   className={`${fieldClass} min-h-[60px] resize-y`}
                   value={form.seo_description}
                   onChange={(e) => set("seo_description", e.target.value)}
                 />
+                <p className="mt-1 text-[11px] text-[#5b6478]">
+                  {form.seo_description.length}/160 characters
+                </p>
               </div>
             </div>
           </details>

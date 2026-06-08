@@ -141,12 +141,12 @@
 .shop-card-img {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 2 / 3;
   background: var(--shop-surface-alt);
 }
 
 .shop-card-img-el {
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .shop-card-img-placeholder {
@@ -305,7 +305,7 @@
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 2 / 3;
   background: var(--shop-surface-alt);
   border: none;
   border-radius: 20px;
@@ -315,7 +315,7 @@
 }
 
 .pdp-main-img-el {
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .pdp-zoom-hint {
