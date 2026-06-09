@@ -36,6 +36,7 @@ const workspaceLinks: SidebarNavItem[] = [
   },
   { href: "/dashboard/products", label: "Products", icon: "products" },
   { href: "/dashboard/categories", label: "Categories", icon: "categories" },
+  { href: "/dashboard/colors", label: "Colours", icon: "colors" },
   { href: "/dashboard/users", label: "Users", icon: "customers" },
   {
     href: "/dashboard/inventory",

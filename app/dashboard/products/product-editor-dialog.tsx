@@ -32,12 +32,13 @@ import {
   type ProductFormData,
   type VariantFormData,
 } from "@/app/actions/product-actions";
-import type { Product, CategoryOption } from "./page";
+import type { Product, CategoryOption, CardColorOption } from "./page";
 
 type Props = {
   open: boolean;
   product: Product | null;
   categories: CategoryOption[];
+  colors: CardColorOption[];
   onClose: () => void;
   onSaved: () => void;
 };
@@ -54,6 +55,7 @@ const EMPTY: ProductFormData = {
   status: "draft",
   featured: false,
   sort_order: 0,
+  card_color: "",
   seo_title: "",
   seo_description: "",
   variants: [],
@@ -68,6 +70,7 @@ export function ProductEditorDialog({
   open,
   product,
   categories,
+  colors,
   onClose,
   onSaved,
 }: Props) {
@@ -112,6 +115,7 @@ export function ProductEditorDialog({
         status: product.status,
         featured: product.featured,
         sort_order: product.sort_order,
+        card_color: product.card_color ?? "",
         seo_title: product.seo_title ?? "",
         seo_description: product.seo_description ?? "",
         variants: (product.variants ?? []).map((v) => ({
@@ -430,6 +434,45 @@ export function ProductEditorDialog({
             />
             Feature this product
           </label>
+
+          {/* Storefront card colour — pick a shade from the Colours palette */}
+          <div>
+            <label className={labelClass}>Card colour (storefront)</label>
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="h-9 w-9 shrink-0 rounded-md border border-[rgba(255,255,255,0.1)]"
+                style={{ background: form.card_color || "transparent" }}
+              />
+              <select
+                className={`${fieldClass} flex-1`}
+                value={form.card_color}
+                onChange={(e) => set("card_color", e.target.value)}
+              >
+                <option value="">Default (no colour)</option>
+                {colors.map((c) => (
+                  <option key={c.id} value={c.hex}>
+                    {c.name} — {c.hex}
+                  </option>
+                ))}
+                {/* Preserve a custom/legacy hex not in the palette */}
+                {form.card_color &&
+                  !colors.some((c) => c.hex === form.card_color) && (
+                    <option value={form.card_color}>
+                      Custom — {form.card_color}
+                    </option>
+                  )}
+              </select>
+            </div>
+            <p className="mt-1.5 text-xs text-[#5b6478]">
+              Shades come from{" "}
+              <a href="/dashboard/colors" className="underline">
+                Colours
+              </a>
+              . Name &amp; price stay near-black for contrast; blank uses the
+              storefront default.
+            </p>
+          </div>
 
           {/* Primary image */}
           <div>

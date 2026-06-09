@@ -26,16 +26,21 @@ import {
 } from "@/app/actions/product-actions";
 import { ProductEditorDialog } from "./product-editor-dialog";
 import { effectivePricing, formatPrice } from "@/lib/pricing";
-import type { Product, CategoryOption } from "./page";
+import type { Product, CategoryOption, CardColorOption } from "./page";
 
 type FilterTab = "all" | "published" | "drafts" | "featured";
 
 type Props = {
   products: Product[];
   categories: CategoryOption[];
+  colors: CardColorOption[];
 };
 
-export function ProductsManagementView({ products, categories }: Props) {
+export function ProductsManagementView({
+  products,
+  categories,
+  colors,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [filter, setFilter] = useState<FilterTab>("all");
@@ -514,6 +519,7 @@ export function ProductsManagementView({ products, categories }: Props) {
         open={editorOpen}
         product={editing}
         categories={categories}
+        colors={colors}
         onClose={closeEditor}
         onSaved={handleSaved}
       />

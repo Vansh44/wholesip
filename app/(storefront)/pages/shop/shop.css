@@ -408,11 +408,38 @@
   border-color: var(--soakd-ink);
 }
 
-/* Crisp white product cards — high contrast */
+/* Product count line */
+.shop-count {
+  margin: 0 0 16px;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--soakd-ink-soft);
+}
+
+/* Product cards — fixed 4 per row, responsive down */
 .shop-listing .shop-grid {
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 22px;
   max-width: none;
+}
+
+@media (max-width: 1100px) {
+  .shop-listing .shop-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .shop-listing .shop-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 460px) {
+  .shop-listing .shop-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .shop-listing .shop-card {
@@ -429,7 +456,10 @@
 }
 
 .shop-listing .shop-card-img {
-  aspect-ratio: 4 / 5;
+  /* Capped height (not a tall aspect ratio) so a full row fits above the
+     fold at the top of the page. */
+  height: clamp(165px, 18vw, 230px);
+  aspect-ratio: auto;
   background: transparent;
   border-radius: 14px;
 }
@@ -447,7 +477,7 @@
   left: auto;
   right: 14px;
   top: 14px;
-  background: var(--card-accent, #9c5c5c);
+  background: var(--soakd-ink);
   color: #fff;
   font-size: 13px;
   padding: 6px 14px;
@@ -478,7 +508,7 @@
 }
 
 .shop-listing .shop-card-off {
-  color: var(--card-accent, #9c5c5c);
+  color: var(--soakd-ink);
   background: rgba(255, 255, 255, 0.55);
 }
 

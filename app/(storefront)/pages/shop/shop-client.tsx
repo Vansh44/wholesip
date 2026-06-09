@@ -16,6 +16,7 @@ export interface ShopProduct {
   image_url: string | null;
   featured: boolean;
   sort_order: number;
+  card_color: string | null;
   variants: { base_price: number; selling_price: number }[];
 }
 
@@ -31,14 +32,9 @@ type Props = {
   categories: ShopCategory[];
 };
 
-// Soft pastel card tiles cycled across the grid — clean colour pops on the
-// white canvas (deliberately NOT the old beige/tan tones).
-const TONES = [
-  { bg: "#f4dfe0", accent: "#9c5c5c" }, // blush rose
-  { bg: "#dce6f1", accent: "#566f8c" }, // sky blue
-  { bg: "#dcebde", accent: "#557a5e" }, // mint green
-  { bg: "#f3e9c8", accent: "#897330" }, // soft butter
-] as const;
+// Card background falls back to this when a product has no card_color set
+// in the dashboard. (Per-product colour is the source of truth now.)
+const DEFAULT_CARD_BG = "#f4f2ee";
 
 export default function ShopClient({ products, categories }: Props) {
   const [active, setActive] = useState<string>("all");
@@ -123,64 +119,70 @@ export default function ShopClient({ products, categories }: Props) {
                   <p>No products in this category yet.</p>
                 </div>
               ) : (
-                <div className="shop-grid">
-                  {filtered.map((p, i) => {
-                    const tone = TONES[i % TONES.length];
-                    const pr = effectivePricing(p);
-                    return (
-                      <Link
-                        key={p.id}
-                        href={`/pages/shop/${p.slug}`}
-                        className="shop-card"
-                        style={
-                          {
-                            "--card-bg": tone.bg,
-                            "--card-accent": tone.accent,
-                          } as React.CSSProperties
-                        }
-                      >
-                        <div className="shop-card-img">
-                          {p.image_url ? (
-                            <Image
-                              src={p.image_url}
-                              alt={p.name}
-                              fill
-                              sizes="(max-width: 768px) 50vw, 280px"
-                              className="shop-card-img-el"
-                              unoptimized
-                            />
-                          ) : (
-                            <div className="shop-card-img-placeholder">🥛</div>
-                          )}
-                          {p.featured && (
-                            <span className="shop-card-badge">fave</span>
-                          )}
-                        </div>
-                        <div className="shop-card-body">
-                          <h3 className="shop-card-name">{p.name}</h3>
-                          <div className="shop-card-price">
-                            {pr.hasVariants && (
-                              <span className="shop-card-from">from </span>
+                <>
+                  <p className="shop-count">
+                    Showing {filtered.length} of {products.length}{" "}
+                    {products.length === 1 ? "product" : "products"}
+                  </p>
+                  <div className="shop-grid">
+                    {filtered.map((p) => {
+                      const pr = effectivePricing(p);
+                      return (
+                        <Link
+                          key={p.id}
+                          href={`/pages/shop/${p.slug}`}
+                          className="shop-card"
+                          style={
+                            {
+                              "--card-bg": p.card_color || DEFAULT_CARD_BG,
+                            } as React.CSSProperties
+                          }
+                        >
+                          <div className="shop-card-img">
+                            {p.image_url ? (
+                              <Image
+                                src={p.image_url}
+                                alt={p.name}
+                                fill
+                                sizes="(max-width: 768px) 50vw, 280px"
+                                className="shop-card-img-el"
+                                unoptimized
+                              />
+                            ) : (
+                              <div className="shop-card-img-placeholder">
+                                🥛
+                              </div>
                             )}
-                            <span className="shop-card-sell">
-                              {formatPrice(pr.selling)}
-                            </span>
-                            {pr.discount > 0 && (
-                              <>
-                                <span className="shop-card-base">
-                                  {formatPrice(pr.base)}
-                                </span>
-                                <span className="shop-card-off">
-                                  {pr.discount}% off
-                                </span>
-                              </>
+                            {p.featured && (
+                              <span className="shop-card-badge">fave</span>
                             )}
                           </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
+                          <div className="shop-card-body">
+                            <h3 className="shop-card-name">{p.name}</h3>
+                            <div className="shop-card-price">
+                              {pr.hasVariants && (
+                                <span className="shop-card-from">from </span>
+                              )}
+                              <span className="shop-card-sell">
+                                {formatPrice(pr.selling)}
+                              </span>
+                              {pr.discount > 0 && (
+                                <>
+                                  <span className="shop-card-base">
+                                    {formatPrice(pr.base)}
+                                  </span>
+                                  <span className="shop-card-off">
+                                    {pr.discount}% off
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </>
           )}
