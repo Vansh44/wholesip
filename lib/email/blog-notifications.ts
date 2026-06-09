@@ -62,7 +62,7 @@ export async function sendBlogApprovedEmail(opts: {
   const blogUrl = `${SITE_URL}/pages/blogs/${opts.slug}`;
 
   try {
-    await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: opts.to,
       subject: `🎉 Your blog "${opts.title}" is now live on Soakd!`,
@@ -89,6 +89,15 @@ export async function sendBlogApprovedEmail(opts: {
         </p>
       `),
     });
+    // Resend returns errors in the response body rather than throwing, so a
+    // bad request / rejected recipient would otherwise fail silently.
+    if (error) {
+      console.error("Resend rejected blog-approved email:", error);
+    } else {
+      console.log(
+        `📨 [blog approved] email sent (id: ${data?.id}) — to: ${opts.to}`,
+      );
+    }
   } catch (e) {
     console.error("Failed to send blog-approved email via Resend:", e);
   }
@@ -112,7 +121,7 @@ export async function sendBlogRejectedEmail(opts: {
   }
 
   try {
-    await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: opts.to,
       subject: `Update on your Soakd blog submission`,
@@ -139,6 +148,13 @@ export async function sendBlogRejectedEmail(opts: {
         </div>
       `),
     });
+    if (error) {
+      console.error("Resend rejected blog-rejected email:", error);
+    } else {
+      console.log(
+        `📨 [blog rejected] email sent (id: ${data?.id}) — to: ${opts.to}`,
+      );
+    }
   } catch (e) {
     console.error("Failed to send blog-rejected email via Resend:", e);
   }
