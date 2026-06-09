@@ -3,8 +3,8 @@
    ============================================ */
 
 .footer {
-  background: #ffffff;
-  color: #22332d;
+  background: var(--soakd-cream);
+  color: var(--soakd-ink);
   margin-top: auto;
 }
 
@@ -13,9 +13,9 @@
    ============================================ */
 
 .newsletterBar {
-  background: #fafafa;
+  background: var(--soakd-cream-deep);
   padding: 42px 64px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid var(--soakd-border);
 }
 
 .newsletterInner {
@@ -31,14 +31,14 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 22px;
   font-weight: 800;
-  color: #22332d;
+  color: var(--soakd-ink);
   display: block;
   margin-bottom: 6px;
 }
 
 .newsletterSub {
   font-family: var(--font-roboto), sans-serif;
-  color: #61736c;
+  color: var(--soakd-ink-soft);
   font-size: 14px;
   margin: 0;
 }
@@ -51,23 +51,23 @@
 .newsletterInput {
   width: 280px;
   padding: 14px 18px;
-  border: 1px solid #d8e4dd;
+  border: 1px solid var(--soakd-border);
   border-right: none;
-  background: #ffffff;
-  color: #22332d;
+  background: var(--soakd-surface);
+  color: var(--soakd-ink);
   font-size: 14px;
   outline: none;
   border-radius: 10px 0 0 10px;
 }
 
 .newsletterInput::placeholder {
-  color: #93a39c;
+  color: var(--soakd-ink-faint);
 }
 
 .newsletterBtn {
   padding: 14px 24px;
   border: none;
-  background: #35544a;
+  background: var(--soakd-accent);
   color: white;
   font-family: var(--font-outfit), sans-serif;
   font-size: 13px;
@@ -80,7 +80,7 @@
 }
 
 .newsletterBtn:hover {
-  background: #22332d;
+  background: var(--soakd-ink);
 }
 
 /* ============================================
@@ -88,8 +88,8 @@
    ============================================ */
 
 .trustBar {
-  background: #ffffff;
-  border-bottom: 1px solid #d1ddd5;
+  background: var(--soakd-cream);
+  border-bottom: 1px solid var(--soakd-border);
   padding: 18px 64px;
 }
 
@@ -106,7 +106,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #4b6259;
+  color: var(--soakd-ink-soft);
   font-size: 13px;
   font-family: var(--font-outfit), sans-serif;
   font-weight: 600;
@@ -115,7 +115,7 @@
 }
 
 .trustIcon {
-  color: #6b8a7e;
+  color: var(--soakd-accent);
 }
 
 /* ============================================
@@ -146,7 +146,7 @@
 }
 
 .tagline {
-  color: #61736c;
+  color: var(--soakd-ink-soft);
   line-height: 1.8;
   max-width: 300px;
   margin-bottom: 28px;
@@ -168,14 +168,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #61736c;
+  color: var(--soakd-ink-soft);
   text-decoration: none;
   font-size: 13.5px;
   transition: all 0.2s ease;
 }
 
 .contactLine:hover {
-  color: #35544a;
+  color: var(--soakd-accent);
 }
 
 .contactLine svg {
@@ -195,18 +195,18 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: white;
-  border: 1px solid #d8e4dd;
+  background: var(--soakd-surface);
+  border: 1px solid var(--soakd-border);
   display: flex;
   justify-content: center;
   align-items: center;
-  color: #61736c;
+  color: var(--soakd-ink-soft);
   transition: all 0.25s ease;
 }
 
 .socialIcon:hover {
-  color: #35544a;
-  border-color: #35544a;
+  color: var(--soakd-accent);
+  border-color: var(--soakd-accent);
   transform: translateY(-2px);
 }
 
@@ -215,7 +215,7 @@
    ============================================ */
 
 .columnTitle {
-  color: #35544a;
+  color: var(--soakd-accent);
   font-family: var(--font-outfit), sans-serif;
   font-size: 12px;
   font-weight: 700;
@@ -231,7 +231,7 @@
 }
 
 .linkList a {
-  color: #61736c;
+  color: var(--soakd-ink-soft);
   text-decoration: none;
   width: fit-content;
   transition: all 0.25s ease;
@@ -239,7 +239,7 @@
 }
 
 .linkList a:hover {
-  color: #22332d;
+  color: var(--soakd-ink);
   transform: translateX(4px);
 }
 
@@ -251,7 +251,7 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 32px 64px 40px;
-  border-top: 1px solid #d8e4dd;
+  border-top: 1px solid var(--soakd-border);
 }
 
 .legalRow {
@@ -263,7 +263,7 @@
 }
 
 .copyright {
-  color: #7a8b84;
+  color: var(--soakd-ink-soft);
   font-size: 12px;
 }
 
@@ -274,16 +274,16 @@
 }
 
 .legalLinks a {
-  color: #61736c;
+  color: var(--soakd-ink-soft);
   font-size: 12px;
 }
 
 .legalLinks a:hover {
-  color: #35544a;
+  color: var(--soakd-accent);
 }
 
 .legalDivider {
-  color: #b9c7c0;
+  color: var(--soakd-border);
 }
 
 /* ============================================

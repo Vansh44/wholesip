@@ -2,10 +2,9 @@ export default function Cart() {
   return (
     <main
       style={{
-        paddingTop: "120px",
-        padding: "0 64px",
+        padding: "140px 64px 80px",
         minHeight: "100vh",
-        background: "#fafafa",
+        background: "var(--soakd-cream)",
       }}
     >
       <h1>Shopping Cart</h1>

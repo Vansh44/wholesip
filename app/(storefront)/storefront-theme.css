@@ -1,0 +1,45 @@
+/* ============================================================
+   Storefront global skin — soft-pastel + cream "dialed down".
+   Wraps every customer-facing page (.storefront-root) so the
+   cream background + ink text are inherited site-wide. The admin
+   dashboard is NOT wrapped and keeps its own neutral+indigo system.
+   Palette tokens live in globals.css (--soakd-*).
+   ============================================================ */
+
+.storefront-root {
+  min-height: 100vh;
+  background: var(--soakd-cream);
+  color: var(--soakd-ink);
+}
+
+/* Default link colour inside the storefront (Header/Footer override locally) */
+.storefront-root a {
+  color: inherit;
+}
+
+/* Shared "sticky note" highlight — reuse anywhere with class .soakd-note */
+.soakd-note {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--soakd-ink-soft);
+  background: var(--soakd-butter);
+  padding: 16px 22px;
+  border-radius: 14px;
+  transform: rotate(-2.5deg);
+  box-shadow: 0 8px 18px rgba(43, 38, 32, 0.08);
+}
+
+/* Shared promo ticker — reuse anywhere with class .soakd-ticker */
+.soakd-ticker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--soakd-taupe);
+  color: #3a322a;
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 14px 28px;
+}

@@ -116,6 +116,25 @@ a {
   --sidebar-accent-foreground: #111827;
   --sidebar-border: #e5e7eb;
   --sidebar-ring: #cbd5e1;
+
+  /* ── Storefront theme — crisp whitish canvas + rich near-black contrast ──
+     Single source of truth for the customer-facing site. Applied via the
+     .storefront-root wrapper (NOT the admin dashboard). Consumed by the
+     storefront theme, Header, Footer, and the shop --shop-* tokens.
+     Deliberately NOT beige/almond: warm neutrals are kept very light and
+     all weight comes from near-black ink for a premium, high-contrast feel. */
+  --soakd-cream: #fdfcfb; /* page background — near white */
+  --soakd-cream-deep: #f4f2ee; /* alt surface / hover / image tiles */
+  --soakd-surface: #ffffff; /* pure-white cards / inputs */
+  --soakd-ink: #17130f; /* headings + body — near black, high contrast */
+  --soakd-ink-soft: #574f47; /* muted text */
+  --soakd-ink-faint: #9c958c; /* subtle / struck price */
+  --soakd-taupe: #eee7de; /* promo ticker / soft band */
+  --soakd-sand: #f0ebe3; /* chips / soft pill surface */
+  --soakd-butter: #f3ecc9; /* highlight (used sparingly) */
+  --soakd-border: #e8e2d9; /* hairline */
+  --soakd-accent: #17130f; /* near-black — links / primary CTA */
+  --soakd-accent-deep: #000000; /* accent hover */
 }
 
 .dark {
