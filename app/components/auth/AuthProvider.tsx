@@ -59,11 +59,22 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     [supabase],
   );
 
+  // Resolve the customer from the *live* session rather than the `user` React
+  // state. Right after verifyOtp / profile-save the modal calls this before the
+  // onAuthStateChange-driven setUser has propagated, so relying on `user` here
+  // would no-op and leave the header signed-out until a manual refresh. Reading
+  // getUser() directly avoids that race and keeps both bits of state in sync.
   const refreshCustomer = useCallback(async () => {
-    if (user) {
-      await fetchCustomer(user.id);
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+    setUser(currentUser);
+    if (currentUser) {
+      await fetchCustomer(currentUser.id);
+    } else {
+      setCustomer(null);
     }
-  }, [user, fetchCustomer]);
+  }, [supabase, fetchCustomer]);
 
   useEffect(() => {
     let active = true;

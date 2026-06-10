@@ -862,6 +862,19 @@ export default function WriteBlogEditor({
         <div className="write-blog-reading-time">
           <Clock size={14} /> Est. reading time · {readingTime} min
         </div>
+        <div>
+          <button
+            className="write-blog-submit-btn"
+            onClick={handleSubmit}
+            disabled={isPending}
+          >
+            {isPending
+              ? "Submitting..."
+              : mode === "edit"
+                ? "Save Changes"
+                : "Submit for Review"}
+          </button>
+        </div>
       </div>
 
       {/* Email-required modal (only shown when the author has no email yet) */}
