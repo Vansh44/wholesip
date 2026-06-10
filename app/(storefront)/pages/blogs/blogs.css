@@ -5,25 +5,25 @@
 @import url("https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600&display=swap");
 
 /* — Color tokens —
-   Deep, premium palette: a white canvas with a rich emerald accent and
-   cool, faintly green-tinted neutral surfaces. Understated and expensive. */
+   Mapped onto the global soft-pastel + cream theme (--soakd-* in globals.css)
+   so the Journal matches the rest of the storefront. */
 :root {
-  --blog-bg: #ffffff;
-  --blog-bg-alt: #f5f8f6; /* cool off-white for image wells / soft fills */
-  --blog-card: #ffffff;
-  --blog-card-hover: #ffffff;
-  --blog-border: #e3eae6; /* cool light border */
-  --blog-border-light: #eef3f0;
-  --blog-dark: #16211c; /* deep green-black ink */
-  --blog-body: #45504b;
-  --blog-muted: #7c847f; /* cool grey */
-  --blog-accent: #0b6b53; /* emerald */
-  --blog-accent-deep: #07543f; /* accent hover */
-  --blog-accent-soft: #e7f2ed; /* accent tint for chips/badges */
-  --blog-accent-light: #abc6bc;
-  --blog-surface: #edf4f0; /* soft emerald-tinted surface fill */
-  --blog-tag-bg: #eef3f0;
-  --blog-tag-hover: #e0ebe5;
+  --blog-bg: var(--soakd-cream);
+  --blog-bg-alt: var(--soakd-cream-deep); /* image wells / soft fills */
+  --blog-card: var(--soakd-surface);
+  --blog-card-hover: var(--soakd-surface);
+  --blog-border: var(--soakd-border);
+  --blog-border-light: var(--soakd-border);
+  --blog-dark: var(--soakd-ink); /* heading ink */
+  --blog-body: var(--soakd-ink-soft);
+  --blog-muted: var(--soakd-ink-faint);
+  --blog-accent: var(--soakd-accent); /* cocoa */
+  --blog-accent-deep: var(--soakd-accent-deep);
+  --blog-accent-soft: var(--soakd-sand); /* chips / badges */
+  --blog-accent-light: #d8c4a8;
+  --blog-surface: var(--soakd-cream-deep);
+  --blog-tag-bg: var(--soakd-sand);
+  --blog-tag-hover: var(--soakd-cream-deep);
 }
 
 /* ============================================
@@ -31,9 +31,9 @@
    ============================================ */
 
 .blog-hero {
-  margin-top: 1%;
   position: relative;
-  padding: 40px 24px 0px;
+  /* Clear the fixed 90px storefront header, then breathe. */
+  padding: 132px 24px 36px;
   text-align: center;
   background: var(--blog-bg);
   overflow: hidden;
@@ -49,12 +49,12 @@
   background:
     radial-gradient(
       ellipse at 30% 20%,
-      rgba(11, 107, 83, 0.07) 0%,
+      rgba(138, 106, 82, 0.07) 0%,
       transparent 55%
     ),
     radial-gradient(
       ellipse at 70% 80%,
-      rgba(231, 242, 237, 0.8) 0%,
+      rgba(231, 222, 200, 0.8) 0%,
       transparent 55%
     );
   pointer-events: none;
@@ -70,12 +70,11 @@
 .blog-hero-kicker {
   display: inline-block;
   font-family: "Comfortaa", sans-serif;
-  font-size: 1.5rem;
-  font-weight: 1000;
-  letter-spacing: 0.2em;
-  /* text-transform: uppercase; */
+  font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
   color: var(--blog-dark);
-  margin-bottom: 4px;
+  margin-bottom: 10px;
 }
 
 .blog-hero-title {
@@ -199,7 +198,7 @@
 .blog-publish-cta-btn:hover {
   background: var(--blog-accent-deep);
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(11, 107, 83, 0.25);
+  box-shadow: 0 8px 20px rgba(138, 106, 82, 0.25);
 }
 
 .blog-publish-cta-btn:active {
@@ -241,42 +240,58 @@
    SEARCH & FILTERS
    ============================================ */
 
-.blog-filters-section {
+.blog-toolbar-section {
   background: var(--blog-bg);
-  padding: 0 24px 8px;
+  padding: 8px 24px 28px;
 }
 
-.blog-filters-container {
-  max-width: 1200px;
+.blog-toolbar {
+  max-width: 1320px;
   margin: 0 auto;
-}
-
-.blog-search-and-cta-row {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
   align-items: center;
-  margin-bottom: 16px;
-  gap: 16px;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
 }
 
-@media (max-width: 768px) {
-  .blog-search-and-cta-row {
-    grid-template-columns: 1fr;
-  }
-  .blog-search-and-cta-row .spacer {
-    display: none;
-  }
-  .blog-search-and-cta-row .cta-container {
-    display: flex;
-    justify-content: center;
-  }
+.blog-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .blog-search-wrapper {
   position: relative;
-  width: 100%;
-  max-width: 480px;
+  flex: 1 1 420px;
+  max-width: 520px;
   margin: 0;
+}
+
+@media (max-width: 768px) {
+  .blog-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .blog-search-wrapper {
+    flex: none;
+    width: 100%;
+    max-width: none;
+  }
+  .blog-toolbar-actions {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .blog-toolbar-actions {
+    flex-direction: column;
+  }
+  .blog-toolbar-actions .blog-publish-cta-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .blog-search-icon {
@@ -310,7 +325,7 @@
 
 .blog-search-input:focus {
   border-color: var(--blog-accent);
-  box-shadow: 0 0 0 3px rgba(11, 107, 83, 0.16);
+  box-shadow: 0 0 0 3px rgba(138, 106, 82, 0.16);
 }
 
 .blog-search-clear {
@@ -334,21 +349,21 @@
 
 .blog-tag-pills {
   display: flex;
-  gap: 6px;
-  justify-content: center;
+  gap: 8px;
+  justify-content: flex-start;
   flex-wrap: wrap;
 }
 
 .blog-tag-pill {
-  padding: 6px 14px;
+  padding: 6px 13px;
   border-radius: 100px;
   background: var(--blog-tag-bg);
-  font-size: 0.75rem;
+  border: 1px solid transparent;
+  font-size: 0.78rem;
   font-weight: 500;
-  color: var(--blog-muted);
+  color: var(--blog-body);
   cursor: pointer;
   transition: all 0.2s ease;
-  border: none;
   font-family: inherit;
 }
 
@@ -523,7 +538,7 @@
 
 .blog-category-item[data-active="true"] .blog-category-count {
   color: var(--blog-accent-deep);
-  background: rgba(11, 107, 83, 0.12);
+  background: rgba(138, 106, 82, 0.12);
 }
 
 .blog-sidebar-clear {

@@ -33,6 +33,7 @@ export interface Product {
   status: "draft" | "published";
   featured: boolean;
   sort_order: number;
+  card_color: string | null;
   seo_title: string | null;
   seo_description: string | null;
   published_at: string | null;
@@ -50,6 +51,12 @@ export interface CategoryOption {
   status: "active" | "hidden";
 }
 
+export interface CardColorOption {
+  id: string;
+  name: string;
+  hex: string;
+}
+
 export default async function ProductsPage() {
   const supabase = await createClient();
 
@@ -61,20 +68,26 @@ export default async function ProductsPage() {
     redirect("/auth/login");
   }
 
-  const [{ data: products, error }, { data: categories }] = await Promise.all([
-    supabase
-      .from("products")
-      .select(
-        "*, category:categories(id, name, slug), variants:product_variants(*)",
-      )
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("categories")
-      .select("id, name, slug, status")
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
-  ]);
+  const [{ data: products, error }, { data: categories }, { data: colors }] =
+    await Promise.all([
+      supabase
+        .from("products")
+        .select(
+          "*, category:categories(id, name, slug), variants:product_variants(*)",
+        )
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("categories")
+        .select("id, name, slug, status")
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true }),
+      supabase
+        .from("card_colors")
+        .select("id, name, hex")
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true }),
+    ]);
 
   if (error) {
     return (
@@ -101,6 +114,7 @@ export default async function ProductsPage() {
     <ProductsManagementView
       products={list}
       categories={(categories ?? []) as CategoryOption[]}
+      colors={(colors ?? []) as CardColorOption[]}
     />
   );
 }

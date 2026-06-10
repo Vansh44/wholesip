@@ -24,7 +24,7 @@ export default async function ShopPage() {
     supabase
       .from("products")
       .select(
-        "id, name, slug, description, category_id, base_price, selling_price, image_url, status, featured, sort_order, variants:product_variants(base_price, selling_price)",
+        "id, name, slug, description, category_id, base_price, selling_price, image_url, status, featured, sort_order, card_color, variants:product_variants(base_price, selling_price)",
       )
       .eq("status", "published")
       .order("sort_order", { ascending: true })

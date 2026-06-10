@@ -66,11 +66,14 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, fetchCustomer]);
 
   useEffect(() => {
+    let active = true;
+
     // Initial session check
     const init = async () => {
       const {
         data: { user: currentUser },
       } = await supabase.auth.getUser();
+      if (!active) return;
       setUser(currentUser);
       if (currentUser) {
         await fetchCustomer(currentUser.id);
@@ -79,29 +82,48 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     };
     init();
 
-    // Listen for auth state changes
+    // Listen for auth state changes.
+    // IMPORTANT: this callback runs *synchronously while the auth client holds
+    // its internal lock*. Calling another Supabase method (e.g. fetchCustomer,
+    // which queries the DB) with `await` here can dead-lock the client — the UI
+    // then gets stuck until a refresh, and a later signOut() hangs waiting for
+    // the same lock. So keep the callback sync and defer DB work off the lock.
+    // See @supabase/auth-js GoTrueClient onAuthStateChange remarks.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       const sessionUser = session?.user ?? null;
       setUser(sessionUser);
       if (sessionUser) {
-        await fetchCustomer(sessionUser.id);
+        setTimeout(() => {
+          if (active) fetchCustomer(sessionUser.id);
+        }, 0);
       } else {
         setCustomer(null);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [supabase, fetchCustomer]);
 
   const openAuthModal = useCallback(() => setIsAuthModalOpen(true), []);
   const closeAuthModal = useCallback(() => setIsAuthModalOpen(false), []);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    // Clear local UI state immediately so the header updates without waiting on
+    // the network. `scope: "local"` revokes only this session locally, avoiding
+    // a slow/hanging server round-trip; any error is swallowed so logout always
+    // completes from the user's point of view.
     setUser(null);
     setCustomer(null);
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      // Already cleared local state above; nothing else to do.
+    }
   }, [supabase]);
 
   return (

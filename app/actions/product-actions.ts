@@ -29,6 +29,7 @@ export interface ProductFormData {
   status: "draft" | "published";
   featured: boolean;
   sort_order: number;
+  card_color: string;
   seo_title: string;
   seo_description: string;
   variants: VariantFormData[];
@@ -178,6 +179,7 @@ export async function createProduct(
   if (!userId) return { error: "Not authenticated" };
 
   if (!formData.name.trim()) return { error: "Name is required." };
+  if (!formData.category_id) return { error: "Category is required." };
   if (!formData.description.trim())
     return { error: "Description is required." };
   if (!formData.seo_title.trim() || !formData.seo_description.trim())
@@ -198,6 +200,7 @@ export async function createProduct(
     status: formData.status,
     featured: formData.featured,
     sort_order: formData.sort_order ?? 0,
+    card_color: formData.card_color?.trim() || null,
     seo_title: formData.seo_title.trim() || null,
     seo_description: formData.seo_description.trim() || null,
     published_at:
@@ -250,6 +253,7 @@ export async function updateProduct(
   if (!userId) return { error: "Not authenticated" };
 
   if (!formData.name.trim()) return { error: "Name is required." };
+  if (!formData.category_id) return { error: "Category is required." };
   if (!formData.description.trim())
     return { error: "Description is required." };
   if (!formData.seo_title.trim() || !formData.seo_description.trim())
@@ -281,6 +285,7 @@ export async function updateProduct(
     status: formData.status,
     featured: formData.featured,
     sort_order: formData.sort_order ?? 0,
+    card_color: formData.card_color?.trim() || null,
     seo_title: formData.seo_title.trim() || null,
     seo_description: formData.seo_description.trim() || null,
     published_at: publishedAt,

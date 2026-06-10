@@ -1,33 +1,37 @@
 /* ============================================================
    Storefront Shop — listing + product detail
-   Neutral surfaces (white / grey) + natural green accent.
-   All colors are driven from the variables below — change them
-   here, never reintroduce raw warm/terracotta hex inline.
+   Theme: near-white cream canvas + near-black INK accent, with
+   soft pastel per-product tiles. (NOT green, NOT cocoa — those
+   were earlier themes; do not reintroduce them.)
+   All colours are driven from the --soakd-* tokens in globals.css.
+   Change colours THERE, never reintroduce raw hex inline here.
    ============================================================ */
 
 :root {
-  --shop-bg: #fafafa; /* page background (was cream) */
-  --shop-surface: #ffffff; /* cards / inputs */
-  --shop-surface-alt: #f4f4f5; /* image placeholders */
+  /* Mapped onto the global cream + ink theme (--soakd-* in globals.css)
+     so the shop listing AND product pages stay consistent. */
+  --shop-bg: var(--soakd-cream); /* page background — near white */
+  --shop-surface: var(--soakd-surface); /* cards / inputs (white) */
+  --shop-surface-alt: var(--soakd-cream-deep); /* image placeholders */
 
-  --shop-text: #18181b; /* headings + body (near-black) */
-  --shop-text-muted: #52525b; /* subtitles / labels */
-  --shop-text-subtle: #71717a; /* descriptions / breadcrumb */
-  --shop-text-faint: #a1a1aa; /* struck-through base price */
+  --shop-text: var(--soakd-ink); /* headings + body */
+  --shop-text-muted: var(--soakd-ink-soft); /* subtitles / labels */
+  --shop-text-subtle: var(--soakd-ink-soft); /* descriptions / breadcrumb */
+  --shop-text-faint: var(--soakd-ink-faint); /* struck-through base price */
 
-  --shop-border: rgba(0, 0, 0, 0.1);
-  --shop-border-soft: rgba(0, 0, 0, 0.07);
-  --shop-shadow: rgba(0, 0, 0, 0.18);
+  --shop-border: var(--soakd-border);
+  --shop-border-soft: rgba(23, 19, 15, 0.08); /* derived from --soakd-ink */
+  --shop-shadow: rgba(23, 19, 15, 0.18); /* derived from --soakd-ink */
 
-  --shop-accent: #0b6b53; /* green accent / primary CTA */
-  --shop-accent-hover: #07543f;
-  --shop-accent-soft: rgba(11, 107, 83, 0.08);
-  --shop-on-accent: #ffffff; /* text on green */
+  --shop-accent: var(--soakd-accent); /* near-black ink / primary CTA */
+  --shop-accent-hover: var(--soakd-accent-deep);
+  --shop-accent-soft: rgba(23, 19, 15, 0.08); /* faint ink wash (CTA hover) */
+  --shop-on-accent: #ffffff; /* text on near-black */
 
-  --shop-sale: #1f7a4d; /* discount badge */
-  --shop-sale-bg: rgba(31, 122, 77, 0.12);
+  --shop-sale: var(--soakd-accent); /* discount badge text */
+  --shop-sale-bg: rgba(23, 19, 15, 0.06); /* faint ink wash behind badge */
 
-  --shop-overlay: rgba(9, 9, 11, 0.92); /* lightbox backdrop */
+  --shop-overlay: rgba(23, 19, 15, 0.92); /* lightbox backdrop */
 }
 
 .shop-main {
@@ -255,6 +259,302 @@
   font-weight: 700;
   margin: 0 0 8px;
   color: var(--shop-text);
+}
+
+/* ============================================================
+   Shop LISTING — cream + ink skin with soft pastel tiles.
+   Scoped under .shop-listing so the PDP (incl. its reused
+   .shop-card "you may also like" grid) keeps the neutral skin.
+   ============================================================ */
+.shop-listing {
+  background: var(--soakd-cream);
+  padding: 80px 0 80px; /* full-bleed: no side padding */
+}
+
+@media (min-width: 768px) {
+  .shop-listing {
+    padding: 88px 0 96px;
+  }
+}
+
+/* Full-width container — no floating card, edge to edge */
+.shop-panel {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  background: transparent;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
+}
+
+/* Promo ticker — full-width continuous scrolling marquee.
+   Bold "ink bar" look: near-black band, cream text, lowercase with
+   editorial tracking, and a terracotta ✦ separator BETWEEN phrases.
+   The separator is drawn by CSS (.shop-ticker-item::after) — so in the
+   JSX render just "{phrase}", NOT "✦ {phrase}".
+   To use the softer LIGHT variant instead: set background to
+   var(--soakd-taupe), the item color to var(--soakd-ink-soft), and add
+   `border-block: 0.5px solid var(--soakd-border);` here. */
+.shop-ticker {
+  overflow: hidden;
+  background: var(--soakd-ink); /* near-black band */
+  font-family: var(--font-outfit), sans-serif;
+  padding: 12px 0;
+}
+
+/* Two identical sequences sit side by side; translating the track by -50%
+   (exactly one sequence width) loops seamlessly. */
+.shop-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: shop-ticker-scroll 48s linear infinite; /* slower = more premium */
+}
+
+.shop-ticker:hover .shop-ticker-track {
+  animation-play-state: paused;
+}
+
+.shop-ticker-seq {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.shop-ticker-item {
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.05em; /* editorial tracking, matches the lowercase logo */
+  color: #f2ebe0; /* cream text on the ink band */
+  padding: 0 22px;
+}
+
+/* Terracotta ✦ between phrases — the one warm pop of brand colour.
+   Drawn here so spacing stays perfectly even; keep the JSX at "{phrase}". */
+.shop-ticker-item::after {
+  content: "✦";
+  font-size: 9px;
+  color: var(--soakd-accent-warm, #ce8662);
+  margin-left: 44px;
+  vertical-align: middle;
+}
+
+@keyframes shop-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shop-ticker-track {
+    animation: none;
+  }
+}
+
+/* Content gutters — content fills the page, aligned to its edges */
+.shop-panel-body {
+  padding: 24px clamp(20px, 5vw, 64px) 24px;
+}
+
+@media (max-width: 700px) {
+  .shop-panel-body {
+    padding: 32px 20px 16px;
+  }
+  .shop-ticker {
+    padding: 9px 0;
+  }
+  .shop-ticker-item {
+    font-size: 11px;
+    padding: 0 16px;
+  }
+  .shop-ticker-item::after {
+    margin-left: 32px;
+  }
+}
+
+/* Hero — left aligned headline + dark sticker */
+.shop-listing .shop-hero {
+  text-align: left;
+  max-width: none;
+  margin: 0 0 18px;
+}
+
+.shop-listing .shop-kicker {
+  color: var(--soakd-ink);
+  background: var(--soakd-sand);
+  padding: 7px 18px;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.shop-hero-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.shop-listing .shop-title {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 800;
+  font-size: clamp(36px, 4.5vw, 60px);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  color: var(--soakd-ink);
+  margin: 0;
+}
+
+/* Dark high-contrast "sticker" note */
+.shop-note {
+  margin-top: 12px;
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 600;
+  font-size: clamp(15px, 1.6vw, 19px);
+  line-height: 1.4;
+  color: var(--soakd-cream);
+  background: var(--soakd-ink);
+  padding: 16px 22px;
+  border-radius: 14px;
+  transform: rotate(-2.5deg);
+  box-shadow: 0 10px 24px rgba(23, 19, 15, 0.18);
+}
+
+/* Filters — white pills, near-black active */
+.shop-listing .shop-filters {
+  justify-content: flex-start;
+  margin: 0 0 16px;
+  max-width: none;
+}
+
+.shop-listing .shop-chip {
+  border: 1px solid var(--soakd-border);
+  color: var(--soakd-ink-soft);
+  background: var(--soakd-surface);
+  font-weight: 600;
+}
+
+.shop-listing .shop-chip:hover {
+  border-color: var(--soakd-ink);
+  color: var(--soakd-ink);
+  background: var(--soakd-cream-deep);
+}
+
+.shop-listing .shop-chip.active {
+  background: var(--soakd-ink);
+  color: var(--soakd-cream);
+  border-color: var(--soakd-ink);
+}
+
+/* Product count line */
+.shop-count {
+  margin: 0 0 16px;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--soakd-ink-soft);
+}
+
+/* Product cards — fixed 4 per row, responsive down */
+.shop-listing .shop-grid {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 22px;
+  max-width: none;
+}
+
+@media (max-width: 1100px) {
+  .shop-listing .shop-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .shop-listing .shop-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 460px) {
+  .shop-listing .shop-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Soft pastel colour tile. A product may set --card-bg; otherwise fall back
+   to the brand default tile token (defined in globals.css). */
+.shop-listing .shop-card {
+  background: var(--card-bg, var(--soakd-tile, #f4dfe0));
+  border: none;
+  border-radius: 20px;
+  padding: 10px;
+  box-shadow: 0 1px 2px rgba(23, 19, 15, 0.04);
+}
+
+.shop-listing .shop-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 22px 44px rgba(23, 19, 15, 0.14);
+}
+
+.shop-listing .shop-card-img {
+  /* Capped height (not a tall aspect ratio) so a full row fits above the
+     fold at the top of the page. */
+  height: clamp(165px, 18vw, 230px);
+  aspect-ratio: auto;
+  background: transparent;
+  border-radius: 14px;
+}
+
+.shop-listing .shop-card-img-el {
+  padding: 10px;
+  transition: transform 0.3s ease;
+}
+
+.shop-listing .shop-card:hover .shop-card-img-el {
+  transform: scale(1.05);
+}
+
+.shop-listing .shop-card-badge {
+  left: auto;
+  right: 14px;
+  top: 14px;
+  background: var(--soakd-ink);
+  color: #fff;
+  font-size: 13px;
+  padding: 6px 14px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.shop-listing .shop-card-body {
+  padding: 6px 12px 14px;
+}
+
+/* names + prices stay near-black for high contrast on the colour tile */
+.shop-listing .shop-card-name {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--soakd-ink);
+}
+
+.shop-listing .shop-card-price,
+.shop-listing .shop-card-sell,
+.shop-listing .shop-card-from {
+  color: var(--soakd-ink);
+}
+
+.shop-listing .shop-card-base {
+  color: var(--soakd-ink-faint);
+}
+
+.shop-listing .shop-card-off {
+  color: var(--soakd-ink);
+  background: rgba(255, 255, 255, 0.55);
 }
 
 /* ============================================================

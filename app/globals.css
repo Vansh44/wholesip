@@ -34,6 +34,10 @@ a {
 @theme inline {
   --font-heading: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* NOTE: --font-outfit (used by the storefront shop) is injected at runtime
+     by next/font. It is intentionally NOT redefined here. If the shop ever
+     renders in plain Inter, check that the next/font Outfit loader is applied
+     to the storefront wrapper / <html>. */
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -116,6 +120,30 @@ a {
   --sidebar-accent-foreground: #111827;
   --sidebar-border: #e5e7eb;
   --sidebar-ring: #cbd5e1;
+
+  /* ── Storefront theme — SINGLE SOURCE OF TRUTH for the customer site ──
+     Near-white cream canvas + near-black INK for a premium, high-contrast
+     feel. Warmth comes from soft pastel per-product tiles, not the canvas.
+     Deliberately NOT beige/almond and NOT cocoa/green (both earlier themes).
+     Applied via the .storefront-root wrapper (NOT the admin dashboard).
+     Consumed by Header, Footer, and the shop --shop-* tokens in shop.css. */
+  --soakd-cream: #fdfcfb; /* page background — near white */
+  --soakd-cream-deep: #f4f2ee; /* alt surface / hover / image tiles */
+  --soakd-surface: #ffffff; /* pure-white cards / inputs */
+  --soakd-ink: #17130f; /* headings + body — near black, high contrast */
+  --soakd-ink-soft: #574f47; /* muted text */
+  --soakd-ink-faint: #9c958c; /* subtle / struck price */
+  --soakd-taupe: #eee7de; /* promo ticker / soft band */
+  --soakd-sand: #f0ebe3; /* chips / soft pill surface */
+  --soakd-butter: #f3ecc9; /* highlight (used sparingly) */
+  --soakd-border: #e8e2d9; /* hairline */
+  --soakd-accent: #17130f; /* near-black — links / primary CTA */
+  --soakd-accent-deep: #000000; /* accent hover */
+  --soakd-tile: #f4dfe0; /* default product card tile when a product
+                            sets no --card-bg (soft pastel) */
+  --soakd-accent-warm: #ce8662; /* terracotta — ticker separators & small
+                                   warm accents only (NOT the primary accent;
+                                   the primary accent stays ink) */
 }
 
 .dark {
