@@ -34,6 +34,10 @@ a {
 @theme inline {
   --font-heading: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* NOTE: --font-outfit (used by the storefront shop) is injected at runtime
+     by next/font. It is intentionally NOT redefined here. If the shop ever
+     renders in plain Inter, check that the next/font Outfit loader is applied
+     to the storefront wrapper / <html>. */
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -117,12 +121,12 @@ a {
   --sidebar-border: #e5e7eb;
   --sidebar-ring: #cbd5e1;
 
-  /* ── Storefront theme — crisp whitish canvas + rich near-black contrast ──
-     Single source of truth for the customer-facing site. Applied via the
-     .storefront-root wrapper (NOT the admin dashboard). Consumed by the
-     storefront theme, Header, Footer, and the shop --shop-* tokens.
-     Deliberately NOT beige/almond: warm neutrals are kept very light and
-     all weight comes from near-black ink for a premium, high-contrast feel. */
+  /* ── Storefront theme — SINGLE SOURCE OF TRUTH for the customer site ──
+     Near-white cream canvas + near-black INK for a premium, high-contrast
+     feel. Warmth comes from soft pastel per-product tiles, not the canvas.
+     Deliberately NOT beige/almond and NOT cocoa/green (both earlier themes).
+     Applied via the .storefront-root wrapper (NOT the admin dashboard).
+     Consumed by Header, Footer, and the shop --shop-* tokens in shop.css. */
   --soakd-cream: #fdfcfb; /* page background — near white */
   --soakd-cream-deep: #f4f2ee; /* alt surface / hover / image tiles */
   --soakd-surface: #ffffff; /* pure-white cards / inputs */
@@ -135,6 +139,11 @@ a {
   --soakd-border: #e8e2d9; /* hairline */
   --soakd-accent: #17130f; /* near-black — links / primary CTA */
   --soakd-accent-deep: #000000; /* accent hover */
+  --soakd-tile: #f4dfe0; /* default product card tile when a product
+                            sets no --card-bg (soft pastel) */
+  --soakd-accent-warm: #ce8662; /* terracotta — ticker separators & small
+                                   warm accents only (NOT the primary accent;
+                                   the primary accent stays ink) */
 }
 
 .dark {

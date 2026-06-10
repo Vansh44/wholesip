@@ -1,15 +1,17 @@
 /* ============================================================
    Storefront Shop — listing + product detail
-   Neutral surfaces (white / grey) + natural green accent.
-   All colors are driven from the variables below — change them
-   here, never reintroduce raw warm/terracotta hex inline.
+   Theme: near-white cream canvas + near-black INK accent, with
+   soft pastel per-product tiles. (NOT green, NOT cocoa — those
+   were earlier themes; do not reintroduce them.)
+   All colours are driven from the --soakd-* tokens in globals.css.
+   Change colours THERE, never reintroduce raw hex inline here.
    ============================================================ */
 
 :root {
-  /* Mapped onto the global soft-pastel + cream theme (--soakd-* in
-     globals.css) so the shop listing AND product pages stay consistent. */
-  --shop-bg: var(--soakd-cream); /* page background */
-  --shop-surface: var(--soakd-surface); /* cards / inputs (warm white) */
+  /* Mapped onto the global cream + ink theme (--soakd-* in globals.css)
+     so the shop listing AND product pages stay consistent. */
+  --shop-bg: var(--soakd-cream); /* page background — near white */
+  --shop-surface: var(--soakd-surface); /* cards / inputs (white) */
   --shop-surface-alt: var(--soakd-cream-deep); /* image placeholders */
 
   --shop-text: var(--soakd-ink); /* headings + body */
@@ -18,18 +20,18 @@
   --shop-text-faint: var(--soakd-ink-faint); /* struck-through base price */
 
   --shop-border: var(--soakd-border);
-  --shop-border-soft: rgba(43, 38, 32, 0.08);
-  --shop-shadow: rgba(43, 38, 32, 0.18);
+  --shop-border-soft: rgba(23, 19, 15, 0.08); /* derived from --soakd-ink */
+  --shop-shadow: rgba(23, 19, 15, 0.18); /* derived from --soakd-ink */
 
-  --shop-accent: var(--soakd-accent); /* cocoa accent / primary CTA */
+  --shop-accent: var(--soakd-accent); /* near-black ink / primary CTA */
   --shop-accent-hover: var(--soakd-accent-deep);
-  --shop-accent-soft: rgba(138, 106, 82, 0.1);
-  --shop-on-accent: #ffffff; /* text on cocoa */
+  --shop-accent-soft: rgba(23, 19, 15, 0.08); /* faint ink wash (CTA hover) */
+  --shop-on-accent: #ffffff; /* text on near-black */
 
-  --shop-sale: var(--soakd-accent); /* discount badge */
-  --shop-sale-bg: rgba(138, 106, 82, 0.14);
+  --shop-sale: var(--soakd-accent); /* discount badge text */
+  --shop-sale-bg: rgba(23, 19, 15, 0.06); /* faint ink wash behind badge */
 
-  --shop-overlay: rgba(43, 38, 32, 0.92); /* lightbox backdrop */
+  --shop-overlay: rgba(23, 19, 15, 0.92); /* lightbox backdrop */
 }
 
 .shop-main {
@@ -260,9 +262,9 @@
 }
 
 /* ============================================================
-   Shop LISTING — "dialed down" soft-pastel + cream skin.
+   Shop LISTING — cream + ink skin with soft pastel tiles.
    Scoped under .shop-listing so the PDP (incl. its reused
-   .shop-card "you may also like" grid) keeps neutral+green.
+   .shop-card "you may also like" grid) keeps the neutral skin.
    ============================================================ */
 .shop-listing {
   background: var(--soakd-cream);
@@ -286,28 +288,70 @@
   box-shadow: none;
 }
 
-/* Promo ticker — spans the full viewport width */
+/* Promo ticker — full-width continuous scrolling marquee.
+   Bold "ink bar" look: near-black band, cream text, lowercase with
+   editorial tracking, and a terracotta ✦ separator BETWEEN phrases.
+   The separator is drawn by CSS (.shop-ticker-item::after) — so in the
+   JSX render just "{phrase}", NOT "✦ {phrase}".
+   To use the softer LIGHT variant instead: set background to
+   var(--soakd-taupe), the item color to var(--soakd-ink-soft), and add
+   `border-block: 0.5px solid var(--soakd-border);` here. */
 .shop-ticker {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  background: var(--soakd-taupe);
-  color: var(--soakd-ink);
+  overflow: hidden;
+  background: var(--soakd-ink); /* near-black band */
   font-family: var(--font-outfit), sans-serif;
-  font-weight: 600;
-  font-size: 14px;
-  padding: 14px clamp(20px, 5vw, 64px);
-  border-block: 1px solid var(--soakd-border);
+  padding: 12px 0;
 }
 
-.shop-ticker-mid {
-  flex: 1;
-  text-align: center;
+/* Two identical sequences sit side by side; translating the track by -50%
+   (exactly one sequence width) loops seamlessly. */
+.shop-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: shop-ticker-scroll 48s linear infinite; /* slower = more premium */
 }
 
-.shop-ticker span:last-child {
+.shop-ticker:hover .shop-ticker-track {
+  animation-play-state: paused;
+}
+
+.shop-ticker-seq {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.shop-ticker-item {
   white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.05em; /* editorial tracking, matches the lowercase logo */
+  color: #f2ebe0; /* cream text on the ink band */
+  padding: 0 22px;
+}
+
+/* Terracotta ✦ between phrases — the one warm pop of brand colour.
+   Drawn here so spacing stays perfectly even; keep the JSX at "{phrase}". */
+.shop-ticker-item::after {
+  content: "✦";
+  font-size: 9px;
+  color: var(--soakd-accent-warm, #ce8662);
+  margin-left: 44px;
+  vertical-align: middle;
+}
+
+@keyframes shop-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shop-ticker-track {
+    animation: none;
+  }
 }
 
 /* Content gutters — content fills the page, aligned to its edges */
@@ -320,15 +364,14 @@
     padding: 32px 20px 16px;
   }
   .shop-ticker {
-    font-size: 12px;
-    padding: 12px 20px;
-    gap: 10px;
-    justify-content: center;
+    padding: 9px 0;
   }
-  /* one promo line only on narrow screens — avoids tall wrapping */
-  .shop-ticker-mid,
-  .shop-ticker span:last-child {
-    display: none;
+  .shop-ticker-item {
+    font-size: 11px;
+    padding: 0 16px;
+  }
+  .shop-ticker-item::after {
+    margin-left: 32px;
   }
 }
 
@@ -367,7 +410,7 @@
   margin: 0;
 }
 
-/* Dark high-contrast "sticker" note (was butter-yellow) */
+/* Dark high-contrast "sticker" note */
 .shop-note {
   margin-top: 12px;
   font-family: var(--font-outfit), sans-serif;
@@ -442,8 +485,10 @@
   }
 }
 
+/* Soft pastel colour tile. A product may set --card-bg; otherwise fall back
+   to the brand default tile token (defined in globals.css). */
 .shop-listing .shop-card {
-  background: var(--card-bg, #f4dfe0); /* soft colour tile */
+  background: var(--card-bg, var(--soakd-tile, #f4dfe0));
   border: none;
   border-radius: 20px;
   padding: 10px;

@@ -261,6 +261,10 @@ export function ProductEditorDialog({
       toast.error("Name is required");
       return;
     }
+    if (!form.category_id) {
+      toast.error("Category is required");
+      return;
+    }
     if (!form.description.trim()) {
       toast.error("Description is required");
       return;
@@ -335,13 +339,13 @@ export function ProductEditorDialog({
               />
             </div>
             <div>
-              <label className={labelClass}>Category</label>
+              <label className={labelClass}>Category *</label>
               <select
                 className={fieldClass}
                 value={form.category_id ?? ""}
                 onChange={(e) => set("category_id", e.target.value || null)}
               >
-                <option value="">Uncategorized</option>
+                <option value="">Select a category…</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}

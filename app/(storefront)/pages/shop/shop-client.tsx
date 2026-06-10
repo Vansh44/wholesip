@@ -36,6 +36,31 @@ type Props = {
 // in the dashboard. (Per-product colour is the source of truth now.)
 const DEFAULT_CARD_BG = "#f4f2ee";
 
+// Repeating phrases for the scrolling promo ticker.
+const TICKER_PHRASES = [
+  "free shipping over ₹599",
+  "real food, nothing stripped out",
+  "all whole food",
+  "the way Earth made it",
+  "0g added sugar",
+];
+
+// One sequence: phrases repeated enough to fill wide screens. Two of these
+// sit in the track; the CSS animation translates by -50% for a seamless loop.
+function TickerSequence({ ariaHidden = false }: { ariaHidden?: boolean }) {
+  return (
+    <div className="shop-ticker-seq" aria-hidden={ariaHidden || undefined}>
+      {Array.from({ length: 3 }).flatMap((_, rep) =>
+        TICKER_PHRASES.map((phrase, i) => (
+          <span className="shop-ticker-item" key={`${rep}-${i}`}>
+            ✦ {phrase}
+          </span>
+        )),
+      )}
+    </div>
+  );
+}
+
 export default function ShopClient({ products, categories }: Props) {
   const [active, setActive] = useState<string>("all");
 
@@ -51,13 +76,12 @@ export default function ShopClient({ products, categories }: Props) {
   return (
     <main className="shop-main shop-listing">
       <div className="shop-panel">
-        {/* Promo ticker */}
+        {/* Promo ticker — continuous scrolling marquee */}
         <div className="shop-ticker">
-          <span>✦ free shipping over ₹599</span>
-          <span className="shop-ticker-mid">
-            ✦ real food, nothing stripped out ✦
-          </span>
-          <span>all whole food ◎</span>
+          <div className="shop-ticker-track">
+            <TickerSequence />
+            <TickerSequence ariaHidden />
+          </div>
         </div>
 
         <div className="shop-panel-body">

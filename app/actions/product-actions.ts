@@ -179,6 +179,7 @@ export async function createProduct(
   if (!userId) return { error: "Not authenticated" };
 
   if (!formData.name.trim()) return { error: "Name is required." };
+  if (!formData.category_id) return { error: "Category is required." };
   if (!formData.description.trim())
     return { error: "Description is required." };
   if (!formData.seo_title.trim() || !formData.seo_description.trim())
@@ -252,6 +253,7 @@ export async function updateProduct(
   if (!userId) return { error: "Not authenticated" };
 
   if (!formData.name.trim()) return { error: "Name is required." };
+  if (!formData.category_id) return { error: "Category is required." };
   if (!formData.description.trim())
     return { error: "Description is required." };
   if (!formData.seo_title.trim() || !formData.seo_description.trim())
