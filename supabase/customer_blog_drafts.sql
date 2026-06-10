@@ -37,3 +37,14 @@ CREATE POLICY "Customers can edit own drafts and pending submissions"
     AND is_customer_submission = true
     AND status IN ('draft', 'pending_review')
   );
+
+-- DELETE: a customer may delete (withdraw) their own draft or pending
+-- submission. Published posts are not deletable by customers.
+DROP POLICY IF EXISTS "Customers can delete own drafts and pending submissions" ON blogs;
+CREATE POLICY "Customers can delete own drafts and pending submissions"
+  ON blogs FOR DELETE
+  USING (
+    submitted_by = auth.uid()
+    AND is_customer_submission = true
+    AND status IN ('draft', 'pending_review')
+  );

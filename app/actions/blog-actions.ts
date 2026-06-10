@@ -748,6 +748,80 @@ export async function getMySubmissions(): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------------------
+// Delete Customer Blog (author withdraws their own draft / pending submission)
+// ---------------------------------------------------------------------------
+
+export async function deleteCustomerBlog(id: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated." };
+  }
+
+  const { data, error } = await supabase
+    .from("blogs")
+    .delete()
+    .eq("id", id)
+    .eq("submitted_by", user.id)
+    .in("status", ["draft", "pending_review"])
+    .select("id");
+
+  if (error) {
+    console.error("deleteCustomerBlog error:", error);
+    return { error: error.message };
+  }
+  // No row removed → either it isn't theirs, already published, or the delete
+  // policy hasn't been applied yet. Surface it rather than failing silently.
+  if (!data || data.length === 0) {
+    return { error: "Couldn't delete this blog. Please refresh and try again." };
+  }
+
+  revalidatePath("/dashboard/blogs");
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Move a pending submission back to draft (author withdraws from review)
+// ---------------------------------------------------------------------------
+
+export async function revertCustomerBlogToDraft(
+  id: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated." };
+  }
+
+  const { data, error } = await supabase
+    .from("blogs")
+    .update({ status: "draft", updated_by: user.id })
+    .eq("id", id)
+    .eq("submitted_by", user.id)
+    .eq("status", "pending_review")
+    .select("id");
+
+  if (error) {
+    console.error("revertCustomerBlogToDraft error:", error);
+    return { error: error.message };
+  }
+  if (!data || data.length === 0) {
+    return {
+      error: "Couldn't move this blog to draft. Please refresh and try again.",
+    };
+  }
+
+  revalidatePath("/dashboard/blogs");
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // Approve Customer Blog (admin only — sets status to 'published')
 // ---------------------------------------------------------------------------
 

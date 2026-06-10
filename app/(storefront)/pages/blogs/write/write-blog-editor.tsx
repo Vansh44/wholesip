@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
@@ -23,6 +24,8 @@ import {
   submitCustomerBlog,
   updateCustomerBlog,
   saveCustomerBlogDraft,
+  deleteCustomerBlog,
+  revertCustomerBlogToDraft,
   getMySubmissions,
 } from "@/app/actions/blog-actions";
 import { updateCustomerProfile } from "@/app/actions/customer-profile";
@@ -50,6 +53,8 @@ import {
   Clock,
   Plus,
   Pencil,
+  Trash2,
+  Undo2,
 } from "lucide-react";
 
 type Mode = "write" | "edit" | "success" | "submissions";
@@ -85,6 +90,7 @@ export default function WriteBlogEditor({
     refreshCustomer,
   } = useAuth();
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [editingBlogId, setEditingBlogId] = useState<string | null>(null);
@@ -94,6 +100,10 @@ export default function WriteBlogEditor({
     Submission["status"] | null
   >(null);
   const [savingDraft, setSavingDraft] = useState(false);
+  // Submission the user is about to delete (drives the confirm modal).
+  const [deleteTarget, setDeleteTarget] = useState<Submission | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [revertingId, setRevertingId] = useState<string | null>(null);
 
   // Email is required before a submission can go to review (so the author can
   // be notified on approve/reject). We only prompt when it's missing.
@@ -420,6 +430,50 @@ export default function WriteBlogEditor({
     setMode("edit");
   };
 
+  // Whole-card click: published posts open their public page; drafts and
+  // pending submissions open in the editor to keep writing / editing.
+  const handleCardClick = (blog: Submission) => {
+    if (blog.status === "published") {
+      router.push(`/pages/blogs/${blog.slug}`);
+    } else {
+      handleEditSubmission(blog);
+    }
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setDeleting(true);
+    startTransition(async () => {
+      const result = await deleteCustomerBlog(target.id);
+      setDeleting(false);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setSubmissions((prev) => prev.filter((s) => s.id !== target.id));
+      setDeleteTarget(null);
+      toast.success("Blog deleted");
+    });
+  };
+
+  // Pull a pending submission back out of the review queue, into a draft.
+  const handleMoveToDraft = (blog: Submission) => {
+    setRevertingId(blog.id);
+    startTransition(async () => {
+      const result = await revertCustomerBlogToDraft(blog.id);
+      setRevertingId(null);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setSubmissions((prev) =>
+        prev.map((s) => (s.id === blog.id ? { ...s, status: "draft" } : s)),
+      );
+      toast.success("Moved back to draft");
+    });
+  };
+
   if (authLoading) {
     return (
       <div className="write-blog-page flex items-center justify-center min-h-[60vh]">
@@ -557,7 +611,22 @@ export default function WriteBlogEditor({
           ) : (
             <div className="write-blog-subs-grid">
               {submissions.map((blog) => (
-                <div key={blog.id} className="write-blog-submission-card">
+                <div
+                  key={blog.id}
+                  className="write-blog-submission-card"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleCardClick(blog)}
+                  onKeyDown={(e) => {
+                    if (
+                      e.target === e.currentTarget &&
+                      (e.key === "Enter" || e.key === " ")
+                    ) {
+                      e.preventDefault();
+                      handleCardClick(blog);
+                    }
+                  }}
+                >
                   <div className="write-blog-subs-cover">
                     {blog.cover_image_url ? (
                       <img src={blog.cover_image_url} alt="" />
@@ -581,6 +650,44 @@ export default function WriteBlogEditor({
                           ? "Draft"
                           : "Pending Review"}
                     </span>
+
+                    {(blog.status === "draft" ||
+                      blog.status === "pending_review") && (
+                      <div className="write-blog-subs-actions">
+                        {blog.status === "pending_review" && (
+                          <button
+                            type="button"
+                            className="write-blog-subs-action"
+                            title={
+                              revertingId === blog.id
+                                ? "Moving…"
+                                : "Move back to draft"
+                            }
+                            aria-label="Move back to draft"
+                            disabled={isPending}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveToDraft(blog);
+                            }}
+                          >
+                            <Undo2 size={15} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="write-blog-subs-action write-blog-subs-action--danger"
+                          title="Delete blog"
+                          aria-label="Delete blog"
+                          disabled={isPending}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget(blog);
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="write-blog-subs-body">
                     <h3 className="write-blog-subs-card-title">{blog.title}</h3>
@@ -592,16 +699,14 @@ export default function WriteBlogEditor({
                         <Clock size={13} />
                         {new Date(blog.created_at).toLocaleDateString()}
                       </span>
-                      {(blog.status === "pending_review" ||
-                        blog.status === "draft") && (
-                        <button
-                          onClick={() => handleEditSubmission(blog)}
-                          className="write-blog-subs-edit"
-                        >
-                          <Pencil size={13} />{" "}
-                          {blog.status === "draft" ? "Continue" : "Edit"}
-                        </button>
-                      )}
+                      <span className="write-blog-subs-edit" aria-hidden>
+                        <Pencil size={13} />{" "}
+                        {blog.status === "draft"
+                          ? "Continue"
+                          : blog.status === "published"
+                            ? "View"
+                            : "Edit"}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -609,6 +714,63 @@ export default function WriteBlogEditor({
             </div>
           )}
         </div>
+
+        {deleteTarget && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 1000,
+              background: "rgba(0,0,0,0.45)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 16,
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !deleting) {
+                setDeleteTarget(null);
+              }
+            }}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 16,
+                maxWidth: 420,
+                width: "100%",
+                padding: 28,
+                boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+              }}
+            >
+              <h2 className="text-xl font-semibold text-[var(--blog-dark)] mb-2">
+                Delete this blog?
+              </h2>
+              <p className="text-sm text-[var(--blog-muted)] mb-5">
+                &ldquo;{deleteTarget.title || "Untitled"}&rdquo; will be
+                permanently deleted. This can&apos;t be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  className="px-5 py-2.5 rounded-full border border-[var(--blog-border)] bg-transparent text-[var(--blog-dark)] font-medium hover:bg-[var(--blog-bg-alt)] transition-colors disabled:opacity-50"
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-5 py-2.5 rounded-full bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
