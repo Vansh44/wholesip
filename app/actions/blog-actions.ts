@@ -776,7 +776,9 @@ export async function deleteCustomerBlog(id: string): Promise<ActionResult> {
   // No row removed → either it isn't theirs, already published, or the delete
   // policy hasn't been applied yet. Surface it rather than failing silently.
   if (!data || data.length === 0) {
-    return { error: "Couldn't delete this blog. Please refresh and try again." };
+    return {
+      error: "Couldn't delete this blog. Please refresh and try again.",
+    };
   }
 
   revalidatePath("/dashboard/blogs");

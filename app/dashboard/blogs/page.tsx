@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSectionAccess } from "../lib/access";
+import { RealtimeRefresher } from "../components/realtime-refresher";
 import { BlogsManagementView } from "./blogs-management-view";
 
 export interface Blog {
@@ -104,10 +105,13 @@ export default async function BlogsPage({
   }
 
   return (
-    <BlogsManagementView
-      blogs={blogsWithSubmitters}
-      canManage={canManage}
-      initialFilter={initialFilter}
-    />
+    <>
+      <RealtimeRefresher tables={["blogs"]} />
+      <BlogsManagementView
+        blogs={blogsWithSubmitters}
+        canManage={canManage}
+        initialFilter={initialFilter}
+      />
+    </>
   );
 }
