@@ -543,7 +543,119 @@ export async function submitCustomerBlog(
 }
 
 // ---------------------------------------------------------------------------
-// Update Customer Blog (only while status is 'pending_review')
+// Save Customer Blog Draft (create or update a private draft)
+// A draft only needs a title — everything else can be filled in later. Drafts
+// are never publicly visible and never enter the review queue until the author
+// submits them. Pass `id` to keep updating the same draft.
+// ---------------------------------------------------------------------------
+
+export async function saveCustomerBlogDraft(
+  formData: CustomerBlogFormData,
+  id?: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated. Please sign in to save a draft." };
+  }
+
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("id, first_name, last_name")
+    .eq("id", user.id)
+    .single();
+
+  if (!customer) {
+    return {
+      error: "Customer profile not found. Please complete your profile first.",
+    };
+  }
+
+  if (!formData.title.trim()) {
+    return { error: "Add a title before saving your draft." };
+  }
+
+  const readingTime = calculateReadingTime(formData.content || "");
+
+  // Update an existing draft — scoped to the author's own draft rows so a
+  // submitted/published post can't be silently pulled back here.
+  if (id) {
+    const { error } = await supabase
+      .from("blogs")
+      .update({
+        title: formData.title.trim(),
+        excerpt: formData.excerpt.trim() || null,
+        content: sanitizeBlogContent(formData.content || ""),
+        cover_image_url: formData.cover_image_url || null,
+        categories: formData.categories ?? [],
+        tags: formData.tags ?? [],
+        reading_time: readingTime,
+        updated_by: user.id,
+        status: "draft",
+      })
+      .eq("id", id)
+      .eq("submitted_by", user.id)
+      .eq("status", "draft");
+
+    if (error) {
+      console.error("saveCustomerBlogDraft update error:", error);
+      return { error: error.message };
+    }
+    revalidatePath("/dashboard/blogs");
+    return { success: true, data: { id } };
+  }
+
+  // Create a new draft.
+  const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
+  const base = slugify(formData.title);
+  const { slug: firstSlug, bump } = await resolveSlug(supabase, base);
+  let slug = firstSlug;
+
+  const row = (s: string) => ({
+    title: formData.title.trim(),
+    slug: s,
+    excerpt: formData.excerpt.trim() || null,
+    content: sanitizeBlogContent(formData.content || ""),
+    cover_image_url: formData.cover_image_url || null,
+    author: authorName,
+    categories: formData.categories ?? [],
+    tags: formData.tags ?? [],
+    status: "draft",
+    featured: false,
+    reading_time: readingTime,
+    submitted_by: user.id,
+    is_customer_submission: true,
+    created_by: user.id,
+    updated_by: user.id,
+  });
+
+  for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
+    const { data, error } = await supabase
+      .from("blogs")
+      .insert(row(slug))
+      .select("id")
+      .single();
+
+    if (!error) {
+      revalidatePath("/dashboard/blogs");
+      return { success: true, data: data as Record<string, unknown> };
+    }
+    if (!isUniqueViolation(error)) {
+      console.error("saveCustomerBlogDraft insert error:", error);
+      return { error: error.message };
+    }
+    slug = bump(slug);
+  }
+
+  return { error: "Could not generate a unique slug. Please try again." };
+}
+
+// ---------------------------------------------------------------------------
+// Update Customer Blog — saves edits and submits for review. Works on the
+// author's own draft (promotes it to pending_review) or an already-pending row.
 // ---------------------------------------------------------------------------
 
 export async function updateCustomerBlog(
@@ -588,10 +700,12 @@ export async function updateCustomerBlog(
       tags: formData.tags.length > 0 ? formData.tags : [],
       reading_time: readingTime,
       updated_by: user.id,
+      // Drafts are promoted to the review queue; already-pending rows stay put.
+      status: "pending_review",
     })
     .eq("id", id)
     .eq("submitted_by", user.id)
-    .eq("status", "pending_review");
+    .in("status", ["draft", "pending_review"]);
 
   if (error) {
     console.error("updateCustomerBlog error:", error);

@@ -586,6 +586,14 @@
   white-space: nowrap;
 }
 
+/* When the button is rendered as a link (e.g. "Back to Blogs"), the storefront
+   default `.storefront-root a { color: inherit }` would otherwise win on
+   specificity and paint the label dark-on-dark. Keep the white label. */
+.storefront-root a.write-blog-submit-btn,
+a.write-blog-submit-btn {
+  color: #ffffff;
+}
+
 .write-blog-submit-btn:hover {
   background: #000000;
   transform: translateY(-1px);
@@ -843,6 +851,11 @@
 
 .write-blog-status-badge.pending {
   background: rgba(217, 119, 6, 0.92);
+  color: #ffffff;
+}
+
+.write-blog-status-badge.draft {
+  background: rgba(100, 116, 139, 0.92);
   color: #ffffff;
 }
 
