@@ -245,118 +245,91 @@ export default function BlogListingClient({
 
   return (
     <>
-      {/* Search & Filters */}
-      <section className="blog-filters-section" style={{ paddingTop: "24px" }}>
-        <div className="blog-filters-container">
-          {/* Search Row */}
-          <div className="blog-search-and-cta-row">
-            <div className="spacer"></div>
+      {/* Toolbar — search + actions on a single balanced row */}
+      <section className="blog-toolbar-section">
+        <div className="blog-toolbar">
+          <div className="blog-search-wrapper">
+            <svg
+              className="blog-search-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+              />
+            </svg>
+            <input
+              id="blog-search-input"
+              type="text"
+              className="blog-search-input"
+              placeholder="Search articles..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                className="blog-search-clear"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+                id="blog-search-clear"
+              >
+                ✕
+              </button>
+            )}
+          </div>
 
-            <div className="blog-search-wrapper">
+          <div className="blog-toolbar-actions">
+            <button
+              className="blog-publish-cta-btn"
+              onClick={handlePublishClick}
+              id="blog-publish-cta"
+            >
               <svg
-                className="blog-search-icon"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
-                strokeWidth={1.5}
+                strokeWidth={2}
                 stroke="currentColor"
+                width={18}
+                height={18}
               >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+                  d="M12 4.5v15m7.5-7.5h-15"
                 />
               </svg>
-              <input
-                id="blog-search-input"
-                type="text"
-                className="blog-search-input"
-                placeholder="Search articles..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery && (
-                <button
-                  className="blog-search-clear"
-                  onClick={() => setSearchQuery("")}
-                  aria-label="Clear search"
-                  id="blog-search-clear"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+              Post your own blog
+            </button>
 
-            <div
-              className="cta-container"
-              style={{ display: "flex", justifyContent: "flex-end" }}
+            <button
+              className="blog-publish-cta-btn blog-publish-cta-btn--ghost"
+              onClick={() => router.push("/pages/blogs/my-submissions")}
+              id="blog-my-submissions-cta"
             >
-              <button
-                className="blog-publish-cta-btn"
-                onClick={handlePublishClick}
-                id="blog-publish-cta"
-                style={{ padding: "10px 20px" }}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                width={18}
+                height={18}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                  width={18}
-                  height={18}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
-                  />
-                </svg>
-                Post your own blog
-              </button>
-
-              <button
-                className="blog-publish-cta-btn blog-publish-cta-btn--ghost"
-                onClick={() => router.push("/pages/blogs/my-submissions")}
-                id="blog-my-submissions-cta"
-                style={{ padding: "10px 20px", marginLeft: 12 }}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                  width={18}
-                  height={18}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-                  />
-                </svg>
-                My Submissions
-              </button>
-            </div>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+                />
+              </svg>
+              My Submissions
+            </button>
           </div>
-
-          {/* Tag Pills (centered, secondary filter) */}
-          {allTags.length > 0 && (
-            <div className="blog-tag-pills" id="blog-tag-pills">
-              {allTags.map((tag) => (
-                <button
-                  key={tag}
-                  className="blog-tag-pill"
-                  data-active={activeTag === tag}
-                  onClick={() => handleTagClick(tag)}
-                  id={`blog-tag-${tag.toLowerCase().replace(/\s+/g, "-")}`}
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </section>
 
@@ -366,39 +339,62 @@ export default function BlogListingClient({
       <section className="blog-grid-section">
         <div
           className="blog-layout-container"
-          data-has-sidebar={categories.length > 0}
+          data-has-sidebar={categories.length > 0 || allTags.length > 0}
         >
-          {/* Sidebar — category filter */}
-          {categories.length > 0 && (
+          {/* Sidebar — category + topic filters */}
+          {(categories.length > 0 || allTags.length > 0) && (
             <aside className="blog-sidebar" id="blog-sidebar">
-              <div className="blog-sidebar-block">
-                <h4 className="blog-sidebar-heading">Categories</h4>
-                <div className="blog-category-list" id="blog-category-list">
-                  <button
-                    className="blog-category-item"
-                    data-active={activeCategory === "All"}
-                    onClick={() => handleCategoryClick("All")}
-                    id="blog-category-all"
-                  >
-                    <span>All</span>
-                    <span className="blog-category-count">{blogs.length}</span>
-                  </button>
-                  {categories.map((category) => (
+              {categories.length > 0 && (
+                <div className="blog-sidebar-block">
+                  <h4 className="blog-sidebar-heading">Categories</h4>
+                  <div className="blog-category-list" id="blog-category-list">
                     <button
-                      key={category}
                       className="blog-category-item"
-                      data-active={activeCategory === category}
-                      onClick={() => handleCategoryClick(category)}
-                      id={`blog-category-${category.toLowerCase().replace(/\s+/g, "-")}`}
+                      data-active={activeCategory === "All"}
+                      onClick={() => handleCategoryClick("All")}
+                      id="blog-category-all"
                     >
-                      <span>{category}</span>
+                      <span>All</span>
                       <span className="blog-category-count">
-                        {categoryCounts[category] ?? 0}
+                        {blogs.length}
                       </span>
                     </button>
-                  ))}
+                    {categories.map((category) => (
+                      <button
+                        key={category}
+                        className="blog-category-item"
+                        data-active={activeCategory === category}
+                        onClick={() => handleCategoryClick(category)}
+                        id={`blog-category-${category.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
+                        <span>{category}</span>
+                        <span className="blog-category-count">
+                          {categoryCounts[category] ?? 0}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {allTags.length > 0 && (
+                <div className="blog-sidebar-block">
+                  <h4 className="blog-sidebar-heading">Popular Topics</h4>
+                  <div className="blog-tag-pills" id="blog-tag-pills">
+                    {allTags.map((tag) => (
+                      <button
+                        key={tag}
+                        className="blog-tag-pill"
+                        data-active={activeTag === tag}
+                        onClick={() => handleTagClick(tag)}
+                        id={`blog-tag-${tag.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {hasActiveFilters && (
                 <button
