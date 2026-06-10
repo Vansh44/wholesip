@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { InviteUserDialog } from "./invite-user-dialog";
-import type { Profile } from "./page";
+import { roleBadgeClass } from "../lib/permissions";
+import type { Profile, RoleOption } from "./page";
 import {
   deleteUser,
   changeUserRole,
@@ -38,16 +39,22 @@ import {
   getAvatarBackground,
   getInitials,
   getLastActiveLabel,
-  getRoleDisplay,
   getStatusDisplay,
 } from "../lib/dashboard-user-display";
 
 type Props = {
   currentUserId: string;
   profiles: Profile[];
+  roleOptions: RoleOption[];
+  canManage?: boolean;
 };
 
-export function UsersManagementView({ currentUserId, profiles }: Props) {
+export function UsersManagementView({
+  currentUserId,
+  profiles,
+  roleOptions,
+  canManage = true,
+}: Props) {
   const router = useRouter();
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [actionType, setActionType] = useState<
@@ -64,6 +71,24 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
       ),
     [profiles],
   );
+
+  const roleBySlug = useMemo(
+    () => new Map(roleOptions.map((r) => [r.slug, r])),
+    [roleOptions],
+  );
+
+  const roleDisplay = (slug: string) => {
+    const r = roleBySlug.get(slug);
+    if (r) {
+      return {
+        label: r.name,
+        pillClass: roleBadgeClass(r.color),
+        icon: r.slug === "superadmin" ? "⚡" : "🔑",
+      };
+    }
+    // Unknown / unseeded slug.
+    return { label: slug || "—", pillClass: "dash-badge-grey", icon: "🔑" };
+  };
 
   const handleAction = async () => {
     if (!selectedUser || !actionType) return;
@@ -114,11 +139,13 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
           <h1>Admins</h1>
           <p>Manage dashboard access — only authorised admins</p>
         </div>
-        <InviteUserDialog
-          className="dash-btn dash-btn-primary shrink-0"
-          label="＋ Invite User"
-          size="default"
-        />
+        {canManage && (
+          <InviteUserDialog
+            className="dash-btn dash-btn-primary shrink-0"
+            label="＋ Invite User"
+            size="default"
+          />
+        )}
       </header>
 
       <div className="dash-card">
@@ -143,7 +170,7 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
                 profile.first_name,
                 profile.last_name,
               );
-              const role = getRoleDisplay(profile.role);
+              const role = roleDisplay(profile.role);
               const status = getStatusDisplay(profile);
 
               return (
@@ -180,7 +207,7 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
                     </span>
                   </td>
                   <td>
-                    {profile.id === currentUserId ? (
+                    {profile.id === currentUserId || !canManage ? (
                       <span className="text-dim text-[12px]">—</span>
                     ) : (
                       <DropdownMenu>
@@ -258,8 +285,11 @@ export function UsersManagementView({ currentUserId, profiles }: Props) {
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent className="border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4]">
-                  <SelectItem value="member">Admin</SelectItem>
-                  <SelectItem value="superadmin">Superadmin</SelectItem>
+                  {roleOptions.map((r) => (
+                    <SelectItem key={r.slug} value={r.slug}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}

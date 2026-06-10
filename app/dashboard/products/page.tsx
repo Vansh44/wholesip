@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireSectionAccess } from "../lib/access";
 import { ProductsManagementView } from "./products-management-view";
 
 export interface ProductVariant {
@@ -58,15 +58,10 @@ export interface CardColorOption {
 }
 
 export default async function ProductsPage() {
+  const access = await requireSectionAccess("products", "view");
+  const canManage = access.can("products", "manage");
+
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
 
   const [{ data: products, error }, { data: categories }, { data: colors }] =
     await Promise.all([
@@ -115,6 +110,7 @@ export default async function ProductsPage() {
       products={list}
       categories={(categories ?? []) as CategoryOption[]}
       colors={(colors ?? []) as CardColorOption[]}
+      canManage={canManage}
     />
   );
 }

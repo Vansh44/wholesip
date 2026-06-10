@@ -34,12 +34,14 @@ type Props = {
   products: Product[];
   categories: CategoryOption[];
   colors: CardColorOption[];
+  canManage?: boolean;
 };
 
 export function ProductsManagementView({
   products,
   categories,
   colors,
+  canManage = true,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -151,12 +153,14 @@ export function ProductsManagementView({
           <h1>🛍 Products</h1>
           <p>Add and manage products across your categories</p>
         </div>
-        <button
-          className="dash-btn dash-btn-primary shrink-0"
-          onClick={() => openEditor()}
-        >
-          ＋ New Product
-        </button>
+        {canManage && (
+          <button
+            className="dash-btn dash-btn-primary shrink-0"
+            onClick={() => openEditor()}
+          >
+            ＋ New Product
+          </button>
+        )}
       </header>
 
       <div
@@ -267,14 +271,17 @@ export function ProductsManagementView({
                 ? "Try adjusting your filters"
                 : "Add your first product to get started"}
             </div>
-            {!search && filter === "all" && categoryFilter === "all" && (
-              <button
-                className="dash-btn dash-btn-primary"
-                onClick={() => openEditor()}
-              >
-                ＋ New Product
-              </button>
-            )}
+            {!search &&
+              filter === "all" &&
+              categoryFilter === "all" &&
+              canManage && (
+                <button
+                  className="dash-btn dash-btn-primary"
+                  onClick={() => openEditor()}
+                >
+                  ＋ New Product
+                </button>
+              )}
           </div>
         ) : (
           <table className="dash-table">
@@ -286,7 +293,7 @@ export function ProductsManagementView({
                 <th>Price</th>
                 <th>Variants</th>
                 <th>Status</th>
-                <th>Actions</th>
+                {canManage && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -433,48 +440,50 @@ export function ProductsManagementView({
                       {p.status === "published" ? "Published" : "Draft"}
                     </span>
                   </td>
-                  <td>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                        Actions
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
-                      >
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                          onClick={() => openEditor(p)}
+                  {canManage && (
+                    <td>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
+                          Actions
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
                         >
-                          ✏️ Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                          onClick={() => handleTogglePublish(p)}
-                          disabled={isPending}
-                        >
-                          {p.status === "published"
-                            ? "📥 Unpublish"
-                            : "🚀 Publish"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                          onClick={() =>
-                            window.open(`/pages/shop/${p.slug}`, "_blank")
-                          }
-                        >
-                          👁 Preview
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
-                          onClick={() => setDeleteTarget(p)}
-                        >
-                          🗑 Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
+                          <DropdownMenuItem
+                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            onClick={() => openEditor(p)}
+                          >
+                            ✏️ Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            onClick={() => handleTogglePublish(p)}
+                            disabled={isPending}
+                          >
+                            {p.status === "published"
+                              ? "📥 Unpublish"
+                              : "🚀 Publish"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            onClick={() =>
+                              window.open(`/pages/shop/${p.slug}`, "_blank")
+                            }
+                          >
+                            👁 Preview
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                          <DropdownMenuItem
+                            className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                            onClick={() => setDeleteTarget(p)}
+                          >
+                            🗑 Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

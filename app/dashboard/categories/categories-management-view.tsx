@@ -26,9 +26,13 @@ import type { Category } from "./page";
 
 type Props = {
   categories: Category[];
+  canManage?: boolean;
 };
 
-export function CategoriesManagementView({ categories }: Props) {
+export function CategoriesManagementView({
+  categories,
+  canManage = true,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
@@ -81,12 +85,14 @@ export function CategoriesManagementView({ categories }: Props) {
           <h1>🗂 Categories</h1>
           <p>Organize your storefront catalog into categories</p>
         </div>
-        <button
-          className="dash-btn dash-btn-primary shrink-0"
-          onClick={() => openEditor()}
-        >
-          ＋ New Category
-        </button>
+        {canManage && (
+          <button
+            className="dash-btn dash-btn-primary shrink-0"
+            onClick={() => openEditor()}
+          >
+            ＋ New Category
+          </button>
+        )}
       </header>
 
       <div
@@ -151,7 +157,7 @@ export function CategoriesManagementView({ categories }: Props) {
                 ? "Try a different search term"
                 : "Create your first category to start organizing products"}
             </div>
-            {!search && (
+            {!search && canManage && (
               <button
                 className="dash-btn dash-btn-primary"
                 onClick={() => openEditor()}
@@ -169,7 +175,7 @@ export function CategoriesManagementView({ categories }: Props) {
                 <th>Products</th>
                 <th>Order</th>
                 <th>Status</th>
-                <th>Actions</th>
+                {canManage && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -244,31 +250,33 @@ export function CategoriesManagementView({ categories }: Props) {
                       {c.status === "active" ? "Active" : "Hidden"}
                     </span>
                   </td>
-                  <td>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                        Actions
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
-                      >
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                          onClick={() => openEditor(c)}
+                  {canManage && (
+                    <td>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
+                          Actions
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
                         >
-                          ✏️ Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
-                          onClick={() => setDeleteTarget(c)}
-                        >
-                          🗑 Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
+                          <DropdownMenuItem
+                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            onClick={() => openEditor(c)}
+                          >
+                            ✏️ Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                          <DropdownMenuItem
+                            className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                            onClick={() => setDeleteTarget(c)}
+                          >
+                            🗑 Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -25,9 +25,10 @@ import type { CardColor } from "./page";
 
 type Props = {
   colors: CardColor[];
+  canManage?: boolean;
 };
 
-export function ColorsManagementView({ colors }: Props) {
+export function ColorsManagementView({ colors, canManage = true }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
@@ -80,12 +81,14 @@ export function ColorsManagementView({ colors }: Props) {
           <h1>🎨 Colours</h1>
           <p>Palette of background shades for storefront product cards</p>
         </div>
-        <button
-          className="dash-btn dash-btn-primary shrink-0"
-          onClick={() => openEditor()}
-        >
-          ＋ New Colour
-        </button>
+        {canManage && (
+          <button
+            className="dash-btn dash-btn-primary shrink-0"
+            onClick={() => openEditor()}
+          >
+            ＋ New Colour
+          </button>
+        )}
       </header>
 
       <div
@@ -149,7 +152,7 @@ export function ColorsManagementView({ colors }: Props) {
                 ? "Try a different search term"
                 : "Add your first shade to use as a product card background"}
             </div>
-            {!search && (
+            {!search && canManage && (
               <button
                 className="dash-btn dash-btn-primary"
                 onClick={() => openEditor()}
@@ -167,7 +170,7 @@ export function ColorsManagementView({ colors }: Props) {
                 <th>Hex</th>
                 <th>Used by</th>
                 <th>Order</th>
-                <th>Actions</th>
+                {canManage && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -203,31 +206,33 @@ export function ColorsManagementView({ colors }: Props) {
                     {c.product_count === 1 ? "product" : "products"}
                   </td>
                   <td className="text-dim font-mono-dash">{c.sort_order}</td>
-                  <td>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                        Actions
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
-                      >
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                          onClick={() => openEditor(c)}
+                  {canManage && (
+                    <td>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
+                          Actions
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
                         >
-                          ✏️ Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
-                        <DropdownMenuItem
-                          className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
-                          onClick={() => setDeleteTarget(c)}
-                        >
-                          🗑 Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
+                          <DropdownMenuItem
+                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            onClick={() => openEditor(c)}
+                          >
+                            ✏️ Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                          <DropdownMenuItem
+                            className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                            onClick={() => setDeleteTarget(c)}
+                          >
+                            🗑 Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

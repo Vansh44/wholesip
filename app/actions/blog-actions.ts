@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sanitizeBlogContent } from "@/lib/sanitize";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getManagerUserId } from "@/app/dashboard/lib/access";
 import {
   sendBlogApprovedEmail,
   sendBlogRejectedEmail,
@@ -58,28 +59,10 @@ function calculateReadingTime(html: string): number {
   return Math.max(1, Math.ceil(wordCount / 200));
 }
 
-// Returns the caller's id only if they hold an admin role (superadmin/member).
-// RLS already enforces this at the DB layer; this is an app-layer backstop so
-// a misconfigured policy can't silently open these actions to any user.
+// Returns the caller's id only if their role grants `manage` on Blogs.
+// RLS already enforces a baseline at the DB layer; this is the app-layer gate.
 async function getAdminUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "superadmin" && profile?.role !== "member") {
-    return null;
-  }
-
-  return user.id;
+  return getManagerUserId("blogs");
 }
 
 // Looks up a customer's email + first name by id, bypassing RLS via the

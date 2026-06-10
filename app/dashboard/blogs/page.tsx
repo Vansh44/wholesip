@@ -1,6 +1,6 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireSectionAccess } from "../lib/access";
 import { BlogsManagementView } from "./blogs-management-view";
 
 export interface Blog {
@@ -30,15 +30,10 @@ export interface Blog {
 }
 
 export default async function BlogsPage() {
+  const access = await requireSectionAccess("blogs", "view");
+  const canManage = access.can("blogs", "manage");
+
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
 
   const { data: blogs, error } = await supabase
     .from("blogs")
@@ -90,5 +85,7 @@ export default async function BlogsPage() {
     }
   }
 
-  return <BlogsManagementView blogs={blogsWithSubmitters} />;
+  return (
+    <BlogsManagementView blogs={blogsWithSubmitters} canManage={canManage} />
+  );
 }

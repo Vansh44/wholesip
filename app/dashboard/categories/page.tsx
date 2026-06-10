@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireSectionAccess } from "../lib/access";
 import { CategoriesManagementView } from "./categories-management-view";
 
 export interface Category {
@@ -17,15 +17,10 @@ export interface Category {
 }
 
 export default async function CategoriesPage() {
+  const access = await requireSectionAccess("categories", "view");
+  const canManage = access.can("categories", "manage");
+
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
 
   const { data: categories, error } = await supabase
     .from("categories")
@@ -63,5 +58,5 @@ export default async function CategoriesPage() {
     c.product_count = counts.get(c.id) ?? 0;
   }
 
-  return <CategoriesManagementView categories={list} />;
+  return <CategoriesManagementView categories={list} canManage={canManage} />;
 }

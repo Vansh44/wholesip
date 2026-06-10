@@ -34,9 +34,10 @@ type FilterTab = "all" | "published" | "drafts" | "featured" | "pending";
 
 type Props = {
   blogs: Blog[];
+  canManage?: boolean;
 };
 
-export function BlogsManagementView({ blogs }: Props) {
+export function BlogsManagementView({ blogs, canManage = true }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [filter, setFilter] = useState<FilterTab>("all");
@@ -191,12 +192,14 @@ export function BlogsManagementView({ blogs }: Props) {
           <h1>✍️ Blogs</h1>
           <p>Create, edit, and manage your blog posts</p>
         </div>
-        <button
-          className="dash-btn dash-btn-primary shrink-0"
-          onClick={() => openEditor()}
-        >
-          ＋ New Blog
-        </button>
+        {canManage && (
+          <button
+            className="dash-btn dash-btn-primary shrink-0"
+            onClick={() => openEditor()}
+          >
+            ＋ New Blog
+          </button>
+        )}
       </header>
 
       {/* Toolbar: Tabs + Search */}
@@ -297,7 +300,7 @@ export function BlogsManagementView({ blogs }: Props) {
                 ? "Try adjusting your search or filter criteria"
                 : "Create your first blog post to get started"}
             </div>
-            {!search && filter === "all" && (
+            {!search && filter === "all" && canManage && (
               <button
                 className="dash-btn dash-btn-primary"
                 onClick={() => openEditor()}
@@ -317,7 +320,7 @@ export function BlogsManagementView({ blogs }: Props) {
                 <th>Status</th>
                 <th>Published</th>
                 <th>Tags</th>
-                <th>Actions</th>
+                {canManage && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -509,78 +512,80 @@ export function BlogsManagementView({ blogs }: Props) {
                   </td>
 
                   {/* Actions */}
-                  <td>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                        Actions
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
-                      >
-                        {blog.status === "pending_review" ? (
-                          <>
-                            <DropdownMenuItem
-                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                              onClick={() => openEditor(blog)}
-                            >
-                              📝 Review &amp; Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
-                            <DropdownMenuItem
-                              className="cursor-pointer text-[#22c55e] focus:bg-[rgba(34,197,94,0.12)] focus:text-[#22c55e]"
-                              onClick={() => handleApprove(blog)}
-                              disabled={isPending}
-                            >
-                              ✅ Approve
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
-                              onClick={() => setRejectTarget(blog)}
-                            >
-                              ❌ Reject
-                            </DropdownMenuItem>
-                          </>
-                        ) : (
-                          <>
-                            <DropdownMenuItem
-                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                              onClick={() => openEditor(blog)}
-                            >
-                              ✏️ Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                              onClick={() => handleTogglePublish(blog)}
-                              disabled={isPending}
-                            >
-                              {blog.status === "published"
-                                ? "📥 Unpublish"
-                                : "🚀 Publish"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                              onClick={() =>
-                                window.open(
-                                  `/pages/blogs/${blog.slug}`,
-                                  "_blank",
-                                )
-                              }
-                            >
-                              👁 Preview
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
-                            <DropdownMenuItem
-                              className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
-                              onClick={() => setDeleteTarget(blog)}
-                            >
-                              🗑 Delete
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
+                  {canManage && (
+                    <td>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
+                          Actions
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+                        >
+                          {blog.status === "pending_review" ? (
+                            <>
+                              <DropdownMenuItem
+                                className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                                onClick={() => openEditor(blog)}
+                              >
+                                📝 Review &amp; Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                              <DropdownMenuItem
+                                className="cursor-pointer text-[#22c55e] focus:bg-[rgba(34,197,94,0.12)] focus:text-[#22c55e]"
+                                onClick={() => handleApprove(blog)}
+                                disabled={isPending}
+                              >
+                                ✅ Approve
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                                onClick={() => setRejectTarget(blog)}
+                              >
+                                ❌ Reject
+                              </DropdownMenuItem>
+                            </>
+                          ) : (
+                            <>
+                              <DropdownMenuItem
+                                className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                                onClick={() => openEditor(blog)}
+                              >
+                                ✏️ Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                                onClick={() => handleTogglePublish(blog)}
+                                disabled={isPending}
+                              >
+                                {blog.status === "published"
+                                  ? "📥 Unpublish"
+                                  : "🚀 Publish"}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                                onClick={() =>
+                                  window.open(
+                                    `/pages/blogs/${blog.slug}`,
+                                    "_blank",
+                                  )
+                                }
+                              >
+                                👁 Preview
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                              <DropdownMenuItem
+                                className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                                onClick={() => setDeleteTarget(blog)}
+                              >
+                                🗑 Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

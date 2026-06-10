@@ -6,7 +6,16 @@ import { createClient } from "@/lib/supabase/server";
 import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/config/site";
 import { DashboardTopbar } from "./dashboard-topbar";
-import { SidebarNavLink, type SidebarNavItem } from "./sidebar-nav-link";
+import { SidebarNavLink } from "./sidebar-nav-link";
+import {
+  SECTIONS,
+  SECTION_GROUPS,
+  can,
+  normalizePermissions,
+  SUPERADMIN_SLUG,
+  type RolePermissions,
+  type SectionGroup,
+} from "./lib/permissions";
 import "./dashboard.css";
 
 const dashFont = Sora({
@@ -24,43 +33,6 @@ const dashMono = JetBrains_Mono({
 export const metadata = {
   title: `${siteConfig.name} — Operations Center`,
 };
-
-const workspaceLinks: SidebarNavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  {
-    href: "/dashboard/orders",
-    label: "Orders",
-    icon: "orders",
-    badge: "12",
-    badgeTone: "accent",
-  },
-  { href: "/dashboard/products", label: "Products", icon: "products" },
-  { href: "/dashboard/categories", label: "Categories", icon: "categories" },
-  { href: "/dashboard/colors", label: "Colours", icon: "colors" },
-  { href: "/dashboard/users", label: "Users", icon: "customers" },
-  {
-    href: "/dashboard/inventory",
-    label: "Inventory",
-    icon: "inventory",
-    badge: "3",
-    badgeTone: "amber",
-  },
-  { href: "/dashboard/analytics", label: "Analytics", icon: "analytics" },
-];
-
-const contentLinks: SidebarNavItem[] = [
-  { href: "/dashboard/blogs", label: "Blogs", icon: "blogs" },
-  { href: "/dashboard/marketing", label: "Marketing", icon: "marketing" },
-  { href: "/dashboard/promotions", label: "Promotions", icon: "promotions" },
-];
-
-const adminLinks: SidebarNavItem[] = [
-  { href: "/dashboard/admins", label: "Admins", icon: "users" },
-  { href: "/dashboard/media", label: "Media Library", icon: "media" },
-  { href: "/dashboard/roles", label: "Roles & Permissions", icon: "roles" },
-  { href: "/dashboard/activity", label: "Activity Logs", icon: "activity" },
-  { href: "/dashboard/settings", label: "Settings", icon: "settings" },
-];
 
 export default async function DashboardLayout({
   children,
@@ -115,7 +87,34 @@ export default async function DashboardLayout({
     );
   }
 
-  const isSuperadmin = profile.role === "superadmin";
+  const isSuperadmin = profile.role === SUPERADMIN_SLUG;
+
+  // Resolve the permission map for the viewer's role. Superadmins bypass it.
+  let permissions: RolePermissions = {};
+  if (!isSuperadmin && profile.role) {
+    const { data: role } = await supabase
+      .from("roles")
+      .select("permissions")
+      .eq("slug", profile.role)
+      .single();
+    permissions = normalizePermissions(role?.permissions);
+  }
+
+  // Build the sidebar from the permission catalog: a section appears only when
+  // the viewer can view it. The Dashboard home is always shown so everyone has
+  // a landing page. Empty groups are dropped.
+  const navGroups = SECTION_GROUPS.map((group) => ({
+    group,
+    items: SECTIONS.filter(
+      (s) =>
+        s.group === group &&
+        (s.key === "dashboard" ||
+          can(permissions, s.key, "view", isSuperadmin)),
+    ),
+  })).filter((g) => g.items.length > 0) as {
+    group: SectionGroup;
+    items: typeof SECTIONS;
+  }[];
 
   return (
     <div
@@ -136,23 +135,20 @@ export default async function DashboardLayout({
         </div>
 
         <div className="dash-nav-scroll flex flex-1 flex-col overflow-y-auto px-[14px]">
-          <NavSection label="Workspace">
-            {workspaceLinks.map((item) => (
-              <SidebarNavLink key={item.href} {...item} />
-            ))}
-          </NavSection>
-          <NavSection label="Content">
-            {contentLinks.map((item) => (
-              <SidebarNavLink key={item.href} {...item} />
-            ))}
-          </NavSection>
-          {isSuperadmin && (
-            <NavSection label="Administration">
-              {adminLinks.map((item) => (
-                <SidebarNavLink key={item.href} {...item} />
+          {navGroups.map(({ group, items }) => (
+            <NavSection key={group} label={group}>
+              {items.map((item) => (
+                <SidebarNavLink
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  badge={item.badge}
+                  badgeTone={item.badgeTone}
+                />
               ))}
             </NavSection>
-          )}
+          ))}
         </div>
 
         <div className="shrink-0 border-t border-[var(--dash-border)] p-[14px]">

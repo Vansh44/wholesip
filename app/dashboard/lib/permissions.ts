@@ -1,0 +1,237 @@
+// ---------------------------------------------------------------------------
+// Permission catalog — the single source of truth for which dashboard sections
+// exist and what can be done in each. Roles store a subset of this as their
+// `permissions` map. Pure module (no server imports) so it can be shared by
+// server components, server actions, and client editors alike.
+// ---------------------------------------------------------------------------
+
+import type { NavIconKey } from "../sidebar-nav-link";
+
+export type PermissionAction = "view" | "manage";
+
+export type SectionGroup = "Workspace" | "Content" | "Administration";
+
+export interface DashboardSection {
+  /** Stable machine key, used in role permission maps and guards. */
+  key: string;
+  label: string;
+  href: string;
+  icon: NavIconKey;
+  group: SectionGroup;
+  /** Actions that are meaningful for this section. */
+  actions: PermissionAction[];
+  /** Optional sidebar badge (kept from the original static nav). */
+  badge?: string;
+  badgeTone?: "accent" | "amber";
+}
+
+// Order here drives the order roles are displayed in the editor and the nav.
+export const SECTIONS: DashboardSection[] = [
+  // Workspace
+  {
+    key: "dashboard",
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: "dashboard",
+    group: "Workspace",
+    actions: ["view"],
+  },
+  {
+    key: "orders",
+    label: "Orders",
+    href: "/dashboard/orders",
+    icon: "orders",
+    group: "Workspace",
+    actions: ["view", "manage"],
+    badge: "12",
+    badgeTone: "accent",
+  },
+  {
+    key: "products",
+    label: "Products",
+    href: "/dashboard/products",
+    icon: "products",
+    group: "Workspace",
+    actions: ["view", "manage"],
+  },
+  {
+    key: "categories",
+    label: "Categories",
+    href: "/dashboard/categories",
+    icon: "categories",
+    group: "Workspace",
+    actions: ["view", "manage"],
+  },
+  {
+    key: "colors",
+    label: "Colours",
+    href: "/dashboard/colors",
+    icon: "colors",
+    group: "Workspace",
+    actions: ["view", "manage"],
+  },
+  {
+    key: "users",
+    label: "Users",
+    href: "/dashboard/users",
+    icon: "customers",
+    group: "Workspace",
+    actions: ["view", "manage"],
+  },
+  {
+    key: "inventory",
+    label: "Inventory",
+    href: "/dashboard/inventory",
+    icon: "inventory",
+    group: "Workspace",
+    actions: ["view", "manage"],
+    badge: "3",
+    badgeTone: "amber",
+  },
+  {
+    key: "analytics",
+    label: "Analytics",
+    href: "/dashboard/analytics",
+    icon: "analytics",
+    group: "Workspace",
+    actions: ["view"],
+  },
+
+  // Content
+  {
+    key: "blogs",
+    label: "Blogs",
+    href: "/dashboard/blogs",
+    icon: "blogs",
+    group: "Content",
+    actions: ["view", "manage"],
+  },
+  {
+    key: "marketing",
+    label: "Marketing",
+    href: "/dashboard/marketing",
+    icon: "marketing",
+    group: "Content",
+    actions: ["view", "manage"],
+  },
+  {
+    key: "promotions",
+    label: "Promotions",
+    href: "/dashboard/promotions",
+    icon: "promotions",
+    group: "Content",
+    actions: ["view", "manage"],
+  },
+
+  // Administration
+  {
+    key: "admins",
+    label: "Admins",
+    href: "/dashboard/admins",
+    icon: "users",
+    group: "Administration",
+    actions: ["view", "manage"],
+  },
+  {
+    key: "media",
+    label: "Media Library",
+    href: "/dashboard/media",
+    icon: "media",
+    group: "Administration",
+    actions: ["view", "manage"],
+  },
+  {
+    key: "roles",
+    label: "Roles & Permissions",
+    href: "/dashboard/roles",
+    icon: "roles",
+    group: "Administration",
+    actions: ["view", "manage"],
+  },
+  {
+    key: "activity",
+    label: "Activity Logs",
+    href: "/dashboard/activity",
+    icon: "activity",
+    group: "Administration",
+    actions: ["view"],
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    href: "/dashboard/settings",
+    icon: "settings",
+    group: "Administration",
+    actions: ["view", "manage"],
+  },
+];
+
+export const SECTION_GROUPS: SectionGroup[] = [
+  "Workspace",
+  "Content",
+  "Administration",
+];
+
+const SECTION_BY_KEY = new Map(SECTIONS.map((s) => [s.key, s]));
+
+export function getSection(key: string): DashboardSection | undefined {
+  return SECTION_BY_KEY.get(key);
+}
+
+/** A role's permission map: section key -> granted actions. */
+export type RolePermissions = Record<string, PermissionAction[]>;
+
+export const SUPERADMIN_SLUG = "superadmin";
+
+/**
+ * Can a holder of `permissions` perform `action` on `section`?
+ * Superadmins always can. "manage" implies "view".
+ */
+export function can(
+  permissions: RolePermissions | null | undefined,
+  section: string,
+  action: PermissionAction,
+  isSuperadmin = false,
+): boolean {
+  if (isSuperadmin) return true;
+  const granted = permissions?.[section];
+  if (!granted || granted.length === 0) return false;
+  if (granted.includes(action)) return true;
+  // Holding "manage" implies the ability to "view".
+  if (action === "view" && granted.includes("manage")) return true;
+  return false;
+}
+
+/** Sanitise an arbitrary object into a valid RolePermissions map. */
+export function normalizePermissions(input: unknown): RolePermissions {
+  const out: RolePermissions = {};
+  if (!input || typeof input !== "object") return out;
+  for (const section of SECTIONS) {
+    const raw = (input as Record<string, unknown>)[section.key];
+    if (!Array.isArray(raw)) continue;
+    const actions = section.actions.filter((a) => raw.includes(a));
+    if (actions.length > 0) out[section.key] = actions;
+  }
+  return out;
+}
+
+export const ROLE_COLORS = [
+  "grey",
+  "blue",
+  "green",
+  "amber",
+  "violet",
+] as const;
+export type RoleColor = (typeof ROLE_COLORS)[number];
+
+const ROLE_BADGE_CLASS: Record<RoleColor, string> = {
+  grey: "dash-badge-grey",
+  blue: "dash-badge-blue",
+  green: "dash-badge-green",
+  amber: "dash-badge-amber",
+  violet: "dash-role-super",
+};
+
+export function roleBadgeClass(color: string): string {
+  return ROLE_BADGE_CLASS[(color as RoleColor) ?? "grey"] ?? "dash-badge-grey";
+}

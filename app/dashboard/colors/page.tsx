@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireSectionAccess } from "../lib/access";
 import { ColorsManagementView } from "./colors-management-view";
 
 export interface CardColor {
@@ -14,15 +14,10 @@ export interface CardColor {
 }
 
 export default async function ColorsPage() {
+  const access = await requireSectionAccess("colors", "view");
+  const canManage = access.can("colors", "manage");
+
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
 
   const { data: colors, error } = await supabase
     .from("card_colors")
@@ -60,5 +55,5 @@ export default async function ColorsPage() {
     c.product_count = counts.get(c.hex.toLowerCase()) ?? 0;
   }
 
-  return <ColorsManagementView colors={list} />;
+  return <ColorsManagementView colors={list} canManage={canManage} />;
 }

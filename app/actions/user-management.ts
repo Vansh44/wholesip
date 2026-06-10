@@ -53,10 +53,6 @@ export async function deleteUser(userId: string) {
 }
 
 export async function changeUserRole(userId: string, role: string) {
-  if (!["superadmin", "member"].includes(role)) {
-    return { error: "Invalid role" };
-  }
-
   const supabase = await createClient();
   const {
     data: { user: caller },
@@ -75,6 +71,17 @@ export async function changeUserRole(userId: string, role: string) {
   }
 
   const adminClient = createAdminClient();
+
+  // The target role must be a real, defined role. Fall back to the two
+  // built-in roles when the roles table hasn't been seeded yet.
+  const { data: roleRow } = await adminClient
+    .from("roles")
+    .select("slug")
+    .eq("slug", role)
+    .maybeSingle();
+  if (!roleRow && !["superadmin", "member"].includes(role)) {
+    return { error: "Invalid role" };
+  }
 
   // Prevent demoting the last superadmin (e.g. yourself), which would leave
   // the dashboard with no one able to manage users.

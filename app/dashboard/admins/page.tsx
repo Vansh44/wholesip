@@ -1,6 +1,12 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireSectionAccess } from "../lib/access";
 import { UsersManagementView } from "./users-management-view";
+
+export interface RoleOption {
+  slug: string;
+  name: string;
+  color: string;
+}
 
 export interface Profile {
   id: string;
@@ -14,20 +20,21 @@ export interface Profile {
 }
 
 export default async function UsersPage() {
+  const access = await requireSectionAccess("admins", "view");
+  const canManage = access.can("admins", "manage");
+
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/auth/login");
-  }
 
   const { data: profiles, error } = await supabase
     .from("profiles")
     .select("*")
     .order("created_at", { ascending: false });
+
+  const { data: rolesData } = await supabase
+    .from("roles")
+    .select("slug, name, color")
+    .order("is_system", { ascending: false })
+    .order("name", { ascending: true });
 
   if (error) {
     return (
@@ -43,10 +50,21 @@ export default async function UsersPage() {
     );
   }
 
+  // Fall back to the two built-in roles if the roles table isn't seeded yet.
+  const roleOptions: RoleOption[] =
+    rolesData && rolesData.length > 0
+      ? (rolesData as RoleOption[])
+      : [
+          { slug: "superadmin", name: "Superadmin", color: "violet" },
+          { slug: "member", name: "Member", color: "blue" },
+        ];
+
   return (
     <UsersManagementView
-      currentUserId={user.id}
+      currentUserId={access.userId}
       profiles={(profiles ?? []) as Profile[]}
+      roleOptions={roleOptions}
+      canManage={canManage}
     />
   );
 }

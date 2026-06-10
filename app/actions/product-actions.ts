@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { readFile } from "fs/promises";
 import path from "path";
+import { getManagerUserId } from "@/app/dashboard/lib/access";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,25 +55,9 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+// Allowed when the caller's role grants `manage` on the Products section.
 async function getAdminUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "superadmin" && profile?.role !== "member") {
-    return null;
-  }
-
-  return user.id;
+  return getManagerUserId("products");
 }
 
 const UNIQUE_VIOLATION = "23505";

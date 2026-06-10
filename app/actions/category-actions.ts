@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getManagerUserId } from "@/app/dashboard/lib/access";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,27 +36,10 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-// Returns the caller's id only if they hold an admin role. RLS enforces this at
-// the DB layer too; this is an app-layer backstop.
+// Returns the caller's id only if their role grants `manage` on Categories.
+// RLS enforces a baseline at the DB layer too; this is the app-layer gate.
 async function getAdminUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "superadmin" && profile?.role !== "member") {
-    return null;
-  }
-
-  return user.id;
+  return getManagerUserId("categories");
 }
 
 const UNIQUE_VIOLATION = "23505";
