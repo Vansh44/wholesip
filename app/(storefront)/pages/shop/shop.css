@@ -694,7 +694,31 @@
   font-size: clamp(1.6rem, 3vw, 2.4rem);
   font-weight: 700;
   line-height: 1.15;
-  margin: 0 0 16px;
+  margin: 0 0 12px;
+}
+
+/* Rating summary near the title (links to the reviews section) */
+.pdp-rating-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  text-decoration: none;
+  color: var(--shop-text-muted);
+}
+
+.pdp-rating-top:hover .pdp-rating-top-text {
+  text-decoration: underline;
+}
+
+.pdp-rating-top-text {
+  font-size: 0.9rem;
+  color: var(--shop-text-muted);
+}
+
+.pdp-rating-top-text strong {
+  color: var(--shop-text);
+  font-weight: 700;
 }
 
 .pdp-price {
@@ -977,5 +1001,233 @@
   line-height: 1.7;
   color: var(--shop-text-muted);
   margin: 0;
+  white-space: pre-wrap;
+}
+
+/* ── Reviews ──────────────────────────────────────── */
+.pdp-reviews {
+  max-width: 820px;
+  margin: 56px auto 0;
+  padding-top: 32px;
+  border-top: 1px solid var(--shop-border);
+}
+
+.pdp-reviews-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.pdp-reviews-head h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--shop-text);
+}
+
+.pdp-reviews-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pdp-reviews-avg {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--shop-text);
+}
+
+.pdp-reviews-count {
+  font-size: 0.9rem;
+  color: var(--shop-text-muted);
+}
+
+/* Stars */
+.pdp-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+
+/* Fractional stars (averages, e.g. 3.5): each star is one SVG, filled by a
+   gradient to the exact fraction. The faint outline matches an empty star. */
+.pdp-star-svg {
+  display: block;
+  color: var(--shop-text-faint);
+}
+
+.pdp-star {
+  color: var(--shop-border);
+}
+
+.pdp-star.filled {
+  color: #f5a623;
+  fill: #f5a623;
+}
+
+/* Write/edit form */
+.pdp-review-form {
+  background: var(--shop-surface);
+  border: 1px solid var(--shop-border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+}
+
+.pdp-review-form-title {
+  display: block;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 10px;
+  color: var(--shop-text);
+}
+
+.pdp-star-picker {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.pdp-star-btn {
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.pdp-star-btn .pdp-star {
+  transition:
+    color 0.12s ease,
+    fill 0.12s ease;
+}
+
+.pdp-review-textarea {
+  width: 100%;
+  border: 1px solid var(--shop-border);
+  border-radius: 10px;
+  background: var(--shop-bg);
+  color: var(--shop-text);
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+}
+
+.pdp-review-textarea:focus {
+  border-color: var(--shop-accent);
+}
+
+.pdp-review-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.pdp-review-submit {
+  flex: 0 0 auto;
+  min-width: 150px;
+}
+
+.pdp-review-delete {
+  background: none;
+  border: none;
+  color: var(--shop-text-faint);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.pdp-review-delete:hover {
+  color: var(--shop-text);
+  text-decoration: underline;
+}
+
+/* Sign-in prompt */
+.pdp-review-signin {
+  background: var(--shop-surface);
+  border: 1px dashed var(--shop-border);
+  border-radius: 14px;
+  padding: 22px 20px;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.pdp-review-signin p {
+  margin: 0 0 14px;
+  color: var(--shop-text-muted);
+  font-size: 0.95rem;
+}
+
+.pdp-review-signin .pdp-btn {
+  flex: 0 0 auto;
+  min-width: 240px;
+  padding: 12px 24px;
+}
+
+/* List */
+.pdp-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.pdp-reviews-empty {
+  color: var(--shop-text-muted);
+  font-size: 0.95rem;
+}
+
+.pdp-review-card {
+  border-bottom: 1px solid var(--shop-border);
+  padding-bottom: 18px;
+}
+
+.pdp-review-card:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.pdp-review-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.pdp-review-author {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--shop-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pdp-review-you {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--shop-accent-soft);
+  color: var(--shop-accent);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.pdp-review-date {
+  font-size: 0.82rem;
+  color: var(--shop-text-faint);
+}
+
+.pdp-review-comment {
+  margin: 8px 0 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--shop-text-muted);
   white-space: pre-wrap;
 }

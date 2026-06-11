@@ -5,6 +5,7 @@ import ProductDetailClient, {
   type DetailProduct,
 } from "./product-detail-client";
 import type { RelatedProduct } from "./related-products";
+import type { ProductReview } from "./reviews-section";
 import "../shop.css";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +55,18 @@ async function getRelated(
   return (data ?? []) as unknown as RelatedProduct[];
 }
 
+// Public reviews for a product, newest first.
+async function getReviews(productId: string): Promise<ProductReview[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("product_reviews")
+    .select("id, customer_id, author_name, rating, comment, created_at")
+    .eq("product_id", productId)
+    .order("created_at", { ascending: false });
+
+  return (data ?? []) as ProductReview[];
+}
+
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
@@ -87,7 +100,16 @@ export default async function ProductDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const related = await getRelated(product.category_id, product.id);
+  const [related, reviews] = await Promise.all([
+    getRelated(product.category_id, product.id),
+    getReviews(product.id),
+  ]);
 
-  return <ProductDetailClient product={product} related={related} />;
+  return (
+    <ProductDetailClient
+      product={product}
+      related={related}
+      reviews={reviews}
+    />
+  );
 }

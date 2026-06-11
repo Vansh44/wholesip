@@ -7,6 +7,10 @@ import { useRouter } from "next/navigation";
 import { discountPercent, formatPrice } from "@/lib/pricing";
 import { useCart } from "@/app/components/cart/CartProvider";
 import { RelatedProducts, type RelatedProduct } from "./related-products";
+import ReviewsSection, {
+  RatingStars,
+  type ProductReview,
+} from "./reviews-section";
 
 export interface DetailVariant {
   id: string;
@@ -42,9 +46,11 @@ function sellingOf(base: number, selling: number): number {
 export default function ProductDetailClient({
   product,
   related,
+  reviews,
 }: {
   product: DetailProduct;
   related: RelatedProduct[];
+  reviews: ProductReview[];
 }) {
   const router = useRouter();
   const { addItem, openCart } = useCart();
@@ -94,6 +100,13 @@ export default function ProductDetailClient({
   const maxQty =
     selectedVariant && selectedVariant.stock > 0 ? selectedVariant.stock : 99;
   const qty = Math.min(Math.max(1, quantity), maxQty);
+
+  // Aggregate rating for the summary shown near the title.
+  const reviewCount = reviews.length;
+  const averageRating =
+    reviewCount > 0
+      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+      : 0;
 
   const addToCart = () => {
     addItem(
@@ -191,6 +204,18 @@ export default function ProductDetailClient({
           )}
           <h1 className="pdp-name">{product.name}</h1>
 
+          <a href="#reviews" className="pdp-rating-top">
+            <RatingStars value={averageRating} size={16} />
+            {reviewCount > 0 ? (
+              <span className="pdp-rating-top-text">
+                <strong>{averageRating.toFixed(1)}</strong> · {reviewCount}{" "}
+                {reviewCount === 1 ? "review" : "reviews"}
+              </span>
+            ) : (
+              <span className="pdp-rating-top-text">No reviews yet</span>
+            )}
+          </a>
+
           <div className="pdp-price">
             <span className="pdp-price-sell">{formatPrice(selling)}</span>
             {discount > 0 && (
@@ -279,6 +304,13 @@ export default function ProductDetailClient({
           )}
         </div>
       </div>
+
+      {/* Reviews */}
+      <ReviewsSection
+        productId={product.id}
+        productSlug={product.slug}
+        reviews={reviews}
+      />
 
       {/* You may also like */}
       <RelatedProducts products={related} />
