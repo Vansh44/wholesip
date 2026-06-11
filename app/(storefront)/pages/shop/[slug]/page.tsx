@@ -19,7 +19,7 @@ async function getProduct(slug: string): Promise<DetailProduct | null> {
   const { data } = await supabase
     .from("products")
     .select(
-      "id, name, slug, description, category_id, base_price, selling_price, image_url, images, status, seo_title, seo_description, category:categories(id, name, slug, status), variants:product_variants(id, name, base_price, selling_price, stock, sku, sort_order)",
+      "id, name, slug, description, category_id, base_price, selling_price, image_url, images, status, seo_title, seo_description, category:categories(id, name, slug, status), variants:product_variants(*)",
     )
     .eq("slug", slug)
     .eq("status", "published")

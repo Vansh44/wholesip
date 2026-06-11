@@ -19,6 +19,7 @@ export interface DetailVariant {
   selling_price: number;
   stock: number;
   sku: string | null;
+  images: string[] | null;
   sort_order: number;
 }
 
@@ -61,19 +62,42 @@ export default function ProductDetailClient({
   const [quantity, setQuantity] = useState(1);
   const [zoomOpen, setZoomOpen] = useState(false);
 
-  // Build the gallery: primary image first, then any extras (de-duplicated).
-  const gallery = useMemo(() => {
+  const selectedVariant = hasVariants
+    ? (product.variants.find((v) => v.id === variantId) ?? product.variants[0])
+    : null;
+
+  // Product-level gallery (shared across variants).
+  const productGallery = useMemo(() => {
     const all = [product.image_url, ...(product.images ?? [])].filter(
       (u): u is string => !!u,
     );
     return Array.from(new Set(all));
   }, [product.image_url, product.images]);
 
-  const [activeImg, setActiveImg] = useState<string | null>(gallery[0] ?? null);
+  // The gallery shown: the selected variant's OWN photos when it has any,
+  // otherwise the shared product gallery.
+  const variantImages = (selectedVariant?.images ?? []).filter(Boolean);
+  const gallery =
+    variantImages.length > 0
+      ? Array.from(new Set(variantImages))
+      : productGallery;
 
-  const selectedVariant = hasVariants
-    ? (product.variants.find((v) => v.id === variantId) ?? product.variants[0])
-    : null;
+  // Default image: the first variant's first photo if it has one, else the
+  // product gallery lead.
+  const firstVariantImages = hasVariants
+    ? (product.variants[0].images ?? []).filter(Boolean)
+    : [];
+  const [activeImg, setActiveImg] = useState<string | null>(
+    firstVariantImages[0] ?? productGallery[0] ?? null,
+  );
+
+  // Picking a variant swaps the main image to that variant's first photo (or
+  // back to the product gallery when the variant has none of its own).
+  const selectVariant = (v: DetailVariant) => {
+    setVariantId(v.id);
+    const imgs = (v.images ?? []).filter(Boolean);
+    setActiveImg(imgs[0] ?? productGallery[0] ?? null);
+  };
 
   const base = selectedVariant
     ? selectedVariant.base_price
@@ -238,7 +262,7 @@ export default function ProductDetailClient({
                       className={`pdp-variant${variantId === v.id ? " active" : ""}${
                         disabled ? " disabled" : ""
                       }`}
-                      onClick={() => !disabled && setVariantId(v.id)}
+                      onClick={() => !disabled && selectVariant(v)}
                       disabled={disabled}
                     >
                       {v.name}

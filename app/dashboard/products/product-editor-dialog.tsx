@@ -11,7 +11,10 @@ import {
   ChevronUp,
   ChevronDown,
   Sparkles,
+  Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
+import { uploadImage } from "@/lib/supabase/storage";
 import {
   Dialog,
   DialogContent,
@@ -65,6 +68,79 @@ const fieldClass =
   "w-full rounded-md border border-[rgba(255,255,255,0.1)] bg-[#0e1118] px-3 py-2 text-sm text-[#e8ecf4] outline-none placeholder:text-[#5b6478] focus:border-[#6366f1]";
 const labelClass =
   "mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#8b93a8]";
+
+// Per-variant gallery: a strip of 44px thumbnails plus an "add" tile.
+// Selecting files uploads them and appends to this variant's image list.
+// Leave empty to fall back to the product-level gallery on the storefront.
+function VariantGallery({
+  images,
+  onChange,
+}: {
+  images: string[];
+  onChange: (imgs: string[]) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of Array.from(files)) {
+        uploaded.push(await uploadImage(file, { folder: "product-images" }));
+      }
+      onChange([...images, ...uploaded]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {images.map((url) => (
+        <div
+          key={url}
+          className="relative h-11 w-11 overflow-hidden rounded-md border border-[rgba(255,255,255,0.12)]"
+        >
+          <Image src={url} alt="" fill className="object-cover" />
+          <button
+            type="button"
+            onClick={() => onChange(images.filter((u) => u !== url))}
+            title="Remove image"
+            className="absolute right-0 top-0 rounded-bl bg-black/70 p-0.5 text-white hover:bg-red-500"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+      <input
+        type="file"
+        multiple
+        ref={inputRef}
+        accept="image/png, image/jpeg, image/webp"
+        onChange={handleFiles}
+        className="hidden"
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        title="Add image(s) for this variant"
+        className="flex h-11 w-11 items-center justify-center rounded-md border border-dashed border-[rgba(255,255,255,0.18)] bg-[#0e1118] text-[#5b6478] hover:border-[#6366f1] hover:text-[#a5b4fc]"
+      >
+        {uploading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <ImageIcon className="h-4 w-4" />
+        )}
+      </button>
+    </div>
+  );
+}
 
 export function ProductEditorDialog({
   open,
@@ -124,6 +200,7 @@ export function ProductEditorDialog({
           selling_price: v.selling_price,
           stock: v.stock,
           sku: v.sku ?? "",
+          images: v.images ?? (v.image_url ? [v.image_url] : []),
         })),
       });
       setSlugTouched(true); // keep the existing slug stable while editing
@@ -167,7 +244,14 @@ export function ProductEditorDialog({
       ...f,
       variants: [
         ...f.variants,
-        { name: "", base_price: 0, selling_price: 0, stock: 0, sku: "" },
+        {
+          name: "",
+          base_price: 0,
+          selling_price: 0,
+          stock: 0,
+          sku: "",
+          images: [],
+        },
       ],
     }));
   const updateVariant = <K extends keyof VariantFormData>(
@@ -553,65 +637,80 @@ export function ProductEditorDialog({
                 {form.variants.map((v, i) => (
                   <div
                     key={i}
-                    className="grid grid-cols-[1fr_72px_72px_60px_84px_72px] items-center gap-2"
+                    className="space-y-2 border-b border-[rgba(255,255,255,0.06)] pb-2 last:border-b-0"
                   >
-                    <input
-                      className={fieldClass}
-                      value={v.name}
-                      onChange={(e) => updateVariant(i, "name", e.target.value)}
-                      placeholder="500ml"
-                    />
-                    <NumberField
-                      className={fieldClass}
-                      value={v.base_price}
-                      onValueChange={(n) => updateVariant(i, "base_price", n)}
-                    />
-                    <NumberField
-                      className={fieldClass}
-                      value={v.selling_price}
-                      onValueChange={(n) =>
-                        updateVariant(i, "selling_price", n)
-                      }
-                    />
-                    <NumberField
-                      className={fieldClass}
-                      value={v.stock}
-                      onValueChange={(n) => updateVariant(i, "stock", n)}
-                      allowDecimal={false}
-                    />
-                    <input
-                      className={fieldClass}
-                      value={v.sku}
-                      onChange={(e) => updateVariant(i, "sku", e.target.value)}
-                      placeholder="SKU"
-                    />
-                    <div className="flex items-center justify-end gap-0.5">
-                      <button
-                        type="button"
-                        onClick={() => moveVariant(i, -1)}
-                        disabled={i === 0}
-                        title={i === 0 ? "Default variant" : "Move up"}
-                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#1a1f2e] disabled:cursor-not-allowed disabled:opacity-30"
-                      >
-                        <ChevronUp className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveVariant(i, 1)}
-                        disabled={i === form.variants.length - 1}
-                        title="Move down"
-                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#1a1f2e] disabled:cursor-not-allowed disabled:opacity-30"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeVariant(i)}
-                        title="Remove variant"
-                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[rgba(239,68,68,0.12)] hover:text-[#ef4444]"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                    <div className="grid grid-cols-[1fr_72px_72px_60px_84px_72px] items-center gap-2">
+                      <input
+                        className={fieldClass}
+                        value={v.name}
+                        onChange={(e) =>
+                          updateVariant(i, "name", e.target.value)
+                        }
+                        placeholder="500ml"
+                      />
+                      <NumberField
+                        className={fieldClass}
+                        value={v.base_price}
+                        onValueChange={(n) => updateVariant(i, "base_price", n)}
+                      />
+                      <NumberField
+                        className={fieldClass}
+                        value={v.selling_price}
+                        onValueChange={(n) =>
+                          updateVariant(i, "selling_price", n)
+                        }
+                      />
+                      <NumberField
+                        className={fieldClass}
+                        value={v.stock}
+                        onValueChange={(n) => updateVariant(i, "stock", n)}
+                        allowDecimal={false}
+                      />
+                      <input
+                        className={fieldClass}
+                        value={v.sku}
+                        onChange={(e) =>
+                          updateVariant(i, "sku", e.target.value)
+                        }
+                        placeholder="SKU"
+                      />
+                      <div className="flex items-center justify-end gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => moveVariant(i, -1)}
+                          disabled={i === 0}
+                          title={i === 0 ? "Default variant" : "Move up"}
+                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#1a1f2e] disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveVariant(i, 1)}
+                          disabled={i === form.variants.length - 1}
+                          title="Move down"
+                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#1a1f2e] disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeVariant(i)}
+                          title="Remove variant"
+                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[rgba(239,68,68,0.12)] hover:text-[#ef4444]"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-10 shrink-0 text-[10px] uppercase tracking-wide text-[#5b6478]">
+                        Imgs
+                      </span>
+                      <VariantGallery
+                        images={v.images}
+                        onChange={(imgs) => updateVariant(i, "images", imgs)}
+                      />
                     </div>
                   </div>
                 ))}
