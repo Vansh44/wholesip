@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
 
 /**
  * OG Image proxy — serves a compressed, WhatsApp-friendly version of any
@@ -7,16 +8,16 @@ import { NextRequest, NextResponse } from "next/server";
  * Usage:  /api/og-image?url=<encodeURIComponent(original_supabase_url)>
  *
  * Why this exists:
- *  1. WhatsApp's crawler ignores og:image when the image is > ~300 KB.
- *  2. Next.js HTML-encodes `&` → `&amp;` inside meta tags, so multi-param
- *     Supabase transform URLs break when WhatsApp fetches them literally.
- *  3. This route fetches the original, pipes it through Next.js (Vercel)
- *     image optimization on the server, and returns a small JPEG with proper
- *     cache headers — giving WhatsApp a single, clean, ampersand-free URL.
+ *  1. WhatsApp's crawler silently drops og:image when the file is > ~300 KB.
+ *  2. Next.js HTML-encodes `&` → `&amp;` inside meta tag attributes, so
+ *     multi-param Supabase transform URLs break when WhatsApp fetches them.
+ *  3. This route fetches the original image, compresses it to a small JPEG
+ *     via sharp, and returns it with proper cache headers — giving WhatsApp
+ *     a single, clean, ampersand-free URL and a small file it will display.
  */
 
-// Cache aggressively — the image rarely changes
-export const revalidate = 86400; // 24 h ISR
+const OG_WIDTH = 1200;
+const JPEG_QUALITY = 70;
 
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url");
@@ -39,7 +40,6 @@ export async function GET(request: NextRequest) {
   try {
     // Fetch the original image from Supabase
     const upstream = await fetch(url, {
-      next: { revalidate: 86400 },
       headers: { Accept: "image/*" },
     });
 
@@ -50,16 +50,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const buffer = await upstream.arrayBuffer();
+    const inputBuffer = Buffer.from(await upstream.arrayBuffer());
 
-    // Return the image with proper content-type and aggressive caching.
-    // Vercel's edge will cache this, and WhatsApp will see a fast, small image.
-    const contentType = upstream.headers.get("content-type") || "image/png";
+    // Resize to OG-friendly dimensions and convert to JPEG for small file size
+    const optimized = await sharp(inputBuffer)
+      .resize(OG_WIDTH, undefined, { withoutEnlargement: true })
+      .jpeg({ quality: JPEG_QUALITY, progressive: true })
+      .toBuffer();
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(optimized), {
       status: 200,
       headers: {
-        "Content-Type": contentType,
+        "Content-Type": "image/jpeg",
+        "Content-Length": String(optimized.length),
         "Cache-Control":
           "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
         "CDN-Cache-Control": "public, max-age=86400",
@@ -68,7 +71,7 @@ export async function GET(request: NextRequest) {
     });
   } catch {
     return NextResponse.json(
-      { error: "Failed to fetch image" },
+      { error: "Failed to fetch or process image" },
       { status: 502 },
     );
   }
