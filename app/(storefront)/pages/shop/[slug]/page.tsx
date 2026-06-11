@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getOgImageUrl } from "@/lib/og-image";
 import ProductDetailClient, {
   type DetailProduct,
 } from "./product-detail-client";
@@ -80,14 +81,7 @@ export async function generateMetadata({
     product.description ||
     `Shop ${product.name} at Soakd.`;
 
-  const ogImageUrl = product.image_url
-    ? product.image_url.includes("/storage/v1/object/public/")
-      ? product.image_url.replace(
-          "/storage/v1/object/public/",
-          "/storage/v1/render/image/public/",
-        ) + "?width=800&quality=60"
-      : product.image_url
-    : undefined;
+  const ogImageUrl = getOgImageUrl(product.image_url);
 
   return {
     title,

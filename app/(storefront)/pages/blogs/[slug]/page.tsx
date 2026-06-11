@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { sanitizeBlogContent } from "@/lib/sanitize";
+import { getOgImageUrl } from "@/lib/og-image";
 import { BlogCard } from "../blog-listing-client";
 import "../blogs.css";
 
@@ -101,14 +102,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description =
     blog.seo_description || blog.excerpt || "Read this article on Soakd Blog.";
 
-  const ogImageUrl = blog.cover_image_url
-    ? blog.cover_image_url.includes("/storage/v1/object/public/")
-      ? blog.cover_image_url.replace(
-          "/storage/v1/object/public/",
-          "/storage/v1/render/image/public/",
-        ) + "?width=800&quality=60"
-      : blog.cover_image_url
-    : undefined;
+  const ogImageUrl = getOgImageUrl(blog.cover_image_url);
 
   return {
     title: `${title} | Soakd`,
