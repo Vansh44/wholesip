@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useTransition } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/app/components/auth/AuthProvider";
@@ -629,7 +630,13 @@ export default function WriteBlogEditor({
                 >
                   <div className="write-blog-subs-cover">
                     {blog.cover_image_url ? (
-                      <img src={blog.cover_image_url} alt="" />
+                      <Image
+                        src={blog.cover_image_url}
+                        alt=""
+                        fill
+                        sizes="(max-width: 768px) 100vw, 360px"
+                        unoptimized
+                      />
                     ) : (
                       <div className="write-blog-subs-cover-empty">
                         <ImageIcon size={28} />
@@ -838,7 +845,13 @@ export default function WriteBlogEditor({
           <span className="wb-label">Cover Image</span>
           {coverImageUrl ? (
             <div className="write-blog-cover-preview">
-              <img src={coverImageUrl} alt="Cover" />
+              <Image
+                src={coverImageUrl}
+                alt="Cover"
+                fill
+                sizes="(max-width: 768px) 100vw, 720px"
+                unoptimized
+              />
               <button
                 type="button"
                 className="remove-btn"

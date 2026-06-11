@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { discountPercent, formatPrice } from "@/lib/pricing";
+import { useCart } from "@/app/components/cart/CartProvider";
 import { RelatedProducts, type RelatedProduct } from "./related-products";
 
 export interface DetailVariant {
@@ -47,10 +47,12 @@ export default function ProductDetailClient({
   related: RelatedProduct[];
 }) {
   const router = useRouter();
+  const { addItem, openCart } = useCart();
   const hasVariants = product.variants.length > 0;
   const [variantId, setVariantId] = useState<string | null>(
     hasVariants ? product.variants[0].id : null,
   );
+  const [quantity, setQuantity] = useState(1);
   const [zoomOpen, setZoomOpen] = useState(false);
 
   // Build the gallery: primary image first, then any extras (de-duplicated).
@@ -86,16 +88,38 @@ export default function ProductDetailClient({
     return () => window.removeEventListener("keydown", onKey);
   }, [zoomOpen]);
 
-  const variantLabel = selectedVariant ? ` — ${selectedVariant.name}` : "";
+  // Cap quantity at available stock when a variant tracks it, and clamp the
+  // chosen quantity to it at render time (so switching variants can't leave a
+  // stale over-stock value) — no effect needed.
+  const maxQty =
+    selectedVariant && selectedVariant.stock > 0 ? selectedVariant.stock : 99;
+  const qty = Math.min(Math.max(1, quantity), maxQty);
+
+  const addToCart = () => {
+    addItem(
+      {
+        productId: product.id,
+        slug: product.slug,
+        name: product.name,
+        variantId: selectedVariant?.id ?? null,
+        variantName: selectedVariant?.name ?? null,
+        price: selling,
+        basePrice: base,
+        image: activeImg ?? product.image_url ?? null,
+      },
+      qty,
+    );
+  };
 
   const handleAddToCart = () => {
     if (outOfStock) return;
-    toast.success(`Added ${product.name}${variantLabel} to cart`);
+    addToCart();
+    openCart();
   };
 
   const handleBuyNow = () => {
     if (outOfStock) return;
-    toast.success(`Proceeding to checkout with ${product.name}${variantLabel}`);
+    addToCart();
     router.push("/pages/cart");
   };
 
@@ -204,6 +228,33 @@ export default function ProductDetailClient({
               </div>
             </div>
           )}
+
+          <div className="pdp-qty">
+            <label className="pdp-qty-label">Quantity</label>
+            <div className="pdp-stepper">
+              <button
+                type="button"
+                className="pdp-stepper-btn"
+                onClick={() => setQuantity(Math.max(1, qty - 1))}
+                disabled={outOfStock || qty <= 1}
+                aria-label="Decrease quantity"
+              >
+                −
+              </button>
+              <span className="pdp-stepper-value" aria-live="polite">
+                {qty}
+              </span>
+              <button
+                type="button"
+                className="pdp-stepper-btn"
+                onClick={() => setQuantity(Math.min(maxQty, qty + 1))}
+                disabled={outOfStock || qty >= maxQty}
+                aria-label="Increase quantity"
+              >
+                +
+              </button>
+            </div>
+          </div>
 
           <div className="pdp-actions">
             <button
