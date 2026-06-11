@@ -1,0 +1,368 @@
+/* ============================================
+   Cart Drawer — right-side slide-in panel
+   Driven by the global --soakd-* tokens.
+   ============================================ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(23, 19, 15, 0.4);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.3s ease,
+    visibility 0.3s ease;
+}
+
+.overlayVisible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 420px;
+  height: 100%;
+  background: var(--soakd-cream);
+  color: var(--soakd-ink);
+  box-shadow: -8px 0 40px rgba(23, 19, 15, 0.16);
+  transform: translateX(100%);
+  transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.overlayVisible .panel {
+  transform: translateX(0);
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--soakd-border);
+  flex: 0 0 auto;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--soakd-ink);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.closeBtn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: var(--soakd-sand);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--soakd-ink-soft);
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.closeBtn:hover {
+  background: var(--soakd-cream-deep);
+  color: var(--soakd-ink);
+  transform: scale(1.05);
+}
+
+/* ── Items list ── */
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 12px 22px;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.item {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--soakd-border);
+}
+
+.item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.itemImg {
+  position: relative;
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--soakd-cream-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.itemImgEl {
+  object-fit: contain;
+}
+
+.itemImgPlaceholder {
+  font-size: 28px;
+  opacity: 0.4;
+}
+
+.itemBody {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.itemName {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--soakd-ink);
+  text-decoration: none;
+  line-height: 1.25;
+}
+
+.itemName:hover {
+  text-decoration: underline;
+}
+
+.itemVariant {
+  font-size: 0.8rem;
+  color: var(--soakd-ink-soft);
+}
+
+.itemFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--soakd-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--soakd-surface);
+}
+
+.stepperBtn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--soakd-ink);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.stepperBtn:hover {
+  background: rgba(23, 19, 15, 0.08);
+}
+
+.stepperValue {
+  min-width: 32px;
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border-left: 1px solid var(--soakd-border);
+  border-right: 1px solid var(--soakd-border);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.itemPrice {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--soakd-ink);
+}
+
+.itemRemove {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: var(--soakd-ink-faint);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  transition: color 0.15s ease;
+}
+
+.itemRemove:hover {
+  color: var(--soakd-ink);
+}
+
+/* ── Footer ── */
+.footer {
+  flex: 0 0 auto;
+  padding: 18px 22px 22px;
+  border-top: 1px solid var(--soakd-border);
+  background: var(--soakd-surface);
+}
+
+.couponWrap {
+  margin-bottom: 14px;
+}
+
+.totalsRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  color: var(--soakd-ink-soft);
+  margin-bottom: 6px;
+}
+
+.discountRow {
+  color: var(--soakd-ink);
+  font-weight: 600;
+}
+
+.subtotalRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.subtotalValue {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.shippingNote {
+  margin: 6px 0 16px;
+  font-size: 0.8rem;
+  color: var(--soakd-ink-soft);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.viewCartBtn,
+.checkoutBtn {
+  flex: 1 1 0;
+  border-radius: 9px;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.viewCartBtn {
+  background: transparent;
+  color: var(--soakd-ink);
+  border: 1.5px solid var(--soakd-ink);
+}
+
+.viewCartBtn:hover {
+  background: rgba(23, 19, 15, 0.06);
+}
+
+.checkoutBtn {
+  background: var(--soakd-ink);
+  color: #fff;
+  border: 1.5px solid var(--soakd-ink);
+}
+
+.checkoutBtn:hover {
+  background: var(--soakd-accent-deep);
+  border-color: var(--soakd-accent-deep);
+}
+
+/* ── Empty state ── */
+.empty {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px 22px;
+  text-align: center;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  opacity: 0.45;
+}
+
+.emptyText {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.emptyCta {
+  margin-top: 4px;
+  background: var(--soakd-ink);
+  color: #fff;
+  border: none;
+  border-radius: 11px;
+  padding: 12px 26px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.emptyCta:hover {
+  background: var(--soakd-accent-deep);
+}

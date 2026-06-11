@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSectionAccess } from "../lib/access";
+import { RealtimeRefresher } from "../components/realtime-refresher";
 import { BlogsManagementView } from "./blogs-management-view";
 
 export interface Blog {
@@ -29,9 +30,27 @@ export interface Blog {
   submitter_name?: string | null;
 }
 
-export default async function BlogsPage() {
+type FilterTab = "all" | "published" | "drafts" | "featured" | "pending";
+const FILTER_TABS: FilterTab[] = [
+  "all",
+  "published",
+  "drafts",
+  "featured",
+  "pending",
+];
+
+export default async function BlogsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
   const access = await requireSectionAccess("blogs", "view");
   const canManage = access.can("blogs", "manage");
+
+  const { filter } = await searchParams;
+  const initialFilter: FilterTab = FILTER_TABS.includes(filter as FilterTab)
+    ? (filter as FilterTab)
+    : "all";
 
   const supabase = await createClient();
 
@@ -86,6 +105,13 @@ export default async function BlogsPage() {
   }
 
   return (
-    <BlogsManagementView blogs={blogsWithSubmitters} canManage={canManage} />
+    <>
+      <RealtimeRefresher tables={["blogs"]} />
+      <BlogsManagementView
+        blogs={blogsWithSubmitters}
+        canManage={canManage}
+        initialFilter={initialFilter}
+      />
+    </>
   );
 }

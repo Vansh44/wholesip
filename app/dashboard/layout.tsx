@@ -1,12 +1,10 @@
-import Link from "next/link";
-import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Sora, JetBrains_Mono } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
 import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/config/site";
 import { DashboardTopbar } from "./dashboard-topbar";
-import { SidebarNavLink } from "./sidebar-nav-link";
+import { DashboardSidebar } from "./dashboard-sidebar";
 import {
   SECTIONS,
   SECTION_GROUPS,
@@ -120,54 +118,10 @@ export default async function DashboardLayout({
     <div
       className={`dashboard-shell ${dashFont.variable} ${dashMono.variable} flex`}
     >
-      <aside className="dash-sidebar hidden h-screen shrink-0 flex-col border-r border-[var(--dash-border)] bg-[var(--dash-surface)] md:flex">
-        <div className="dash-brand">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
-            <Image
-              src={siteConfig.assets.logoUrl}
-              alt="Soakd Logo"
-              width={150}
-              height={50}
-              priority
-              style={{ height: "auto", width: "auto", maxHeight: 36 }}
-            />
-          </Link>
-        </div>
-
-        <div className="dash-nav-scroll flex flex-1 flex-col overflow-y-auto px-[14px]">
-          {navGroups.map(({ group, items }) => (
-            <NavSection key={group} label={group}>
-              {items.map((item) => (
-                <SidebarNavLink
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  icon={item.icon}
-                  badge={item.badge}
-                  badgeTone={item.badgeTone}
-                />
-              ))}
-            </NavSection>
-          ))}
-        </div>
-
-        <div className="shrink-0 border-t border-[var(--dash-border)] p-[14px]">
-          <div className="flex items-center gap-2.5 rounded-[var(--dash-radius-sm)] bg-[var(--dash-surface-2)] px-3 py-2.5">
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--dash-green)] opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--dash-green)]" />
-            </span>
-            <div className="min-w-0">
-              <div className="text-[12px] font-medium text-[var(--dash-text)]">
-                All systems operational
-              </div>
-              <div className="font-mono-dash text-[10.5px] text-[var(--dash-text-3)]">
-                v0.1.0 · uptime 99.9%
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
+      <DashboardSidebar
+        groups={navGroups}
+        logoUrl={siteConfig.assets.logoUrl}
+      />
 
       <div className="dash-main">
         <DashboardTopbar
@@ -180,21 +134,6 @@ export default async function DashboardLayout({
       </div>
 
       <Toaster richColors position="top-right" />
-    </div>
-  );
-}
-
-function NavSection({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="pt-1">
-      <div className="dash-nav-label">{label}</div>
-      <nav>{children}</nav>
     </div>
   );
 }

@@ -877,6 +877,25 @@
   height: 16px;
 }
 
+/* Detail-page toolbar: "Back to Blog" on the left, "Post your own blog" on the
+   right. Owns the bottom spacing so the back link doesn't double it up. */
+.blog-detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+.blog-detail-toolbar .blog-back-link {
+  margin-bottom: 0;
+}
+/* Keep the white label when the CTA is rendered as a link: the storefront
+   default `.storefront-root a { color: inherit }` would otherwise win on
+   specificity and paint it dark-on-dark. */
+.storefront-root a.blog-publish-cta-btn {
+  color: #ffffff;
+}
+
 .blog-detail-cover {
   position: relative;
   width: 100%;

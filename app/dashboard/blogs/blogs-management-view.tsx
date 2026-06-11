@@ -35,12 +35,17 @@ type FilterTab = "all" | "published" | "drafts" | "featured" | "pending";
 type Props = {
   blogs: Blog[];
   canManage?: boolean;
+  initialFilter?: FilterTab;
 };
 
-export function BlogsManagementView({ blogs, canManage = true }: Props) {
+export function BlogsManagementView({
+  blogs,
+  canManage = true,
+  initialFilter = "all",
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [filter, setFilter] = useState<FilterTab>("all");
+  const [filter, setFilter] = useState<FilterTab>(initialFilter);
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Blog | null>(null);
   const [rejectTarget, setRejectTarget] = useState<Blog | null>(null);

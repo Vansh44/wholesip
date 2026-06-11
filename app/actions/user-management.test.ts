@@ -70,6 +70,9 @@ describe("User Management Actions", () => {
           return {
             eq: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({ data: { role: "member" } }),
+              // Roles-table slug lookup in changeUserRole. Default to "not
+              // found" so built-in roles pass and unknown roles are rejected.
+              maybeSingle: vi.fn().mockResolvedValue({ data: null }),
             }),
           };
         }),

@@ -11,6 +11,13 @@ export type PermissionAction = "view" | "manage";
 
 export type SectionGroup = "Workspace" | "Content" | "Administration";
 
+/** A nested sidebar link shown indented under its parent section. */
+export interface DashboardSectionChild {
+  label: string;
+  href: string;
+  icon?: NavIconKey;
+}
+
 export interface DashboardSection {
   /** Stable machine key, used in role permission maps and guards. */
   key: string;
@@ -23,6 +30,8 @@ export interface DashboardSection {
   /** Optional sidebar badge (kept from the original static nav). */
   badge?: string;
   badgeTone?: "accent" | "amber";
+  /** Optional nested links (e.g. Marketing → Coupons). */
+  children?: DashboardSectionChild[];
 }
 
 // Order here drives the order roles are displayed in the editor and the nav.
@@ -113,6 +122,13 @@ export const SECTIONS: DashboardSection[] = [
     icon: "marketing",
     group: "Content",
     actions: ["view", "manage"],
+    children: [
+      {
+        label: "Coupons",
+        href: "/dashboard/marketing/coupons",
+        icon: "coupons",
+      },
+    ],
   },
   {
     key: "promotions",

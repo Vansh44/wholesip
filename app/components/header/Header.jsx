@@ -6,6 +6,7 @@ import styles from "./Header.module.css";
 import Image from "next/image";
 import { siteConfig } from "@/config/site";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import { useCart } from "@/app/components/cart/CartProvider";
 import {
   User,
   Package,
@@ -22,6 +23,7 @@ export default function Header() {
   const profileRef = useRef(null);
   const closeTimerRef = useRef(null);
   const { user, customer, loading, openAuthModal, signOut } = useAuth();
+  const { totalItems, hydrated: cartHydrated, openCart } = useCart();
 
   const isLoggedIn = !!user && !!customer;
 
@@ -68,16 +70,6 @@ export default function Header() {
   const scheduleCloseProfile = () => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     closeTimerRef.current = setTimeout(() => setIsProfileOpen(false), 160);
-  };
-
-  // Tap/click toggle for touch devices (no hover)
-  const handleProfileClick = () => {
-    if (loading) return;
-    if (!isLoggedIn) {
-      openAuthModal();
-      return;
-    }
-    setIsProfileOpen((prev) => !prev);
   };
 
   const handleSignOut = async () => {
@@ -277,7 +269,12 @@ export default function Header() {
           </div>
 
           {/* Cart Button */}
-          <Link href="/pages/cart" className={styles.cartBtn} aria-label="Cart">
+          <button
+            type="button"
+            onClick={openCart}
+            className={styles.cartBtn}
+            aria-label="Open cart"
+          >
             <svg
               width="20"
               height="20"
@@ -292,7 +289,10 @@ export default function Header() {
               <circle cx="20" cy="21" r="1"></circle>
               <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
             </svg>
-          </Link>
+            {cartHydrated && totalItems > 0 && (
+              <span className={styles.cartBadge}>{totalItems}</span>
+            )}
+          </button>
         </div>
 
         {/* Mobile Hamburger Button */}

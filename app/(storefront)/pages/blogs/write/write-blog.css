@@ -586,6 +586,14 @@
   white-space: nowrap;
 }
 
+/* When the button is rendered as a link (e.g. "Back to Blogs"), the storefront
+   default `.storefront-root a { color: inherit }` would otherwise win on
+   specificity and paint the label dark-on-dark. Keep the white label. */
+.storefront-root a.write-blog-submit-btn,
+a.write-blog-submit-btn {
+  color: #ffffff;
+}
+
 .write-blog-submit-btn:hover {
   background: #000000;
   transform: translateY(-1px);
@@ -723,6 +731,7 @@
   border-radius: 16px;
   border: 1px solid var(--blog-border);
   overflow: hidden;
+  cursor: pointer;
   transition:
     border-color 0.2s,
     box-shadow 0.2s,
@@ -732,6 +741,12 @@
 .write-blog-submission-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 12px 28px rgba(24, 24, 27, 0.08);
+  border-color: var(--blog-accent);
+}
+
+.write-blog-submission-card:focus-visible {
+  outline: 2px solid var(--blog-accent);
+  outline-offset: 2px;
 }
 
 .write-blog-subs-cover {
@@ -739,6 +754,50 @@
   aspect-ratio: 16 / 9;
   background: var(--blog-bg-alt);
   overflow: hidden;
+}
+
+/* Per-card quick actions (delete / move-to-draft), overlaid top-right. */
+.write-blog-subs-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+}
+
+.write-blog-subs-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--blog-dark);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.15s;
+}
+
+.write-blog-subs-action:hover {
+  transform: translateY(-1px);
+  background: #ffffff;
+}
+
+.write-blog-subs-action--danger:hover {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.write-blog-subs-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .write-blog-subs-cover img {
@@ -843,6 +902,11 @@
 
 .write-blog-status-badge.pending {
   background: rgba(217, 119, 6, 0.92);
+  color: #ffffff;
+}
+
+.write-blog-status-badge.draft {
+  background: rgba(100, 116, 139, 0.92);
   color: #ffffff;
 }
 
