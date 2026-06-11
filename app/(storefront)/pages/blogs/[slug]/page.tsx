@@ -107,6 +107,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title,
       description,
+      url: `/pages/blogs/${blog.slug}`,
       type: "article",
       publishedTime: blog.published_at ?? undefined,
       authors: blog.author ? [blog.author] : undefined,

@@ -14,9 +14,29 @@ const stickNoBills = Stick_No_Bills({
   variable: "--font-stick-no-bills",
 });
 
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+  ? process.env.NEXT_PUBLIC_APP_URL.startsWith("http")
+    ? process.env.NEXT_PUBLIC_APP_URL
+    : `https://${process.env.NEXT_PUBLIC_APP_URL}`
+  : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
+
 export const metadata = {
+  metadataBase: new URL(baseUrl),
   title: "soakd | The Original Ragda",
   description: "Zero preservatives. 100% real ingredients.",
+  openGraph: {
+    title: "soakd | The Original Ragda",
+    description: "Zero preservatives. 100% real ingredients.",
+    type: "website",
+    siteName: "Soakd",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "soakd | The Original Ragda",
+    description: "Zero preservatives. 100% real ingredients.",
+  },
 };
 
 export default function RootLayout({
