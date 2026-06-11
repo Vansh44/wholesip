@@ -198,7 +198,6 @@ export function CategoriesManagementView({
                           alt={c.name}
                           fill
                           className="object-cover"
-                          unoptimized
                         />
                       </div>
                     ) : (

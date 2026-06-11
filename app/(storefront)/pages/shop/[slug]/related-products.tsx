@@ -36,7 +36,6 @@ export function RelatedProducts({ products }: { products: RelatedProduct[] }) {
                     fill
                     sizes="(max-width: 768px) 50vw, 240px"
                     className="shop-card-img-el"
-                    unoptimized
                   />
                 ) : (
                   <div className="shop-card-img-placeholder">🥛</div>

@@ -503,7 +503,6 @@ export function ProductEditorDialog({
                       alt="Gallery image"
                       fill
                       className="object-cover"
-                      unoptimized
                     />
                     <button
                       type="button"

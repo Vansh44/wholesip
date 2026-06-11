@@ -316,7 +316,6 @@ export function ProductsManagementView({
                           alt={p.name}
                           fill
                           className="object-cover"
-                          unoptimized
                         />
                       </div>
                     ) : (

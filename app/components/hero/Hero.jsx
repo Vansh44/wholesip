@@ -1,7 +1,7 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import styles from "./Hero.module.css";
 import { siteConfig } from "@/config/site";
 import { useRouter } from "next/navigation";
@@ -220,7 +220,7 @@ export default function Hero() {
                     transform: `rotate(${item.rotate})`,
                   }}
                 >
-                  <img
+                  <Image
                     src={
                       item.type === "single"
                         ? slide.singleAsset
@@ -228,6 +228,9 @@ export default function Hero() {
                     }
                     alt={`${slide.name} ingredient`}
                     className={styles.almondImg}
+                    width={200}
+                    height={200}
+                    sizes="160px"
                   />
                 </div>
               </div>
@@ -241,12 +244,16 @@ export default function Hero() {
         {slides.map((slide, index) => {
           const isActive = index === activeSlide;
           return (
-            <img
+            <Image
               key={slide.id}
               src={slide.bottleAsset}
               alt={slide.name}
               className={`${styles.bottleImg} ${isActive ? styles.activeBottle : styles.inactiveBottle}`}
               onClick={() => router.push(slide.redirectPath)}
+              width={826}
+              height={1728}
+              sizes="(max-width: 900px) 220px, 413px"
+              priority={index === 0}
             />
           );
         })}

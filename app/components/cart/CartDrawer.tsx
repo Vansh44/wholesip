@@ -117,7 +117,6 @@ export default function CartDrawer() {
                           fill
                           sizes="72px"
                           className={styles.itemImgEl}
-                          unoptimized
                         />
                       ) : (
                         <span className={styles.itemImgPlaceholder}>🥛</span>

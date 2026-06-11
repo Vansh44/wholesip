@@ -155,7 +155,6 @@ export default function ProductDetailClient({
                   sizes="(max-width: 768px) 100vw, 520px"
                   className="pdp-main-img-el"
                   priority
-                  unoptimized
                 />
                 <span className="pdp-zoom-hint">🔍 Click to zoom</span>
               </>
@@ -178,7 +177,6 @@ export default function ProductDetailClient({
                     fill
                     sizes="72px"
                     className="pdp-thumb-el"
-                    unoptimized
                   />
                 </button>
               ))}
@@ -310,7 +308,6 @@ export default function ProductDetailClient({
               fill
               sizes="90vw"
               className="pdp-lightbox-img"
-              unoptimized
             />
           </div>
         </div>

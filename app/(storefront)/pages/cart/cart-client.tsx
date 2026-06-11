@@ -150,7 +150,6 @@ function CartLine({
             fill
             sizes="96px"
             className="cart-item-img-el"
-            unoptimized
           />
         ) : (
           <span className="cart-item-img-placeholder">🥛</span>

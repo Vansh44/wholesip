@@ -349,7 +349,6 @@ export function BlogsManagementView({
                           alt={blog.title}
                           fill
                           className="object-cover"
-                          unoptimized
                         />
                       </div>
                     ) : (

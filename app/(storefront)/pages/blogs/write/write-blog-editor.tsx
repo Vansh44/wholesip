@@ -635,7 +635,6 @@ export default function WriteBlogEditor({
                         alt=""
                         fill
                         sizes="(max-width: 768px) 100vw, 360px"
-                        unoptimized
                       />
                     ) : (
                       <div className="write-blog-subs-cover-empty">
@@ -850,7 +849,6 @@ export default function WriteBlogEditor({
                 alt="Cover"
                 fill
                 sizes="(max-width: 768px) 100vw, 720px"
-                unoptimized
               />
               <button
                 type="button"
