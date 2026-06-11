@@ -101,6 +101,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description =
     blog.seo_description || blog.excerpt || "Read this article on Soakd Blog.";
 
+  const ogImageUrl = blog.cover_image_url
+    ? blog.cover_image_url.includes("/storage/v1/object/public/")
+      ? blog.cover_image_url.replace(
+          "/storage/v1/object/public/",
+          "/storage/v1/render/image/public/",
+        ) + "?width=800&quality=60"
+      : blog.cover_image_url
+    : undefined;
+
   return {
     title: `${title} | Soakd`,
     description,
@@ -111,12 +120,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       type: "article",
       publishedTime: blog.published_at ?? undefined,
       authors: blog.author ? [blog.author] : undefined,
-      images: blog.cover_image_url
+      images: ogImageUrl
         ? [
             {
-              url: blog.cover_image_url,
-              width: 1200,
-              height: 630,
+              url: ogImageUrl,
+              width: 800,
+              height: 420,
               alt: blog.title,
             },
           ]
@@ -126,7 +135,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: "summary_large_image",
       title,
       description,
-      images: blog.cover_image_url ? [blog.cover_image_url] : undefined,
+      images: ogImageUrl ? [ogImageUrl] : undefined,
     },
   };
 }

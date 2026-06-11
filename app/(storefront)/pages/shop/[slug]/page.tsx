@@ -80,6 +80,15 @@ export async function generateMetadata({
     product.description ||
     `Shop ${product.name} at Soakd.`;
 
+  const ogImageUrl = product.image_url
+    ? product.image_url.includes("/storage/v1/object/public/")
+      ? product.image_url.replace(
+          "/storage/v1/object/public/",
+          "/storage/v1/render/image/public/",
+        ) + "?width=800&quality=60"
+      : product.image_url
+    : undefined;
+
   return {
     title,
     description,
@@ -88,12 +97,12 @@ export async function generateMetadata({
       description,
       url: `/pages/shop/${product.slug}`,
       type: "website",
-      images: product.image_url
+      images: ogImageUrl
         ? [
             {
-              url: product.image_url,
-              width: 1200,
-              height: 630,
+              url: ogImageUrl,
+              width: 800,
+              height: 420,
               alt: product.name,
             },
           ]
@@ -103,7 +112,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title,
       description,
-      images: product.image_url ? [product.image_url] : undefined,
+      images: ogImageUrl ? [ogImageUrl] : undefined,
     },
   };
 }
