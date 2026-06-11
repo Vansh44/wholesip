@@ -15,7 +15,9 @@ export function pathFromPublicUrl(url: string): string | null {
 
 // Pull every media-bucket image URL out of an HTML string (e.g. images the
 // rich-text editor embedded in a blog body). Returns unique URLs.
-export function extractMediaUrlsFromHtml(html: string | null | undefined): string[] {
+export function extractMediaUrlsFromHtml(
+  html: string | null | undefined,
+): string[] {
   if (!html) return [];
   const re = new RegExp(
     `https?://[^"'\\s)]+/object/public/${STORAGE_BUCKET}/[^"'\\s)]+`,

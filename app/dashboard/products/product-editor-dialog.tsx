@@ -640,64 +640,68 @@ export function ProductEditorDialog({
                     className="space-y-2 border-b border-[rgba(255,255,255,0.06)] pb-2 last:border-b-0"
                   >
                     <div className="grid grid-cols-[1fr_72px_72px_60px_84px_72px] items-center gap-2">
-                    <input
-                      className={fieldClass}
-                      value={v.name}
-                      onChange={(e) => updateVariant(i, "name", e.target.value)}
-                      placeholder="500ml"
-                    />
-                    <NumberField
-                      className={fieldClass}
-                      value={v.base_price}
-                      onValueChange={(n) => updateVariant(i, "base_price", n)}
-                    />
-                    <NumberField
-                      className={fieldClass}
-                      value={v.selling_price}
-                      onValueChange={(n) =>
-                        updateVariant(i, "selling_price", n)
-                      }
-                    />
-                    <NumberField
-                      className={fieldClass}
-                      value={v.stock}
-                      onValueChange={(n) => updateVariant(i, "stock", n)}
-                      allowDecimal={false}
-                    />
-                    <input
-                      className={fieldClass}
-                      value={v.sku}
-                      onChange={(e) => updateVariant(i, "sku", e.target.value)}
-                      placeholder="SKU"
-                    />
-                    <div className="flex items-center justify-end gap-0.5">
-                      <button
-                        type="button"
-                        onClick={() => moveVariant(i, -1)}
-                        disabled={i === 0}
-                        title={i === 0 ? "Default variant" : "Move up"}
-                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#1a1f2e] disabled:cursor-not-allowed disabled:opacity-30"
-                      >
-                        <ChevronUp className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveVariant(i, 1)}
-                        disabled={i === form.variants.length - 1}
-                        title="Move down"
-                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#1a1f2e] disabled:cursor-not-allowed disabled:opacity-30"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeVariant(i)}
-                        title="Remove variant"
-                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[rgba(239,68,68,0.12)] hover:text-[#ef4444]"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                      <input
+                        className={fieldClass}
+                        value={v.name}
+                        onChange={(e) =>
+                          updateVariant(i, "name", e.target.value)
+                        }
+                        placeholder="500ml"
+                      />
+                      <NumberField
+                        className={fieldClass}
+                        value={v.base_price}
+                        onValueChange={(n) => updateVariant(i, "base_price", n)}
+                      />
+                      <NumberField
+                        className={fieldClass}
+                        value={v.selling_price}
+                        onValueChange={(n) =>
+                          updateVariant(i, "selling_price", n)
+                        }
+                      />
+                      <NumberField
+                        className={fieldClass}
+                        value={v.stock}
+                        onValueChange={(n) => updateVariant(i, "stock", n)}
+                        allowDecimal={false}
+                      />
+                      <input
+                        className={fieldClass}
+                        value={v.sku}
+                        onChange={(e) =>
+                          updateVariant(i, "sku", e.target.value)
+                        }
+                        placeholder="SKU"
+                      />
+                      <div className="flex items-center justify-end gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => moveVariant(i, -1)}
+                          disabled={i === 0}
+                          title={i === 0 ? "Default variant" : "Move up"}
+                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#1a1f2e] disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveVariant(i, 1)}
+                          disabled={i === form.variants.length - 1}
+                          title="Move down"
+                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#1a1f2e] disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeVariant(i)}
+                          title="Remove variant"
+                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[rgba(239,68,68,0.12)] hover:text-[#ef4444]"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="w-10 shrink-0 text-[10px] uppercase tracking-wide text-[#5b6478]">

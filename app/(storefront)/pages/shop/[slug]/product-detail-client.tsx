@@ -78,7 +78,9 @@ export default function ProductDetailClient({
   // otherwise the shared product gallery.
   const variantImages = (selectedVariant?.images ?? []).filter(Boolean);
   const gallery =
-    variantImages.length > 0 ? Array.from(new Set(variantImages)) : productGallery;
+    variantImages.length > 0
+      ? Array.from(new Set(variantImages))
+      : productGallery;
 
   // Default image: the first variant's first photo if it has one, else the
   // product gallery lead.

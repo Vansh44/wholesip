@@ -182,7 +182,8 @@ export async function updateCategory(
 
     if (!error) {
       const newImage = formData.image_url || null;
-      if (oldImage && oldImage !== newImage) await deleteStorageUrls([oldImage]);
+      if (oldImage && oldImage !== newImage)
+        await deleteStorageUrls([oldImage]);
       revalidateCatalog();
       return { success: true };
     }
