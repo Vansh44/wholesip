@@ -6,6 +6,10 @@ import { sanitizeBlogContent } from "@/lib/sanitize";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import {
+  deleteStorageUrls,
+  extractMediaUrlsFromHtml,
+} from "@/lib/supabase/storage-cleanup";
+import {
   sendBlogApprovedEmail,
   sendBlogRejectedEmail,
 } from "@/lib/email/blog-notifications";
@@ -233,7 +237,9 @@ export async function updateBlog(
   // when an admin approves it by publishing from the editor).
   const { data: currentBlog } = await supabase
     .from("blogs")
-    .select("status, published_at, submitted_by, is_customer_submission")
+    .select(
+      "status, published_at, submitted_by, is_customer_submission, cover_image_url, content",
+    )
     .eq("id", id)
     .single();
 
@@ -287,6 +293,18 @@ export async function updateBlog(
         }
       }
 
+      // Purge images no longer referenced (old cover + old body images that
+      // aren't in the saved cover/body anymore).
+      const oldRefs = [
+        ...(currentBlog?.cover_image_url ? [currentBlog.cover_image_url] : []),
+        ...extractMediaUrlsFromHtml(currentBlog?.content),
+      ];
+      const newRefs = new Set([
+        ...(formData.cover_image_url ? [formData.cover_image_url] : []),
+        ...extractMediaUrlsFromHtml(formData.content),
+      ]);
+      await deleteStorageUrls(oldRefs.filter((u) => !newRefs.has(u)));
+
       revalidatePath("/dashboard/blogs");
       revalidatePath("/pages/blogs");
       revalidatePath(`/pages/blogs/${slug}`);
@@ -316,12 +334,23 @@ export async function deleteBlog(id: string): Promise<ActionResult> {
     return { error: "Not authenticated" };
   }
 
+  const { data: prev } = await supabase
+    .from("blogs")
+    .select("cover_image_url, content")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase.from("blogs").delete().eq("id", id);
 
   if (error) {
     console.error("deleteBlog error:", error);
     return { error: error.message };
   }
+
+  await deleteStorageUrls([
+    prev?.cover_image_url ?? null,
+    ...extractMediaUrlsFromHtml(prev?.content),
+  ]);
 
   revalidatePath("/dashboard/blogs");
   revalidatePath("/pages/blogs");
@@ -689,6 +718,15 @@ export async function updateCustomerBlog(
 
   const readingTime = calculateReadingTime(formData.content);
 
+  // The author's current cover + body images, so replaced/removed ones can be
+  // purged after saving.
+  const { data: prev } = await supabase
+    .from("blogs")
+    .select("cover_image_url, content")
+    .eq("id", id)
+    .eq("submitted_by", user.id)
+    .single();
+
   const { error } = await supabase
     .from("blogs")
     .update({
@@ -711,6 +749,16 @@ export async function updateCustomerBlog(
     console.error("updateCustomerBlog error:", error);
     return { error: error.message };
   }
+
+  const oldRefs = [
+    ...(prev?.cover_image_url ? [prev.cover_image_url] : []),
+    ...extractMediaUrlsFromHtml(prev?.content),
+  ];
+  const newRefs = new Set([
+    ...(formData.cover_image_url ? [formData.cover_image_url] : []),
+    ...extractMediaUrlsFromHtml(formData.content),
+  ]);
+  await deleteStorageUrls(oldRefs.filter((u) => !newRefs.has(u)));
 
   revalidatePath("/dashboard/blogs");
   return { success: true };
@@ -767,7 +815,7 @@ export async function deleteCustomerBlog(id: string): Promise<ActionResult> {
     .eq("id", id)
     .eq("submitted_by", user.id)
     .in("status", ["draft", "pending_review"])
-    .select("id");
+    .select("id, cover_image_url, content");
 
   if (error) {
     console.error("deleteCustomerBlog error:", error);
@@ -780,6 +828,15 @@ export async function deleteCustomerBlog(id: string): Promise<ActionResult> {
       error: "Couldn't delete this blog. Please refresh and try again.",
     };
   }
+
+  const removed = data[0] as {
+    cover_image_url?: string | null;
+    content?: string | null;
+  };
+  await deleteStorageUrls([
+    removed.cover_image_url ?? null,
+    ...extractMediaUrlsFromHtml(removed.content),
+  ]);
 
   revalidatePath("/dashboard/blogs");
   return { success: true };

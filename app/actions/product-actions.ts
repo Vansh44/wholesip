@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { readFile } from "fs/promises";
 import path from "path";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -16,6 +17,7 @@ export interface VariantFormData {
   selling_price: number;
   stock: number;
   sku: string;
+  images: string[]; // this variant's own gallery (empty = uses product gallery)
 }
 
 export interface ProductFormData {
@@ -112,13 +114,18 @@ function normalizePrices(base: number, selling: number) {
 function sanitizeVariants(variants: VariantFormData[]) {
   return (variants ?? [])
     .filter((v) => v.name && v.name.trim())
-    .map((v, i) => ({
-      name: v.name.trim(),
-      ...normalizePrices(v.base_price, v.selling_price),
-      stock: Number.isFinite(v.stock) ? Math.trunc(v.stock) : 0,
-      sku: v.sku?.trim() || null,
-      sort_order: i,
-    }));
+    .map((v, i) => {
+      const images = (v.images ?? []).map((u) => u.trim()).filter(Boolean);
+      return {
+        name: v.name.trim(),
+        ...normalizePrices(v.base_price, v.selling_price),
+        stock: Number.isFinite(v.stock) ? Math.trunc(v.stock) : 0,
+        sku: v.sku?.trim() || null,
+        images,
+        image_url: images[0] ?? null, // keep the legacy single image in sync
+        sort_order: i,
+      };
+    });
 }
 
 // Replace strategy: delete all existing variants for a product then insert the
@@ -150,6 +157,47 @@ function revalidateProduct(slug?: string) {
   revalidatePath("/dashboard/products");
   revalidatePath("/pages/shop");
   if (slug) revalidatePath(`/pages/shop/${slug}`);
+}
+
+// ---------------------------------------------------------------------------
+// Storage cleanup — keep Supabase Storage in sync when images are removed.
+// Uploads add files to the `media` bucket; removing an image only drops its
+// URL from the DB, so the file would otherwise be orphaned. On save we delete
+// the files that are no longer referenced; on delete we remove them all.
+// (deleteStorageUrls lives in lib/supabase/storage-cleanup, shared by actions.)
+// ---------------------------------------------------------------------------
+
+// All image URLs currently referenced by a product (primary + gallery + every
+// variant's primary + gallery). Resilient: returns [] on any error.
+async function fetchProductImageUrls(
+  supabase: SupabaseClient,
+  productId: string,
+): Promise<string[]> {
+  const urls: string[] = [];
+  try {
+    const { data: p } = await supabase
+      .from("products")
+      .select("image_url, images")
+      .eq("id", productId)
+      .single();
+    if (p?.image_url) urls.push(p.image_url);
+    if (Array.isArray(p?.images)) urls.push(...p.images);
+
+    const { data: vs } = await supabase
+      .from("product_variants")
+      .select("*")
+      .eq("product_id", productId);
+    for (const v of (vs ?? []) as Array<{
+      image_url?: string | null;
+      images?: string[] | null;
+    }>) {
+      if (v.image_url) urls.push(v.image_url);
+      if (Array.isArray(v.images)) urls.push(...v.images);
+    }
+  } catch (err) {
+    console.error("fetchProductImageUrls error:", err);
+  }
+  return urls;
 }
 
 // ---------------------------------------------------------------------------
@@ -277,6 +325,10 @@ export async function updateProduct(
     updated_by: userId,
   });
 
+  // Images referenced before this save — compared against what survives so any
+  // removed file can be purged from storage.
+  const oldImageUrls = await fetchProductImageUrls(supabase, id);
+
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     const { error } = await supabase
       .from("products")
@@ -295,6 +347,10 @@ export async function updateProduct(
           error: `Product saved but variants failed: ${variantError}`,
         };
       }
+      // Purge files that are no longer referenced after the save.
+      const kept = new Set(await fetchProductImageUrls(supabase, id));
+      await deleteStorageUrls(oldImageUrls.filter((u) => !kept.has(u)));
+
       revalidateProduct(slug);
       return { success: true };
     }
@@ -318,12 +374,18 @@ export async function deleteProduct(id: string): Promise<ActionResult> {
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
 
+  // Collect the product's images before deleting (variants cascade in the DB).
+  const imageUrls = await fetchProductImageUrls(supabase, id);
+
   const { error } = await supabase.from("products").delete().eq("id", id);
 
   if (error) {
     console.error("deleteProduct error:", error);
     return { error: error.message };
   }
+
+  // Files won't cascade — remove them from storage too.
+  await deleteStorageUrls(imageUrls);
 
   revalidateProduct();
   return { success: true };

@@ -10,6 +10,8 @@ export interface ProductVariant {
   selling_price: number;
   stock: number;
   sku: string | null;
+  image_url: string | null;
+  images: string[] | null;
   sort_order: number;
   created_at: string;
 }

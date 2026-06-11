@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -164,6 +165,15 @@ export async function updateCategory(
     status: formData.status,
   });
 
+  // The image referenced before this save, so a replaced/removed one can be
+  // purged from storage afterwards.
+  const { data: prev } = await supabase
+    .from("categories")
+    .select("image_url")
+    .eq("id", id)
+    .single();
+  const oldImage = prev?.image_url ?? null;
+
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     const { error } = await supabase
       .from("categories")
@@ -171,6 +181,8 @@ export async function updateCategory(
       .eq("id", id);
 
     if (!error) {
+      const newImage = formData.image_url || null;
+      if (oldImage && oldImage !== newImage) await deleteStorageUrls([oldImage]);
       revalidateCatalog();
       return { success: true };
     }
@@ -195,12 +207,20 @@ export async function deleteCategory(id: string): Promise<ActionResult> {
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
 
+  const { data: prev } = await supabase
+    .from("categories")
+    .select("image_url")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase.from("categories").delete().eq("id", id);
 
   if (error) {
     console.error("deleteCategory error:", error);
     return { error: error.message };
   }
+
+  if (prev?.image_url) await deleteStorageUrls([prev.image_url]);
 
   revalidateCatalog();
   return { success: true };
