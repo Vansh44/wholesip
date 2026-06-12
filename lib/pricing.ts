@@ -17,6 +17,7 @@ export function discountPercent(base: number, selling: number): number {
 export interface PricedVariant {
   base_price: number;
   selling_price: number;
+  sort_order?: number;
 }
 
 export interface PricedLike {
@@ -41,23 +42,35 @@ function normalizePair(base: number, selling: number) {
   return { base: b, selling: s };
 }
 
-// The "from" / display pricing for a product: the cheapest sellable option
-// (cheapest variant by selling price, or the product-level pair).
+// The "from" / display pricing for a product. With variants, we show the
+// DEFAULT variant — i.e. the lowest sort_order, which is the first row the
+// admin entered in the variants editor. (sort_order is stamped from the
+// editor's row index in product-actions.sanitizeVariants.) Without variants,
+// the product-level base/selling pair is used.
 export function effectivePricing(p: PricedLike): EffectivePricing {
   const hasVariants = !!(p.variants && p.variants.length > 0);
-  const pairs = hasVariants
-    ? p.variants!.map((v) => normalizePair(v.base_price, v.selling_price))
-    : [normalizePair(p.base_price, p.selling_price)];
 
-  let best = pairs[0];
-  for (const pair of pairs) {
-    if (pair.selling < best.selling) best = pair;
+  if (!hasVariants) {
+    const pair = normalizePair(p.base_price, p.selling_price);
+    return {
+      base: pair.base,
+      selling: pair.selling,
+      discount: discountPercent(pair.base, pair.selling),
+      hasVariants: false,
+    };
   }
 
+  // Pick the default: lowest sort_order. Legacy rows without sort_order fall
+  // back to their array index so we still get a stable choice.
+  const sorted = [...p.variants!].sort(
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
+  const def = normalizePair(sorted[0].base_price, sorted[0].selling_price);
+
   return {
-    base: best.base,
-    selling: best.selling,
-    discount: discountPercent(best.base, best.selling),
-    hasVariants,
+    base: def.base,
+    selling: def.selling,
+    discount: discountPercent(def.base, def.selling),
+    hasVariants: true,
   };
 }
