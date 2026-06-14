@@ -17,12 +17,14 @@
 export type HomepageSectionType =
   | "featured_products"
   | "shop_by_category"
-  | "promo_banner";
+  | "promo_banner"
+  | "latest_blogs";
 
 export const HOMEPAGE_SECTION_TYPES: HomepageSectionType[] = [
   "featured_products",
   "shop_by_category",
   "promo_banner",
+  "latest_blogs",
 ];
 
 // --- Per-type config shapes ------------------------------------------------
@@ -68,16 +70,31 @@ export interface PromoBannerConfig {
   theme: BannerTheme;
 }
 
+export type BlogSource = "latest" | "manual";
+
+export interface LatestBlogsConfig {
+  heading: string;
+  subheading: string;
+  /** Newest published blogs, or hand-picked ids (in admin order). */
+  source: BlogSource;
+  /** Ordered blog ids — used when source = "manual". */
+  blog_ids: string[];
+  /** Max blogs to show (latest mode). 1–12. */
+  limit: number;
+}
+
 export type AnySectionConfig =
   | FeaturedProductsConfig
   | ShopByCategoryConfig
-  | PromoBannerConfig;
+  | PromoBannerConfig
+  | LatestBlogsConfig;
 
 // Discriminated union pairing a type with its config (handy for renderers).
 export type HomepageSectionConfig =
   | { type: "featured_products"; config: FeaturedProductsConfig }
   | { type: "shop_by_category"; config: ShopByCategoryConfig }
-  | { type: "promo_banner"; config: PromoBannerConfig };
+  | { type: "promo_banner"; config: PromoBannerConfig }
+  | { type: "latest_blogs"; config: LatestBlogsConfig };
 
 // The DB row shape (table: homepage_sections).
 export interface HomepageSection {
@@ -96,6 +113,7 @@ export const EMPTY_CONFIG: {
   featured_products: FeaturedProductsConfig;
   shop_by_category: ShopByCategoryConfig;
   promo_banner: PromoBannerConfig;
+  latest_blogs: LatestBlogsConfig;
 } = {
   featured_products: {
     heading: "Bestsellers",
@@ -120,6 +138,13 @@ export const EMPTY_CONFIG: {
     cta_href: "",
     alignment: "left",
     theme: "light",
+  },
+  latest_blogs: {
+    heading: "From the Journal",
+    subheading: "",
+    source: "latest",
+    blog_ids: [],
+    limit: 3,
   },
 };
 
@@ -148,6 +173,11 @@ export const SECTION_TYPE_META: Record<HomepageSectionType, SectionTypeMeta> = {
     label: "Promo Banner",
     description: "A full-width image banner with heading, text and a button.",
     icon: "marketing",
+  },
+  latest_blogs: {
+    label: "Blog Posts",
+    description: "Latest or hand-picked blog posts.",
+    icon: "blogs",
   },
 };
 
@@ -228,6 +258,21 @@ export function validateConfig(
     return { config };
   }
 
+  if (type === "latest_blogs") {
+    const source = input.source === "manual" ? "manual" : "latest";
+    if (source === "manual" && strArray(input.blog_ids).length === 0) {
+      return { error: "Pick at least one blog post." };
+    }
+    const config: LatestBlogsConfig = {
+      heading: str(input.heading),
+      subheading: str(input.subheading),
+      source,
+      blog_ids: source === "manual" ? strArray(input.blog_ids) : [],
+      limit: clampLimit(Number(input.limit)),
+    };
+    return { config };
+  }
+
   // promo_banner
   if (!str(input.image_url) && !str(input.heading)) {
     return { error: "Add an image or a heading for the banner." };
@@ -275,6 +320,13 @@ export function summarizeSection(section: {
     case "promo_banner": {
       const b = c as PromoBannerConfig;
       return `Promo · ${b.heading?.trim() || "(no heading)"}`;
+    }
+    case "latest_blogs": {
+      const b = c as LatestBlogsConfig;
+      const head = b.heading?.trim() || "Blog posts";
+      return b.source === "manual"
+        ? `${head} · ${b.blog_ids.length} hand-picked`
+        : `${head} · latest · up to ${b.limit}`;
     }
     default:
       return section.type;

@@ -34,12 +34,13 @@ import {
   type HomepageSectionType,
 } from "@/lib/homepage/section-types";
 import { SectionEditorDialog } from "./section-editor-dialog";
-import type { CategoryOption, ProductOption } from "./page";
+import type { BlogOption, CategoryOption, ProductOption } from "./page";
 
 type Props = {
   sections: HomepageSection[];
   products: ProductOption[];
   categories: CategoryOption[];
+  blogs: BlogOption[];
   canManage?: boolean;
 };
 
@@ -47,6 +48,7 @@ export function HomepageManagementView({
   sections,
   products,
   categories,
+  blogs,
   canManage = true,
 }: Props) {
   const router = useRouter();
@@ -381,6 +383,7 @@ export function HomepageManagementView({
         createType={createType}
         products={products}
         categories={categories}
+        blogs={blogs}
         onClose={closeEditor}
         onSaved={handleSaved}
       />

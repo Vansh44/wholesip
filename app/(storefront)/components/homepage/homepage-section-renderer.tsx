@@ -5,9 +5,11 @@ import {
   type CategoryTile,
 } from "./shop-by-category-section";
 import { PromoBannerSection } from "./promo-banner-section";
+import { LatestBlogsSection, type BlogCardData } from "./latest-blogs-section";
 import type {
   FeaturedProductsConfig,
   HomepageSection,
+  LatestBlogsConfig,
   PromoBannerConfig,
   ShopByCategoryConfig,
 } from "@/lib/homepage/section-types";
@@ -17,6 +19,7 @@ import type {
 export interface ResolvedData {
   productsBySection: Map<string, ShopCardProduct[]>;
   categoriesBySection: Map<string, CategoryTile[]>;
+  blogsBySection: Map<string, BlogCardData[]>;
 }
 
 export function HomepageSectionRenderer({
@@ -44,6 +47,13 @@ export function HomepageSectionRenderer({
     case "promo_banner":
       return (
         <PromoBannerSection config={section.config as PromoBannerConfig} />
+      );
+    case "latest_blogs":
+      return (
+        <LatestBlogsSection
+          config={section.config as LatestBlogsConfig}
+          blogs={resolved.blogsBySection.get(section.id) ?? []}
+        />
       );
     default:
       return null;

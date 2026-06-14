@@ -6,10 +6,12 @@ import {
 } from "@/app/(storefront)/components/homepage/homepage-section-renderer";
 import type { ShopCardProduct } from "@/app/(storefront)/components/shop-card";
 import type { CategoryTile } from "@/app/(storefront)/components/homepage/shop-by-category-section";
+import type { BlogCardData } from "@/app/(storefront)/components/homepage/latest-blogs-section";
 import {
   clampLimit,
   type FeaturedProductsConfig,
   type HomepageSection,
+  type LatestBlogsConfig,
   type ShopByCategoryConfig,
 } from "@/lib/homepage/section-types";
 import "@/app/(storefront)/pages/shop/shop.css"; // .shop-card styles for featured grid
@@ -44,11 +46,12 @@ export default async function Home() {
     );
   }
 
-  // Does any section need products / categories? Fetch each set at most once.
+  // Which datasets are needed? Fetch each at most once.
   const needsProducts = sections.some((s) => s.type === "featured_products");
   const needsCategories = sections.some((s) => s.type === "shop_by_category");
+  const needsBlogs = sections.some((s) => s.type === "latest_blogs");
 
-  const [productsRes, categoriesRes] = await Promise.all([
+  const [productsRes, categoriesRes, blogsRes] = await Promise.all([
     needsProducts
       ? supabase
           .from("products")
@@ -66,16 +69,28 @@ export default async function Home() {
           .order("sort_order", { ascending: true })
           .order("name", { ascending: true })
       : Promise.resolve({ data: [] as CategoryTile[] }),
+    needsBlogs
+      ? supabase
+          .from("blogs")
+          .select(
+            "id, title, slug, excerpt, cover_image_url, author, published_at, reading_time, categories",
+          )
+          .eq("status", "published")
+          .order("published_at", { ascending: false })
+      : Promise.resolve({ data: [] as BlogCardData[] }),
   ]);
 
   const allProducts = (productsRes.data ?? []) as HomeProduct[];
   const allCategories = (categoriesRes.data ?? []) as CategoryTile[];
+  const allBlogs = (blogsRes.data ?? []) as BlogCardData[];
   const productById = new Map(allProducts.map((p) => [p.id, p]));
   const categoryById = new Map(allCategories.map((c) => [c.id, c]));
+  const blogById = new Map(allBlogs.map((b) => [b.id, b]));
 
   // Resolve each section's data once.
   const productsBySection = new Map<string, ShopCardProduct[]>();
   const categoriesBySection = new Map<string, CategoryTile[]>();
+  const blogsBySection = new Map<string, BlogCardData[]>();
 
   for (const s of sections) {
     if (s.type === "featured_products") {
@@ -105,10 +120,23 @@ export default async function Home() {
               .filter((x): x is CategoryTile => !!x)
           : allCategories;
       categoriesBySection.set(s.id, rows);
+    } else if (s.type === "latest_blogs") {
+      const c = s.config as LatestBlogsConfig;
+      const rows =
+        c.source === "manual"
+          ? c.blog_ids
+              .map((id) => blogById.get(id))
+              .filter((x): x is BlogCardData => !!x)
+          : allBlogs.slice(0, clampLimit(c.limit));
+      blogsBySection.set(s.id, rows);
     }
   }
 
-  const resolved: ResolvedData = { productsBySection, categoriesBySection };
+  const resolved: ResolvedData = {
+    productsBySection,
+    categoriesBySection,
+    blogsBySection,
+  };
 
   return (
     <main>

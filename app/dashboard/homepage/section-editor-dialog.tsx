@@ -23,10 +23,11 @@ import {
   type FeaturedProductsConfig,
   type HomepageSection,
   type HomepageSectionType,
+  type LatestBlogsConfig,
   type PromoBannerConfig,
   type ShopByCategoryConfig,
 } from "@/lib/homepage/section-types";
-import type { CategoryOption, ProductOption } from "./page";
+import type { BlogOption, CategoryOption, ProductOption } from "./page";
 
 const fieldClass =
   "w-full rounded-md border border-[rgba(255,255,255,0.1)] bg-[#0e1118] px-3 py-2 text-sm text-[#e8ecf4] outline-none placeholder:text-[#5b6478] focus:border-[#6366f1]";
@@ -39,6 +40,7 @@ type Props = {
   createType: HomepageSectionType | null; // create mode
   products: ProductOption[];
   categories: CategoryOption[];
+  blogs: BlogOption[];
   onClose: () => void;
   onSaved: () => void;
 };
@@ -145,6 +147,7 @@ export function SectionEditorDialog({
   createType,
   products,
   categories,
+  blogs,
   onClose,
   onSaved,
 }: Props) {
@@ -220,6 +223,13 @@ export function SectionEditorDialog({
             <BannerFields
               config={config as PromoBannerConfig}
               setConfig={setConfig}
+            />
+          )}
+          {type === "latest_blogs" && (
+            <BlogFields
+              config={config as LatestBlogsConfig}
+              setConfig={setConfig}
+              blogs={blogs}
             />
           )}
         </div>
@@ -520,6 +530,88 @@ function BannerFields({
           </select>
         </div>
       </div>
+    </>
+  );
+}
+
+function BlogFields({
+  config,
+  setConfig,
+  blogs,
+}: {
+  config: LatestBlogsConfig;
+  setConfig: (c: AnySectionConfig) => void;
+  blogs: BlogOption[];
+}) {
+  const set = <K extends keyof LatestBlogsConfig>(
+    key: K,
+    value: LatestBlogsConfig[K],
+  ) => setConfig({ ...config, [key]: value });
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Heading</label>
+          <input
+            className={fieldClass}
+            value={config.heading}
+            onChange={(e) => set("heading", e.target.value)}
+            placeholder="From the Journal"
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Subheading</label>
+          <input
+            className={fieldClass}
+            value={config.subheading}
+            onChange={(e) => set("subheading", e.target.value)}
+            placeholder="(optional)"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Which posts?</label>
+        <select
+          className={fieldClass}
+          value={config.source}
+          onChange={(e) =>
+            set("source", e.target.value as LatestBlogsConfig["source"])
+          }
+        >
+          <option value="latest">Latest published (auto)</option>
+          <option value="manual">Hand-picked</option>
+        </select>
+      </div>
+
+      {config.source === "manual" ? (
+        <div>
+          <label className={labelClass}>Posts (in display order)</label>
+          <OrderedPicker
+            selectedIds={config.blog_ids}
+            options={blogs.map((b) => ({ id: b.id, name: b.name }))}
+            onChange={(ids) => set("blog_ids", ids)}
+            addLabel="Add a blog post…"
+          />
+          {blogs.length === 0 && (
+            <p className="mt-1 text-[11px] text-[#5b6478]">
+              No published blogs yet — publish a post first.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div style={{ maxWidth: 160 }}>
+          <label className={labelClass}>Max posts</label>
+          <NumberField
+            className={fieldClass}
+            value={config.limit}
+            onValueChange={(n) => set("limit", n)}
+            allowDecimal={false}
+          />
+          <p className="mt-1 text-[11px] text-[#5b6478]">1–12.</p>
+        </div>
+      )}
     </>
   );
 }

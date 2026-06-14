@@ -22,29 +22,53 @@ export interface CategoryOption {
   image_url: string | null;
 }
 
+// Published-blog options for the "Blog Posts" section's hand-picked picker.
+export interface BlogOption {
+  id: string;
+  name: string; // blog title, named `name` so it fits the shared OrderedPicker
+  slug: string;
+}
+
 export default async function HomepagePage() {
   const access = await requireSectionAccess("homepage", "view");
   const canManage = access.can("homepage", "manage");
 
   const supabase = await createClient();
 
-  const [{ data: sections, error }, { data: products }, { data: categories }] =
-    await Promise.all([
-      supabase
-        .from("homepage_sections")
-        .select("*")
-        .order("sort_order", { ascending: true }),
-      supabase
-        .from("products")
-        .select("id, name, slug, image_url, featured")
-        .order("sort_order", { ascending: true })
-        .order("name", { ascending: true }),
-      supabase
-        .from("categories")
-        .select("id, name, slug, image_url")
-        .order("sort_order", { ascending: true })
-        .order("name", { ascending: true }),
-    ]);
+  const [
+    { data: sections, error },
+    { data: products },
+    { data: categories },
+    { data: blogs },
+  ] = await Promise.all([
+    supabase
+      .from("homepage_sections")
+      .select("*")
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("products")
+      .select("id, name, slug, image_url, featured")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
+    supabase
+      .from("categories")
+      .select("id, name, slug, image_url")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
+    supabase
+      .from("blogs")
+      .select("id, title, slug")
+      .eq("status", "published")
+      .order("published_at", { ascending: false }),
+  ]);
+
+  const blogOptions: BlogOption[] = (blogs ?? []).map(
+    (b: { id: string; title: string; slug: string }) => ({
+      id: b.id,
+      name: b.title,
+      slug: b.slug,
+    }),
+  );
 
   if (error) {
     return (
@@ -66,6 +90,7 @@ export default async function HomepagePage() {
       sections={(sections ?? []) as HomepageSection[]}
       products={(products ?? []) as ProductOption[]}
       categories={(categories ?? []) as CategoryOption[]}
+      blogs={blogOptions}
       canManage={canManage}
     />
   );

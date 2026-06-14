@@ -148,6 +148,41 @@ describe("validateConfig", () => {
       expect((r as any).config.cta_href).toBe("/pages/shop");
     });
   });
+
+  describe("latest_blogs", () => {
+    // Default source "latest" with a clamped limit; blog_ids dropped.
+    it("defaults to latest and clamps limit", () => {
+      const r = validateConfig("latest_blogs", {
+        heading: "  Journal  ",
+        source: "latest",
+        limit: 99,
+        blog_ids: ["x"],
+      });
+      const c = (r as any).config;
+      expect(c.heading).toBe("Journal");
+      expect(c.source).toBe("latest");
+      expect(c.limit).toBe(12); // clamped
+      expect(c.blog_ids).toEqual([]); // dropped in latest mode
+    });
+
+    // Manual mode requires at least one blog id.
+    it("rejects manual mode with no posts", () => {
+      const r = validateConfig("latest_blogs", {
+        source: "manual",
+        blog_ids: [],
+      });
+      expect("error" in r && r.error).toMatch(/at least one blog/i);
+    });
+
+    // Manual mode keeps the ordered ids.
+    it("keeps ordered blog_ids in manual mode", () => {
+      const r = validateConfig("latest_blogs", {
+        source: "manual",
+        blog_ids: ["b3", "b1"],
+      });
+      expect((r as any).config.blog_ids).toEqual(["b3", "b1"]);
+    });
+  });
 });
 
 describe("homepage CRUD actions", () => {
