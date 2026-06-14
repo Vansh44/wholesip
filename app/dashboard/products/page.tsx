@@ -8,6 +8,7 @@ export interface ProductVariant {
   name: string;
   base_price: number;
   selling_price: number;
+  special_price: number | null;
   stock: number;
   sku: string | null;
   image_url: string | null;

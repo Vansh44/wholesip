@@ -130,6 +130,7 @@ describe("product-actions", () => {
             name: "Small",
             base_price: 100,
             selling_price: 80,
+            special_price: null,
             stock: 10,
             sku: "SM",
             images: [],
@@ -151,6 +152,7 @@ describe("product-actions", () => {
             name: "",
             base_price: 100,
             selling_price: 80,
+            special_price: null,
             stock: 1,
             sku: "",
             images: [],
@@ -159,6 +161,7 @@ describe("product-actions", () => {
             name: "Medium",
             base_price: 100,
             selling_price: 80,
+            special_price: null,
             stock: 1,
             sku: "",
             images: [],
@@ -169,6 +172,61 @@ describe("product-actions", () => {
         supabase._tables.product_variants.insert.mock.calls[0][0];
       expect(inserted).toHaveLength(1);
       expect(inserted[0].name).toBe("Medium");
+    });
+
+    // sanitizeVariants persists special_price when set, and clamps against
+    // base_price so a typo of "1000" on a ₹100 item still saves as ₹100.
+    it("persists special_price and clamps it to base_price", async () => {
+      await createProduct({
+        ...validForm,
+        variants: [
+          {
+            name: "500ml",
+            base_price: 100,
+            selling_price: 80,
+            // intentionally above base — must clamp.
+            special_price: 1000,
+            stock: 1,
+            sku: "",
+            images: [],
+          },
+        ],
+      });
+      const inserted =
+        supabase._tables.product_variants.insert.mock.calls[0][0];
+      expect(inserted[0].special_price).toBe(100);
+    });
+
+    // special_price null / 0 means "no sale" — must persist as NULL, not 0,
+    // so the storefront's `hasSpecialPrice` check stays accurate.
+    it("stores null when special_price is 0 or null", async () => {
+      await createProduct({
+        ...validForm,
+        variants: [
+          {
+            name: "A",
+            base_price: 100,
+            selling_price: 80,
+            special_price: 0,
+            stock: 1,
+            sku: "",
+            images: [],
+          },
+          {
+            name: "B",
+            base_price: 100,
+            selling_price: 80,
+            special_price: null,
+            stock: 1,
+            sku: "",
+            images: [],
+          },
+        ],
+      });
+      const inserted =
+        supabase._tables.product_variants.insert.mock.calls[0][0];
+      expect(inserted[0].special_price).toBeNull();
+      expect(inserted[1].special_price).toBeNull();
     });
   });
 

@@ -44,7 +44,7 @@ async function getRelated(
   const { data } = await supabase
     .from("products")
     .select(
-      "id, name, slug, base_price, selling_price, image_url, featured, variants:product_variants(base_price, selling_price, sort_order)",
+      "id, name, slug, base_price, selling_price, image_url, featured, variants:product_variants(base_price, selling_price, special_price, sort_order)",
     )
     .eq("status", "published")
     .eq("category_id", categoryId)

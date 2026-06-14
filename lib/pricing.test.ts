@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { formatPrice, discountPercent, effectivePricing } from "./pricing";
+import {
+  formatPrice,
+  discountPercent,
+  effectivePricing,
+  variantEffectiveSelling,
+  hasSpecialPrice,
+} from "./pricing";
 
 // formatPrice() is the storefront's currency formatter — rupees, Indian
 // grouping (lakh/crore commas), no trailing zeros.
@@ -133,5 +139,98 @@ describe("effectivePricing", () => {
     });
     expect(out.hasVariants).toBe(false);
     expect(out.selling).toBe(40);
+  });
+
+  // When the default (lowest-sort_order) variant has a special_price set,
+  // that overrides its selling_price for the card. Base stays as base_price
+  // so the strikethrough still shows MRP.
+  it("uses special_price on the default variant when set", () => {
+    const out = effectivePricing({
+      base_price: 500,
+      selling_price: 500,
+      variants: [
+        // Default variant — special_price wins over selling_price.
+        {
+          base_price: 200,
+          selling_price: 180,
+          special_price: 150,
+          sort_order: 0,
+        },
+        { base_price: 300, selling_price: 240, sort_order: 1 },
+      ],
+    });
+    expect(out.base).toBe(200);
+    expect(out.selling).toBe(150);
+    expect(out.discount).toBe(25); // 200 -> 150 is 25% off
+  });
+
+  // A non-default variant's special_price must NOT affect the card price.
+  it("ignores special_price on non-default variants", () => {
+    const out = effectivePricing({
+      base_price: 500,
+      selling_price: 500,
+      variants: [
+        { base_price: 200, selling_price: 180, sort_order: 0 }, // default
+        {
+          base_price: 300,
+          selling_price: 240,
+          special_price: 100, // aggressive sale, but on the 2nd variant
+          sort_order: 1,
+        },
+      ],
+    });
+    expect(out.selling).toBe(180);
+    expect(out.base).toBe(200);
+  });
+});
+
+// variantEffectiveSelling — exported helper used by the PDP/cart to resolve a
+// single variant's "what is it being sold at right now" price.
+describe("variantEffectiveSelling", () => {
+  // No special price → regular selling_price.
+  it("returns selling_price when no special_price set", () => {
+    expect(
+      variantEffectiveSelling({ base_price: 100, selling_price: 80 }),
+    ).toBe(80);
+  });
+
+  // special_price (when > 0) wins over selling_price.
+  it("returns special_price when set", () => {
+    expect(
+      variantEffectiveSelling({
+        base_price: 100,
+        selling_price: 80,
+        special_price: 60,
+      }),
+    ).toBe(60);
+  });
+
+  // null / 0 special_price is treated as "not set".
+  it("ignores null or zero special_price", () => {
+    expect(
+      variantEffectiveSelling({
+        base_price: 100,
+        selling_price: 80,
+        special_price: null,
+      }),
+    ).toBe(80);
+    expect(
+      variantEffectiveSelling({
+        base_price: 100,
+        selling_price: 80,
+        special_price: 0,
+      }),
+    ).toBe(80);
+  });
+});
+
+// hasSpecialPrice — boolean predicate used by the PDP to decide whether to
+// render the yellow "best value" price-tag badge above a variant chip.
+describe("hasSpecialPrice", () => {
+  it("returns true only when special_price > 0", () => {
+    expect(hasSpecialPrice({ special_price: 50 })).toBe(true);
+    expect(hasSpecialPrice({ special_price: 0 })).toBe(false);
+    expect(hasSpecialPrice({ special_price: null })).toBe(false);
+    expect(hasSpecialPrice({})).toBe(false);
   });
 });

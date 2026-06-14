@@ -22,7 +22,6 @@ export default defineConfig({
         "lib/slug.ts",
         "lib/pricing.ts",
         "lib/sanitize.ts",
-        "lib/og-image.ts",
         "lib/blog-config.ts",
         "lib/supabase/storage-cleanup.ts",
         "app/actions/**/*.ts",

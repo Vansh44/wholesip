@@ -769,7 +769,86 @@
 .pdp-variant-options {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  /* Extra row gap so the price tag above a chip has room to hang without
+     overlapping the row above. */
+  row-gap: 48px;
+  column-gap: 10px;
+}
+
+/* Slot wraps each chip so the optional "best value" tag can hang above it
+   without affecting the chip's layout/click target. */
+.pdp-variant-slot {
+  position: relative;
+}
+
+/* Yellow "best value" tag — flag-shaped badge floating above its chip when
+   the variant has a special_price set. Built with clip-path for the notched
+   bottom corners, a dashed inset for the ticket border, and a tiny pointer
+   line + dot connecting it to the chip below. */
+.pdp-variant-tag {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 14px 10px;
+  min-width: 96px;
+  background: #f5c542;
+  color: #1f1408;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  border-radius: 8px;
+  /* Notched bottom corners — gives the badge its "tag" silhouette. */
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - 6px),
+    calc(50% + 6px) calc(100% - 6px),
+    50% 100%,
+    calc(50% - 6px) calc(100% - 6px),
+    0 calc(100% - 6px)
+  );
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Dashed inner border to mimic a paper ticket. */
+.pdp-variant-tag::before {
+  content: "";
+  position: absolute;
+  inset: 3px 3px 9px 3px;
+  border: 1px dashed rgba(255, 255, 255, 0.7);
+  border-radius: 5px;
+  pointer-events: none;
+}
+
+/* Pointer dot + line connecting the tag to the chip. */
+.pdp-variant-tag::after {
+  content: "";
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  width: 1px;
+  height: 8px;
+  background: #1f1408;
+  border-radius: 0;
+}
+
+.pdp-variant-tag-price {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.pdp-variant-tag-sub {
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.85;
 }
 
 .pdp-variant {

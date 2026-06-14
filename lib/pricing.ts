@@ -17,6 +17,11 @@ export function discountPercent(base: number, selling: number): number {
 export interface PricedVariant {
   base_price: number;
   selling_price: number;
+  // Overrides selling_price when present. NULL/undefined → variant prices as
+  // normal. Used to flag a temporary sale on a single variant (e.g. push the
+  // bigger pack at an aggressive discount); the storefront also renders a
+  // "best value" price tag on the variant chip when this is set.
+  special_price?: number | null;
   sort_order?: number;
 }
 
@@ -65,7 +70,11 @@ export function effectivePricing(p: PricedLike): EffectivePricing {
   const sorted = [...p.variants!].sort(
     (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
   );
-  const def = normalizePair(sorted[0].base_price, sorted[0].selling_price);
+  // special_price (when set) overrides selling_price for the chosen variant.
+  // It's still clamped against base_price, so a typo can't display free.
+  const v = sorted[0];
+  const effSelling = variantEffectiveSelling(v);
+  const def = normalizePair(v.base_price, effSelling);
 
   return {
     base: def.base,
@@ -73,4 +82,21 @@ export function effectivePricing(p: PricedLike): EffectivePricing {
     discount: discountPercent(def.base, def.selling),
     hasVariants: true,
   };
+}
+
+/**
+ * The effective selling price for a single variant: special_price when set
+ * (non-null, > 0), otherwise the regular selling_price. Exported so the PDP
+ * and cart can resolve the per-variant price consistently with the helper.
+ */
+export function variantEffectiveSelling(v: PricedVariant): number {
+  if (v.special_price != null && v.special_price > 0) return v.special_price;
+  return v.selling_price;
+}
+
+/** Does this variant have a special (sale) price that should show a tag? */
+export function hasSpecialPrice(v: {
+  special_price?: number | null;
+}): boolean {
+  return v.special_price != null && v.special_price > 0;
 }
