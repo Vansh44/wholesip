@@ -26,6 +26,7 @@ export interface ChainMock {
   like: ReturnType<typeof vi.fn>;
   ilike: ReturnType<typeof vi.fn>;
   order: ReturnType<typeof vi.fn>;
+  limit: ReturnType<typeof vi.fn>;
   single: ReturnType<typeof vi.fn>;
   maybeSingle: ReturnType<typeof vi.fn>;
   then: (resolve: any) => any;
@@ -52,6 +53,7 @@ export function makeChain(
     like: vi.fn(() => chain),
     ilike: vi.fn(() => chain),
     order: vi.fn(() => chain),
+    limit: vi.fn(() => chain),
     single: vi.fn().mockResolvedValue(singleResult),
     maybeSingle: vi.fn().mockResolvedValue(singleResult),
     // Awaiting the chain directly (no terminal) — used by list selects,

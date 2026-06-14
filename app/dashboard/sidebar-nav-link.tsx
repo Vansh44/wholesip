@@ -20,11 +20,13 @@ import {
   KeyRound,
   History,
   Settings,
+  LayoutTemplate,
   type LucideIcon,
 } from "lucide-react";
 
 export const navIcons = {
   dashboard: LayoutGrid,
+  homepage: LayoutTemplate,
   orders: Package,
   products: ShoppingBag,
   categories: Tags,

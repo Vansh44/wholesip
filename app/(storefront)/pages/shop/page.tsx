@@ -17,7 +17,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function ShopPage() {
+export default async function ShopPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string }>;
+}) {
+  const { category: initialCategorySlug } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: products }, { data: categories }] = await Promise.all([
@@ -40,5 +45,11 @@ export default async function ShopPage() {
   const shopProducts = (products ?? []) as ShopProduct[];
   const shopCategories = (categories ?? []) as ShopCategory[];
 
-  return <ShopClient products={shopProducts} categories={shopCategories} />;
+  return (
+    <ShopClient
+      products={shopProducts}
+      categories={shopCategories}
+      initialCategorySlug={initialCategorySlug}
+    />
+  );
 }
