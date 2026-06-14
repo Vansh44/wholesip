@@ -86,12 +86,10 @@ export function makeSupabase(
       refreshSession: vi.fn().mockResolvedValue({ error: null }),
       resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }),
       admin: {
-        createUser: vi
-          .fn()
-          .mockResolvedValue({
-            data: { user: { id: "new-user" } },
-            error: null,
-          }),
+        createUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "new-user" } },
+          error: null,
+        }),
         deleteUser: vi.fn().mockResolvedValue({ error: null }),
         updateUserById: vi.fn().mockResolvedValue({ error: null }),
       },

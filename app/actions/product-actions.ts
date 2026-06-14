@@ -130,9 +130,10 @@ function sanitizeVariants(variants: VariantFormData[]) {
         Number.isFinite(v.special_price) &&
         v.special_price > 0
       ) {
-        special = prices.base_price > 0
-          ? Math.min(v.special_price, prices.base_price)
-          : v.special_price;
+        special =
+          prices.base_price > 0
+            ? Math.min(v.special_price, prices.base_price)
+            : v.special_price;
       }
       return {
         name: v.name.trim(),

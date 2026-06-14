@@ -95,8 +95,6 @@ export function variantEffectiveSelling(v: PricedVariant): number {
 }
 
 /** Does this variant have a special (sale) price that should show a tag? */
-export function hasSpecialPrice(v: {
-  special_price?: number | null;
-}): boolean {
+export function hasSpecialPrice(v: { special_price?: number | null }): boolean {
   return v.special_price != null && v.special_price > 0;
 }

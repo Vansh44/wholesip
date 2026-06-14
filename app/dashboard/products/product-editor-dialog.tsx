@@ -742,11 +742,7 @@ export function ProductEditorDialog({
                         className={`${fieldClass} w-24`}
                         value={v.special_price ?? 0}
                         onValueChange={(n) =>
-                          updateVariant(
-                            i,
-                            "special_price",
-                            n > 0 ? n : null,
-                          )
+                          updateVariant(i, "special_price", n > 0 ? n : null)
                         }
                       />
                       <span className="text-[11px] text-[#5b6478]">
