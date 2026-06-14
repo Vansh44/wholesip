@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { discountPercent, formatPrice } from "@/lib/pricing";
+import {
+  discountPercent,
+  formatPrice,
+  hasSpecialPrice,
+  variantEffectiveSelling,
+} from "@/lib/pricing";
 import { useCart } from "@/app/components/cart/CartProvider";
 import { RelatedProducts, type RelatedProduct } from "./related-products";
 import ReviewsSection, {
@@ -17,6 +22,9 @@ export interface DetailVariant {
   name: string;
   base_price: number;
   selling_price: number;
+  // NULL when no sale price is set; otherwise overrides selling_price and
+  // triggers the "best value" tag badge on the chip.
+  special_price: number | null;
   stock: number;
   sku: string | null;
   images: string[] | null;
@@ -42,6 +50,18 @@ export interface DetailProduct {
 // Effective selling price: fall back to base when no selling price is set.
 function sellingOf(base: number, selling: number): number {
   return selling > 0 ? selling : base;
+}
+
+// Same fallback as sellingOf, but for variants — a special_price (if set)
+// wins over the regular selling_price. Mirrors lib/pricing.variantEffective-
+// Selling, with the base-fallback the PDP needs when selling_price is 0.
+function variantSellingWithFallback(v: {
+  base_price: number;
+  selling_price: number;
+  special_price: number | null;
+}): number {
+  const eff = variantEffectiveSelling(v);
+  return eff > 0 ? eff : v.base_price;
 }
 
 export default function ProductDetailClient({
@@ -103,7 +123,7 @@ export default function ProductDetailClient({
     ? selectedVariant.base_price
     : product.base_price;
   const selling = selectedVariant
-    ? sellingOf(selectedVariant.base_price, selectedVariant.selling_price)
+    ? variantSellingWithFallback(selectedVariant)
     : sellingOf(product.base_price, product.selling_price);
   const discount = discountPercent(base, selling);
   const outOfStock = selectedVariant ? selectedVariant.stock <= 0 : false;
@@ -256,20 +276,42 @@ export default function ProductDetailClient({
               <div className="pdp-variant-options">
                 {product.variants.map((v) => {
                   const disabled = v.stock <= 0;
+                  const hasSale = hasSpecialPrice(v);
                   return (
-                    <button
+                    <div
                       key={v.id}
-                      className={`pdp-variant${variantId === v.id ? " active" : ""}${
-                        disabled ? " disabled" : ""
-                      }`}
-                      onClick={() => !disabled && selectVariant(v)}
-                      disabled={disabled}
+                      className={`pdp-variant-slot${hasSale ? " has-sale" : ""}`}
                     >
-                      {v.name}
-                      {disabled && (
-                        <span className="pdp-variant-oos"> · sold out</span>
+                      {hasSale && (
+                        // Yellow "best value" tag floats above the chip when
+                        // this variant has a special price. The tag's text
+                        // shows the special price; the chip below still drives
+                        // the click target.
+                        <span
+                          className="pdp-variant-tag"
+                          aria-label={`Special price ${formatPrice(v.special_price!)} — best value`}
+                        >
+                          <span className="pdp-variant-tag-price">
+                            Only {formatPrice(v.special_price!)}
+                          </span>
+                          <span className="pdp-variant-tag-sub">
+                            best value!
+                          </span>
+                        </span>
                       )}
-                    </button>
+                      <button
+                        className={`pdp-variant${variantId === v.id ? " active" : ""}${
+                          disabled ? " disabled" : ""
+                        }`}
+                        onClick={() => !disabled && selectVariant(v)}
+                        disabled={disabled}
+                      >
+                        {v.name}
+                        {disabled && (
+                          <span className="pdp-variant-oos"> · sold out</span>
+                        )}
+                      </button>
+                    </div>
                   );
                 })}
               </div>

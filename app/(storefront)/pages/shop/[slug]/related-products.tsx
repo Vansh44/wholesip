@@ -10,7 +10,12 @@ export interface RelatedProduct {
   selling_price: number;
   image_url: string | null;
   featured: boolean;
-  variants: { base_price: number; selling_price: number }[];
+  variants: {
+    base_price: number;
+    selling_price: number;
+    special_price: number | null;
+    sort_order: number;
+  }[];
 }
 
 export function RelatedProducts({ products }: { products: RelatedProduct[] }) {

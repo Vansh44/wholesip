@@ -1,0 +1,303 @@
+/* Homepage managed sections — rendered below the hero. Uses the global
+   --soakd-* storefront palette; no new tokens. */
+
+.home-sections {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(40px, 6vw, 72px);
+  padding: clamp(40px, 6vw, 72px) 0;
+}
+
+.home-section {
+  width: 100%;
+  padding-inline: clamp(20px, 5vw, 64px);
+}
+
+/* Banners go edge-to-edge, so they cancel the section gutter. */
+.home-section:has(.home-banner) {
+  padding-inline: 0;
+}
+
+.home-section-head {
+  margin-bottom: clamp(18px, 3vw, 28px);
+  text-align: center;
+}
+
+.home-section-title {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--soakd-ink);
+  margin: 0;
+}
+
+.home-section-sub {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  color: var(--soakd-ink-soft);
+}
+
+/* ---- Featured products grid (reuses .shop-card from shop.css) ---- */
+.home-product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 22px;
+}
+
+@media (max-width: 1100px) {
+  .home-product-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .home-product-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 460px) {
+  .home-product-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Card look — mirrors the `.shop-listing .shop-card*` tile styling so homepage
+   featured cards match the shop grid (soft colour tile via --card-bg, capped
+   image height instead of the generic 2/3 aspect, ink typography). The base
+   .shop-card rules in shop.css are otherwise scoped under .shop-listing and
+   wouldn't reach the homepage. */
+.home-product-grid .shop-card {
+  background: var(--card-bg, var(--soakd-tile, #f4dfe0));
+  border: none;
+  border-radius: 20px;
+  padding: 10px;
+  box-shadow: 0 1px 2px rgba(23, 19, 15, 0.04);
+}
+
+.home-product-grid .shop-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 22px 44px rgba(23, 19, 15, 0.14);
+}
+
+.home-product-grid .shop-card-img {
+  height: clamp(165px, 18vw, 230px);
+  aspect-ratio: auto;
+  background: transparent;
+  border-radius: 14px;
+}
+
+.home-product-grid .shop-card-img-el {
+  padding: 10px;
+  transition: transform 0.3s ease;
+}
+
+.home-product-grid .shop-card:hover .shop-card-img-el {
+  transform: scale(1.05);
+}
+
+.home-product-grid .shop-card-badge {
+  left: auto;
+  right: 14px;
+  top: 14px;
+  background: var(--soakd-ink);
+  color: #fff;
+  font-size: 13px;
+  padding: 6px 14px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.home-product-grid .shop-card-body {
+  padding: 6px 12px 14px;
+}
+
+.home-product-grid .shop-card-name {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--soakd-ink);
+}
+
+.home-product-grid .shop-card-price,
+.home-product-grid .shop-card-sell,
+.home-product-grid .shop-card-from {
+  color: var(--soakd-ink);
+}
+
+.home-product-grid .shop-card-base {
+  color: var(--soakd-ink-faint);
+}
+
+.home-product-grid .shop-card-off {
+  color: var(--soakd-ink);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+/* ---- Shop by category ---- */
+.home-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 20px;
+}
+
+.home-cat-scroll {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
+.home-cat-scroll .home-cat-tile {
+  flex: 0 0 160px;
+  scroll-snap-align: start;
+}
+
+.home-cat-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--soakd-ink);
+}
+
+.home-cat-img {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--soakd-cream-deep);
+  border: 1px solid var(--soakd-border);
+  transition: transform 0.18s ease;
+}
+.home-cat-tile:hover .home-cat-img {
+  transform: translateY(-3px);
+}
+
+.home-cat-img-el {
+  object-fit: cover;
+}
+
+.home-cat-img-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 2rem;
+  opacity: 0.5;
+}
+
+.home-cat-name {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+/* ---- Promo banner ---- */
+.home-banner {
+  position: relative;
+  width: 100%;
+  min-height: clamp(260px, 38vw, 460px);
+  display: flex;
+  overflow: hidden;
+  background: var(--soakd-cream-deep);
+}
+
+.home-banner-img {
+  object-fit: cover;
+  z-index: 0;
+}
+
+.home-banner-overlay {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  padding: clamp(28px, 5vw, 64px);
+}
+
+.home-banner.align-left .home-banner-overlay {
+  justify-content: flex-start;
+  text-align: left;
+}
+.home-banner.align-center .home-banner-overlay {
+  justify-content: center;
+  text-align: center;
+}
+.home-banner.align-right .home-banner-overlay {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.home-banner-overlay {
+  align-items: center;
+}
+
+.home-banner-content {
+  max-width: 540px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.home-banner.align-center .home-banner-content {
+  align-items: center;
+}
+.home-banner.align-right .home-banner-content {
+  align-items: flex-end;
+}
+
+/* Theme controls text colour over the image. */
+.home-banner.theme-light .home-banner-content {
+  color: #fff;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+}
+.home-banner.theme-dark .home-banner-content {
+  color: var(--soakd-ink);
+}
+
+.home-banner-heading {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: clamp(1.6rem, 4vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.home-banner-subtext {
+  font-size: clamp(0.95rem, 1.6vw, 1.1rem);
+  margin: 0;
+  max-width: 42ch;
+}
+
+.home-banner-cta {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 12px 28px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  background: var(--soakd-ink);
+  color: var(--soakd-cream);
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+.home-banner-cta:hover {
+  transform: translateY(-2px);
+  background: var(--soakd-accent-deep);
+}
+/* On a dark-text banner, the dark button needs the inverse for contrast. */
+.home-banner.theme-light .home-banner-cta {
+  background: #fff;
+  color: var(--soakd-ink);
+}
+.home-banner.theme-light .home-banner-cta:hover {
+  background: var(--soakd-cream);
+}

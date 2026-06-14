@@ -17,6 +17,12 @@ export function discountPercent(base: number, selling: number): number {
 export interface PricedVariant {
   base_price: number;
   selling_price: number;
+  // Overrides selling_price when present. NULL/undefined → variant prices as
+  // normal. Used to flag a temporary sale on a single variant (e.g. push the
+  // bigger pack at an aggressive discount); the storefront also renders a
+  // "best value" price tag on the variant chip when this is set.
+  special_price?: number | null;
+  sort_order?: number;
 }
 
 export interface PricedLike {
@@ -41,23 +47,54 @@ function normalizePair(base: number, selling: number) {
   return { base: b, selling: s };
 }
 
-// The "from" / display pricing for a product: the cheapest sellable option
-// (cheapest variant by selling price, or the product-level pair).
+// The "from" / display pricing for a product. With variants, we show the
+// DEFAULT variant — i.e. the lowest sort_order, which is the first row the
+// admin entered in the variants editor. (sort_order is stamped from the
+// editor's row index in product-actions.sanitizeVariants.) Without variants,
+// the product-level base/selling pair is used.
 export function effectivePricing(p: PricedLike): EffectivePricing {
   const hasVariants = !!(p.variants && p.variants.length > 0);
-  const pairs = hasVariants
-    ? p.variants!.map((v) => normalizePair(v.base_price, v.selling_price))
-    : [normalizePair(p.base_price, p.selling_price)];
 
-  let best = pairs[0];
-  for (const pair of pairs) {
-    if (pair.selling < best.selling) best = pair;
+  if (!hasVariants) {
+    const pair = normalizePair(p.base_price, p.selling_price);
+    return {
+      base: pair.base,
+      selling: pair.selling,
+      discount: discountPercent(pair.base, pair.selling),
+      hasVariants: false,
+    };
   }
 
+  // Pick the default: lowest sort_order. Legacy rows without sort_order fall
+  // back to their array index so we still get a stable choice.
+  const sorted = [...p.variants!].sort(
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
+  // special_price (when set) overrides selling_price for the chosen variant.
+  // It's still clamped against base_price, so a typo can't display free.
+  const v = sorted[0];
+  const effSelling = variantEffectiveSelling(v);
+  const def = normalizePair(v.base_price, effSelling);
+
   return {
-    base: best.base,
-    selling: best.selling,
-    discount: discountPercent(best.base, best.selling),
-    hasVariants,
+    base: def.base,
+    selling: def.selling,
+    discount: discountPercent(def.base, def.selling),
+    hasVariants: true,
   };
+}
+
+/**
+ * The effective selling price for a single variant: special_price when set
+ * (non-null, > 0), otherwise the regular selling_price. Exported so the PDP
+ * and cart can resolve the per-variant price consistently with the helper.
+ */
+export function variantEffectiveSelling(v: PricedVariant): number {
+  if (v.special_price != null && v.special_price > 0) return v.special_price;
+  return v.selling_price;
+}
+
+/** Does this variant have a special (sale) price that should show a tag? */
+export function hasSpecialPrice(v: { special_price?: number | null }): boolean {
+  return v.special_price != null && v.special_price > 0;
 }

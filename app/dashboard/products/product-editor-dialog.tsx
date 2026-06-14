@@ -198,6 +198,7 @@ export function ProductEditorDialog({
           name: v.name,
           base_price: v.base_price,
           selling_price: v.selling_price,
+          special_price: v.special_price ?? null,
           stock: v.stock,
           sku: v.sku ?? "",
           images: v.images ?? (v.image_url ? [v.image_url] : []),
@@ -248,6 +249,7 @@ export function ProductEditorDialog({
           name: "",
           base_price: 0,
           selling_price: 0,
+          special_price: null,
           stock: 0,
           sku: "",
           images: [],
@@ -372,6 +374,19 @@ export function ProductEditorDialog({
     if (badPrice) {
       toast.error(
         `Variant "${badPrice.name}" has a selling price above its base price`,
+      );
+      return;
+    }
+    const badSpecial = form.variants.find(
+      (v) =>
+        v.special_price != null &&
+        v.special_price > 0 &&
+        v.base_price > 0 &&
+        v.special_price > v.base_price,
+    );
+    if (badSpecial) {
+      toast.error(
+        `Variant "${badSpecial.name}" has a sale price above its base price`,
       );
       return;
     }
@@ -711,6 +726,29 @@ export function ProductEditorDialog({
                         images={v.images}
                         onChange={(imgs) => updateVariant(i, "images", imgs)}
                       />
+                    </div>
+                    {/* Special / sale price — when set, overrides this
+                        variant's selling price AND shows a "best value" tag
+                        badge on the storefront chip. Leave at 0 / blank for
+                        none. */}
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-10 shrink-0 text-[10px] uppercase tracking-wide text-[#5b6478]"
+                        title="Optional sale price for this variant"
+                      >
+                        Sale
+                      </span>
+                      <NumberField
+                        className={`${fieldClass} w-24`}
+                        value={v.special_price ?? 0}
+                        onValueChange={(n) =>
+                          updateVariant(i, "special_price", n > 0 ? n : null)
+                        }
+                      />
+                      <span className="text-[11px] text-[#5b6478]">
+                        ₹ — leave 0 for no sale. Shows a yellow tag on the
+                        variant chip when set.
+                      </span>
                     </div>
                   </div>
                 ))}

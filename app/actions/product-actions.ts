@@ -15,6 +15,10 @@ export interface VariantFormData {
   name: string;
   base_price: number;
   selling_price: number;
+  // Optional sale price for this variant. When set (> 0) it overrides
+  // selling_price for the variant AND triggers a "best value" tag badge on
+  // the storefront chip. 0 / null means no special price.
+  special_price: number | null;
   stock: number;
   sku: string;
   images: string[]; // this variant's own gallery (empty = uses product gallery)
@@ -116,9 +120,25 @@ function sanitizeVariants(variants: VariantFormData[]) {
     .filter((v) => v.name && v.name.trim())
     .map((v, i) => {
       const images = (v.images ?? []).map((u) => u.trim()).filter(Boolean);
+      const prices = normalizePrices(v.base_price, v.selling_price);
+      // special_price is optional: keep it ONLY when explicitly set (> 0) and
+      // clamp against base_price so a typo can't show free. Null otherwise
+      // — the storefront uses NULL to mean "no special price, no tag badge".
+      let special: number | null = null;
+      if (
+        v.special_price != null &&
+        Number.isFinite(v.special_price) &&
+        v.special_price > 0
+      ) {
+        special =
+          prices.base_price > 0
+            ? Math.min(v.special_price, prices.base_price)
+            : v.special_price;
+      }
       return {
         name: v.name.trim(),
-        ...normalizePrices(v.base_price, v.selling_price),
+        ...prices,
+        special_price: special,
         stock: Number.isFinite(v.stock) ? Math.trunc(v.stock) : 0,
         sku: v.sku?.trim() || null,
         images,

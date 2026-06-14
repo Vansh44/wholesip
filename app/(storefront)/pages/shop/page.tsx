@@ -18,14 +18,19 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function ShopPage() {
+export default async function ShopPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string }>;
+}) {
+  const { category: initialCategorySlug } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: products }, { data: categories }] = await Promise.all([
     supabase
       .from("products")
       .select(
-        "id, name, slug, description, category_id, base_price, selling_price, image_url, status, featured, sort_order, card_color, variants:product_variants(base_price, selling_price)",
+        "id, name, slug, description, category_id, base_price, selling_price, image_url, status, featured, sort_order, card_color, variants:product_variants(base_price, selling_price, special_price, sort_order)",
       )
       .eq("status", "published")
       .order("sort_order", { ascending: true })
@@ -41,5 +46,11 @@ export default async function ShopPage() {
   const shopProducts = (products ?? []) as ShopProduct[];
   const shopCategories = (categories ?? []) as ShopCategory[];
 
-  return <ShopClient products={shopProducts} categories={shopCategories} />;
+  return (
+    <ShopClient
+      products={shopProducts}
+      categories={shopCategories}
+      initialCategorySlug={initialCategorySlug}
+    />
+  );
 }
