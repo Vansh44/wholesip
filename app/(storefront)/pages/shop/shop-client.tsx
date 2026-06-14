@@ -53,7 +53,7 @@ function TickerSequence({ ariaHidden = false }: { ariaHidden?: boolean }) {
       {Array.from({ length: 3 }).flatMap((_, rep) =>
         TICKER_PHRASES.map((phrase, i) => (
           <span className="shop-ticker-item" key={`${rep}-${i}`}>
-            ✦ {phrase}
+            {phrase}
           </span>
         )),
       )}

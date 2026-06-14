@@ -301,7 +301,7 @@
   overflow: hidden;
   background: var(--soakd-ink); /* near-black band */
   font-family: var(--font-outfit), sans-serif;
-  padding: 12px 0;
+  padding: 9px 0; /* thinner, more refined bar */
 }
 
 /* Two identical sequences sit side by side; translating the track by -50%
@@ -323,21 +323,25 @@
 
 .shop-ticker-item {
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 10.5px;
   font-weight: 500;
-  letter-spacing: 0.05em; /* editorial tracking, matches the lowercase logo */
-  color: #f2ebe0; /* cream text on the ink band */
-  padding: 0 22px;
+  letter-spacing: 0.2em; /* wide editorial tracking, uppercase */
+  text-transform: uppercase;
+  color: #e8ddcf; /* warm muted cream on the ink band */
+  padding: 0 18px;
 }
 
 /* Terracotta ✦ between phrases — the one warm pop of brand colour.
-   Drawn here so spacing stays perfectly even; keep the JSX at "{phrase}". */
+   Drawn here so spacing stays perfectly even; keep the JSX at "{phrase}".
+   margin-left (36) = left+right padding (18+18) so the mark sits centred
+   between two phrases. */
 .shop-ticker-item::after {
   content: "✦";
-  font-size: 9px;
+  font-size: 7px;
   color: var(--soakd-accent-warm, #ce8662);
-  margin-left: 44px;
+  margin-left: 36px;
   vertical-align: middle;
+  opacity: 0.85;
 }
 
 @keyframes shop-ticker-scroll {
@@ -365,14 +369,15 @@
     padding: 32px 20px 16px;
   }
   .shop-ticker {
-    padding: 9px 0;
+    padding: 8px 0;
   }
   .shop-ticker-item {
-    font-size: 11px;
-    padding: 0 16px;
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    padding: 0 14px;
   }
   .shop-ticker-item::after {
-    margin-left: 32px;
+    margin-left: 28px; /* = 14 + 14 padding, keeps the mark centred */
   }
 }
 
