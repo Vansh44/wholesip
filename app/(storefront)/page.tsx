@@ -1,5 +1,10 @@
 import Hero from "@/app/components/hero/Hero";
-import { createClient } from "@/lib/supabase/server";
+import {
+  getEnabledHomepageSections,
+  getPublishedProducts,
+  getActiveCategories,
+  getPublishedBlogCards,
+} from "@/lib/storefront/queries";
 import {
   HomepageSectionRenderer,
   type ResolvedData,
@@ -17,26 +22,20 @@ import {
 import "@/app/(storefront)/pages/shop/shop.css"; // .shop-card styles for featured grid
 import "@/app/(storefront)/components/homepage/homepage.css";
 
-// Storefront reads are dynamic so dashboard edits (toggle/reorder/content)
-// show up immediately, alongside revalidatePath("/") in the actions.
-export const dynamic = "force-dynamic";
+// Storefront reads run through `unstable_cache` (lib/storefront/queries) so the
+// homepage no longer hits the DB on every visit. ISR-revalidate as a freshness
+// fallback; dashboard edits invalidate the cache instantly via revalidateTag /
+// revalidatePath("/") in the actions.
+export const revalidate = 300;
 
 // A homepage product row: ShopCard's needs + category_id for category-mode
 // filtering. Matches the shop page's product select shape.
 type HomeProduct = ShopCardProduct & { category_id: string | null };
 
 export default async function Home() {
-  const supabase = await createClient();
-
   // Enabled sections in order. If the table is missing (migration not applied
   // yet) we just render the hero.
-  const { data: sectionRows } = await supabase
-    .from("homepage_sections")
-    .select("*")
-    .eq("enabled", true)
-    .order("sort_order", { ascending: true });
-
-  const sections = (sectionRows ?? []) as HomepageSection[];
+  const sections = (await getEnabledHomepageSections()) as HomepageSection[];
 
   if (sections.length === 0) {
     return (
@@ -46,43 +45,20 @@ export default async function Home() {
     );
   }
 
-  // Which datasets are needed? Fetch each at most once.
+  // Which datasets are needed? Fetch each at most once (and each is cached).
   const needsProducts = sections.some((s) => s.type === "featured_products");
   const needsCategories = sections.some((s) => s.type === "shop_by_category");
   const needsBlogs = sections.some((s) => s.type === "latest_blogs");
 
   const [productsRes, categoriesRes, blogsRes] = await Promise.all([
-    needsProducts
-      ? supabase
-          .from("products")
-          .select(
-            "id, name, slug, image_url, featured, base_price, selling_price, card_color, category_id, variants:product_variants(base_price, selling_price, special_price, sort_order)",
-          )
-          .eq("status", "published")
-          .order("sort_order", { ascending: true })
-      : Promise.resolve({ data: [] as HomeProduct[] }),
-    needsCategories
-      ? supabase
-          .from("categories")
-          .select("id, name, slug, image_url")
-          .eq("status", "active")
-          .order("sort_order", { ascending: true })
-          .order("name", { ascending: true })
-      : Promise.resolve({ data: [] as CategoryTile[] }),
-    needsBlogs
-      ? supabase
-          .from("blogs")
-          .select(
-            "id, title, slug, excerpt, cover_image_url, author, published_at, reading_time, categories",
-          )
-          .eq("status", "published")
-          .order("published_at", { ascending: false })
-      : Promise.resolve({ data: [] as BlogCardData[] }),
+    needsProducts ? getPublishedProducts() : Promise.resolve([]),
+    needsCategories ? getActiveCategories() : Promise.resolve([]),
+    needsBlogs ? getPublishedBlogCards() : Promise.resolve([]),
   ]);
 
-  const allProducts = (productsRes.data ?? []) as HomeProduct[];
-  const allCategories = (categoriesRes.data ?? []) as CategoryTile[];
-  const allBlogs = (blogsRes.data ?? []) as BlogCardData[];
+  const allProducts = productsRes as unknown as HomeProduct[];
+  const allCategories = categoriesRes as unknown as CategoryTile[];
+  const allBlogs = blogsRes as unknown as BlogCardData[];
   const productById = new Map(allProducts.map((p) => [p.id, p]));
   const categoryById = new Map(allCategories.map((c) => [c.id, c]));
   const blogById = new Map(allBlogs.map((b) => [b.id, b]));

@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { TAGS } from "@/lib/storefront/tags";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 
@@ -89,6 +90,8 @@ function revalidateCatalog() {
   revalidatePath("/dashboard/categories");
   revalidatePath("/dashboard/products");
   revalidatePath("/pages/shop");
+  // Category changes affect the shop + homepage category lists.
+  revalidateTag(TAGS.categories, "max");
 }
 
 // ---------------------------------------------------------------------------

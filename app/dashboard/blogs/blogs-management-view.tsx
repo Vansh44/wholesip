@@ -27,8 +27,17 @@ import {
   approveCustomerBlog,
   rejectCustomerBlog,
 } from "@/app/actions/blog-actions";
-import { BlogEditorDialog } from "./blog-editor-dialog";
+import dynamic from "next/dynamic";
 import type { Blog } from "./page";
+
+// Lazy-load the editor dialog so its heavy TipTap/ProseMirror bundle downloads
+// on first open instead of with the Blogs page. ssr:false (client-only); the
+// mount latch in the component keeps it mounted after first open so the close
+// animation still runs.
+const BlogEditorDialog = dynamic(
+  () => import("./blog-editor-dialog").then((m) => m.BlogEditorDialog),
+  { ssr: false },
+);
 
 type FilterTab = "all" | "published" | "drafts" | "featured" | "pending";
 
@@ -51,6 +60,14 @@ export function BlogsManagementView({
   const [rejectTarget, setRejectTarget] = useState<Blog | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingBlog, setEditingBlog] = useState<Blog | null>(null);
+  // Latch: mount the lazy editor dialog on first open, then keep it mounted so
+  // its close animation can play (and TipTap isn't re-fetched on reopen). The
+  // "adjust state during render" pattern (same as the blog listing's page
+  // reset) avoids a state-update-in-effect.
+  const [editorEverOpened, setEditorEverOpened] = useState(false);
+  if (editorOpen && !editorEverOpened) {
+    setEditorEverOpened(true);
+  }
 
   // ── Filtering & Search ────────────────────────────────────
   const filteredBlogs = useMemo(() => {
@@ -679,13 +696,15 @@ export function BlogsManagementView({
         </DialogContent>
       </Dialog>
 
-      {/* Blog Editor Dialog */}
-      <BlogEditorDialog
-        open={editorOpen}
-        blog={editingBlog}
-        onClose={closeEditor}
-        onSaved={handleEditorSaved}
-      />
+      {/* Blog Editor Dialog — mounted on first open (lazy TipTap bundle) */}
+      {(editorOpen || editorEverOpened) && (
+        <BlogEditorDialog
+          open={editorOpen}
+          blog={editingBlog}
+          onClose={closeEditor}
+          onSaved={handleEditorSaved}
+        />
+      )}
     </div>
   );
 }

@@ -128,7 +128,7 @@ export default function WriteBlogEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: false, underline: false }),
       LinkExtension.configure({ openOnClick: false }),
       ImageExtension,
       Underline,

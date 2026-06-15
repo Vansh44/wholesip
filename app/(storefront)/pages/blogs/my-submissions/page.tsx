@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import WriteBlogEditor from "../write/write-blog-editor";
+import WriteBlogEditor from "../write/write-blog-editor-lazy";
 import "../write/write-blog.css";
 
-export const dynamic = "force-dynamic";
+// Static shell — the editor is a client-only, lazily loaded component.
 
 export const metadata: Metadata = {
   title: "My Submissions | Soakd",

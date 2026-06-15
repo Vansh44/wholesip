@@ -7,23 +7,25 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 
 interface Blog {
+  // Card fields — what the listing + BlogCard actually render.
   id: string;
   title: string;
   slug: string;
   excerpt: string | null;
-  content: string | null;
   cover_image_url: string | null;
   author: string | null;
-  status: "draft" | "published" | "pending_review";
   tags: string[];
   categories: string[] | null;
-  featured: boolean;
-  seo_title: string | null;
-  seo_description: string | null;
   reading_time: number | null;
   published_at: string | null;
-  created_at: string;
-  updated_at: string;
+  // Optional: present on the full blog-detail object but not fetched for cards.
+  content?: string | null;
+  status?: "draft" | "published" | "pending_review";
+  featured?: boolean;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface BlogListingClientProps {

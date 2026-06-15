@@ -1,7 +1,7 @@
 import { HeroPanel } from "./components/hero-panel";
 import { ExecutiveMetrics } from "./components/executive-metrics";
 import { ActivityFeed } from "./components/activity-feed";
-import { RevenueChart } from "./components/revenue-chart";
+import { RevenueChart } from "./components/revenue-chart-lazy";
 import { TopCategories } from "./components/top-categories";
 import { RecentOrdersTable } from "./components/recent-orders-table";
 import { BlogApprovals } from "./components/blog-approvals";

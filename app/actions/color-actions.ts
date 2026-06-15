@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { TAGS } from "@/lib/storefront/tags";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +49,8 @@ function revalidateColors() {
   revalidatePath("/dashboard/colors");
   revalidatePath("/dashboard/products");
   revalidatePath("/pages/shop");
+  // Card colors render on product cards — refresh the cached product reads.
+  revalidateTag(TAGS.products, "max");
 }
 
 // ---------------------------------------------------------------------------

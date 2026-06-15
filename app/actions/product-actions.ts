@@ -1,11 +1,12 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { readFile } from "fs/promises";
 import path from "path";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
+import { TAGS } from "@/lib/storefront/tags";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -177,6 +178,8 @@ function revalidateProduct(slug?: string) {
   revalidatePath("/dashboard/products");
   revalidatePath("/pages/shop");
   if (slug) revalidatePath(`/pages/shop/${slug}`);
+  // Bust the shared cached product reads used by home + shop + detail.
+  revalidateTag(TAGS.products, "max");
 }
 
 // ---------------------------------------------------------------------------

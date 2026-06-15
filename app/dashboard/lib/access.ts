@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -7,6 +8,82 @@ import {
   type PermissionAction,
   type RolePermissions,
 } from "./permissions";
+
+export interface ViewerProfile {
+  email: string;
+  role: string | null;
+  first_name: string | null;
+  last_name: string | null;
+}
+
+export interface ViewerContext {
+  userId: string;
+  userEmail: string | null;
+  profile: ViewerProfile | null;
+  isSuperadmin: boolean;
+  permissions: RolePermissions;
+}
+
+/**
+ * Resolve the signed-in admin, their profile, and their role's permission map
+ * in a single place. Wrapped in React's `cache()` so the dashboard layout and
+ * the page rendering in the same request share ONE resolution instead of each
+ * re-running getUser → profiles → roles (previously ~6 round-trips per nav).
+ *
+ * Returns null only when there is no session. A signed-in user with no profile
+ * row returns a context with `profile: null` so callers can branch (the layout
+ * shows a setup screen; page guards bounce to /dashboard).
+ */
+export const getViewerContext = cache(
+  async (): Promise<ViewerContext | null> => {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("email, role, first_name, last_name")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || profileError) {
+      if (profileError) {
+        console.error("Viewer profile fetch error:", profileError);
+      }
+      return {
+        userId: user.id,
+        userEmail: user.email ?? null,
+        profile: null,
+        isSuperadmin: false,
+        permissions: {},
+      };
+    }
+
+    const roleSlug: string = profile.role ?? "";
+    const isSuperadmin = roleSlug === SUPERADMIN_SLUG;
+
+    let permissions: RolePermissions = {};
+    if (!isSuperadmin && roleSlug) {
+      const { data: role } = await supabase
+        .from("roles")
+        .select("permissions")
+        .eq("slug", roleSlug)
+        .single();
+      permissions = normalizePermissions(role?.permissions);
+    }
+
+    return {
+      userId: user.id,
+      userEmail: user.email ?? null,
+      profile,
+      isSuperadmin,
+      permissions,
+    };
+  },
+);
 
 export interface Role {
   id: string;
@@ -36,45 +113,24 @@ export interface ViewerAccess {
  * screen for that case).
  */
 export async function getViewerAccess(): Promise<ViewerAccess | null> {
-  const supabase = await createClient();
+  const ctx = await getViewerContext();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  if (!ctx) {
     redirect("/auth/login");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("email, role")
-    .eq("id", user.id)
-    .single();
+  if (!ctx.profile) return null;
 
-  if (!profile) return null;
-
-  const roleSlug: string = profile.role ?? "";
-  const isSuperadmin = roleSlug === SUPERADMIN_SLUG;
-
-  // Look up the role's permission map. Superadmins bypass it entirely.
-  let permissions: RolePermissions = {};
-  if (!isSuperadmin && roleSlug) {
-    const { data: role } = await supabase
-      .from("roles")
-      .select("permissions")
-      .eq("slug", roleSlug)
-      .single();
-    permissions = normalizePermissions(role?.permissions);
-  }
+  const roleSlug: string = ctx.profile.role ?? "";
 
   return {
-    userId: user.id,
-    email: profile.email,
+    userId: ctx.userId,
+    email: ctx.profile.email,
     roleSlug,
-    isSuperadmin,
-    permissions,
-    can: (section, action) => can(permissions, section, action, isSuperadmin),
+    isSuperadmin: ctx.isSuperadmin,
+    permissions: ctx.permissions,
+    can: (section, action) =>
+      can(ctx.permissions, section, action, ctx.isSuperadmin),
   };
 }
 

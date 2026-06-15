@@ -18,6 +18,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  experimental: {
+    // Tree-shake barrel imports to per-export modules. lucide-react is already
+    // optimized by default; these heavy ones are not. (They're also lazily
+    // loaded via next/dynamic, so this trims what lands in their split chunks.)
+    optimizePackageImports: [
+      "recharts",
+      "@tiptap/react",
+      "@tiptap/starter-kit",
+    ],
+  },
 };
 
 export default nextConfig;
