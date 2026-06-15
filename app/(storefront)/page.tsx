@@ -1,4 +1,4 @@
-import Hero from "@/app/components/hero/Hero";
+import Hero from "@/app/(storefront)/components/hero/Hero";
 import {
   getEnabledHomepageSections,
   getPublishedProducts,
