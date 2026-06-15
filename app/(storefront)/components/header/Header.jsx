@@ -5,8 +5,8 @@ import Link from "next/link";
 import styles from "./Header.module.css";
 import Image from "next/image";
 import { siteConfig } from "@/config/site";
-import { useAuth } from "@/app/components/auth/AuthProvider";
-import { useCart } from "@/app/components/cart/CartProvider";
+import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
+import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
 import {
   User,
   Package,

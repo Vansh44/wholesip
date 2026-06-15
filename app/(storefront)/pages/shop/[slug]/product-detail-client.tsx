@@ -10,7 +10,7 @@ import {
   hasSpecialPrice,
   variantEffectiveSelling,
 } from "@/lib/pricing";
-import { useCart } from "@/app/components/cart/CartProvider";
+import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
 import { RelatedProducts, type RelatedProduct } from "./related-products";
 import ReviewsSection, {
   RatingStars,

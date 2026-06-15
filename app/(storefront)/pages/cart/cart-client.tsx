@@ -8,8 +8,8 @@ import {
   useCart,
   lineKey,
   type CartItem,
-} from "@/app/components/cart/CartProvider";
-import CouponField from "@/app/components/cart/CouponField";
+} from "@/app/(storefront)/components/cart/CartProvider";
+import CouponField from "@/app/(storefront)/components/cart/CouponField";
 
 export default function CartClient() {
   const {
