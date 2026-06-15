@@ -227,7 +227,7 @@ export default function Footer() {
             <Link href="/pages/process">The Process</Link>
             <Link href="/pages/ingredients">Our Ingredients</Link>
             <Link href="/pages/sustainability">Sustainability</Link>
-            <Link href="/pages/blog">Blog &amp; Recipes</Link>
+            <Link href="/pages/blogs">Blog &amp; Recipes</Link>
             <Link href="/pages/press">Press</Link>
             <Link href="/pages/careers">Careers</Link>
           </nav>

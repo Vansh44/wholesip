@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { TAGS } from "@/lib/storefront/tags";
 import { sanitizeBlogContent } from "@/lib/sanitize";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
@@ -193,6 +194,7 @@ export async function createBlog(
     if (!error) {
       revalidatePath("/dashboard/blogs");
       revalidatePath("/pages/blogs");
+      revalidateTag(TAGS.blogs, "max");
       return { success: true, data: data as Record<string, unknown> };
     }
 
@@ -308,6 +310,7 @@ export async function updateBlog(
       revalidatePath("/dashboard/blogs");
       revalidatePath("/pages/blogs");
       revalidatePath(`/pages/blogs/${slug}`);
+      revalidateTag(TAGS.blogs, "max");
       return { success: true };
     }
 
@@ -354,6 +357,7 @@ export async function deleteBlog(id: string): Promise<ActionResult> {
 
   revalidatePath("/dashboard/blogs");
   revalidatePath("/pages/blogs");
+  revalidateTag(TAGS.blogs, "max");
   return { success: true };
 }
 
@@ -385,6 +389,7 @@ export async function publishBlog(id: string): Promise<ActionResult> {
 
   revalidatePath("/dashboard/blogs");
   revalidatePath("/pages/blogs");
+  revalidateTag(TAGS.blogs, "max");
   return { success: true };
 }
 
@@ -416,6 +421,7 @@ export async function unpublishBlog(id: string): Promise<ActionResult> {
 
   revalidatePath("/dashboard/blogs");
   revalidatePath("/pages/blogs");
+  revalidateTag(TAGS.blogs, "max");
   return { success: true };
 }
 
@@ -925,6 +931,7 @@ export async function approveCustomerBlog(id: string): Promise<ActionResult> {
 
   revalidatePath("/dashboard/blogs");
   revalidatePath("/pages/blogs");
+  revalidateTag(TAGS.blogs, "max");
   return { success: true };
 }
 

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import {
+  getPublishedProducts,
+  getActiveCategories,
+} from "@/lib/storefront/queries";
 import ShopClient, { type ShopProduct, type ShopCategory } from "./shop-client";
 import "./shop.css";
-
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Shop | Soakd",
@@ -24,27 +25,14 @@ export default async function ShopPage({
   searchParams: Promise<{ category?: string }>;
 }) {
   const { category: initialCategorySlug } = await searchParams;
-  const supabase = await createClient();
 
-  const [{ data: products }, { data: categories }] = await Promise.all([
-    supabase
-      .from("products")
-      .select(
-        "id, name, slug, description, category_id, base_price, selling_price, image_url, status, featured, sort_order, card_color, variants:product_variants(base_price, selling_price, special_price, sort_order)",
-      )
-      .eq("status", "published")
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("categories")
-      .select("id, name, slug, sort_order")
-      .eq("status", "active")
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
+  const [products, categories] = await Promise.all([
+    getPublishedProducts(),
+    getActiveCategories(),
   ]);
 
-  const shopProducts = (products ?? []) as ShopProduct[];
-  const shopCategories = (categories ?? []) as ShopCategory[];
+  const shopProducts = products as unknown as ShopProduct[];
+  const shopCategories = categories as unknown as ShopCategory[];
 
   return (
     <ShopClient

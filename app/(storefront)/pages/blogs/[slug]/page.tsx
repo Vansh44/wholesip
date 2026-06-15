@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -8,6 +9,10 @@ import { getOgImageUrl } from "@/lib/og-image";
 import { BlogCard } from "../blog-listing-client";
 import "../blogs.css";
 
+// Stays dynamic: getBlog has NO status filter and leans on RLS so admins and a
+// post's own author can preview drafts / pending submissions (the dashboard
+// "Preview" action) while anonymous visitors only see published posts. That is
+// per-user, so it must use the cookie-bound client and cannot be cached/static.
 export const dynamic = "force-dynamic";
 
 interface Blog {
@@ -34,7 +39,9 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
-async function getBlog(slug: string): Promise<Blog | null> {
+// React.cache dedupes the two calls per request (generateMetadata + the page
+// body) so the full-content row is fetched once instead of twice.
+const getBlog = cache(async (slug: string): Promise<Blog | null> => {
   const supabase = await createClient();
   // No status filter — RLS decides visibility. Anonymous visitors can only read
   // published blogs (so unpublished slugs 404 for them), while admins and a
@@ -46,7 +53,12 @@ async function getBlog(slug: string): Promise<Blog | null> {
     .eq("slug", slug)
     .maybeSingle();
   return data;
-}
+});
+
+// Related posts render as cards only — never the article body, so don't pull
+// the heavy `content` column the way `select("*")` did.
+const RELATED_BLOG_COLUMNS =
+  "id, title, slug, excerpt, cover_image_url, author, published_at, reading_time, tags, categories";
 
 async function getRelatedBlogs(blog: Blog): Promise<Blog[]> {
   const supabase = await createClient();
@@ -57,7 +69,7 @@ async function getRelatedBlogs(blog: Blog): Promise<Blog[]> {
   if (blog.categories && blog.categories.length > 0) {
     const { data: categoryBlogs } = await supabase
       .from("blogs")
-      .select("*")
+      .select(RELATED_BLOG_COLUMNS)
       .eq("status", "published")
       .neq("id", blog.id)
       .overlaps("categories", blog.categories)
@@ -65,7 +77,7 @@ async function getRelatedBlogs(blog: Blog): Promise<Blog[]> {
       .limit(3);
 
     if (categoryBlogs) {
-      related = categoryBlogs;
+      related = categoryBlogs as unknown as Blog[];
     }
   }
 
@@ -74,14 +86,14 @@ async function getRelatedBlogs(blog: Blog): Promise<Blog[]> {
     const existingIds = [blog.id, ...related.map((b) => b.id)];
     const { data: recentBlogs } = await supabase
       .from("blogs")
-      .select("*")
+      .select(RELATED_BLOG_COLUMNS)
       .eq("status", "published")
       .not("id", "in", `(${existingIds.join(",")})`)
       .order("published_at", { ascending: false })
       .limit(3 - related.length);
 
     if (recentBlogs) {
-      related = [...related, ...recentBlogs];
+      related = [...related, ...(recentBlogs as unknown as Blog[])];
     }
   }
 

@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { TAGS } from "@/lib/storefront/tags";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import {
@@ -31,6 +32,7 @@ async function getAdminUserId(): Promise<string | null> {
 function revalidateHomepage() {
   revalidatePath("/dashboard/homepage");
   revalidatePath("/"); // storefront homepage route
+  revalidateTag(TAGS.homepage, "max");
 }
 
 // Pull a promo banner's stored image url (for cleanup). Non-banner rows → null.

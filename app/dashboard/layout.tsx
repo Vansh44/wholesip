@@ -1,17 +1,14 @@
 import { redirect } from "next/navigation";
 import { Sora, JetBrains_Mono } from "next/font/google";
-import { createClient } from "@/lib/supabase/server";
 import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/config/site";
 import { DashboardTopbar } from "./dashboard-topbar";
 import { DashboardSidebar } from "./dashboard-sidebar";
+import { getViewerContext } from "./lib/access";
 import {
   SECTIONS,
   SECTION_GROUPS,
   can,
-  normalizePermissions,
-  SUPERADMIN_SLUG,
-  type RolePermissions,
   type SectionGroup,
 } from "./lib/permissions";
 import "./dashboard.css";
@@ -37,26 +34,17 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
+  // Shared, request-cached resolution (getUser → profiles → roles). The page
+  // rendering inside this layout reuses the SAME result via getViewerAccess.
+  const ctx = await getViewerContext();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  if (!ctx) {
     redirect("/auth/login");
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("email, role, first_name, last_name")
-    .eq("id", user.id)
-    .single();
+  const { userId, userEmail, profile, isSuperadmin, permissions } = ctx;
 
-  if (!profile || profileError) {
-    if (profileError) {
-      console.error("Dashboard layout profile fetch error:", profileError);
-    }
+  if (!profile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f6f7f9] px-4 text-[#111827]">
         <div className="max-w-lg space-y-4 rounded-2xl border border-[rgba(17,24,39,0.08)] bg-white p-8 shadow-[0_12px_32px_-8px_rgba(16,24,40,0.16)]">
@@ -75,7 +63,7 @@ export default async function DashboardLayout({
             Run the following SQL in your Supabase SQL Editor:
           </p>
           <pre className="overflow-auto rounded-lg border border-[rgba(17,24,39,0.08)] bg-[#f3f4f6] p-3 text-xs text-[#111827]">
-            {`INSERT INTO profiles (id, email, role, force_password_reset)\nVALUES ('${user.id}', '${user.email}', 'superadmin', false);`}
+            {`INSERT INTO profiles (id, email, role, force_password_reset)\nVALUES ('${userId}', '${userEmail}', 'superadmin', false);`}
           </pre>
           <p className="text-xs text-[#8b93a3]">
             After inserting, refresh this page.
@@ -85,18 +73,7 @@ export default async function DashboardLayout({
     );
   }
 
-  const isSuperadmin = profile.role === SUPERADMIN_SLUG;
-
-  // Resolve the permission map for the viewer's role. Superadmins bypass it.
-  let permissions: RolePermissions = {};
-  if (!isSuperadmin && profile.role) {
-    const { data: role } = await supabase
-      .from("roles")
-      .select("permissions")
-      .eq("slug", profile.role)
-      .single();
-    permissions = normalizePermissions(role?.permissions);
-  }
+  // isSuperadmin + permissions come from the shared cached context above.
 
   // Build the sidebar from the permission catalog: a section appears only when
   // the viewer can view it. The Dashboard home is always shown so everyone has
@@ -126,7 +103,7 @@ export default async function DashboardLayout({
       <div className="dash-main">
         <DashboardTopbar
           email={profile.email}
-          role={profile.role}
+          role={profile.role ?? ""}
           firstName={profile.first_name}
           lastName={profile.last_name}
         />

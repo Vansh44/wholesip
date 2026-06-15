@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { getPublishedBlogCards } from "@/lib/storefront/queries";
 import BlogListingClient from "./blog-listing-client";
 import "./blogs.css";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Blog | Soakd",
@@ -19,15 +19,8 @@ export const metadata: Metadata = {
 };
 
 export default async function BlogsPage() {
-  const supabase = await createClient();
-
-  const { data: blogs } = await supabase
-    .from("blogs")
-    .select("*")
-    .eq("status", "published")
-    .order("published_at", { ascending: false });
-
-  const publishedBlogs = blogs ?? [];
+  // Cached, trimmed read — card columns only (no full `content` HTML).
+  const publishedBlogs = await getPublishedBlogCards();
 
   // Extract unique categories
   const categories = Array.from(

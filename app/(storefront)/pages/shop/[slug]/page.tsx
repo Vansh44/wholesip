@@ -1,6 +1,7 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import { getOgImageUrl } from "@/lib/og-image";
 import ProductDetailClient, {
   type DetailProduct,
@@ -9,30 +10,52 @@ import type { RelatedProduct } from "./related-products";
 import type { ProductReview } from "./reviews-section";
 import "../shop.css";
 
-export const dynamic = "force-dynamic";
+// ISR: the page render (product + related + reviews) is cached and served
+// statically, revalidated periodically and on-demand via revalidatePath(slug)
+// in product/review actions. Popular slugs are prerendered at build below.
+export const revalidate = 300;
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-async function getProduct(slug: string): Promise<DetailProduct | null> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("products")
-    .select(
-      "id, name, slug, description, category_id, base_price, selling_price, image_url, images, status, seo_title, seo_description, category:categories(id, name, slug, status), variants:product_variants(*)",
-    )
-    .eq("slug", slug)
-    .eq("status", "published")
-    .single();
+// Wrapped in React.cache so the page body and generateMetadata share ONE query
+// per render instead of fetching the same product row twice.
+const getProduct = cache(
+  async (slug: string): Promise<DetailProduct | null> => {
+    const supabase = createPublicClient();
+    const { data } = await supabase
+      .from("products")
+      .select(
+        "id, name, slug, description, category_id, base_price, selling_price, image_url, images, status, seo_title, seo_description, category:categories(id, name, slug, status), variants:product_variants(*)",
+      )
+      .eq("slug", slug)
+      .eq("status", "published")
+      .single();
 
-  if (!data) return null;
+    if (!data) return null;
 
-  const product = data as unknown as DetailProduct;
-  product.variants = (product.variants ?? []).sort(
-    (a, b) => a.sort_order - b.sort_order,
-  );
-  return product;
+    const product = data as unknown as DetailProduct;
+    product.variants = (product.variants ?? []).sort(
+      (a, b) => a.sort_order - b.sort_order,
+    );
+    return product;
+  },
+);
+
+// Pre-render the published catalog at build; unknown/new slugs still render
+// on-demand (dynamicParams defaults to true) and are then ISR-cached.
+export async function generateStaticParams() {
+  try {
+    const supabase = createPublicClient();
+    const { data } = await supabase
+      .from("products")
+      .select("slug")
+      .eq("status", "published");
+    return (data ?? []).map((p: { slug: string }) => ({ slug: p.slug }));
+  } catch {
+    return [];
+  }
 }
 
 // Other published products in the same category (excluding the current one).
@@ -41,7 +64,7 @@ async function getRelated(
   excludeId: string,
 ): Promise<RelatedProduct[]> {
   if (!categoryId) return [];
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("products")
     .select(
@@ -58,7 +81,7 @@ async function getRelated(
 
 // Public reviews for a product, newest first.
 async function getReviews(productId: string): Promise<ProductReview[]> {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("product_reviews")
     .select("id, customer_id, author_name, rating, comment, created_at")
