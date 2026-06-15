@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { updateCustomerProfile } from "@/app/actions/customer-profile";
-import { useAuth } from "@/app/components/auth/AuthProvider";
+import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
 import styles from "./profile.module.css";
 
 export default function ProfilePage() {

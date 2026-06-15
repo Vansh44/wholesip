@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/app/components/auth/AuthProvider";
+import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
 
 interface Blog {
   // Card fields — what the listing + BlogCard actually render.

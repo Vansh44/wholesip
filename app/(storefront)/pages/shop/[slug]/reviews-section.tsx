@@ -4,7 +4,7 @@ import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Star } from "lucide-react";
-import { useAuth } from "@/app/components/auth/AuthProvider";
+import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
 import { submitReview, deleteReview } from "@/app/actions/review-actions";
 
 export interface ProductReview {
