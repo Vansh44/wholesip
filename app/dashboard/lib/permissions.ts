@@ -105,6 +105,14 @@ export const SECTIONS: DashboardSection[] = [
     group: "Workspace",
     actions: ["view"],
   },
+  {
+    key: "enquiries",
+    label: "Enquiries",
+    href: "/dashboard/enquiries",
+    icon: "enquiries",
+    group: "Workspace",
+    actions: ["view", "manage"],
+  },
 
   // Content
   {
