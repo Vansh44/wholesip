@@ -11,6 +11,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  KeyRound,
+  MoreHorizontal,
+  Trash2,
+  UserCog,
+  UserX,
+  Zap,
+} from "lucide-react";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -83,11 +91,11 @@ export function UsersManagementView({
       return {
         label: r.name,
         pillClass: roleBadgeClass(r.color),
-        icon: r.slug === "superadmin" ? "⚡" : "🔑",
+        Icon: r.slug === "superadmin" ? Zap : KeyRound,
       };
     }
     // Unknown / unseeded slug.
-    return { label: slug || "—", pillClass: "dash-badge-grey", icon: "🔑" };
+    return { label: slug || "—", pillClass: "dash-badge-grey", Icon: KeyRound };
   };
 
   const handleAction = async () => {
@@ -142,7 +150,7 @@ export function UsersManagementView({
         {canManage && (
           <InviteUserDialog
             className="dash-btn dash-btn-primary shrink-0"
-            label="＋ Invite User"
+            label="Invite user"
             size="default"
           />
         )}
@@ -195,7 +203,8 @@ export function UsersManagementView({
                   <td className="text-muted">{profile.email}</td>
                   <td>
                     <span className={`dash-role-pill ${role.pillClass}`}>
-                      {role.icon} {role.label}
+                      <role.Icon className="h-3.5 w-3.5" />
+                      {role.label}
                     </span>
                   </td>
                   <td className="text-dim font-mono-dash">
@@ -211,32 +220,37 @@ export function UsersManagementView({
                       <span className="text-dim text-[12px]">—</span>
                     ) : (
                       <DropdownMenu>
-                        <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                          Edit
+                        <DropdownMenuTrigger className="dash-row-menu">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
-                          className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+                          className="min-w-[180px]"
                         >
                           <DropdownMenuItem
-                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            className="cursor-pointer"
                             onClick={() => openDialog(profile, "role")}
                           >
+                            <UserCog className="mr-2 h-4 w-4" />
                             Change role
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            className="cursor-pointer"
                             onClick={() => openDialog(profile, "suspend")}
                           >
+                            <UserX className="mr-2 h-4 w-4" />
                             {profile.is_suspended
                               ? "Un-suspend user"
                               : "Suspend user"}
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                            variant="destructive"
+                            className="cursor-pointer"
                             onClick={() => openDialog(profile, "delete")}
                           >
+                            <Trash2 className="mr-2 h-4 w-4" />
                             Remove user
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -254,17 +268,17 @@ export function UsersManagementView({
         open={actionType !== null}
         onOpenChange={(open) => !open && closeDialog()}
       >
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e8ecf4]">
-              {actionType === "delete" && "Remove User"}
-              {actionType === "role" && "Change Role"}
+            <DialogTitle>
+              {actionType === "delete" && "Remove user"}
+              {actionType === "role" && "Change role"}
               {actionType === "suspend" &&
                 (selectedUser?.is_suspended
-                  ? "Un-suspend User"
-                  : "Suspend User")}
+                  ? "Un-suspend user"
+                  : "Suspend user")}
             </DialogTitle>
-            <DialogDescription className="text-[#8b93a8]">
+            <DialogDescription>
               {actionType === "delete" &&
                 "Are you sure you want to remove this user? This cannot be undone."}
               {actionType === "role" && "Select a new role for this user."}
@@ -281,10 +295,10 @@ export function UsersManagementView({
                 value={newRole}
                 onValueChange={(val) => val && setNewRole(val)}
               >
-                <SelectTrigger className="border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4]">
+                <SelectTrigger>
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
-                <SelectContent className="border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4]">
+                <SelectContent>
                   {roleOptions.map((r) => (
                     <SelectItem key={r.slug} value={r.slug}>
                       {r.name}
@@ -294,7 +308,7 @@ export function UsersManagementView({
               </Select>
             )}
             {(actionType === "delete" || actionType === "suspend") && (
-              <p className="text-sm text-[#8b93a8]">
+              <p className="text-muted-foreground text-sm">
                 User: {selectedUser?.email}
               </p>
             )}
@@ -305,7 +319,6 @@ export function UsersManagementView({
               variant="outline"
               onClick={closeDialog}
               disabled={isPending}
-              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
             >
               Cancel
             </Button>
@@ -318,14 +331,8 @@ export function UsersManagementView({
               }
               onClick={handleAction}
               disabled={isPending}
-              className={
-                actionType !== "delete" &&
-                !(actionType === "suspend" && !selectedUser?.is_suspended)
-                  ? "bg-[#4f6ef7] text-white hover:bg-[#3d5ce5]"
-                  : undefined
-              }
             >
-              {isPending ? "Saving…" : "Confirm"}
+              {isPending ? "Saving..." : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>

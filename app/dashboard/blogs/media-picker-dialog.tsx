@@ -18,12 +18,10 @@ type Props = {
 export function MediaPickerDialog({ open, onClose, onSelect }: Props) {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-[#e8ecf4]">
-            Choose Cover Image
-          </DialogTitle>
-          <DialogDescription className="text-[#8b93a8]">
+          <DialogTitle>Choose cover image</DialogTitle>
+          <DialogDescription>
             Upload an image to use as the blog cover photo.
           </DialogDescription>
         </DialogHeader>

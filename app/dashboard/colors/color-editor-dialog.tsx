@@ -34,9 +34,9 @@ const EMPTY: CardColorFormData = {
 };
 
 const fieldClass =
-  "w-full rounded-md border border-[rgba(255,255,255,0.1)] bg-[#0e1118] px-3 py-2 text-sm text-[#e8ecf4] outline-none placeholder:text-[#5b6478] focus:border-[#6366f1]";
+  "w-full rounded-md border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af] focus:border-[#4f46e5]";
 const labelClass =
-  "mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#8b93a8]";
+  "mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#6b7280]";
 
 const HEX_RE = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
@@ -95,12 +95,10 @@ export function ColorEditorDialog({ open, color, onClose, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[480px]">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-[#e8ecf4]">
-            {isEditing ? "Edit Colour" : "New Colour"}
-          </DialogTitle>
-          <DialogDescription className="text-[#8b93a8]">
+          <DialogTitle>{isEditing ? "Edit colour" : "New colour"}</DialogTitle>
+          <DialogDescription>
             Palette shades available as product card backgrounds on the
             storefront.
           </DialogDescription>
@@ -125,7 +123,7 @@ export function ColorEditorDialog({ open, color, onClose, onSaved }: Props) {
                 aria-label="Pick colour"
                 value={swatch}
                 onChange={(e) => set("hex", e.target.value)}
-                className="h-10 w-14 cursor-pointer rounded-md border border-[rgba(255,255,255,0.1)] bg-[#0e1118] p-1"
+                className="h-10 w-14 cursor-pointer rounded-md border border-[#e5e7eb] bg-white p-1"
               />
               <input
                 className={`${fieldClass} flex-1 font-mono`}
@@ -144,7 +142,7 @@ export function ColorEditorDialog({ open, color, onClose, onSaved }: Props) {
           <div>
             <label className={labelClass}>Preview</label>
             <div
-              className="flex h-16 items-center justify-center rounded-lg border border-[rgba(255,255,255,0.08)]"
+              className="flex h-16 items-center justify-center rounded-lg border border-[#e5e7eb]"
               style={{ background: swatch }}
             >
               <span
@@ -168,16 +166,15 @@ export function ColorEditorDialog({ open, color, onClose, onSaved }: Props) {
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isPending}
-            className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
-          >
+          <Button variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isPending}>
-            {isPending ? "Saving…" : isEditing ? "Save Changes" : "Add Colour"}
+            {isPending
+              ? "Saving..."
+              : isEditing
+                ? "Save changes"
+                : "Add colour"}
           </Button>
         </DialogFooter>
       </DialogContent>

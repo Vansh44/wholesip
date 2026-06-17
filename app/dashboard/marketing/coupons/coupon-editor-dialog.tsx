@@ -40,9 +40,9 @@ const EMPTY: CouponFormData = {
 };
 
 const fieldClass =
-  "w-full rounded-md border border-[rgba(255,255,255,0.1)] bg-[#0e1118] px-3 py-2 text-sm text-[#e8ecf4] outline-none placeholder:text-[#5b6478] focus:border-[#6366f1]";
+  "w-full rounded-md border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af] focus:border-[#4f46e5]";
 const labelClass =
-  "mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#8b93a8]";
+  "mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#6b7280]";
 
 // ISO timestamp -> yyyy-mm-dd for <input type="date">.
 function toDateInput(value: string | null): string {
@@ -103,12 +103,10 @@ export function CouponEditorDialog({ open, coupon, onClose, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[520px]">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle className="text-[#e8ecf4]">
-            {isEditing ? "Edit Coupon" : "New Coupon"}
-          </DialogTitle>
-          <DialogDescription className="text-[#8b93a8]">
+          <DialogTitle>{isEditing ? "Edit coupon" : "New coupon"}</DialogTitle>
+          <DialogDescription>
             Discount codes shoppers can apply in the cart.
           </DialogDescription>
         </DialogHeader>
@@ -122,7 +120,7 @@ export function CouponEditorDialog({ open, coupon, onClose, onSaved }: Props) {
               onChange={(e) => set("code", e.target.value.toUpperCase())}
               placeholder="e.g. SUMMER25"
             />
-            <p className="mt-1 text-[11px] text-[#5b6478]">
+            <p className="mt-1 text-[11px] text-[#9ca3af]">
               Case-insensitive. Shoppers type this exactly.
             </p>
           </div>
@@ -173,7 +171,7 @@ export function CouponEditorDialog({ open, coupon, onClose, onSaved }: Props) {
                 onValueChange={(n) => set("min_order_amount", n)}
                 allowDecimal={false}
               />
-              <p className="mt-1 text-[11px] text-[#5b6478]">0 = no minimum</p>
+              <p className="mt-1 text-[11px] text-[#9ca3af]">0 = no minimum</p>
             </div>
             <div>
               <label className={labelClass}>Max uses</label>
@@ -183,7 +181,7 @@ export function CouponEditorDialog({ open, coupon, onClose, onSaved }: Props) {
                 onValueChange={(n) => set("max_uses", n)}
                 allowDecimal={false}
               />
-              <p className="mt-1 text-[11px] text-[#5b6478]">0 = unlimited</p>
+              <p className="mt-1 text-[11px] text-[#9ca3af]">0 = unlimited</p>
             </div>
           </div>
 
@@ -224,20 +222,15 @@ export function CouponEditorDialog({ open, coupon, onClose, onSaved }: Props) {
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isPending}
-            className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
-          >
+          <Button variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isPending}>
             {isPending
-              ? "Saving…"
+              ? "Saving..."
               : isEditing
-                ? "Save Changes"
-                : "Create Coupon"}
+                ? "Save changes"
+                : "Create coupon"}
           </Button>
         </DialogFooter>
       </DialogContent>

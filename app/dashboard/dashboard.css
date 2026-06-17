@@ -549,6 +549,10 @@
 .dashboard-shell .dash-badge-grey::before {
   background: var(--dash-text-3);
 }
+.dashboard-shell .dash-badge-violet {
+  background: var(--dash-violet-soft);
+  color: var(--dash-violet);
+}
 
 /* ---------- Role pills ---------- */
 .dashboard-shell .dash-role-pill {
@@ -622,6 +626,170 @@
 
 .dashboard-shell .dash-filter-tab:hover:not(.active) {
   color: var(--dash-text);
+}
+
+/* Count pill inside a filter tab (e.g. "Published 12"). */
+.dashboard-shell .dash-filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.dashboard-shell .dash-tab-count {
+  display: inline-flex;
+  min-width: 19px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.07);
+  color: var(--dash-text-2);
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.dashboard-shell .dash-filter-tab.active .dash-tab-count {
+  background: var(--dash-accent-soft);
+  color: var(--dash-accent);
+}
+
+.dashboard-shell .dash-filter-tab.has-alert .dash-tab-count {
+  background: var(--dash-amber-soft);
+  color: var(--dash-amber);
+}
+
+/* ---------- Reusable toolbar (tabs · search · actions) ---------- */
+.dashboard-shell .dash-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.dashboard-shell .dash-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Reusable table cells ---------- */
+.dashboard-shell .dash-cell-title {
+  color: var(--dash-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dashboard-shell .dash-cell-sub {
+  margin-top: 2px;
+  color: var(--dash-text-3);
+  font-size: 11.5px;
+}
+
+.dashboard-shell .dash-cell-sub.mono {
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+}
+
+/* Small inline chip used for categories / meta. */
+.dashboard-shell .dash-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--dash-surface-2);
+  color: var(--dash-text-2);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.dashboard-shell .dash-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 40px media thumbnail used in list rows. */
+.dashboard-shell .dash-thumb {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--dash-surface-2);
+}
+
+.dashboard-shell .dash-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dash-text-3);
+}
+
+/* Icon-only row action trigger (the "⋯" menu). */
+.dashboard-shell .dash-row-menu {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  color: var(--dash-text-2);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dashboard-shell .dash-row-menu:hover {
+  border-color: var(--dash-border-hover);
+  background: var(--dash-surface-2);
+  color: var(--dash-text);
+}
+
+/* ---------- Reusable empty state ---------- */
+.dashboard-shell .dash-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 54px 24px;
+  text-align: center;
+}
+
+.dashboard-shell .dash-empty-icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: var(--dash-surface-2);
+  color: var(--dash-text-3);
+}
+
+.dashboard-shell .dash-empty-title {
+  color: var(--dash-text);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.dashboard-shell .dash-empty-text {
+  margin-top: 6px;
+  margin-bottom: 16px;
+  color: var(--dash-text-3);
+  font-size: 13px;
+}
+
+.dashboard-shell .dash-empty-text:last-child {
+  margin-bottom: 0;
 }
 
 /* ---------- Buttons ---------- */
@@ -1006,4 +1174,602 @@
 }
 .dashboard-shell .dash-page-enter > *:nth-child(4) {
   animation-delay: 0.14s;
+}
+
+/* ---------- Enquiries workspace ---------- */
+.dashboard-shell .enquiries-workspace {
+  --enquiry-ink: #101827;
+  --enquiry-muted: #667085;
+  --enquiry-line: rgba(17, 24, 39, 0.09);
+  --enquiry-fill: #f8fafc;
+}
+
+.dashboard-shell .enquiries-header {
+  margin-bottom: 16px;
+}
+
+.dashboard-shell .enquiries-header h1 {
+  font-size: 26px;
+  letter-spacing: 0;
+}
+
+.dashboard-shell .enquiries-total {
+  display: flex;
+  min-width: 96px;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  border-left: 1px solid var(--enquiry-line);
+  padding-left: 18px;
+}
+
+.dashboard-shell .enquiries-total span {
+  color: var(--enquiry-ink);
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.dashboard-shell .enquiries-total small {
+  margin-top: 4px;
+  color: var(--dash-text-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dashboard-shell .enquiries-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dashboard-shell .enquiry-metric {
+  display: flex;
+  min-height: 82px;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  padding: 14px 16px;
+  text-align: left;
+  box-shadow: var(--dash-shadow-xs);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.dashboard-shell .enquiry-metric:hover {
+  border-color: var(--dash-border-hover);
+  box-shadow: var(--dash-shadow-sm);
+  transform: translateY(-1px);
+}
+
+.dashboard-shell .enquiry-metric.active {
+  border-color: rgba(79, 70, 229, 0.28);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08);
+}
+
+.dashboard-shell .enquiry-metric-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--dash-surface-2);
+  color: var(--dash-text-2);
+}
+
+.dashboard-shell .enquiry-metric-new .enquiry-metric-icon {
+  background: var(--dash-amber-soft);
+  color: var(--dash-amber);
+}
+
+.dashboard-shell .enquiry-metric-in_progress .enquiry-metric-icon {
+  background: var(--dash-accent-soft);
+  color: var(--dash-accent);
+}
+
+.dashboard-shell .enquiry-metric-resolved .enquiry-metric-icon {
+  background: var(--dash-green-soft);
+  color: var(--dash-green);
+}
+
+.dashboard-shell .enquiry-metric-archived .enquiry-metric-icon {
+  background: var(--dash-surface-3);
+  color: var(--dash-text-2);
+}
+
+.dashboard-shell .enquiry-metric strong {
+  display: block;
+  color: var(--enquiry-ink);
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.dashboard-shell .enquiry-metric small {
+  display: block;
+  margin-top: 6px;
+  color: var(--enquiry-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dashboard-shell .enquiries-command,
+.dashboard-shell .enquiries-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dashboard-shell .enquiries-tabs {
+  min-height: 42px;
+}
+
+.dashboard-shell .enquiries-tabs .dash-filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding-inline: 13px;
+}
+
+.dashboard-shell .enquiries-tabs .dash-filter-tab span {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.07);
+  color: var(--dash-text-2);
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dashboard-shell .enquiries-tabs .dash-filter-tab.active span {
+  background: var(--dash-accent-soft);
+  color: var(--dash-accent);
+}
+
+.dashboard-shell .enquiries-command-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dashboard-shell .enquiries-search {
+  display: flex;
+  width: min(360px, 34vw);
+  height: 40px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  padding: 0 12px;
+  color: var(--dash-text-3);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dashboard-shell .enquiries-search:focus-within {
+  border-color: var(--dash-accent);
+  box-shadow: 0 0 0 3px var(--dash-accent-soft);
+}
+
+.dashboard-shell .enquiries-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--dash-text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: 0;
+}
+
+.dashboard-shell .enquiries-search input::placeholder {
+  color: var(--dash-text-3);
+}
+
+.dashboard-shell .enquiries-select,
+.dashboard-shell .enquiries-date-range input {
+  height: 40px;
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  color: var(--dash-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.dashboard-shell .enquiries-select {
+  min-width: 190px;
+  padding: 0 34px 0 12px;
+}
+
+.dashboard-shell .enquiries-subject-select {
+  min-width: 260px;
+}
+
+.dashboard-shell .enquiries-date-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-shell .enquiries-date-range span {
+  color: var(--dash-text-3);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.dashboard-shell .enquiries-date-range input {
+  width: 150px;
+  padding: 0 10px;
+}
+
+.dashboard-shell .enquiries-table-card {
+  border-radius: 10px;
+}
+
+.dashboard-shell .enquiries-table-head {
+  min-height: 66px;
+}
+
+.dashboard-shell .enquiries-table-wrap {
+  overflow-x: auto;
+}
+
+.dashboard-shell .enquiries-table {
+  min-width: 1040px;
+}
+
+.dashboard-shell .enquiries-table tbody tr {
+  cursor: pointer;
+}
+
+.dashboard-shell .enquiries-table td {
+  height: 72px;
+}
+
+.dashboard-shell .enquiries-person {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 240px;
+}
+
+.dashboard-shell .enquiries-person > span {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #111827;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dashboard-shell .enquiries-person strong {
+  display: block;
+  max-width: 210px;
+  overflow: hidden;
+  color: var(--dash-text);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-shell .enquiries-person a {
+  display: block;
+  max-width: 230px;
+  overflow: hidden;
+  color: var(--dash-text-2);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-shell .enquiries-phone,
+.dashboard-shell .enquiries-date {
+  white-space: nowrap;
+}
+
+.dashboard-shell .enquiries-subject {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-shell .enquiries-message {
+  max-width: 320px;
+}
+
+.dashboard-shell .enquiries-message span {
+  display: block;
+  overflow: hidden;
+  color: var(--dash-text-2);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-shell .enquiries-row-menu {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  color: var(--dash-text-2);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dashboard-shell .enquiries-row-menu:hover {
+  border-color: var(--dash-border-hover);
+  background: var(--dash-surface-2);
+  color: var(--dash-text);
+}
+
+.dashboard-shell .enquiries-empty {
+  padding: 54px 24px;
+  text-align: center;
+}
+
+.dashboard-shell .enquiries-empty div {
+  color: var(--dash-text);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.dashboard-shell .enquiries-empty p {
+  margin-top: 6px;
+  color: var(--dash-text-3);
+  font-size: 13px;
+}
+
+.enquiry-confirm-dialog {
+  border-radius: 10px;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-shell .enquiries-command,
+  .dashboard-shell .enquiries-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-shell .enquiries-command-actions,
+  .dashboard-shell .enquiries-search,
+  .dashboard-shell .enquiries-select,
+  .dashboard-shell .enquiries-subject-select {
+    width: 100%;
+  }
+
+  .dashboard-shell .enquiries-date-range {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}
+
+/* ---------- Enquiry detail (full page + portaled modal) ----------
+   NOT scoped to .dashboard-shell: the intercepted modal portals to
+   document.body, outside the shell, so --dash-* tokens are unavailable.
+   Use literal light values that match the token palette. */
+.enquiry-detail {
+  color: #1f2937;
+}
+
+.enquiry-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 188px;
+  gap: 20px;
+}
+
+.enquiry-detail-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.enquiry-detail-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.enquiry-detail-meta strong {
+  display: block;
+  margin-top: 3px;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.enquiry-detail-label {
+  display: block;
+  color: #8b93a3;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.enquiry-detail-status {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.enquiry-detail-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.enquiry-detail-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 10px;
+  background: #fff;
+  padding: 11px 13px;
+  color: #1f2937;
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+a.enquiry-detail-field:hover {
+  border-color: rgba(79, 70, 229, 0.35);
+  background: rgba(79, 70, 229, 0.04);
+}
+
+.enquiry-detail-field > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #8b93a3;
+}
+
+.enquiry-detail-field > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13.5px;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.enquiry-detail-field small {
+  color: #8b93a3;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.enquiry-detail-field code {
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-size: 13px;
+}
+
+.enquiry-detail-field em {
+  margin-top: 2px;
+  color: #4f46e5;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.enquiry-detail-field-wide {
+  grid-column: 1 / -1;
+}
+
+.enquiry-detail-message p {
+  margin-top: 7px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 10px;
+  background: #f9fafb;
+  padding: 12px 14px;
+  color: #1f2937;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.enquiry-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.enquiry-detail-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.enquiry-detail-action-list > button {
+  width: 100%;
+}
+
+.enquiry-detail-danger {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.enquiry-detail-danger > span {
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.enquiry-detail-danger-row {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 560px) {
+  .enquiry-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .enquiry-detail-actions {
+    border-top: 1px solid rgba(17, 24, 39, 0.08);
+    padding-top: 16px;
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboard-shell .enquiries-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-shell .enquiries-total {
+    display: none;
+  }
 }

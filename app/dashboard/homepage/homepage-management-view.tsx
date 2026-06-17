@@ -3,7 +3,15 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import {
+  ChevronUp,
+  ChevronDown,
+  Plus,
+  Pencil,
+  Trash2,
+  MoreHorizontal,
+  LayoutTemplate,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -132,7 +140,7 @@ export function HomepageManagementView({
     <div className="dash-page-enter">
       <header className="dash-page-header row">
         <div>
-          <h1>🏠 Homepage</h1>
+          <h1>Homepage</h1>
           <p>
             Build the storefront homepage below the hero — add, reorder and
             toggle sections.
@@ -143,43 +151,38 @@ export function HomepageManagementView({
             className="dash-btn dash-btn-primary shrink-0"
             onClick={() => setTypeChooserOpen(true)}
           >
-            ＋ Add Section
+            <Plus className="h-4 w-4" />
+            Add section
           </button>
         )}
       </header>
 
       <div className="dash-card">
         <div className="dash-card-header">
-          <div className="dash-card-title">
-            Sections
-            <span
-              style={{
-                fontWeight: 400,
-                fontSize: 12,
-                marginLeft: 8,
-                opacity: 0.6,
-              }}
-            >
+          <div>
+            <div className="dash-card-title">Sections</div>
+            <div className="dash-card-sub">
               {ordered.length} {ordered.length === 1 ? "section" : "sections"}
-            </span>
+            </div>
           </div>
         </div>
 
         {ordered.length === 0 ? (
-          <div style={{ padding: "48px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🧱</div>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
-              No sections yet
-            </div>
-            <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 16 }}>
+          <div className="dash-empty">
+            <span className="dash-empty-icon">
+              <LayoutTemplate className="h-5 w-5" />
+            </span>
+            <div className="dash-empty-title">No sections yet</div>
+            <p className="dash-empty-text">
               Add your first homepage section — it renders below the hero.
-            </div>
+            </p>
             {canManage && (
               <button
                 className="dash-btn dash-btn-primary"
                 onClick={() => setTypeChooserOpen(true)}
               >
-                ＋ Add Section
+                <Plus className="h-4 w-4" />
+                Add section
               </button>
             )}
           </div>
@@ -187,7 +190,7 @@ export function HomepageManagementView({
           <table className="dash-table">
             <thead>
               <tr>
-                {canManage && <th style={{ width: 64 }}>Order</th>}
+                {canManage && <th className="w-16">Order</th>}
                 <th>Section</th>
                 <th>Status</th>
                 {canManage && <th>Actions</th>}
@@ -207,7 +210,7 @@ export function HomepageManagementView({
                             onClick={() => move(i, -1)}
                             disabled={i === 0 || isPending}
                             title="Move up"
-                            className="flex h-7 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#252b3d] disabled:cursor-not-allowed disabled:opacity-30"
+                            className="text-muted-foreground hover:bg-accent flex h-7 w-6 items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-30"
                           >
                             <ChevronUp className="h-4 w-4" />
                           </button>
@@ -216,7 +219,7 @@ export function HomepageManagementView({
                             onClick={() => move(i, 1)}
                             disabled={i === ordered.length - 1 || isPending}
                             title="Move down"
-                            className="flex h-7 w-6 items-center justify-center rounded-md text-[#8b93a8] hover:bg-[#252b3d] disabled:cursor-not-allowed disabled:opacity-30"
+                            className="text-muted-foreground hover:bg-accent flex h-7 w-6 items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-30"
                           >
                             <ChevronDown className="h-4 w-4" />
                           </button>
@@ -226,20 +229,13 @@ export function HomepageManagementView({
                     <td>
                       <div className="flex items-center gap-2.5">
                         {Icon && (
-                          <span
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
-                            style={{ background: "var(--dash-surface-2)" }}
-                          >
+                          <span className="dash-thumb dash-thumb-empty">
                             <Icon className="h-4 w-4" />
                           </span>
                         )}
                         <div>
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>
-                            {meta.label}
-                          </div>
-                          <div
-                            style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}
-                          >
+                          <div className="dash-cell-title">{meta.label}</div>
+                          <div className="dash-cell-sub">
                             {summarizeSection(s)}
                           </div>
                         </div>
@@ -252,11 +248,7 @@ export function HomepageManagementView({
                         onClick={() => handleToggle(s)}
                         className={`dash-badge ${
                           s.enabled ? "dash-badge-green" : "dash-badge-grey"
-                        }`}
-                        style={{
-                          cursor: canManage ? "pointer" : "default",
-                          border: "none",
-                        }}
+                        } ${canManage ? "cursor-pointer" : "cursor-default"} border-none`}
                         title={
                           canManage
                             ? s.enabled
@@ -271,25 +263,29 @@ export function HomepageManagementView({
                     {canManage && (
                       <td>
                         <DropdownMenu>
-                          <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                            Actions
+                          <DropdownMenuTrigger className="dash-row-menu">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Actions</span>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
                             align="end"
-                            className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+                            className="min-w-[160px]"
                           >
                             <DropdownMenuItem
-                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                              className="cursor-pointer"
                               onClick={() => openEdit(s)}
                             >
-                              ✏️ Edit
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Edit
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                              variant="destructive"
+                              className="cursor-pointer"
                               onClick={() => setDeleteTarget(s)}
                             >
-                              🗑 Delete
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -308,10 +304,10 @@ export function HomepageManagementView({
         open={typeChooserOpen}
         onOpenChange={(open) => !open && setTypeChooserOpen(false)}
       >
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[460px]">
+        <DialogContent className="sm:max-w-[460px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e8ecf4]">Add a section</DialogTitle>
-            <DialogDescription className="text-[#8b93a8]">
+            <DialogTitle>Add a section</DialogTitle>
+            <DialogDescription>
               Pick a block type. You can edit its content next.
             </DialogDescription>
           </DialogHeader>
@@ -323,16 +319,16 @@ export function HomepageManagementView({
                 <button
                   key={type}
                   onClick={() => openCreate(type)}
-                  className="flex w-full items-start gap-3 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[#0e1118] p-3 text-left hover:border-[#6366f1]"
+                  className="hover:border-primary hover:bg-accent flex w-full items-start gap-3 rounded-lg border p-3 text-left"
                 >
                   {Icon && (
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#1a1f2e]">
+                    <span className="dash-thumb dash-thumb-empty h-9 w-9">
                       <Icon className="h-4 w-4" />
                     </span>
                   )}
                   <div>
                     <div className="text-sm font-semibold">{meta.label}</div>
-                    <div className="text-xs text-[#8b93a8]">
+                    <div className="text-muted-foreground text-xs">
                       {meta.description}
                     </div>
                   </div>
@@ -348,10 +344,10 @@ export function HomepageManagementView({
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e8ecf4]">Delete section</DialogTitle>
-            <DialogDescription className="text-[#8b93a8]">
+            <DialogTitle>Delete section</DialogTitle>
+            <DialogDescription>
               Remove this{" "}
               {deleteTarget ? SECTION_TYPE_META[deleteTarget.type].label : ""}{" "}
               section from the homepage? This can&rsquo;t be undone.
@@ -362,7 +358,6 @@ export function HomepageManagementView({
               variant="outline"
               onClick={() => setDeleteTarget(null)}
               disabled={isPending}
-              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
             >
               Cancel
             </Button>
@@ -371,7 +366,7 @@ export function HomepageManagementView({
               onClick={handleDelete}
               disabled={isPending}
             >
-              {isPending ? "Deleting…" : "Delete"}
+              {isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

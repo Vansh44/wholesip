@@ -30,9 +30,9 @@ import {
 import type { BlogOption, CategoryOption, ProductOption } from "./page";
 
 const fieldClass =
-  "w-full rounded-md border border-[rgba(255,255,255,0.1)] bg-[#0e1118] px-3 py-2 text-sm text-[#e8ecf4] outline-none placeholder:text-[#5b6478] focus:border-[#6366f1]";
+  "border-input bg-background focus:border-primary placeholder:text-muted-foreground w-full rounded-md border px-3 py-2 text-sm outline-none";
 const labelClass =
-  "mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#8b93a8]";
+  "text-muted-foreground mb-1.5 block text-xs font-medium uppercase tracking-wide";
 
 type Props = {
   open: boolean;
@@ -79,12 +79,12 @@ function OrderedPicker({
           {selectedIds.map((id, i) => (
             <div
               key={id}
-              className="flex items-center gap-2 rounded-md border border-[rgba(255,255,255,0.08)] bg-[#0e1118] px-2 py-1.5"
+              className="bg-background flex items-center gap-2 rounded-md border px-2 py-1.5"
             >
               <span className="flex-1 truncate text-sm">
                 {byId.get(id)?.name ?? (
-                  <span className="text-[#ef4444]">
-                    (missing — {id.slice(0, 8)}…)
+                  <span className="text-[var(--dash-red)]">
+                    (missing — {id.slice(0, 8)}...)
                   </span>
                 )}
               </span>
@@ -93,7 +93,7 @@ function OrderedPicker({
                 onClick={() => move(i, -1)}
                 disabled={i === 0}
                 title="Move up"
-                className="flex h-7 w-6 items-center justify-center rounded text-[#8b93a8] hover:bg-[#1a1f2e] disabled:opacity-30"
+                className="text-muted-foreground hover:bg-accent flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
               >
                 <ChevronUp className="h-4 w-4" />
               </button>
@@ -102,7 +102,7 @@ function OrderedPicker({
                 onClick={() => move(i, 1)}
                 disabled={i === selectedIds.length - 1}
                 title="Move down"
-                className="flex h-7 w-6 items-center justify-center rounded text-[#8b93a8] hover:bg-[#1a1f2e] disabled:opacity-30"
+                className="text-muted-foreground hover:bg-accent flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
               >
                 <ChevronDown className="h-4 w-4" />
               </button>
@@ -110,7 +110,7 @@ function OrderedPicker({
                 type="button"
                 onClick={() => onChange(selectedIds.filter((x) => x !== id))}
                 title="Remove"
-                className="flex h-7 w-6 items-center justify-center rounded text-[#8b93a8] hover:bg-[rgba(239,68,68,0.12)] hover:text-[#ef4444]"
+                className="text-muted-foreground hover:text-[var(--dash-red)] flex h-7 w-6 items-center justify-center rounded hover:bg-[var(--dash-red-soft)]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -120,7 +120,7 @@ function OrderedPicker({
       )}
       {remaining.length > 0 && (
         <div className="flex items-center gap-2">
-          <Plus className="h-3.5 w-3.5 text-[#5b6478]" />
+          <Plus className="text-muted-foreground h-3.5 w-3.5" />
           <select
             className={fieldClass}
             value=""
@@ -170,7 +170,7 @@ export function SectionEditorDialog({
   if (!type || !config) {
     return (
       <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] sm:max-w-[560px]" />
+        <DialogContent className="sm:max-w-[560px]" />
       </Dialog>
     );
   }
@@ -193,14 +193,12 @@ export function SectionEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[560px]">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle className="text-[#e8ecf4]">
+          <DialogTitle>
             {isEditing ? "Edit" : "New"} · {meta.label}
           </DialogTitle>
-          <DialogDescription className="text-[#8b93a8]">
-            {meta.description}
-          </DialogDescription>
+          <DialogDescription>{meta.description}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
@@ -235,16 +233,15 @@ export function SectionEditorDialog({
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isPending}
-            className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
-          >
+          <Button variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isPending}>
-            {isPending ? "Saving…" : isEditing ? "Save Changes" : "Add Section"}
+            {isPending
+              ? "Saving..."
+              : isEditing
+                ? "Save Changes"
+                : "Add Section"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -317,7 +314,7 @@ function FeaturedFields({
             selectedIds={config.product_ids}
             options={products.map((p) => ({ id: p.id, name: p.name }))}
             onChange={(ids) => set("product_ids", ids)}
-            addLabel="Add a product…"
+            addLabel="Add a product..."
           />
         </div>
       )}
@@ -330,7 +327,7 @@ function FeaturedFields({
             value={config.category_id ?? ""}
             onChange={(e) => set("category_id", e.target.value || null)}
           >
-            <option value="">Select a category…</option>
+            <option value="">Select a category...</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -341,7 +338,7 @@ function FeaturedFields({
       )}
 
       {config.source !== "manual" && (
-        <div style={{ maxWidth: 160 }}>
+        <div className="max-w-[160px]">
           <label className={labelClass}>Max products</label>
           <NumberField
             className={fieldClass}
@@ -349,7 +346,7 @@ function FeaturedFields({
             onValueChange={(n) => set("limit", n)}
             allowDecimal={false}
           />
-          <p className="mt-1 text-[11px] text-[#5b6478]">1–12.</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">1–12.</p>
         </div>
       )}
     </>
@@ -429,7 +426,7 @@ function CategoryFields({
             selectedIds={config.category_ids}
             options={categories.map((c) => ({ id: c.id, name: c.name }))}
             onChange={(ids) => set("category_ids", ids)}
-            addLabel="Add a category…"
+            addLabel="Add a category..."
           />
         </div>
       )}
@@ -592,16 +589,16 @@ function BlogFields({
             selectedIds={config.blog_ids}
             options={blogs.map((b) => ({ id: b.id, name: b.name }))}
             onChange={(ids) => set("blog_ids", ids)}
-            addLabel="Add a blog post…"
+            addLabel="Add a blog post..."
           />
           {blogs.length === 0 && (
-            <p className="mt-1 text-[11px] text-[#5b6478]">
+            <p className="mt-1 text-[11px] text-muted-foreground">
               No published blogs yet — publish a post first.
             </p>
           )}
         </div>
       ) : (
-        <div style={{ maxWidth: 160 }}>
+        <div className="max-w-[160px]">
           <label className={labelClass}>Max posts</label>
           <NumberField
             className={fieldClass}
@@ -609,7 +606,7 @@ function BlogFields({
             onValueChange={(n) => set("limit", n)}
             allowDecimal={false}
           />
-          <p className="mt-1 text-[11px] text-[#5b6478]">1–12.</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">1–12.</p>
         </div>
       )}
     </>

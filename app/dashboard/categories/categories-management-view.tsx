@@ -5,6 +5,15 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
 import {
+  FolderTree,
+  ImageIcon,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -82,7 +91,7 @@ export function CategoriesManagementView({
     <div className="dash-page-enter">
       <header className="dash-page-header row">
         <div>
-          <h1>🗂 Categories</h1>
+          <h1>Categories</h1>
           <p>Organize your storefront catalog into categories</p>
         </div>
         {canManage && (
@@ -90,79 +99,57 @@ export function CategoriesManagementView({
             className="dash-btn dash-btn-primary shrink-0"
             onClick={() => openEditor()}
           >
-            ＋ New Category
+            <Plus className="h-4 w-4" />
+            New category
           </button>
         )}
       </header>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 16,
-          marginBottom: 16,
-        }}
-      >
-        <div className="dash-search-bar" style={{ width: 260 }}>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ opacity: 0.5, flexShrink: 0 }}
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search categories…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      <div className="dash-toolbar">
+        <div className="dash-toolbar-actions">
+          <label className="dash-search-bar">
+            <Search className="h-4 w-4 shrink-0 opacity-50" />
+            <input
+              type="text"
+              placeholder="Search categories..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
         </div>
       </div>
 
       <div className="dash-card">
         <div className="dash-card-header">
-          <div className="dash-card-title">
-            Categories
-            <span
-              style={{
-                fontWeight: 400,
-                fontSize: 12,
-                marginLeft: 8,
-                opacity: 0.6,
-              }}
-            >
+          <div>
+            <div className="dash-card-title">Categories</div>
+            <div className="dash-card-sub">
               {filtered.length}{" "}
               {filtered.length === 1 ? "category" : "categories"}
-            </span>
+            </div>
           </div>
         </div>
 
         {filtered.length === 0 ? (
-          <div style={{ padding: "48px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🗂</div>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+          <div className="dash-empty">
+            <span className="dash-empty-icon">
+              <FolderTree className="h-5 w-5" />
+            </span>
+            <div className="dash-empty-title">
               {search ? "No categories match your search" : "No categories yet"}
             </div>
-            <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 16 }}>
+            <p className="dash-empty-text">
               {search
-                ? "Try a different search term"
-                : "Create your first category to start organizing products"}
-            </div>
+                ? "Try a different search term."
+                : "Create your first category to start organizing products."}
+            </p>
             {!search && canManage && (
               <button
                 className="dash-btn dash-btn-primary"
                 onClick={() => openEditor()}
               >
-                ＋ New Category
+                <Plus className="h-4 w-4" />
+                New category
               </button>
             )}
           </div>
@@ -170,7 +157,7 @@ export function CategoriesManagementView({
           <table className="dash-table">
             <thead>
               <tr>
-                <th style={{ width: 56 }}>Image</th>
+                <th className="w-14">Image</th>
                 <th>Name</th>
                 <th>Products</th>
                 <th>Order</th>
@@ -183,16 +170,7 @@ export function CategoriesManagementView({
                 <tr key={c.id}>
                   <td>
                     {c.image_url ? (
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 6,
-                          overflow: "hidden",
-                          position: "relative",
-                          flexShrink: 0,
-                        }}
-                      >
+                      <div className="dash-thumb">
                         <Image
                           src={c.image_url}
                           alt={c.name}
@@ -201,37 +179,14 @@ export function CategoriesManagementView({
                         />
                       </div>
                     ) : (
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 6,
-                          background: "var(--dash-surface-2)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 16,
-                          opacity: 0.4,
-                        }}
-                      >
-                        🗂
+                      <div className="dash-thumb dash-thumb-empty">
+                        <ImageIcon className="h-4 w-4" />
                       </div>
                     )}
                   </td>
                   <td>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      {c.name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        opacity: 0.5,
-                        fontFamily: "var(--font-dash-mono), monospace",
-                        marginTop: 2,
-                      }}
-                    >
-                      /{c.slug}
-                    </div>
+                    <div className="dash-cell-title">{c.name}</div>
+                    <div className="dash-cell-sub mono">/{c.slug}</div>
                   </td>
                   <td className="text-muted">
                     {c.product_count ?? 0}{" "}
@@ -252,25 +207,29 @@ export function CategoriesManagementView({
                   {canManage && (
                     <td>
                       <DropdownMenu>
-                        <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                          Actions
+                        <DropdownMenuTrigger className="dash-row-menu">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
-                          className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+                          className="min-w-[180px]"
                         >
                           <DropdownMenuItem
-                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            className="cursor-pointer"
                             onClick={() => openEditor(c)}
                           >
-                            ✏️ Edit
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                            variant="destructive"
+                            className="cursor-pointer"
                             onClick={() => setDeleteTarget(c)}
                           >
-                            🗑 Delete
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -288,12 +247,10 @@ export function CategoriesManagementView({
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e8ecf4]">
-              Delete Category
-            </DialogTitle>
-            <DialogDescription className="text-[#8b93a8]">
+            <DialogTitle>Delete category</DialogTitle>
+            <DialogDescription>
               Delete &ldquo;{deleteTarget?.name}&rdquo;? Products in this
               category won&rsquo;t be deleted — they&rsquo;ll become
               uncategorized.
@@ -301,8 +258,8 @@ export function CategoriesManagementView({
           </DialogHeader>
           {(deleteTarget?.product_count ?? 0) > 0 && (
             <div className="py-2">
-              <p className="text-sm text-amber-400">
-                ⚠️ {deleteTarget?.product_count} product
+              <p className="text-sm text-[var(--dash-amber)]">
+                {deleteTarget?.product_count} product
                 {deleteTarget?.product_count === 1 ? "" : "s"} will become
                 uncategorized.
               </p>
@@ -313,7 +270,6 @@ export function CategoriesManagementView({
               variant="outline"
               onClick={() => setDeleteTarget(null)}
               disabled={isPending}
-              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
             >
               Cancel
             </Button>
@@ -322,7 +278,7 @@ export function CategoriesManagementView({
               onClick={handleDelete}
               disabled={isPending}
             >
-              {isPending ? "Deleting…" : "Delete"}
+              {isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

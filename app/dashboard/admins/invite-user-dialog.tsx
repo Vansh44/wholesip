@@ -19,8 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, UserPlus } from "lucide-react";
 
 export function InviteUserDialog({
   className,
@@ -74,23 +75,16 @@ export function InviteUserDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className={className}>{label}</DialogTrigger>
-      <DialogContent
-        className="gap-6 p-8 shadow-xl sm:max-w-[520px] overflow-y-auto max-h-[90vh]"
-        style={{
-          backgroundColor: "#16181f",
-          border: "1px solid rgba(255,255,255,0.1)",
-          color: "#f0f2f5",
-        }}
-      >
+      <DialogTrigger className={className}>
+        <UserPlus className="h-4 w-4" />
+        {label}
+      </DialogTrigger>
+      <DialogContent className="gap-6 p-8 sm:max-w-[520px] overflow-y-auto max-h-[90vh]">
         <DialogHeader className="space-y-2 p-0">
-          <DialogTitle
-            className="text-[20px] font-semibold"
-            style={{ color: "#f0f2f5" }}
-          >
-            Invite User
+          <DialogTitle className="text-[20px] font-semibold">
+            Invite user
           </DialogTitle>
-          <p className="text-[14px]" style={{ color: "#8b90a0" }}>
+          <p className="text-muted-foreground text-[14px]">
             Send an invitation to a new team member.
           </p>
         </DialogHeader>
@@ -101,9 +95,8 @@ export function InviteUserDialog({
               <Label
                 htmlFor="invite-first-name"
                 className="text-[14px] font-medium"
-                style={{ color: "#f0f2f5" }}
               >
-                First Name <span style={{ color: "#ef4444" }}>*</span>
+                First name <span className="text-[var(--dash-red)]">*</span>
               </Label>
               <Input
                 id="invite-first-name"
@@ -113,21 +106,15 @@ export function InviteUserDialog({
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 disabled={isPending}
-                className="h-11 px-3 text-[14px] rounded-md"
-                style={{
-                  backgroundColor: "#0e1018",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  color: "#f0f2f5",
-                }}
+                className="h-11 px-3 text-[14px]"
               />
             </div>
             <div className="flex flex-col gap-2">
               <Label
                 htmlFor="invite-last-name"
                 className="text-[14px] font-medium"
-                style={{ color: "#f0f2f5" }}
               >
-                Last Name
+                Last name
               </Label>
               <Input
                 id="invite-last-name"
@@ -136,23 +123,14 @@ export function InviteUserDialog({
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 disabled={isPending}
-                className="h-11 px-3 text-[14px] rounded-md"
-                style={{
-                  backgroundColor: "#0e1018",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  color: "#f0f2f5",
-                }}
+                className="h-11 px-3 text-[14px]"
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label
-              htmlFor="invite-email"
-              className="text-[14px] font-medium"
-              style={{ color: "#f0f2f5" }}
-            >
-              Email Address <span style={{ color: "#ef4444" }}>*</span>
+            <Label htmlFor="invite-email" className="text-[14px] font-medium">
+              Email address <span className="text-[var(--dash-red)]">*</span>
             </Label>
             <Input
               id="invite-email"
@@ -162,46 +140,23 @@ export function InviteUserDialog({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isPending}
-              className="h-11 px-3 text-[14px] rounded-md"
-              style={{
-                backgroundColor: "#0e1018",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "#f0f2f5",
-              }}
+              className="h-11 px-3 text-[14px]"
             />
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label
-              htmlFor="invite-role"
-              className="text-[14px] font-medium"
-              style={{ color: "#f0f2f5" }}
-            >
-              Role <span style={{ color: "#ef4444" }}>*</span>
+            <Label htmlFor="invite-role" className="text-[14px] font-medium">
+              Role <span className="text-[var(--dash-red)]">*</span>
             </Label>
             <Select
               value={role}
               onValueChange={(val) => setRole(val ?? "member")}
               disabled={isPending}
             >
-              <SelectTrigger
-                id="invite-role"
-                className="h-11 px-3 text-[14px] rounded-md"
-                style={{
-                  backgroundColor: "#0e1018",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  color: "#f0f2f5",
-                }}
-              >
+              <SelectTrigger id="invite-role" className="h-11 px-3 text-[14px]">
                 <SelectValue placeholder="Select a role" />
               </SelectTrigger>
-              <SelectContent
-                style={{
-                  backgroundColor: "#16181f",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  color: "#f0f2f5",
-                }}
-              >
+              <SelectContent>
                 <SelectItem value="member">Admin</SelectItem>
                 <SelectItem value="superadmin">Superadmin</SelectItem>
               </SelectContent>
@@ -209,63 +164,32 @@ export function InviteUserDialog({
           </div>
 
           {error && (
-            <div
-              className="rounded-md px-4 py-3"
-              style={{
-                border: "1px solid rgba(239,68,68,0.3)",
-                backgroundColor: "rgba(239,68,68,0.08)",
-              }}
-            >
-              <p
-                className="text-[14px] font-medium"
-                style={{ color: "#f87171" }}
-              >
+            <div className="rounded-md border border-[var(--dash-red)]/30 bg-[var(--dash-red)]/10 px-4 py-3">
+              <p className="text-[14px] font-medium text-[var(--dash-red)]">
                 {error}
               </p>
             </div>
           )}
 
           <div className="flex justify-end gap-3">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setOpen(false)}
               disabled={isPending}
-              className="h-10 px-4 rounded-md text-[14px] font-medium transition-colors"
-              style={{
-                backgroundColor: "transparent",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "#8b90a0",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                  "rgba(255,255,255,0.06)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                  "transparent";
-              }}
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="h-10 px-5 rounded-md text-[14px] font-medium flex items-center transition-opacity"
-              style={{
-                backgroundColor: "#3b6ef5",
-                color: "#ffffff",
-                opacity: isPending ? 0.7 : 1,
-              }}
-            >
+            </Button>
+            <Button type="submit" disabled={isPending}>
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending…
+                  Sending...
                 </>
               ) : (
-                "Send Invite"
+                "Send invite"
               )}
-            </button>
+            </Button>
           </div>
         </form>
       </DialogContent>

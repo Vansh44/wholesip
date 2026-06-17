@@ -4,6 +4,14 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  MoreHorizontal,
+  Palette,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -78,7 +86,7 @@ export function ColorsManagementView({ colors, canManage = true }: Props) {
     <div className="dash-page-enter">
       <header className="dash-page-header row">
         <div>
-          <h1>🎨 Colours</h1>
+          <h1>Colours</h1>
           <p>Palette of background shades for storefront product cards</p>
         </div>
         {canManage && (
@@ -86,78 +94,56 @@ export function ColorsManagementView({ colors, canManage = true }: Props) {
             className="dash-btn dash-btn-primary shrink-0"
             onClick={() => openEditor()}
           >
-            ＋ New Colour
+            <Plus className="h-4 w-4" />
+            New colour
           </button>
         )}
       </header>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 16,
-          marginBottom: 16,
-        }}
-      >
-        <div className="dash-search-bar" style={{ width: 260 }}>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ opacity: 0.5, flexShrink: 0 }}
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search colours…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      <div className="dash-toolbar">
+        <div className="dash-toolbar-actions ml-auto">
+          <label className="dash-search-bar">
+            <Search className="h-4 w-4 shrink-0 opacity-50" />
+            <input
+              type="text"
+              placeholder="Search colours..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
         </div>
       </div>
 
       <div className="dash-card">
         <div className="dash-card-header">
-          <div className="dash-card-title">
-            Colours
-            <span
-              style={{
-                fontWeight: 400,
-                fontSize: 12,
-                marginLeft: 8,
-                opacity: 0.6,
-              }}
-            >
+          <div>
+            <div className="dash-card-title">Colours</div>
+            <div className="dash-card-sub">
               {filtered.length} {filtered.length === 1 ? "colour" : "colours"}
-            </span>
+            </div>
           </div>
         </div>
 
         {filtered.length === 0 ? (
-          <div style={{ padding: "48px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🎨</div>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+          <div className="dash-empty">
+            <span className="dash-empty-icon">
+              <Palette className="h-5 w-5" />
+            </span>
+            <div className="dash-empty-title">
               {search ? "No colours match your search" : "No colours yet"}
             </div>
-            <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 16 }}>
+            <p className="dash-empty-text">
               {search
-                ? "Try a different search term"
-                : "Add your first shade to use as a product card background"}
-            </div>
+                ? "Try a different search term."
+                : "Add your first shade to use as a product card background."}
+            </p>
             {!search && canManage && (
               <button
                 className="dash-btn dash-btn-primary"
                 onClick={() => openEditor()}
               >
-                ＋ New Colour
+                <Plus className="h-4 w-4" />
+                New colour
               </button>
             )}
           </div>
@@ -165,7 +151,7 @@ export function ColorsManagementView({ colors, canManage = true }: Props) {
           <table className="dash-table">
             <thead>
               <tr>
-                <th style={{ width: 56 }}>Swatch</th>
+                <th className="w-14">Swatch</th>
                 <th>Name</th>
                 <th>Hex</th>
                 <th>Used by</th>
@@ -178,28 +164,15 @@ export function ColorsManagementView({ colors, canManage = true }: Props) {
                 <tr key={c.id}>
                   <td>
                     <div
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 8,
-                        background: c.hex,
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        flexShrink: 0,
-                      }}
+                      className="h-10 w-10 shrink-0 rounded-lg border border-[#e5e7eb]"
+                      style={{ background: c.hex }}
                     />
                   </td>
                   <td>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      {c.name}
-                    </div>
+                    <div className="dash-cell-title">{c.name}</div>
                   </td>
                   <td>
-                    <span
-                      className="font-mono-dash"
-                      style={{ fontSize: 12, opacity: 0.8 }}
-                    >
-                      {c.hex}
-                    </span>
+                    <span className="dash-cell-sub mono">{c.hex}</span>
                   </td>
                   <td className="text-muted">
                     {c.product_count ?? 0}{" "}
@@ -209,25 +182,29 @@ export function ColorsManagementView({ colors, canManage = true }: Props) {
                   {canManage && (
                     <td>
                       <DropdownMenu>
-                        <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                          Actions
+                        <DropdownMenuTrigger className="dash-row-menu">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
-                          className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+                          className="min-w-[180px]"
                         >
                           <DropdownMenuItem
-                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            className="cursor-pointer"
                             onClick={() => openEditor(c)}
                           >
-                            ✏️ Edit
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                            variant="destructive"
+                            className="cursor-pointer"
                             onClick={() => setDeleteTarget(c)}
                           >
-                            🗑 Delete
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -245,10 +222,10 @@ export function ColorsManagementView({ colors, canManage = true }: Props) {
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e8ecf4]">Delete Colour</DialogTitle>
-            <DialogDescription className="text-[#8b93a8]">
+            <DialogTitle>Delete colour</DialogTitle>
+            <DialogDescription>
               Delete &ldquo;{deleteTarget?.name}&rdquo;? Products already using
               this shade keep their colour — it&rsquo;s just removed from the
               dropdown.
@@ -259,7 +236,6 @@ export function ColorsManagementView({ colors, canManage = true }: Props) {
               variant="outline"
               onClick={() => setDeleteTarget(null)}
               disabled={isPending}
-              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
             >
               Cancel
             </Button>
@@ -268,7 +244,7 @@ export function ColorsManagementView({ colors, canManage = true }: Props) {
               onClick={handleDelete}
               disabled={isPending}
             >
-              {isPending ? "Deleting…" : "Delete"}
+              {isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -5,6 +5,20 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
 import {
+  Eye,
+  ImageIcon,
+  Lightbulb,
+  MoreHorizontal,
+  Package,
+  Pencil,
+  Plus,
+  Search,
+  Send,
+  Star,
+  Trash2,
+  Undo2,
+} from "lucide-react";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -134,18 +148,18 @@ export function ProductsManagementView({
   const openEdit = (product: Product) =>
     router.push(`/dashboard/products/${product.id}`);
 
-  const tabs: { key: FilterTab; label: string }[] = [
-    { key: "all", label: `All (${counts.all})` },
-    { key: "published", label: `Published (${counts.published})` },
-    { key: "drafts", label: `Drafts (${counts.drafts})` },
-    { key: "featured", label: `Featured (${counts.featured})` },
+  const tabs: { key: FilterTab; label: string; count: number }[] = [
+    { key: "all", label: "All", count: counts.all },
+    { key: "published", label: "Published", count: counts.published },
+    { key: "drafts", label: "Drafts", count: counts.drafts },
+    { key: "featured", label: "Featured", count: counts.featured },
   ];
 
   return (
     <div className="dash-page-enter">
       <header className="dash-page-header row">
         <div>
-          <h1>🛍 Products</h1>
+          <h1>Products</h1>
           <p>Add and manage products across your categories</p>
         </div>
         {canManage && (
@@ -153,21 +167,14 @@ export function ProductsManagementView({
             className="dash-btn dash-btn-primary shrink-0"
             onClick={openCreate}
           >
-            ＋ New Product
+            <Plus className="h-4 w-4" />
+            New product
           </button>
         )}
       </header>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 16,
-          marginBottom: 16,
-          flexWrap: "wrap",
-        }}
-      >
+      {/* Toolbar: Tabs + Category filter + Search */}
+      <div className="dash-toolbar">
         <div className="dash-filter-tabs">
           {tabs.map((tab) => (
             <button
@@ -176,11 +183,12 @@ export function ProductsManagementView({
               onClick={() => setFilter(tab.key)}
             >
               {tab.label}
+              <span className="dash-tab-count">{tab.count}</span>
             </button>
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div className="dash-toolbar-actions">
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
@@ -195,77 +203,59 @@ export function ProductsManagementView({
             <option value="uncategorized">Uncategorized</option>
           </select>
 
-          <div className="dash-search-bar" style={{ width: 240 }}>
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ opacity: 0.5, flexShrink: 0 }}
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
+          <label className="dash-search-bar">
+            <Search className="h-4 w-4 shrink-0 opacity-50" />
             <input
               type="text"
-              placeholder="Search products…"
+              placeholder="Search products..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-          </div>
+          </label>
         </div>
       </div>
 
       {categories.length === 0 && (
-        <div
-          className="dash-card"
-          style={{ padding: "14px 16px", marginBottom: 14, fontSize: 13 }}
-        >
-          💡 You have no categories yet. Products work without one, but{" "}
-          <a
-            href="/dashboard/categories"
-            style={{ color: "var(--dash-accent)", fontWeight: 600 }}
-          >
-            create a category
-          </a>{" "}
-          to group them on the storefront.
+        <div className="dash-card mb-3.5 flex items-center gap-2 px-4 py-3.5 text-[13px]">
+          <Lightbulb className="h-4 w-4 shrink-0 text-[var(--dash-amber)]" />
+          <span>
+            You have no categories yet. Products work without one, but{" "}
+            <a
+              href="/dashboard/categories"
+              className="font-semibold text-[var(--dash-accent)]"
+            >
+              create a category
+            </a>{" "}
+            to group them on the storefront.
+          </span>
         </div>
       )}
 
       <div className="dash-card">
         <div className="dash-card-header">
-          <div className="dash-card-title">
-            Products
-            <span
-              style={{
-                fontWeight: 400,
-                fontSize: 12,
-                marginLeft: 8,
-                opacity: 0.6,
-              }}
-            >
+          <div>
+            <div className="dash-card-title">Products</div>
+            <div className="dash-card-sub">
               {filtered.length} {filtered.length === 1 ? "product" : "products"}
-            </span>
+            </div>
           </div>
         </div>
 
         {filtered.length === 0 ? (
-          <div style={{ padding: "48px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📦</div>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+          <div className="dash-empty">
+            <span className="dash-empty-icon">
+              <Package className="h-5 w-5" />
+            </span>
+            <div className="dash-empty-title">
               {search || filter !== "all" || categoryFilter !== "all"
                 ? "No products match your filters"
                 : "No products yet"}
             </div>
-            <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 16 }}>
+            <p className="dash-empty-text">
               {search || filter !== "all" || categoryFilter !== "all"
-                ? "Try adjusting your filters"
-                : "Add your first product to get started"}
-            </div>
+                ? "Try adjusting your filters."
+                : "Add your first product to get started."}
+            </p>
             {!search &&
               filter === "all" &&
               categoryFilter === "all" &&
@@ -274,7 +264,8 @@ export function ProductsManagementView({
                   className="dash-btn dash-btn-primary"
                   onClick={openCreate}
                 >
-                  ＋ New Product
+                  <Plus className="h-4 w-4" />
+                  New product
                 </button>
               )}
           </div>
@@ -282,7 +273,7 @@ export function ProductsManagementView({
           <table className="dash-table">
             <thead>
               <tr>
-                <th style={{ width: 56 }}>Image</th>
+                <th className="w-14">Image</th>
                 <th>Name</th>
                 <th>Category</th>
                 <th>Price</th>
@@ -296,21 +287,12 @@ export function ProductsManagementView({
                 <tr
                   key={p.id}
                   onClick={canManage ? () => openEdit(p) : undefined}
-                  style={canManage ? { cursor: "pointer" } : undefined}
+                  className={canManage ? "cursor-pointer" : undefined}
                   title={canManage ? "Edit product" : undefined}
                 >
                   <td>
                     {p.image_url ? (
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 6,
-                          overflow: "hidden",
-                          position: "relative",
-                          flexShrink: 0,
-                        }}
-                      >
+                      <div className="dash-thumb">
                         <Image
                           src={p.image_url}
                           alt={p.name}
@@ -319,94 +301,49 @@ export function ProductsManagementView({
                         />
                       </div>
                     ) : (
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 6,
-                          background: "var(--dash-surface-2)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 16,
-                          opacity: 0.4,
-                        }}
-                      >
-                        📦
+                      <div className="dash-thumb dash-thumb-empty">
+                        <ImageIcon className="h-4 w-4" />
                       </div>
                     )}
                   </td>
                   <td>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
+                    <div className="dash-cell-title inline-flex items-center gap-1.5">
                       {p.name}
                       {p.featured && (
-                        <span
-                          title="Featured"
-                          style={{ marginLeft: 6, fontSize: 12 }}
-                        >
-                          ⭐
-                        </span>
+                        <Star
+                          className="h-3.5 w-3.5 fill-[var(--dash-amber)] text-[var(--dash-amber)]"
+                          aria-label="Featured"
+                        />
                       )}
                     </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        opacity: 0.5,
-                        fontFamily: "var(--font-dash-mono), monospace",
-                        marginTop: 2,
-                      }}
-                    >
-                      /{p.slug}
-                    </div>
+                    <div className="dash-cell-sub mono">/{p.slug}</div>
                   </td>
-                  <td className="text-muted">
+                  <td>
                     {p.category ? (
-                      <span
-                        style={{
-                          padding: "2px 8px",
-                          background: "rgba(0,0,0,0.04)",
-                          borderRadius: 4,
-                          fontSize: 11,
-                        }}
-                      >
-                        {p.category.name}
-                      </span>
+                      <div className="dash-chip-row">
+                        <span className="dash-chip">{p.category.name}</span>
+                      </div>
                     ) : (
-                      <span style={{ opacity: 0.5 }}>Uncategorized</span>
+                      <span className="text-dim">Uncategorized</span>
                     )}
                   </td>
-                  <td className="font-mono-dash" style={{ fontSize: 12 }}>
+                  <td>
                     {(() => {
                       const pricing = effectivePricing(p);
                       return (
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                            flexWrap: "wrap",
-                          }}
-                        >
+                        <div className="flex flex-wrap items-center gap-1.5">
                           {pricing.hasVariants && (
-                            <span style={{ opacity: 0.6 }}>from</span>
+                            <span className="text-dim text-xs">from</span>
                           )}
-                          <span style={{ fontWeight: 600 }}>
+                          <span className="dash-cell-title mono">
                             {formatPrice(pricing.selling)}
                           </span>
                           {pricing.discount > 0 && (
                             <>
-                              <span
-                                style={{
-                                  textDecoration: "line-through",
-                                  opacity: 0.5,
-                                }}
-                              >
+                              <span className="dash-cell-sub mono line-through">
                                 {formatPrice(pricing.base)}
                               </span>
-                              <span
-                                className="dash-badge dash-badge-green"
-                                style={{ fontSize: 10, padding: "1px 6px" }}
-                              >
+                              <span className="dash-badge dash-badge-green">
                                 -{pricing.discount}%
                               </span>
                             </>
@@ -415,12 +352,9 @@ export function ProductsManagementView({
                       );
                     })()}
                   </td>
-                  <td className="text-muted">
+                  <td>
                     {p.variants.length > 0 ? (
-                      <span
-                        className="dash-badge dash-badge-grey"
-                        style={{ fontSize: 10, padding: "2px 7px" }}
-                      >
+                      <span className="dash-badge dash-badge-grey">
                         {p.variants.length}{" "}
                         {p.variants.length === 1 ? "variant" : "variants"}
                       </span>
@@ -442,42 +376,55 @@ export function ProductsManagementView({
                   {canManage && (
                     <td onClick={(ev) => ev.stopPropagation()}>
                       <DropdownMenu>
-                        <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                          Actions
+                        <DropdownMenuTrigger className="dash-row-menu">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
-                          className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+                          className="min-w-[180px]"
                         >
                           <DropdownMenuItem
-                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            className="cursor-pointer"
                             onClick={() => openEdit(p)}
                           >
-                            ✏️ Edit
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            className="cursor-pointer"
                             onClick={() => handleTogglePublish(p)}
                             disabled={isPending}
                           >
-                            {p.status === "published"
-                              ? "📥 Unpublish"
-                              : "🚀 Publish"}
+                            {p.status === "published" ? (
+                              <>
+                                <Undo2 className="mr-2 h-4 w-4" />
+                                Unpublish
+                              </>
+                            ) : (
+                              <>
+                                <Send className="mr-2 h-4 w-4" />
+                                Publish
+                              </>
+                            )}
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                            className="cursor-pointer"
                             onClick={() =>
                               window.open(`/pages/shop/${p.slug}`, "_blank")
                             }
                           >
-                            👁 Preview
+                            <Eye className="mr-2 h-4 w-4" />
+                            Preview
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                            variant="destructive"
+                            className="cursor-pointer"
                             onClick={() => setDeleteTarget(p)}
                           >
-                            🗑 Delete
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -495,10 +442,10 @@ export function ProductsManagementView({
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e8ecf4]">Delete Product</DialogTitle>
-            <DialogDescription className="text-[#8b93a8]">
+            <DialogTitle>Delete product</DialogTitle>
+            <DialogDescription>
               Are you sure you want to delete &ldquo;{deleteTarget?.name}
               &rdquo;? This also removes its variants and cannot be undone.
             </DialogDescription>
@@ -508,7 +455,6 @@ export function ProductsManagementView({
               variant="outline"
               onClick={() => setDeleteTarget(null)}
               disabled={isPending}
-              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
             >
               Cancel
             </Button>
@@ -517,7 +463,7 @@ export function ProductsManagementView({
               onClick={handleDelete}
               disabled={isPending}
             >
-              {isPending ? "Deleting…" : "Delete"}
+              {isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

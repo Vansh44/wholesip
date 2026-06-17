@@ -3,6 +3,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { Zap } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -41,9 +42,9 @@ const EMPTY: RoleFormData = {
 };
 
 const fieldClass =
-  "w-full rounded-md border border-[rgba(255,255,255,0.1)] bg-[#0e1118] px-3 py-2 text-sm text-[#e8ecf4] outline-none placeholder:text-[#5b6478] focus:border-[#6366f1]";
+  "w-full rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-2 text-sm text-[var(--dash-text)] outline-none placeholder:text-[var(--dash-text-3)] focus:border-[var(--dash-accent)]";
 const labelClass =
-  "mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#8b93a8]";
+  "mb-1.5 block text-xs font-medium uppercase tracking-wide text-[var(--dash-text-2)]";
 
 const COLOR_SWATCH: Record<string, string> = {
   grey: "#6b7280",
@@ -119,12 +120,12 @@ export function RoleEditorDialog({ open, role, onClose, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[560px]">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle className="text-[#e8ecf4]">
-            {isEditing ? `Edit Role — ${role?.name}` : "New Role"}
+          <DialogTitle>
+            {isEditing ? `Edit role — ${role?.name}` : "New role"}
           </DialogTitle>
-          <DialogDescription className="text-[#8b93a8]">
+          <DialogDescription>
             Choose which dashboard sections this role can view and manage.
           </DialogDescription>
         </DialogHeader>
@@ -152,7 +153,7 @@ export function RoleEditorDialog({ open, role, onClose, onSaved }: Props) {
                     aria-label={c}
                     className={`h-6 w-6 rounded-full transition ${
                       form.color === c
-                        ? "ring-2 ring-white ring-offset-2 ring-offset-[#141720]"
+                        ? "ring-2 ring-[var(--dash-text)] ring-offset-2 ring-offset-[var(--dash-surface)]"
                         : "opacity-70 hover:opacity-100"
                     }`}
                     style={{ background: COLOR_SWATCH[c] }}
@@ -176,9 +177,12 @@ export function RoleEditorDialog({ open, role, onClose, onSaved }: Props) {
             <label className={labelClass}>Permissions</label>
 
             {isSuperadmin ? (
-              <div className="rounded-md border border-[rgba(124,58,237,0.3)] bg-[rgba(124,58,237,0.08)] px-3 py-3 text-sm text-[#c4b5fd]">
-                ⚡ Superadmin always has full, unrestricted access. Its
-                permissions can&rsquo;t be narrowed.
+              <div className="flex items-start gap-2 rounded-md border border-[var(--dash-violet)]/30 bg-[var(--dash-violet-soft)] px-3 py-3 text-sm text-[var(--dash-violet)]">
+                <Zap className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  Superadmin always has full, unrestricted access. Its
+                  permissions can&rsquo;t be narrowed.
+                </span>
               </div>
             ) : (
               <div className="space-y-4">
@@ -186,20 +190,20 @@ export function RoleEditorDialog({ open, role, onClose, onSaved }: Props) {
                   const sections = SECTIONS.filter((s) => s.group === group);
                   return (
                     <div key={group}>
-                      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#5b6478]">
+                      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--dash-text-3)]">
                         {group}
                       </div>
-                      <div className="overflow-hidden rounded-md border border-[rgba(255,255,255,0.08)]">
+                      <div className="overflow-hidden rounded-md border border-[var(--dash-border)]">
                         {sections.map((section, i) => (
                           <div
                             key={section.key}
                             className={`flex items-center justify-between px-3 py-2 ${
                               i > 0
-                                ? "border-t border-[rgba(255,255,255,0.06)]"
+                                ? "border-t border-[var(--dash-border)]"
                                 : ""
                             }`}
                           >
-                            <span className="text-sm text-[#e8ecf4]">
+                            <span className="text-sm text-[var(--dash-text)]">
                               {section.label}
                             </span>
                             <div className="flex items-center gap-4">
@@ -212,8 +216,8 @@ export function RoleEditorDialog({ open, role, onClose, onSaved }: Props) {
                                       key={action}
                                       className={`flex items-center gap-1.5 text-xs ${
                                         supported
-                                          ? "cursor-pointer text-[#9aa3b5]"
-                                          : "cursor-not-allowed text-[#3a4150]"
+                                          ? "cursor-pointer text-[var(--dash-text-2)]"
+                                          : "cursor-not-allowed text-[var(--dash-text-3)] opacity-60"
                                       }`}
                                     >
                                       <input
@@ -225,7 +229,7 @@ export function RoleEditorDialog({ open, role, onClose, onSaved }: Props) {
                                         onChange={() =>
                                           toggle(section.key, action)
                                         }
-                                        className="h-3.5 w-3.5 accent-[#6366f1]"
+                                        className="h-3.5 w-3.5 accent-[var(--dash-accent)]"
                                       />
                                       {action === "view" ? "View" : "Manage"}
                                     </label>
@@ -245,16 +249,15 @@ export function RoleEditorDialog({ open, role, onClose, onSaved }: Props) {
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isPending}
-            className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
-          >
+          <Button variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isPending}>
-            {isPending ? "Saving…" : isEditing ? "Save Changes" : "Create Role"}
+            {isPending
+              ? "Saving..."
+              : isEditing
+                ? "Save changes"
+                : "Create role"}
           </Button>
         </DialogFooter>
       </DialogContent>

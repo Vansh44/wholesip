@@ -4,6 +4,14 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Ticket,
+  Trash2,
+} from "lucide-react";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -102,7 +110,7 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
     <div className="dash-page-enter">
       <header className="dash-page-header row">
         <div>
-          <h1>🏷 Coupons</h1>
+          <h1>Coupons</h1>
           <p>Create and manage storefront discount codes</p>
         </div>
         {canManage && (
@@ -110,78 +118,56 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
             className="dash-btn dash-btn-primary shrink-0"
             onClick={() => openEditor()}
           >
-            ＋ New Coupon
+            <Plus className="h-4 w-4" />
+            New coupon
           </button>
         )}
       </header>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 16,
-          marginBottom: 16,
-        }}
-      >
-        <div className="dash-search-bar" style={{ width: 260 }}>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ opacity: 0.5, flexShrink: 0 }}
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search coupons…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      <div className="dash-toolbar">
+        <div className="dash-toolbar-actions ml-auto">
+          <label className="dash-search-bar">
+            <Search className="h-4 w-4 shrink-0 opacity-50" />
+            <input
+              type="text"
+              placeholder="Search coupons..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
         </div>
       </div>
 
       <div className="dash-card">
         <div className="dash-card-header">
-          <div className="dash-card-title">
-            Coupons
-            <span
-              style={{
-                fontWeight: 400,
-                fontSize: 12,
-                marginLeft: 8,
-                opacity: 0.6,
-              }}
-            >
+          <div>
+            <div className="dash-card-title">Coupons</div>
+            <div className="dash-card-sub">
               {filtered.length} {filtered.length === 1 ? "coupon" : "coupons"}
-            </span>
+            </div>
           </div>
         </div>
 
         {filtered.length === 0 ? (
-          <div style={{ padding: "48px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🏷</div>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+          <div className="dash-empty">
+            <span className="dash-empty-icon">
+              <Ticket className="h-5 w-5" />
+            </span>
+            <div className="dash-empty-title">
               {search ? "No coupons match your search" : "No coupons yet"}
             </div>
-            <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 16 }}>
+            <p className="dash-empty-text">
               {search
-                ? "Try a different search term"
-                : "Create your first discount code for the storefront"}
-            </div>
+                ? "Try a different search term."
+                : "Create your first discount code for the storefront."}
+            </p>
             {!search && canManage && (
               <button
                 className="dash-btn dash-btn-primary"
                 onClick={() => openEditor()}
               >
-                ＋ New Coupon
+                <Plus className="h-4 w-4" />
+                New coupon
               </button>
             )}
           </div>
@@ -204,26 +190,13 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
                 return (
                   <tr key={c.id}>
                     <td>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          fontSize: 13,
-                          fontFamily: "var(--font-dash-mono), monospace",
-                          letterSpacing: "0.04em",
-                        }}
-                      >
-                        {c.code}
-                      </div>
+                      <div className="dash-cell-title mono">{c.code}</div>
                       {c.description && (
-                        <div
-                          style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}
-                        >
-                          {c.description}
-                        </div>
+                        <div className="dash-cell-sub">{c.description}</div>
                       )}
                     </td>
-                    <td style={{ fontWeight: 600, fontSize: 13 }}>
-                      {formatDiscount(c)}
+                    <td>
+                      <div className="dash-cell-title">{formatDiscount(c)}</div>
                     </td>
                     <td className="text-muted">
                       {c.min_order_amount > 0
@@ -234,7 +207,7 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
                       {c.used_count}
                       {c.max_uses > 0 ? ` / ${c.max_uses}` : " / ∞"}
                     </td>
-                    <td className="text-muted" style={{ fontSize: 12 }}>
+                    <td className="text-muted">
                       {c.valid_from || c.valid_until
                         ? `${formatDate(c.valid_from)} → ${formatDate(c.valid_until)}`
                         : "Always"}
@@ -259,25 +232,29 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
                     {canManage && (
                       <td>
                         <DropdownMenu>
-                          <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                            Actions
+                          <DropdownMenuTrigger className="dash-row-menu">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Actions</span>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
                             align="end"
-                            className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+                            className="min-w-[180px]"
                           >
                             <DropdownMenuItem
-                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                              className="cursor-pointer"
                               onClick={() => openEditor(c)}
                             >
-                              ✏️ Edit
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Edit
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                              variant="destructive"
+                              className="cursor-pointer"
                               onClick={() => setDeleteTarget(c)}
                             >
-                              🗑 Delete
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -296,10 +273,10 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e8ecf4]">Delete Coupon</DialogTitle>
-            <DialogDescription className="text-[#8b93a8]">
+            <DialogTitle>Delete coupon</DialogTitle>
+            <DialogDescription>
               Delete &ldquo;{deleteTarget?.code}&rdquo;? Shoppers will no longer
               be able to apply this code. This can&rsquo;t be undone.
             </DialogDescription>
@@ -309,7 +286,6 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
               variant="outline"
               onClick={() => setDeleteTarget(null)}
               disabled={isPending}
-              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
             >
               Cancel
             </Button>
@@ -318,7 +294,7 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
               onClick={handleDelete}
               disabled={isPending}
             >
-              {isPending ? "Deleting…" : "Delete"}
+              {isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

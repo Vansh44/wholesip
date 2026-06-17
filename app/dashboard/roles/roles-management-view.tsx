@@ -4,6 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  KeyRound,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+  Zap,
+} from "lucide-react";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -86,7 +94,7 @@ export function RolesManagementView({ roles, canManage }: Props) {
     <div className="dash-page-enter">
       <header className="dash-page-header row">
         <div>
-          <h1>🔑 Roles &amp; Permissions</h1>
+          <h1>Roles &amp; Permissions</h1>
           <p>
             Define roles and control which sections of the dashboard each one
             can access.
@@ -97,38 +105,32 @@ export function RolesManagementView({ roles, canManage }: Props) {
             className="dash-btn dash-btn-primary shrink-0"
             onClick={() => openEditor()}
           >
-            ＋ New Role
+            <Plus className="h-4 w-4" />
+            New role
           </button>
         )}
       </header>
 
       <div className="dash-card">
         <div className="dash-card-header">
-          <div className="dash-card-title">
-            Roles
-            <span
-              style={{
-                fontWeight: 400,
-                fontSize: 12,
-                marginLeft: 8,
-                opacity: 0.6,
-              }}
-            >
+          <div>
+            <div className="dash-card-title">Roles</div>
+            <div className="dash-card-sub">
               {roles.length} {roles.length === 1 ? "role" : "roles"}
-            </span>
+            </div>
           </div>
         </div>
 
         {roles.length === 0 ? (
-          <div style={{ padding: "48px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🔑</div>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
-              No roles yet
-            </div>
-            <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 16 }}>
+          <div className="dash-empty">
+            <span className="dash-empty-icon">
+              <KeyRound className="h-5 w-5" />
+            </span>
+            <div className="dash-empty-title">No roles yet</div>
+            <p className="dash-empty-text">
               Run <code>supabase/roles_table.sql</code> to seed the system
               roles, then create your own.
-            </div>
+            </p>
           </div>
         ) : (
           <table className="dash-table">
@@ -147,29 +149,28 @@ export function RolesManagementView({ roles, canManage }: Props) {
                 return (
                   <tr key={role.id}>
                     <td>
-                      <div className="dash-flex-row" style={{ gap: 8 }}>
+                      <div className="flex items-center gap-2">
                         <span
-                          className={`dash-role-pill ${roleBadgeClass(role.color)}`}
+                          className={`dash-role-pill inline-flex items-center gap-1 ${roleBadgeClass(role.color)}`}
                         >
-                          {role.slug === "superadmin" ? "⚡" : "🔑"} {role.name}
+                          {role.slug === "superadmin" ? (
+                            <Zap className="h-3.5 w-3.5" />
+                          ) : (
+                            <KeyRound className="h-3.5 w-3.5" />
+                          )}
+                          {role.name}
                         </span>
                         {role.is_system && (
-                          <span
-                            className="dash-badge dash-badge-grey"
-                            style={{ fontSize: 10 }}
-                          >
+                          <span className="dash-badge dash-badge-grey">
                             System
                           </span>
                         )}
                       </div>
                     </td>
-                    <td
-                      className="text-muted"
-                      style={{ maxWidth: 320, fontSize: 12.5 }}
-                    >
+                    <td className="dash-cell-sub max-w-[320px]">
                       {role.description || "—"}
                     </td>
-                    <td className="text-dim" style={{ fontSize: 12 }}>
+                    <td className="dash-cell-sub">
                       {role.slug === "superadmin" ? (
                         <span>Full access</span>
                       ) : (
@@ -178,40 +179,42 @@ export function RolesManagementView({ roles, canManage }: Props) {
                         </span>
                       )}
                     </td>
-                    <td className="text-dim font-mono-dash">
-                      {role.member_count}
-                    </td>
+                    <td className="dash-cell-sub mono">{role.member_count}</td>
                     <td>
                       {canManage ? (
                         <DropdownMenu>
-                          <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                            Actions
+                          <DropdownMenuTrigger className="dash-row-menu">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Actions</span>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
                             align="end"
-                            className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+                            className="min-w-[160px]"
                           >
                             <DropdownMenuItem
-                              className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                              className="cursor-pointer"
                               onClick={() => openEditor(role)}
                             >
-                              ✏️ Edit
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Edit
                             </DropdownMenuItem>
                             {!role.is_system && (
                               <>
-                                <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                                <DropdownMenuSeparator />
                                 <DropdownMenuItem
-                                  className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                                  variant="destructive"
+                                  className="cursor-pointer"
                                   onClick={() => setDeleteTarget(role)}
                                 >
-                                  🗑 Delete
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
                                 </DropdownMenuItem>
                               </>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
-                        <span className="text-dim text-[12px]">—</span>
+                        <span className="dash-cell-sub">—</span>
                       )}
                     </td>
                   </tr>
@@ -227,17 +230,17 @@ export function RolesManagementView({ roles, canManage }: Props) {
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e8ecf4]">Delete Role</DialogTitle>
-            <DialogDescription className="text-[#8b93a8]">
+            <DialogTitle>Delete role</DialogTitle>
+            <DialogDescription>
               Delete &ldquo;{deleteTarget?.name}&rdquo;? This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           {(deleteTarget?.member_count ?? 0) > 0 && (
             <div className="py-2">
-              <p className="text-sm text-amber-400">
-                ⚠️ {deleteTarget?.member_count} admin
+              <p className="text-sm text-[var(--dash-amber)]">
+                {deleteTarget?.member_count} admin
                 {deleteTarget?.member_count === 1 ? "" : "s"} currently hold
                 this role. Reassign them first.
               </p>
@@ -248,7 +251,6 @@ export function RolesManagementView({ roles, canManage }: Props) {
               variant="outline"
               onClick={() => setDeleteTarget(null)}
               disabled={isPending}
-              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
             >
               Cancel
             </Button>
@@ -257,7 +259,7 @@ export function RolesManagementView({ roles, canManage }: Props) {
               onClick={handleDelete}
               disabled={isPending}
             >
-              {isPending ? "Deleting…" : "Delete"}
+              {isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -5,6 +5,21 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
 import {
+  Check,
+  Eye,
+  FileText,
+  ImageIcon,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Send,
+  Star,
+  Trash2,
+  Undo2,
+  X,
+} from "lucide-react";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -197,12 +212,22 @@ export function BlogsManagementView({
     });
   };
 
-  const tabs: { key: FilterTab; label: string }[] = [
-    { key: "all", label: `All (${counts.all})` },
-    { key: "published", label: `Published (${counts.published})` },
-    { key: "drafts", label: `Drafts (${counts.drafts})` },
-    { key: "featured", label: `Featured (${counts.featured})` },
-    { key: "pending", label: `Pending (${counts.pending})` },
+  const tabs: {
+    key: FilterTab;
+    label: string;
+    count: number;
+    alert?: boolean;
+  }[] = [
+    { key: "all", label: "All", count: counts.all },
+    { key: "published", label: "Published", count: counts.published },
+    { key: "drafts", label: "Drafts", count: counts.drafts },
+    { key: "featured", label: "Featured", count: counts.featured },
+    {
+      key: "pending",
+      label: "Pending",
+      count: counts.pending,
+      alert: counts.pending > 0,
+    },
   ];
 
   // ── Render ────────────────────────────────────────────────
@@ -211,7 +236,7 @@ export function BlogsManagementView({
       {/* Page Header */}
       <header className="dash-page-header row">
         <div>
-          <h1>✍️ Blogs</h1>
+          <h1>Blogs</h1>
           <p>Create, edit, and manage your blog posts</p>
         </div>
         {canManage && (
@@ -219,115 +244,74 @@ export function BlogsManagementView({
             className="dash-btn dash-btn-primary shrink-0"
             onClick={() => openEditor()}
           >
-            ＋ New Blog
+            <Plus className="h-4 w-4" />
+            New blog
           </button>
         )}
       </header>
 
       {/* Toolbar: Tabs + Search */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 16,
-          marginBottom: 16,
-          flexWrap: "wrap",
-        }}
-      >
+      <div className="dash-toolbar">
         <div className="dash-filter-tabs">
           {tabs.map((tab) => (
             <button
               key={tab.key}
-              className={`dash-filter-tab${filter === tab.key ? " active" : ""}`}
+              className={`dash-filter-tab${filter === tab.key ? " active" : ""}${
+                tab.alert ? " has-alert" : ""
+              }`}
               onClick={() => setFilter(tab.key)}
-              style={
-                tab.key === "pending" && counts.pending > 0
-                  ? {
-                      color: "#f59e0b",
-                      borderColor: filter === "pending" ? "#f59e0b" : undefined,
-                    }
-                  : undefined
-              }
             >
               {tab.label}
+              <span className="dash-tab-count">{tab.count}</span>
             </button>
           ))}
         </div>
 
-        <div className="dash-search-bar" style={{ width: 260 }}>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ opacity: 0.5, flexShrink: 0 }}
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
+        <label className="dash-search-bar">
+          <Search className="h-4 w-4 shrink-0 opacity-50" />
           <input
             type="text"
-            placeholder="Search title, tags, categories…"
+            placeholder="Search title, tags, categories..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-        </div>
+        </label>
       </div>
 
       {/* Blog Table */}
       <div className="dash-card">
         <div className="dash-card-header">
-          <div className="dash-card-title">
-            Blog Posts
-            <span
-              style={{
-                fontWeight: 400,
-                fontSize: 12,
-                marginLeft: 8,
-                opacity: 0.6,
-              }}
-            >
+          <div>
+            <div className="dash-card-title">Blog posts</div>
+            <div className="dash-card-sub">
               {filteredBlogs.length}{" "}
               {filteredBlogs.length === 1 ? "post" : "posts"}
-            </span>
+            </div>
           </div>
         </div>
 
         {filteredBlogs.length === 0 ? (
-          <div
-            style={{
-              padding: "48px 24px",
-              textAlign: "center",
-            }}
-          >
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📝</div>
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 600,
-                marginBottom: 4,
-              }}
-            >
+          <div className="dash-empty">
+            <span className="dash-empty-icon">
+              <FileText className="h-5 w-5" />
+            </span>
+            <div className="dash-empty-title">
               {search || filter !== "all"
                 ? "No blogs match your filters"
                 : "No blogs yet"}
             </div>
-            <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 16 }}>
+            <p className="dash-empty-text">
               {search || filter !== "all"
-                ? "Try adjusting your search or filter criteria"
-                : "Create your first blog post to get started"}
-            </div>
+                ? "Try adjusting your search or filter criteria."
+                : "Create your first blog post to get started."}
+            </p>
             {!search && filter === "all" && canManage && (
               <button
                 className="dash-btn dash-btn-primary"
                 onClick={() => openEditor()}
               >
-                ＋ New Blog
+                <Plus className="h-4 w-4" />
+                New blog
               </button>
             )}
           </div>
@@ -335,7 +319,7 @@ export function BlogsManagementView({
           <table className="dash-table">
             <thead>
               <tr>
-                <th style={{ width: 56 }}>Cover</th>
+                <th className="w-14">Cover</th>
                 <th>Title</th>
                 <th>Categories</th>
                 <th>Author</th>
@@ -351,16 +335,7 @@ export function BlogsManagementView({
                   {/* Cover */}
                   <td>
                     {blog.cover_image_url ? (
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 6,
-                          overflow: "hidden",
-                          position: "relative",
-                          flexShrink: 0,
-                        }}
-                      >
+                      <div className="dash-thumb">
                         <Image
                           src={blog.cover_image_url}
                           alt={blog.title}
@@ -369,69 +344,32 @@ export function BlogsManagementView({
                         />
                       </div>
                     ) : (
-                      <div
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 6,
-                          background: "var(--dash-surface-2)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 16,
-                          opacity: 0.4,
-                        }}
-                      >
-                        🖼
+                      <div className="dash-thumb dash-thumb-empty">
+                        <ImageIcon className="h-4 w-4" />
                       </div>
                     )}
                   </td>
 
                   {/* Title */}
                   <td>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
+                    <div className="dash-cell-title inline-flex items-center gap-1.5">
                       {blog.title}
                       {blog.featured && (
-                        <span
-                          title="Featured"
-                          style={{ marginLeft: 6, fontSize: 12 }}
-                        >
-                          ⭐
-                        </span>
+                        <Star
+                          className="h-3.5 w-3.5 fill-[var(--dash-amber)] text-[var(--dash-amber)]"
+                          aria-label="Featured"
+                        />
                       )}
                     </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        opacity: 0.5,
-                        fontFamily: "var(--font-dash-mono), monospace",
-                        marginTop: 2,
-                      }}
-                    >
-                      /{blog.slug}
-                    </div>
+                    <div className="dash-cell-sub mono">/{blog.slug}</div>
                   </td>
 
                   {/* Category */}
-                  <td className="dash-table-cell">
+                  <td>
                     {blog.categories && blog.categories.length > 0 ? (
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "4px",
-                          flexWrap: "wrap",
-                        }}
-                      >
+                      <div className="dash-chip-row">
                         {blog.categories.map((c) => (
-                          <span
-                            key={c}
-                            style={{
-                              padding: "2px 6px",
-                              background: "rgba(0,0,0,0.04)",
-                              borderRadius: "4px",
-                              fontSize: "11px",
-                            }}
-                          >
+                          <span key={c} className="dash-chip">
                             {c}
                           </span>
                         ))}
@@ -445,23 +383,11 @@ export function BlogsManagementView({
                   <td className="text-muted">
                     {blog.author || "—"}
                     {blog.is_customer_submission && blog.submitter_name && (
-                      <div style={{ marginTop: 2 }}>
-                        <span style={{ fontSize: 11, opacity: 0.7 }}>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="dash-cell-sub">
                           {blog.submitter_name}
                         </span>
-                        <span
-                          style={{
-                            marginLeft: 6,
-                            padding: "1px 6px",
-                            fontSize: 9,
-                            fontWeight: 600,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            background: "rgba(139, 92, 246, 0.15)",
-                            color: "#a78bfa",
-                            borderRadius: 4,
-                          }}
-                        >
+                        <span className="dash-badge dash-badge-violet">
                           Community
                         </span>
                       </div>
@@ -475,17 +401,9 @@ export function BlogsManagementView({
                         blog.status === "published"
                           ? "dash-badge-green"
                           : blog.status === "pending_review"
-                            ? "dash-badge-amber"
+                            ? "dash-badge-violet"
                             : "dash-badge-amber"
                       }`}
-                      style={
-                        blog.status === "pending_review"
-                          ? {
-                              background: "rgba(139, 92, 246, 0.15)",
-                              color: "#a78bfa",
-                            }
-                          : undefined
-                      }
                     >
                       {blog.status === "published"
                         ? "Published"
@@ -502,30 +420,16 @@ export function BlogsManagementView({
 
                   {/* Tags */}
                   <td>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 4,
-                        flexWrap: "wrap",
-                        maxWidth: 180,
-                      }}
-                    >
+                    <div className="dash-chip-row max-w-[180px]">
                       {blog.tags.length > 0
                         ? blog.tags.slice(0, 3).map((tag) => (
-                            <span
-                              key={tag}
-                              className="dash-badge dash-badge-grey"
-                              style={{ fontSize: 10, padding: "2px 7px" }}
-                            >
+                            <span key={tag} className="dash-chip">
                               {tag}
                             </span>
                           ))
                         : "—"}
                       {blog.tags.length > 3 && (
-                        <span
-                          className="dash-badge dash-badge-grey"
-                          style={{ fontSize: 10, padding: "2px 7px" }}
-                        >
+                        <span className="dash-chip">
                           +{blog.tags.length - 3}
                         </span>
                       )}
@@ -536,55 +440,69 @@ export function BlogsManagementView({
                   {canManage && (
                     <td>
                       <DropdownMenu>
-                        <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
-                          Actions
+                        <DropdownMenuTrigger className="dash-row-menu">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Actions</span>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
-                          className="min-w-[160px] border-[rgba(255,255,255,0.08)] bg-[#1a1f2e] text-[#e8ecf4] shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
+                          className="min-w-[180px]"
                         >
                           {blog.status === "pending_review" ? (
                             <>
                               <DropdownMenuItem
-                                className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                                className="cursor-pointer"
                                 onClick={() => openEditor(blog)}
                               >
-                                📝 Review &amp; Edit
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Review &amp; edit
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                className="cursor-pointer text-[#22c55e] focus:bg-[rgba(34,197,94,0.12)] focus:text-[#22c55e]"
+                                className="cursor-pointer text-[var(--dash-green)] focus:text-[var(--dash-green)]"
                                 onClick={() => handleApprove(blog)}
                                 disabled={isPending}
                               >
-                                ✅ Approve
+                                <Check className="mr-2 h-4 w-4" />
+                                Approve
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                                variant="destructive"
+                                className="cursor-pointer"
                                 onClick={() => setRejectTarget(blog)}
                               >
-                                ❌ Reject
+                                <X className="mr-2 h-4 w-4" />
+                                Reject
                               </DropdownMenuItem>
                             </>
                           ) : (
                             <>
                               <DropdownMenuItem
-                                className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                                className="cursor-pointer"
                                 onClick={() => openEditor(blog)}
                               >
-                                ✏️ Edit
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                                className="cursor-pointer"
                                 onClick={() => handleTogglePublish(blog)}
                                 disabled={isPending}
                               >
-                                {blog.status === "published"
-                                  ? "📥 Unpublish"
-                                  : "🚀 Publish"}
+                                {blog.status === "published" ? (
+                                  <>
+                                    <Undo2 className="mr-2 h-4 w-4" />
+                                    Unpublish
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="mr-2 h-4 w-4" />
+                                    Publish
+                                  </>
+                                )}
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
+                                className="cursor-pointer"
                                 onClick={() =>
                                   window.open(
                                     `/pages/blogs/${blog.slug}`,
@@ -592,14 +510,17 @@ export function BlogsManagementView({
                                   )
                                 }
                               >
-                                👁 Preview
+                                <Eye className="mr-2 h-4 w-4" />
+                                Preview
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator className="bg-[rgba(255,255,255,0.08)]" />
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                className="cursor-pointer text-[#ef4444] focus:bg-[rgba(239,68,68,0.12)] focus:text-[#ef4444]"
+                                variant="destructive"
+                                className="cursor-pointer"
                                 onClick={() => setDeleteTarget(blog)}
                               >
-                                🗑 Delete
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
                               </DropdownMenuItem>
                             </>
                           )}
@@ -619,17 +540,17 @@ export function BlogsManagementView({
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e8ecf4]">Delete Blog</DialogTitle>
-            <DialogDescription className="text-[#8b93a8]">
+            <DialogTitle>Delete blog</DialogTitle>
+            <DialogDescription>
               Are you sure you want to delete &ldquo;{deleteTarget?.title}
               &rdquo;? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-[#8b93a8]">
-              Slug: /{deleteTarget?.slug}
+          <div className="py-2">
+            <p className="text-muted-foreground font-mono-dash text-sm">
+              /{deleteTarget?.slug}
             </p>
           </div>
           <DialogFooter>
@@ -637,7 +558,6 @@ export function BlogsManagementView({
               variant="outline"
               onClick={() => setDeleteTarget(null)}
               disabled={isPending}
-              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
             >
               Cancel
             </Button>
@@ -646,7 +566,7 @@ export function BlogsManagementView({
               onClick={handleDelete}
               disabled={isPending}
             >
-              {isPending ? "Deleting…" : "Delete"}
+              {isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -657,12 +577,10 @@ export function BlogsManagementView({
         open={rejectTarget !== null}
         onOpenChange={(open) => !open && setRejectTarget(null)}
       >
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e8ecf4]">
-              Reject Submission
-            </DialogTitle>
-            <DialogDescription className="text-[#8b93a8]">
+            <DialogTitle>Reject submission</DialogTitle>
+            <DialogDescription>
               Are you sure you want to reject &ldquo;{rejectTarget?.title}
               &rdquo;
               {rejectTarget?.submitter_name
@@ -671,9 +589,9 @@ export function BlogsManagementView({
               ? This will permanently delete the submission.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-[#8b93a8]">
-              Slug: /{rejectTarget?.slug}
+          <div className="py-2">
+            <p className="text-muted-foreground font-mono-dash text-sm">
+              /{rejectTarget?.slug}
             </p>
           </div>
           <DialogFooter>
@@ -681,7 +599,6 @@ export function BlogsManagementView({
               variant="outline"
               onClick={() => setRejectTarget(null)}
               disabled={isPending}
-              className="border-[rgba(255,255,255,0.08)] bg-transparent text-[#e8ecf4] hover:bg-[#1a1f2e]"
             >
               Cancel
             </Button>
@@ -690,7 +607,7 @@ export function BlogsManagementView({
               onClick={handleReject}
               disabled={isPending}
             >
-              {isPending ? "Rejecting…" : "Reject"}
+              {isPending ? "Rejecting..." : "Reject"}
             </Button>
           </DialogFooter>
         </DialogContent>
