@@ -24,43 +24,9 @@ import {
   deleteEnquiry,
   type EnquiryStatus,
 } from "@/app/actions/enquiry-actions";
-
-export type Enquiry = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  subject: string | null;
-  subject_detail: string | null;
-  message: string;
-  status: EnquiryStatus;
-  created_at: string;
-};
+import { STATUS_META, STATUS_ACTIONS, type Enquiry } from "./shared";
 
 type FilterTab = "all" | EnquiryStatus;
-
-const STATUS_META: Record<EnquiryStatus, { label: string; badge: string }> = {
-  new: { label: "New", badge: "dash-badge-amber" },
-  in_progress: { label: "In progress", badge: "dash-badge-blue" },
-  resolved: { label: "Resolved", badge: "dash-badge-green" },
-  archived: { label: "Archived", badge: "dash-badge-grey" },
-};
-
-// The dialog renders in a portal outside `.dashboard-shell`, so the scoped
-// `dash-badge` classes don't apply there — use these portal-safe tones instead.
-const STATUS_TONE: Record<EnquiryStatus, { color: string; bg: string }> = {
-  new: { color: "#fbbf24", bg: "rgba(251,191,36,0.15)" },
-  in_progress: { color: "#60a5fa", bg: "rgba(96,165,250,0.15)" },
-  resolved: { color: "#4ade80", bg: "rgba(74,222,128,0.15)" },
-  archived: { color: "#9ca3af", bg: "rgba(156,163,175,0.15)" },
-};
-
-const STATUS_ACTIONS: { status: EnquiryStatus; icon: string }[] = [
-  { status: "new", icon: "🆕" },
-  { status: "in_progress", icon: "🔄" },
-  { status: "resolved", icon: "✅" },
-  { status: "archived", icon: "🗄" },
-];
 
 type SortKey = "status" | "newest" | "oldest";
 
@@ -135,7 +101,9 @@ export function EnquiriesManagementView({
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Enquiry | null>(null);
-  const [viewTarget, setViewTarget] = useState<Enquiry | null>(null);
+
+  const openDetail = (e: Enquiry) =>
+    router.push(`/dashboard/enquiries/${e.id}`);
 
   // ── Filtering & Search ────────────────────────────────────
   const filtered = useMemo(() => {
@@ -256,15 +224,6 @@ export function EnquiriesManagementView({
       year: "numeric",
     });
 
-  const formatDateTime = (s: string) =>
-    new Date(s).toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-
   const replyMailto = (e: Enquiry) =>
     `mailto:${e.email}?subject=${encodeURIComponent(
       `Re: ${e.subject?.trim() || "Your enquiry to Soakd"}`,
@@ -288,7 +247,7 @@ export function EnquiriesManagementView({
         </div>
       </header>
 
-      {/* Toolbar: Tabs + Search */}
+      {/* Toolbar: Tabs + Sort + Search */}
       <div
         style={{
           display: "flex",
@@ -452,12 +411,12 @@ export function EnquiriesManagementView({
                 opacity: 0.6,
               }}
             >
-              {filtered.length} {filtered.length === 1 ? "message" : "messages"}
+              {sorted.length} {sorted.length === 1 ? "message" : "messages"}
             </span>
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {sorted.length === 0 ? (
           <div style={{ padding: "48px 24px", textAlign: "center" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
@@ -488,7 +447,7 @@ export function EnquiriesManagementView({
               {sorted.map((e) => (
                 <tr
                   key={e.id}
-                  onClick={() => setViewTarget(e)}
+                  onClick={() => openDetail(e)}
                   style={{ cursor: "pointer" }}
                   title="View full enquiry"
                 >
@@ -501,7 +460,10 @@ export function EnquiriesManagementView({
                       <a
                         href={replyMailto(e)}
                         onClick={(ev) => ev.stopPropagation()}
-                        style={{ color: "inherit", textDecoration: "underline" }}
+                        style={{
+                          color: "inherit",
+                          textDecoration: "underline",
+                        }}
                       >
                         {e.email}
                       </a>
@@ -548,7 +510,9 @@ export function EnquiriesManagementView({
 
                   {/* Status */}
                   <td>
-                    <span className={`dash-badge ${STATUS_META[e.status].badge}`}>
+                    <span
+                      className={`dash-badge ${STATUS_META[e.status].badge}`}
+                    >
                       {STATUS_META[e.status].label}
                     </span>
                   </td>
@@ -574,13 +538,15 @@ export function EnquiriesManagementView({
                         >
                           <DropdownMenuItem
                             className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                            onClick={() => setViewTarget(e)}
+                            onClick={() => openDetail(e)}
                           >
                             👁 View details
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                            onClick={() => window.open(replyMailto(e), "_blank")}
+                            onClick={() =>
+                              window.open(replyMailto(e), "_blank")
+                            }
                           >
                             ✉️ Reply via email
                           </DropdownMenuItem>
@@ -615,154 +581,6 @@ export function EnquiriesManagementView({
           </table>
         )}
       </div>
-
-      {/* Detail View Dialog */}
-      <Dialog
-        open={viewTarget !== null}
-        onOpenChange={(open) => !open && setViewTarget(null)}
-      >
-        <DialogContent className="border-[rgba(255,255,255,0.08)] bg-[#141720] text-[#e8ecf4] shadow-[0_20px_60px_rgba(0,0,0,0.6)] sm:max-w-[560px]">
-          {viewTarget && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-[#e8ecf4]">
-                  Enquiry from {viewTarget.name}
-                </DialogTitle>
-                <DialogDescription className="text-[#8b93a8]">
-                  Received {formatDateTime(viewTarget.created_at)}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "92px 1fr",
-                  gap: "10px 14px",
-                  fontSize: 13.5,
-                  marginTop: 4,
-                }}
-              >
-                <div style={{ opacity: 0.55 }}>Email</div>
-                <div>
-                  <a
-                    href={replyMailto(viewTarget)}
-                    style={{ color: "#93c5fd", textDecoration: "underline" }}
-                  >
-                    {viewTarget.email}
-                  </a>
-                </div>
-                <div style={{ opacity: 0.55 }}>Phone</div>
-                <div className="font-mono-dash">{viewTarget.phone}</div>
-                <div style={{ opacity: 0.55 }}>Subject</div>
-                <div>
-                  {viewTarget.subject === "Other" && viewTarget.subject_detail ? (
-                    <>
-                      {viewTarget.subject_detail}{" "}
-                      <span style={{ opacity: 0.5 }}>· Other</span>
-                    </>
-                  ) : (
-                    viewTarget.subject?.trim() || "—"
-                  )}
-                </div>
-                <div style={{ opacity: 0.55 }}>Status</div>
-                <div>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      padding: "3px 10px",
-                      borderRadius: 999,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: STATUS_TONE[viewTarget.status].color,
-                      background: STATUS_TONE[viewTarget.status].bg,
-                    }}
-                  >
-                    {STATUS_META[viewTarget.status].label}
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 16 }}>
-                <div style={{ opacity: 0.55, fontSize: 12, marginBottom: 6 }}>
-                  Message
-                </div>
-                <div
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    fontSize: 13.5,
-                    lineHeight: 1.6,
-                    maxHeight: 240,
-                    overflowY: "auto",
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    borderRadius: 8,
-                    padding: "12px 14px",
-                  }}
-                >
-                  {viewTarget.message}
-                </div>
-              </div>
-
-              {canManage && (
-                <div style={{ marginTop: 16 }}>
-                  <div style={{ opacity: 0.55, fontSize: 12, marginBottom: 8 }}>
-                    Update status
-                  </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {STATUS_ACTIONS.filter(
-                      (a) => a.status !== viewTarget.status,
-                    ).map((a) => (
-                      <Button
-                        key={a.status}
-                        variant="outline"
-                        size="sm"
-                        className={DARK_OUTLINE_BTN}
-                        disabled={isPending}
-                        onClick={() => {
-                          handleStatus(viewTarget, a.status);
-                          setViewTarget(null);
-                        }}
-                      >
-                        {STATUS_META[a.status].label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <DialogFooter className="border-[rgba(255,255,255,0.08)] bg-transparent">
-                {canManage && (
-                  <Button
-                    variant="destructive"
-                    disabled={isPending}
-                    onClick={() => {
-                      setDeleteTarget(viewTarget);
-                      setViewTarget(null);
-                    }}
-                  >
-                    Delete
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  className={DARK_OUTLINE_BTN}
-                  onClick={() => window.open(replyMailto(viewTarget), "_blank")}
-                >
-                  Reply via email
-                </Button>
-                <Button
-                  variant="outline"
-                  className={DARK_OUTLINE_BTN}
-                  onClick={() => setViewTarget(null)}
-                >
-                  Close
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog

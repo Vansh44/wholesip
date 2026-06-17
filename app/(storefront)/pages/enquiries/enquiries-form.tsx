@@ -390,7 +390,9 @@ export default function EnquiriesForm() {
                   >
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  <span>{verifiedPhone || "Your number"} &middot; verified</span>
+                  <span>
+                    {verifiedPhone || "Your number"} &middot; verified
+                  </span>
                 </div>
               ) : (
                 <>
@@ -484,7 +486,9 @@ export default function EnquiriesForm() {
                       )}
 
                       {error && (
-                        <p className={`${styles.statusMessage} ${styles.error}`}>
+                        <p
+                          className={`${styles.statusMessage} ${styles.error}`}
+                        >
                           {error}
                         </p>
                       )}
