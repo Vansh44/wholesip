@@ -50,7 +50,6 @@ export function ProductsManagementView({
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [editing, setEditing] = useState<Product | null>(null);
 
   const filtered = useMemo(() => {
     let result = [...products];
@@ -124,20 +123,16 @@ export function ProductsManagementView({
     });
   };
 
-  const openEditor = (product?: Product) => {
-    setEditing(product ?? null);
-    setEditorOpen(true);
-  };
-
-  const closeEditor = () => {
-    setEditorOpen(false);
-    setEditing(null);
-  };
-
+  // Create stays an in-list modal; editing is a shareable route
+  // (/dashboard/products/[id]) so a teammate can be sent a direct link.
+  const openCreate = () => setEditorOpen(true);
+  const closeEditor = () => setEditorOpen(false);
   const handleSaved = () => {
     closeEditor();
     router.refresh();
   };
+  const openEdit = (product: Product) =>
+    router.push(`/dashboard/products/${product.id}`);
 
   const tabs: { key: FilterTab; label: string }[] = [
     { key: "all", label: `All (${counts.all})` },
@@ -156,7 +151,7 @@ export function ProductsManagementView({
         {canManage && (
           <button
             className="dash-btn dash-btn-primary shrink-0"
-            onClick={() => openEditor()}
+            onClick={openCreate}
           >
             ＋ New Product
           </button>
@@ -277,7 +272,7 @@ export function ProductsManagementView({
               canManage && (
                 <button
                   className="dash-btn dash-btn-primary"
-                  onClick={() => openEditor()}
+                  onClick={openCreate}
                 >
                   ＋ New Product
                 </button>
@@ -298,7 +293,12 @@ export function ProductsManagementView({
             </thead>
             <tbody>
               {filtered.map((p) => (
-                <tr key={p.id}>
+                <tr
+                  key={p.id}
+                  onClick={canManage ? () => openEdit(p) : undefined}
+                  style={canManage ? { cursor: "pointer" } : undefined}
+                  title={canManage ? "Edit product" : undefined}
+                >
                   <td>
                     {p.image_url ? (
                       <div
@@ -440,7 +440,7 @@ export function ProductsManagementView({
                     </span>
                   </td>
                   {canManage && (
-                    <td>
+                    <td onClick={(ev) => ev.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger className="dash-btn dash-btn-ghost dash-btn-sm">
                           Actions
@@ -451,7 +451,7 @@ export function ProductsManagementView({
                         >
                           <DropdownMenuItem
                             className="cursor-pointer text-[#e8ecf4] focus:bg-[#252b3d] focus:text-white"
-                            onClick={() => openEditor(p)}
+                            onClick={() => openEdit(p)}
                           >
                             ✏️ Edit
                           </DropdownMenuItem>
@@ -523,14 +523,16 @@ export function ProductsManagementView({
         </DialogContent>
       </Dialog>
 
-      <ProductEditorDialog
-        open={editorOpen}
-        product={editing}
-        categories={categories}
-        colors={colors}
-        onClose={closeEditor}
-        onSaved={handleSaved}
-      />
+      {editorOpen && (
+        <ProductEditorDialog
+          open
+          product={null}
+          categories={categories}
+          colors={colors}
+          onClose={closeEditor}
+          onSaved={handleSaved}
+        />
+      )}
     </div>
   );
 }

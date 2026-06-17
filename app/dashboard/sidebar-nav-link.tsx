@@ -21,6 +21,7 @@ import {
   History,
   Settings,
   LayoutTemplate,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 
@@ -34,6 +35,7 @@ export const navIcons = {
   customers: Users,
   inventory: Boxes,
   analytics: BarChart3,
+  enquiries: MessageSquare,
   blogs: PenLine,
   marketing: Megaphone,
   promotions: Gift,
