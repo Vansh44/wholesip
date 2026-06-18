@@ -5,15 +5,9 @@ import { createClient as createSupabaseAuthClient } from "@supabase/supabase-js"
 import { useAuth } from "../../components/auth/AuthProvider";
 import { submitEnquiry } from "@/app/actions/enquiry-actions";
 import styles from "./enquiries.module.css";
-
-const COUNTRY_CODES = [
-  { code: "+91", label: "🇮🇳 +91" },
-  { code: "+1", label: "🇺🇸 +1" },
-  { code: "+44", label: "🇬🇧 +44" },
-  { code: "+971", label: "🇦🇪 +971" },
-  { code: "+61", label: "🇦🇺 +61" },
-  { code: "+65", label: "🇸🇬 +65" },
-];
+import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
+import { customPhoneLabels } from "@/lib/phone-labels";
 
 // Preset enquiry topics. "Other" reveals a free-text field.
 const SUBJECT_OPTIONS = [
@@ -63,8 +57,7 @@ export default function EnquiriesForm() {
   // Form fields
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [countryCode, setCountryCode] = useState("+91");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState<string | undefined>("");
   const [subjectChoice, setSubjectChoice] = useState("");
   const [customSubject, setCustomSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -114,12 +107,12 @@ export default function EnquiriesForm() {
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-  const fullPhone = `${countryCode}${phone}`;
+  const fullPhone = phone || "";
   const otpActive = otpSent && !phoneVerified;
 
   // ---- Phone: send the OTP ----
   const sendOtp = async () => {
-    if (phone.trim().length < 10) {
+    if (!phone || phone.trim().length < 10) {
       setError("Please enter a valid 10-digit phone number.");
       return;
     }
@@ -397,32 +390,19 @@ export default function EnquiriesForm() {
               ) : (
                 <>
                   <div className={styles.phoneRow}>
-                    <select
-                      className={styles.countrySelect}
-                      value={countryCode}
-                      onChange={(e) => setCountryCode(e.target.value)}
-                      disabled={otpSent}
-                      aria-label="Country code"
-                    >
-                      {COUNTRY_CODES.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      id="enq-phone"
-                      className={styles.phoneInput}
-                      type="tel"
-                      inputMode="numeric"
+                    <PhoneInput
+                      defaultCountry="IN"
+                      labels={customPhoneLabels}
                       placeholder="Mobile number"
                       value={phone}
-                      onChange={(e) =>
-                        setPhone(e.target.value.replace(/\D/g, ""))
-                      }
-                      maxLength={15}
-                      autoComplete="tel-national"
+                      onChange={setPhone}
                       disabled={otpSent}
+                      className="flex-1 flex gap-2 [&>.PhoneInputCountry]:h-[48px] [&>.PhoneInputCountry]:rounded-xl [&>.PhoneInputCountry]:border [&>.PhoneInputCountry]:border-gray-300 [&>.PhoneInputCountry]:bg-[#f9f9f9] [&>.PhoneInputCountry]:px-3"
+                      numberInputProps={{
+                        id: "enq-phone",
+                        className: styles.phoneInput,
+                        autoComplete: "tel-national",
+                      }}
                     />
                     {otpSent ? (
                       <button
@@ -437,7 +417,9 @@ export default function EnquiriesForm() {
                         type="button"
                         className={styles.verifyBtn}
                         onClick={() => sendOtp()}
-                        disabled={sendingOtp || phone.trim().length < 10}
+                        disabled={
+                          sendingOtp || !phone || phone.trim().length < 10
+                        }
                       >
                         {sendingOtp ? "Sending…" : "Verify"}
                       </button>
