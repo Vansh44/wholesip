@@ -7,17 +7,12 @@ import { updateCustomerProfile } from "@/app/actions/customer-profile";
 import { useAuth } from "./AuthProvider";
 import { siteConfig } from "@/config/site";
 import styles from "./AuthModal.module.css";
+import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
+import { customPhoneLabels } from "@/lib/phone-labels";
+import { CountrySelect } from "@/components/ui/phone-country-select";
 
 type Step = "phone" | "otp" | "profile";
-
-const COUNTRY_CODES = [
-  { code: "+91", label: "🇮🇳 +91" },
-  { code: "+1", label: "🇺🇸 +1" },
-  { code: "+44", label: "🇬🇧 +44" },
-  { code: "+971", label: "🇦🇪 +971" },
-  { code: "+61", label: "🇦🇺 +61" },
-  { code: "+65", label: "🇸🇬 +65" },
-];
 
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN = 30;
@@ -26,8 +21,7 @@ export default function AuthModal() {
   const { isAuthModalOpen, closeAuthModal, refreshCustomer } = useAuth();
 
   const [step, setStep] = useState<Step>("phone");
-  const [countryCode, setCountryCode] = useState("+91");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState<string | undefined>("");
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -86,7 +80,7 @@ export default function AuthModal() {
     };
   }, [isAuthModalOpen]);
 
-  const fullPhone = `${countryCode}${phone}`;
+  const fullPhone = phone || "";
 
   // ---- Step 1: Send OTP ----
   const handleSendOtp = async () => {
@@ -273,37 +267,30 @@ export default function AuthModal() {
       </p>
 
       <div className={styles.phoneRow}>
-        <select
-          className={styles.countrySelect}
-          value={countryCode}
-          onChange={(e) => setCountryCode(e.target.value)}
-          aria-label="Country code"
-        >
-          {COUNTRY_CODES.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-        <input
-          ref={phoneInputRef}
-          className={styles.phoneInput}
-          type="tel"
-          inputMode="numeric"
+        <PhoneInput
+          defaultCountry="IN"
+          countrySelectComponent={CountrySelect}
+          labels={customPhoneLabels}
           placeholder="Mobile number"
           value={phone}
-          onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-          onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
-          maxLength={15}
-          autoComplete="tel-national"
-          id="auth-phone-input"
+          onChange={setPhone}
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) =>
+            e.key === "Enter" && handleSendOtp()
+          }
+          className="flex-1 flex gap-2 [&>.PhoneInputCountry]:h-[48px] [&>.PhoneInputCountry]:rounded-xl [&>.PhoneInputCountry]:border [&>.PhoneInputCountry]:border-gray-300 [&>.PhoneInputCountry]:bg-[#f9f9f9] [&>.PhoneInputCountry]:p-0"
+          numberInputProps={{
+            ref: phoneInputRef,
+            className: styles.phoneInput,
+            autoComplete: "tel-national",
+            id: "auth-phone-input",
+          }}
         />
       </div>
 
       <button
         className={styles.primaryBtn}
         onClick={handleSendOtp}
-        disabled={loading || phone.length < 10}
+        disabled={loading || !phone || phone.length < 10}
         id="auth-send-otp-btn"
       >
         {loading ? (

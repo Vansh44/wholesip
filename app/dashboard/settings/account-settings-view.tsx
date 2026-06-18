@@ -21,17 +21,12 @@ import {
   setVerifiedPhone,
   updateProfileName,
 } from "@/app/actions/account-settings";
+import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
+import { customPhoneLabels } from "@/lib/phone-labels";
+import { CountrySelect } from "@/components/ui/phone-country-select";
 
 type Tab = "profile" | "security";
-
-const COUNTRY_CODES = [
-  { code: "+91", label: "🇮🇳 +91" },
-  { code: "+1", label: "🇺🇸 +1" },
-  { code: "+44", label: "🇬🇧 +44" },
-  { code: "+971", label: "🇦🇪 +971" },
-  { code: "+61", label: "🇦🇺 +61" },
-  { code: "+65", label: "🇸🇬 +65" },
-];
 
 function passwordStrength(password: string) {
   if (!password) return null;
@@ -373,26 +368,25 @@ function PhoneCard({
   const [editing, setEditing] = useState(
     startEditing && !phone ? true : startEditing,
   );
-  const [countryCode, setCountryCode] = useState("+91");
-  const [number, setNumber] = useState("");
+  const [newPhone, setNewPhone] = useState<string | undefined>("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  const fullPhone = `${countryCode}${number}`;
+  const fullPhone = newPhone || "";
 
   const reset = () => {
     setEditing(false);
     setOtpSent(false);
     setOtp("");
-    setNumber("");
+    setNewPhone("");
     setErr("");
   };
 
   const sendOtp = async () => {
-    if (number.length < 10) {
+    if (!newPhone || newPhone.length < 10) {
       setErr("Enter a valid phone number.");
       return;
     }
@@ -484,28 +478,17 @@ function PhoneCard({
           <div className="flex max-w-md flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <Label>New phone number</Label>
-              <div className="flex gap-2">
-                <select
-                  className="h-10 w-[104px] rounded-md border border-input bg-background px-2 text-sm"
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  disabled={otpSent}
-                >
-                  {COUNTRY_CODES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-                <Input
-                  type="tel"
-                  className="flex-1"
-                  placeholder="Mobile number"
-                  value={number}
-                  onChange={(e) => setNumber(e.target.value.replace(/\D/g, ""))}
-                  disabled={otpSent}
-                />
-              </div>
+              <PhoneInput
+                defaultCountry="IN"
+                countrySelectComponent={CountrySelect}
+                labels={customPhoneLabels}
+                placeholder="Mobile number"
+                value={newPhone}
+                onChange={setNewPhone}
+                disabled={otpSent}
+                inputComponent={Input}
+                className="flex gap-2 [&>.PhoneInputCountry]:h-10 [&>.PhoneInputCountry]:rounded-md [&>.PhoneInputCountry]:border [&>.PhoneInputCountry]:border-input [&>.PhoneInputCountry]:bg-background [&>.PhoneInputCountry]:p-0"
+              />
             </div>
 
             {otpSent && (
@@ -543,7 +526,7 @@ function PhoneCard({
                 <Button
                   type="button"
                   onClick={sendOtp}
-                  disabled={busy || number.length < 10}
+                  disabled={busy || !newPhone || newPhone.length < 10}
                 >
                   {busy ? "Sending..." : "Send code"}
                 </Button>

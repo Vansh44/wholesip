@@ -13,6 +13,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
+import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
+import { customPhoneLabels } from "@/lib/phone-labels";
+import { CountrySelect } from "@/components/ui/phone-country-select";
 
 function getPasswordStrength(password: string) {
   if (password.length === 0) return null;
@@ -23,15 +27,6 @@ function getPasswordStrength(password: string) {
   return { label: "Strong", color: "bg-green-500", width: "w-full" };
 }
 
-const COUNTRY_CODES = [
-  { code: "+91", label: "🇮🇳 +91" },
-  { code: "+1", label: "🇺🇸 +1" },
-  { code: "+44", label: "🇬🇧 +44" },
-  { code: "+971", label: "🇦🇪 +971" },
-  { code: "+61", label: "🇦🇺 +61" },
-  { code: "+65", label: "🇸🇬 +65" },
-];
-
 export default function SetPasswordPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -41,8 +36,7 @@ export default function SetPasswordPage() {
   const [isPending, startTransition] = useTransition();
 
   // Phone & OTP states
-  const [countryCode, setCountryCode] = useState("+91");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState<string | undefined>("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
@@ -51,7 +45,7 @@ export default function SetPasswordPage() {
 
   const strength = getPasswordStrength(password);
   const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
-  const fullPhone = `${countryCode}${phone}`;
+  const fullPhone = phone || "";
 
   useEffect(() => {
     async function fetchProfile() {
@@ -197,29 +191,17 @@ export default function SetPasswordPage() {
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="phone">Phone Number</Label>
-            <div className="flex gap-2">
-              <select
-                className="flex h-10 w-[100px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                disabled={isPhoneVerified || otpSent}
-              >
-                {COUNTRY_CODES.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="Mobile number"
-                className="flex-1"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                disabled={isPhoneVerified || otpSent}
-              />
-            </div>
+            <PhoneInput
+              defaultCountry="IN"
+              countrySelectComponent={CountrySelect}
+              labels={customPhoneLabels}
+              placeholder="Mobile number"
+              value={phone}
+              onChange={setPhone}
+              disabled={isPhoneVerified || otpSent}
+              inputComponent={Input}
+              className="flex gap-2 [&>.PhoneInputCountry]:h-10 [&>.PhoneInputCountry]:rounded-md [&>.PhoneInputCountry]:border [&>.PhoneInputCountry]:border-input [&>.PhoneInputCountry]:bg-background [&>.PhoneInputCountry]:p-0"
+            />
 
             {!isPhoneVerified && (
               <div className="mt-1">
@@ -230,7 +212,7 @@ export default function SetPasswordPage() {
                     size="sm"
                     className="w-full"
                     onClick={handleSendOtp}
-                    disabled={loadingOtp || phone.length < 10}
+                    disabled={loadingOtp || !phone || phone.length < 10}
                   >
                     {loadingOtp ? "Sending..." : "Send OTP"}
                   </Button>
