@@ -5,6 +5,7 @@ import { siteConfig } from "@/config/site";
 import { DashboardTopbar } from "./dashboard-topbar";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { getViewerContext } from "./lib/access";
+import { getNewEnquiriesCount } from "./enquiries/data";
 import {
   SECTIONS,
   SECTION_GROUPS,
@@ -75,9 +76,15 @@ export default async function DashboardLayout({
 
   // isSuperadmin + permissions come from the shared cached context above.
 
+  // Live count of unhandled enquiries → sidebar badge (only when the viewer can
+  // see enquiries, and only when there's at least one new one).
+  const canViewEnquiries = can(permissions, "enquiries", "view", isSuperadmin);
+  const newEnquiries = canViewEnquiries ? await getNewEnquiriesCount() : 0;
+
   // Build the sidebar from the permission catalog: a section appears only when
   // the viewer can view it. The Dashboard home is always shown so everyone has
-  // a landing page. Empty groups are dropped.
+  // a landing page. Empty groups are dropped. The enquiries item gets a live
+  // badge spliced in (without mutating the shared SECTIONS catalog).
   const navGroups = SECTION_GROUPS.map((group) => ({
     group,
     items: SECTIONS.filter(
@@ -85,6 +92,10 @@ export default async function DashboardLayout({
         s.group === group &&
         (s.key === "dashboard" ||
           can(permissions, s.key, "view", isSuperadmin)),
+    ).map((s) =>
+      s.key === "enquiries" && newEnquiries > 0
+        ? { ...s, badge: String(newEnquiries), badgeTone: "amber" as const }
+        : s,
     ),
   })).filter((g) => g.items.length > 0) as {
     group: SectionGroup;

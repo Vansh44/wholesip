@@ -145,14 +145,22 @@ export function TopbarProfile({
               <Settings className="h-4 w-4 text-[var(--dash-text-3)]" />
               Account Settings
             </Link>
-            <div className="flex cursor-default items-center gap-2.5 rounded-[var(--dash-radius-xs)] px-2.5 py-2 text-[13px] text-[var(--dash-text-2)]">
+            <Link
+              href="/dashboard/settings?tab=security&focus=password"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 rounded-[var(--dash-radius-xs)] px-2.5 py-2 text-[13px] text-[var(--dash-text-2)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+            >
               <KeyRound className="h-4 w-4 text-[var(--dash-text-3)]" />
               Change Password
-            </div>
-            <div className="flex cursor-default items-center gap-2.5 rounded-[var(--dash-radius-xs)] px-2.5 py-2 text-[13px] text-[var(--dash-text-2)]">
+            </Link>
+            <Link
+              href="/dashboard/settings?tab=security&focus=phone"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 rounded-[var(--dash-radius-xs)] px-2.5 py-2 text-[13px] text-[var(--dash-text-2)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+            >
               <Smartphone className="h-4 w-4 text-[var(--dash-text-3)]" />
               Update Phone
-            </div>
+            </Link>
           </div>
           <div className="h-px bg-[var(--dash-border)]" />
           <div className="p-1.5">

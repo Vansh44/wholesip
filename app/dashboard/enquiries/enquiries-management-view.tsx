@@ -35,6 +35,7 @@ import {
   updateEnquiryStatus,
   type EnquiryStatus,
 } from "@/app/actions/enquiry-actions";
+import { DateRangePicker } from "./date-range-picker";
 import { STATUS_ACTIONS, STATUS_META, type Enquiry } from "./shared";
 
 type FilterTab = "all" | EnquiryStatus;
@@ -83,13 +84,15 @@ function initials(name: string) {
 export function EnquiriesManagementView({
   enquiries,
   canManage = true,
+  initialFilter = "all",
 }: {
   enquiries: Enquiry[];
   canManage?: boolean;
+  initialFilter?: FilterTab;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [filter, setFilter] = useState<FilterTab>("all");
+  const [filter, setFilter] = useState<FilterTab>(initialFilter);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("status");
   const [subjectFilter, setSubjectFilter] = useState("");
@@ -147,15 +150,18 @@ export function EnquiriesManagementView({
             );
     }
 
-    if (fromDate) {
+    // Smart date filter: one date (only a single input filled) matches that
+    // exact day; both filled selects the inclusive range between them.
+    const rangeStart = fromDate || toDate;
+    const rangeEnd = toDate || fromDate;
+    if (rangeStart) {
       result = result.filter(
-        (enquiry) => localDateKey(enquiry.created_at) >= fromDate,
+        (enquiry) => localDateKey(enquiry.created_at) >= rangeStart,
       );
     }
-
-    if (toDate) {
+    if (rangeEnd) {
       result = result.filter(
-        (enquiry) => localDateKey(enquiry.created_at) <= toDate,
+        (enquiry) => localDateKey(enquiry.created_at) <= rangeEnd,
       );
     }
 
@@ -242,14 +248,6 @@ export function EnquiriesManagementView({
       `Re: ${enquiry.subject?.trim() || "Your enquiry to Soakd"}`,
     )}`;
 
-  const tabs: { key: FilterTab; label: string; count: number }[] = [
-    { key: "all", label: "All", count: counts.all },
-    { key: "new", label: "New", count: counts.new },
-    { key: "in_progress", label: "In progress", count: counts.in_progress },
-    { key: "resolved", label: "Resolved", count: counts.resolved },
-    { key: "archived", label: "Archived", count: counts.archived },
-  ];
-
   const metrics: { key: EnquiryStatus; label: string; value: number }[] = [
     { key: "new", label: "New", value: counts.new },
     { key: "in_progress", label: "In progress", value: counts.in_progress },
@@ -281,7 +279,10 @@ export function EnquiriesManagementView({
             className={`enquiry-metric enquiry-metric-${metric.key}${
               filter === metric.key ? " active" : ""
             }`}
-            onClick={() => setFilter(metric.key)}
+            aria-pressed={filter === metric.key}
+            onClick={() =>
+              setFilter(filter === metric.key ? "all" : metric.key)
+            }
           >
             <span className="enquiry-metric-icon">
               {STATUS_ICONS[metric.key]}
@@ -295,43 +296,28 @@ export function EnquiriesManagementView({
       </section>
 
       <section className="enquiries-command">
-        <div className="dash-filter-tabs enquiries-tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              className={`dash-filter-tab${filter === tab.key ? " active" : ""}`}
-              onClick={() => setFilter(tab.key)}
-            >
-              {tab.label}
-              <span>{tab.count}</span>
-            </button>
+        <label className="enquiries-search">
+          <Search className="h-4 w-4" />
+          <input
+            type="text"
+            placeholder="Search name, email, message..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+
+        <select
+          aria-label="Order by"
+          value={sort}
+          onChange={(event) => setSort(event.target.value as SortKey)}
+          className="enquiries-select"
+        >
+          {SORT_OPTIONS.map((option) => (
+            <option key={option.key} value={option.key}>
+              {option.label}
+            </option>
           ))}
-        </div>
-
-        <div className="enquiries-command-actions">
-          <label className="enquiries-search">
-            <Search className="h-4 w-4" />
-            <input
-              type="text"
-              placeholder="Search name, email, message..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
-
-          <select
-            aria-label="Order by"
-            value={sort}
-            onChange={(event) => setSort(event.target.value as SortKey)}
-            className="enquiries-select"
-          >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        </select>
       </section>
 
       <section className="enquiries-filters">
@@ -354,20 +340,12 @@ export function EnquiriesManagementView({
 
         <div className="enquiries-date-range">
           <span>Received</span>
-          <input
-            type="date"
-            aria-label="From date"
-            value={fromDate}
-            max={toDate || undefined}
-            onChange={(event) => setFromDate(event.target.value)}
-          />
-          <span>to</span>
-          <input
-            type="date"
-            aria-label="To date"
-            value={toDate}
-            min={fromDate || undefined}
-            onChange={(event) => setToDate(event.target.value)}
+          <DateRangePicker
+            value={{ from: fromDate, to: toDate }}
+            onChange={(next) => {
+              setFromDate(next.from);
+              setToDate(next.to);
+            }}
           />
         </div>
 
