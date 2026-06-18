@@ -13,6 +13,9 @@
   --dash-border: rgba(17, 24, 39, 0.08);
   --dash-border-strong: rgba(17, 24, 39, 0.12);
   --dash-border-hover: rgba(17, 24, 39, 0.16);
+  /* Defined outline for cards/charts — a crisp dark hairline so each
+     surface reads as a distinct bordered panel rather than floating. */
+  --dash-card-border: rgba(17, 24, 39, 0.24);
 
   /* Accent — indigo */
   --dash-accent: #4f46e5;
@@ -388,7 +391,7 @@
 /* ---------- Cards ---------- */
 .dashboard-shell .dash-card {
   background: var(--dash-surface);
-  border: 1px solid var(--dash-border);
+  border: 1px solid var(--dash-card-border);
   border-radius: var(--dash-radius);
   box-shadow: var(--dash-shadow-sm);
   overflow: hidden;
@@ -423,7 +426,7 @@
 /* ---------- Stat cards ---------- */
 .dashboard-shell .dash-stat-card {
   background: var(--dash-surface);
-  border: 1px solid var(--dash-border);
+  border: 1px solid var(--dash-card-border);
   border-radius: var(--dash-radius);
   box-shadow: var(--dash-shadow-sm);
   padding: 20px 20px 18px;
@@ -592,6 +595,7 @@
   font-size: 11px;
   font-weight: 700;
   color: #fff;
+  background: #111827;
   flex-shrink: 0;
 }
 
@@ -790,6 +794,80 @@
 
 .dashboard-shell .dash-empty-text:last-child {
   margin-bottom: 0;
+}
+
+/* ---------- Status summary strip (dashboard widgets) ---------- */
+.dashboard-shell .dash-status-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--dash-border);
+}
+
+.dashboard-shell .dash-status-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--dash-border);
+  border-radius: var(--dash-radius-sm);
+  background: var(--dash-surface);
+  padding: 11px 13px;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+a.dash-status-pill:hover {
+  border-color: var(--dash-border-hover);
+  background: var(--dash-surface-2);
+  transform: translateY(-1px);
+}
+
+.dashboard-shell .dash-status-pill strong {
+  color: var(--dash-text);
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.dashboard-shell .dash-status-pill span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dash-text-2);
+}
+
+.dashboard-shell .dash-status-pill span::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.dashboard-shell .dash-status-pill.new span {
+  color: var(--dash-amber);
+}
+.dashboard-shell .dash-status-pill.in_progress span {
+  color: var(--dash-accent);
+}
+.dashboard-shell .dash-status-pill.resolved span {
+  color: var(--dash-green);
+}
+.dashboard-shell .dash-status-pill.archived span {
+  color: var(--dash-text-3);
+}
+
+@media (max-width: 560px) {
+  .dashboard-shell .dash-status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* ---------- Buttons ---------- */
@@ -1313,41 +1391,10 @@
   margin-bottom: 12px;
 }
 
-.dashboard-shell .enquiries-tabs {
-  min-height: 42px;
-}
-
-.dashboard-shell .enquiries-tabs .dash-filter-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 32px;
-  padding-inline: 13px;
-}
-
-.dashboard-shell .enquiries-tabs .dash-filter-tab span {
-  display: inline-flex;
-  min-width: 20px;
-  height: 20px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(17, 24, 39, 0.07);
-  color: var(--dash-text-2);
-  font-family: var(--font-dash-mono), ui-monospace, monospace;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.dashboard-shell .enquiries-tabs .dash-filter-tab.active span {
-  background: var(--dash-accent-soft);
-  color: var(--dash-accent);
-}
-
-.dashboard-shell .enquiries-command-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+/* Command row (search + sort): search fills the width, sort sits beside it. */
+.dashboard-shell .enquiries-command .enquiries-search {
+  flex: 1 1 auto;
+  width: auto;
 }
 
 .dashboard-shell .enquiries-search {
@@ -1386,8 +1433,7 @@
   color: var(--dash-text-3);
 }
 
-.dashboard-shell .enquiries-select,
-.dashboard-shell .enquiries-date-range input {
+.dashboard-shell .enquiries-select {
   height: 40px;
   border: 1px solid var(--dash-border);
   border-radius: 8px;
@@ -1396,9 +1442,6 @@
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
-}
-
-.dashboard-shell .enquiries-select {
   min-width: 190px;
   padding: 0 34px 0 12px;
 }
@@ -1413,15 +1456,186 @@
   gap: 8px;
 }
 
-.dashboard-shell .enquiries-date-range span {
+.dashboard-shell .enquiries-date-range > span {
   color: var(--dash-text-3);
   font-size: 12.5px;
   font-weight: 500;
 }
 
-.dashboard-shell .enquiries-date-range input {
-  width: 150px;
-  padding: 0 10px;
+/* ---------- Smart date-range picker ---------- */
+.dashboard-shell .enquiries-datepicker {
+  position: relative;
+}
+
+.dashboard-shell .enquiries-datepicker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  min-width: 190px;
+  padding: 0 12px;
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  color: var(--dash-text-2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dashboard-shell .enquiries-datepicker-trigger:hover {
+  border-color: var(--dash-border-hover);
+}
+
+.dashboard-shell .enquiries-datepicker-trigger > svg {
+  flex-shrink: 0;
+  color: var(--dash-text-3);
+}
+
+.dashboard-shell .enquiries-datepicker-trigger.has-value {
+  color: var(--dash-text);
+}
+
+.dashboard-shell .enquiries-datepicker-trigger.has-value > svg {
+  color: var(--dash-accent);
+}
+
+.dashboard-shell .enquiries-datepicker-trigger > span:first-of-type {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.dashboard-shell .enquiries-datepicker-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  color: var(--dash-text-3);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dashboard-shell .enquiries-datepicker-clear:hover {
+  background: var(--dash-surface-3);
+  color: var(--dash-text);
+}
+
+.dashboard-shell .enquiries-calendar {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: 268px;
+  padding: 12px;
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 12px;
+  background: var(--dash-surface);
+  box-shadow: var(--dash-shadow-lg);
+}
+
+.dashboard-shell .enquiries-calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.dashboard-shell .enquiries-calendar-head strong {
+  color: var(--dash-text);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.dashboard-shell .enquiries-calendar-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  color: var(--dash-text-2);
+  transition: background 0.15s ease;
+}
+
+.dashboard-shell .enquiries-calendar-head button:hover {
+  background: var(--dash-surface-2);
+  color: var(--dash-text);
+}
+
+.dashboard-shell .enquiries-calendar-weekdays,
+.dashboard-shell .enquiries-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.dashboard-shell .enquiries-calendar-weekdays span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  color: var(--dash-text-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dashboard-shell .enquiries-calendar-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border-radius: 7px;
+  color: var(--dash-text);
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.dashboard-shell .enquiries-calendar-day:hover {
+  background: var(--dash-surface-2);
+}
+
+.dashboard-shell .enquiries-calendar-day.today {
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--dash-border-hover);
+}
+
+.dashboard-shell .enquiries-calendar-day.in-range {
+  background: var(--dash-accent-soft);
+  color: var(--dash-accent);
+  border-radius: 0;
+}
+
+.dashboard-shell .enquiries-calendar-day.selected {
+  background: var(--dash-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.dashboard-shell .enquiries-calendar-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--dash-border);
+}
+
+.dashboard-shell .enquiries-calendar-foot span {
+  color: var(--dash-text-3);
+  font-size: 11px;
+  line-height: 1.3;
 }
 
 .dashboard-shell .enquiries-table-card {
@@ -1565,7 +1779,6 @@
     flex-direction: column;
   }
 
-  .dashboard-shell .enquiries-command-actions,
   .dashboard-shell .enquiries-search,
   .dashboard-shell .enquiries-select,
   .dashboard-shell .enquiries-subject-select {
