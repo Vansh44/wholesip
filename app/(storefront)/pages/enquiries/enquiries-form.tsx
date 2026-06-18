@@ -8,6 +8,7 @@ import styles from "./enquiries.module.css";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { customPhoneLabels } from "@/lib/phone-labels";
+import { CountrySelect } from "@/components/ui/phone-country-select";
 
 // Preset enquiry topics. "Other" reveals a free-text field.
 const SUBJECT_OPTIONS = [
@@ -392,12 +393,13 @@ export default function EnquiriesForm() {
                   <div className={styles.phoneRow}>
                     <PhoneInput
                       defaultCountry="IN"
+                      countrySelectComponent={CountrySelect}
                       labels={customPhoneLabels}
                       placeholder="Mobile number"
                       value={phone}
                       onChange={setPhone}
                       disabled={otpSent}
-                      className="flex-1 flex gap-2 [&>.PhoneInputCountry]:h-[48px] [&>.PhoneInputCountry]:rounded-xl [&>.PhoneInputCountry]:border [&>.PhoneInputCountry]:border-gray-300 [&>.PhoneInputCountry]:bg-[#f9f9f9] [&>.PhoneInputCountry]:px-3"
+                      className="flex-1 flex gap-2 [&>.PhoneInputCountry]:h-[48px] [&>.PhoneInputCountry]:rounded-xl [&>.PhoneInputCountry]:border [&>.PhoneInputCountry]:border-gray-300 [&>.PhoneInputCountry]:bg-[#f9f9f9] [&>.PhoneInputCountry]:p-0"
                       numberInputProps={{
                         id: "enq-phone",
                         className: styles.phoneInput,

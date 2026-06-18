@@ -10,6 +10,7 @@ import styles from "./AuthModal.module.css";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { customPhoneLabels } from "@/lib/phone-labels";
+import { CountrySelect } from "@/components/ui/phone-country-select";
 
 type Step = "phone" | "otp" | "profile";
 
@@ -268,6 +269,7 @@ export default function AuthModal() {
       <div className={styles.phoneRow}>
         <PhoneInput
           defaultCountry="IN"
+          countrySelectComponent={CountrySelect}
           labels={customPhoneLabels}
           placeholder="Mobile number"
           value={phone}
@@ -275,7 +277,7 @@ export default function AuthModal() {
           onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) =>
             e.key === "Enter" && handleSendOtp()
           }
-          className="flex-1 flex gap-2 [&>.PhoneInputCountry]:h-[48px] [&>.PhoneInputCountry]:rounded-xl [&>.PhoneInputCountry]:border [&>.PhoneInputCountry]:border-gray-300 [&>.PhoneInputCountry]:bg-[#f9f9f9] [&>.PhoneInputCountry]:px-3"
+          className="flex-1 flex gap-2 [&>.PhoneInputCountry]:h-[48px] [&>.PhoneInputCountry]:rounded-xl [&>.PhoneInputCountry]:border [&>.PhoneInputCountry]:border-gray-300 [&>.PhoneInputCountry]:bg-[#f9f9f9] [&>.PhoneInputCountry]:p-0"
           numberInputProps={{
             ref: phoneInputRef,
             className: styles.phoneInput,

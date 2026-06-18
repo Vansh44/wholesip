@@ -24,6 +24,7 @@ import {
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { customPhoneLabels } from "@/lib/phone-labels";
+import { CountrySelect } from "@/components/ui/phone-country-select";
 
 type Tab = "profile" | "security";
 
@@ -479,13 +480,14 @@ function PhoneCard({
               <Label>New phone number</Label>
               <PhoneInput
                 defaultCountry="IN"
+                countrySelectComponent={CountrySelect}
                 labels={customPhoneLabels}
                 placeholder="Mobile number"
                 value={newPhone}
                 onChange={setNewPhone}
                 disabled={otpSent}
                 inputComponent={Input}
-                className="flex gap-2 [&>.PhoneInputCountry]:h-10 [&>.PhoneInputCountry]:rounded-md [&>.PhoneInputCountry]:border [&>.PhoneInputCountry]:border-input [&>.PhoneInputCountry]:bg-background [&>.PhoneInputCountry]:px-3 [&>.PhoneInputCountry]:py-2"
+                className="flex gap-2 [&>.PhoneInputCountry]:h-10 [&>.PhoneInputCountry]:rounded-md [&>.PhoneInputCountry]:border [&>.PhoneInputCountry]:border-input [&>.PhoneInputCountry]:bg-background [&>.PhoneInputCountry]:p-0"
               />
             </div>
 
