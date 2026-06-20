@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Settings, KeyRound, Smartphone, LogOut } from "lucide-react";
+import { Settings, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useRef, useState } from "react";
 

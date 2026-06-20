@@ -228,7 +228,6 @@ export default function Footer() {
             <Link href="/pages/ingredients">Our Ingredients</Link>
             <Link href="/pages/sustainability">Sustainability</Link>
             <Link href="/pages/blogs">Blog &amp; Recipes</Link>
-            <Link href="/pages/press">Press</Link>
             <Link href="/pages/careers">Careers</Link>
           </nav>
         </div>
@@ -241,7 +240,7 @@ export default function Footer() {
             <Link href="/pages/track-order">Track My Order</Link>
             <Link href="/pages/returns">Returns &amp; Refunds</Link>
             <Link href="/pages/shipping">Shipping Info</Link>
-            <Link href="/pages/wholesale">Bulk / Wholesale</Link>
+            <Link href="/pages/enquiries">Bulk / Wholesale</Link>
             <Link href="/pages/contact">Contact Us</Link>
           </nav>
         </div>
@@ -264,6 +263,9 @@ export default function Footer() {
             <Link href="/pages/cookie-policy">Cookie Policy</Link>
           </div>
         </div>
+      </div>
+      <div className={styles.credit}>
+        <strong>Built with ❤️ by Soakd Team</strong>
       </div>
     </footer>
   );
