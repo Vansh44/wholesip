@@ -11,6 +11,7 @@ import {
   variantEffectiveSelling,
 } from "@/lib/pricing";
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
+import { ShareButtons } from "@/app/(storefront)/components/share-buttons";
 import { RelatedProducts, type RelatedProduct } from "./related-products";
 import ReviewsSection, {
   RatingStars,
@@ -268,6 +269,10 @@ export default function ProductDetailClient({
                 <span className="pdp-price-off">{discount}% OFF</span>
               </>
             )}
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <ShareButtons title={product.name} />
           </div>
 
           {hasVariants && (

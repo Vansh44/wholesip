@@ -853,6 +853,7 @@
 .blog-detail-content-container {
   max-width: 720px;
   margin: 0 auto;
+  position: relative;
 }
 
 /* — Back link — */
@@ -1333,5 +1334,212 @@
 
   .blog-prose > p:first-child::first-letter {
     font-size: 2.8em;
+  }
+}
+
+/* ============================================
+   BLOG ACTION BAR — Google-Docs-style floating bar
+   (reaction button w/ semicircular emoji fan + comment button)
+   ============================================ */
+
+.blog-reactions {
+  position: fixed; /* Floats over the page, right rail */
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 7px;
+  background: #ffffff;
+  border: 1px solid var(--blog-border);
+  border-radius: 100px;
+  box-shadow:
+    0 12px 32px -8px rgba(0, 0, 0, 0.18),
+    0 2px 8px -2px rgba(0, 0, 0, 0.08);
+  transition:
+    opacity 0.25s ease,
+    visibility 0.25s ease,
+    transform 0.25s ease;
+}
+
+/* Hidden once the footer is in view so the bar never overlaps page chrome. */
+.blog-reactions.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(20px);
+}
+
+.blog-reactions-react {
+  position: relative;
+  display: inline-flex;
+}
+
+.blog-reactions-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--blog-dark);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease,
+    color 0.15s ease;
+}
+.blog-reactions-btn:hover {
+  background: var(--blog-surface);
+}
+.blog-reactions-btn:active {
+  transform: scale(0.9);
+}
+.blog-reactions.open .blog-reactions-react > .blog-reactions-btn {
+  background: var(--blog-accent-soft);
+  color: var(--blog-accent);
+}
+
+.blog-reactions-badge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--blog-accent);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* The semicircular fan: a 0×0 anchor centred on the reaction button; each
+   emoji animates out to its precomputed (--dx,--dy) offset when .open. */
+.blog-reaction-fan {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+}
+
+.blog-reaction {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 50px;
+  height: 50px;
+  border: 1px solid var(--blog-border);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.4);
+  transition:
+    transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.2s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.blog-reactions.open .blog-reaction {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1);
+  transition-delay: calc(var(--i) * 0.03s);
+}
+.blog-reaction:hover {
+  border-color: var(--blog-accent);
+}
+.blog-reaction.active {
+  background: var(--blog-accent-soft);
+  border-color: var(--blog-accent);
+}
+.blog-reaction-emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+.blog-reaction-count {
+  font-family: var(--font-dash-mono, ui-monospace), monospace;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--blog-dark);
+}
+
+/* On narrower screens dock to a bottom-centre bar; the fan pops UP as a row. */
+@media (max-width: 1080px) {
+  .blog-reactions {
+    right: 50%;
+    top: auto;
+    bottom: 18px;
+    transform: translateX(50%);
+    flex-direction: row;
+    padding: 6px 10px;
+    gap: 4px;
+    max-width: calc(100vw - 32px);
+  }
+  .blog-reactions.is-hidden {
+    transform: translateX(50%) translateY(20px);
+  }
+  .blog-reaction-fan {
+    left: 50%;
+    top: auto;
+    bottom: calc(100% + 12px);
+    width: max-content;
+    height: auto;
+    display: flex;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--blog-border);
+    border-radius: 100px;
+    background: #fff;
+    box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(8px);
+    transition:
+      opacity 0.2s ease,
+      transform 0.2s ease,
+      visibility 0.2s ease;
+  }
+  .blog-reactions.open .blog-reaction-fan {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+  }
+  .blog-reaction {
+    position: static;
+    width: 46px;
+    height: 46px;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+    transition:
+      border-color 0.15s ease,
+      background 0.15s ease;
+  }
+  .blog-reactions.open .blog-reaction {
+    transform: none;
   }
 }

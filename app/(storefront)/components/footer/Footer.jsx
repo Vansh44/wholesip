@@ -4,63 +4,58 @@ import Link from "next/link";
 import styles from "./Footer.module.css";
 import Image from "next/image";
 import { siteConfig } from "@/config/site";
+import { useRouter, usePathname } from "next/navigation";
+
 const socialLinks = [
   {
     name: "Instagram",
     href: "https://instagram.com/getsoakd.official",
     icon: (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-      </svg>
+      <Image
+        src={siteConfig.assets.instagramLogoUrl}
+        alt="Instagram"
+        width={24}
+        height={24}
+        style={{
+          width: "24px",
+          height: "24px",
+          objectFit: "contain",
+        }}
+      />
     ),
   },
   {
     name: "YouTube",
     href: "https://youtube.com/@soakd",
     icon: (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.96A29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58A2.78 2.78 0 0 0 3.41 19.6C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.95A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z" />
-        <polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" />
-      </svg>
+      <Image
+        src={siteConfig.assets.youtubeLogoUrl}
+        alt="YouTube"
+        width={24}
+        height={24}
+        style={{
+          width: "24px",
+          height: "24px",
+          objectFit: "contain",
+        }}
+      />
     ),
   },
-
   {
     name: "WhatsApp",
     href: "https://wa.me/919999999999",
     icon: (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-      </svg>
+      <Image
+        src={siteConfig.assets.whatsappLogoUrl}
+        alt="WhatsApp"
+        width={24}
+        height={24}
+        style={{
+          width: "24px",
+          height: "24px",
+          objectFit: "contain",
+        }}
+      />
     ),
   },
 ];
@@ -74,7 +69,21 @@ const certBadges = [
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
+  const router = useRouter();
+  const pathname = usePathname();
 
+  const handleLogoClick = (e) => {
+    e.preventDefault();
+
+    if (pathname === "/") {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } else {
+      router.push("/");
+    }
+  };
   return (
     <footer className={styles.footer}>
       {/* Newsletter Bar */}
@@ -119,7 +128,7 @@ export default function Footer() {
       <div className={styles.mainGrid}>
         {/* Brand Column */}
         <div className={styles.brandCol}>
-          <Link href="/" className={styles.logo}>
+          <Link href="/" className={styles.logo} onClick={handleLogoClick}>
             <Image
               src={siteConfig.assets.logoUrl}
               alt="Soakd Logo"
@@ -228,7 +237,6 @@ export default function Footer() {
             <Link href="/pages/ingredients">Our Ingredients</Link>
             <Link href="/pages/sustainability">Sustainability</Link>
             <Link href="/pages/blogs">Blog &amp; Recipes</Link>
-            <Link href="/pages/press">Press</Link>
             <Link href="/pages/careers">Careers</Link>
           </nav>
         </div>
@@ -241,7 +249,7 @@ export default function Footer() {
             <Link href="/pages/track-order">Track My Order</Link>
             <Link href="/pages/returns">Returns &amp; Refunds</Link>
             <Link href="/pages/shipping">Shipping Info</Link>
-            <Link href="/pages/wholesale">Bulk / Wholesale</Link>
+            <Link href="/pages/enquiries">Bulk / Wholesale</Link>
             <Link href="/pages/contact">Contact Us</Link>
           </nav>
         </div>
@@ -264,6 +272,9 @@ export default function Footer() {
             <Link href="/pages/cookie-policy">Cookie Policy</Link>
           </div>
         </div>
+      </div>
+      <div className={styles.credit}>
+        <strong>Built with ❤️ by Soakd Team</strong>
       </div>
     </footer>
   );

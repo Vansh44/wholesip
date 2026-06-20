@@ -7,6 +7,10 @@ import { createClient } from "@/lib/supabase/server";
 import { sanitizeBlogContent } from "@/lib/sanitize";
 import { getOgImageUrl } from "@/lib/og-image";
 import { BlogCard } from "../blog-listing-client";
+import { ShareButtons } from "@/app/(storefront)/components/share-buttons";
+import { getBlogReactionCounts } from "@/app/actions/blog-social";
+import { BlogReactions } from "./blog-reactions";
+import { BlogComments, type BlogComment } from "./blog-comments";
 import "../blogs.css";
 
 // Stays dynamic: getBlog has NO status filter and leans on RLS so admins and a
@@ -100,6 +104,17 @@ async function getRelatedBlogs(blog: Blog): Promise<Blog[]> {
   return related.slice(0, 3);
 }
 
+// Public comments for a blog, newest first. Empty if not migrated yet.
+async function getComments(blogId: string): Promise<BlogComment[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("blog_comments")
+    .select("id, customer_id, author_name, body, created_at")
+    .eq("blog_id", blogId)
+    .order("created_at", { ascending: false });
+  return (data ?? []) as BlogComment[];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const blog = await getBlog(slug);
@@ -185,7 +200,11 @@ export default async function BlogDetailPage({ params }: Props) {
     notFound();
   }
 
-  const relatedBlogs = await getRelatedBlogs(blog);
+  const [relatedBlogs, reactionCounts, comments] = await Promise.all([
+    getRelatedBlogs(blog),
+    getBlogReactionCounts(blog.id),
+    getComments(blog.id),
+  ]);
   // Never trust stored HTML at the render boundary — sanitize even though the
   // write path also sanitizes (defense in depth).
   const sanitizedContent = sanitizeBlogContent(blog.content);
@@ -225,28 +244,38 @@ export default async function BlogDetailPage({ params }: Props) {
 
           <div className="blog-detail-toolbar">
             <BackLink />
-            <Link
-              href="/pages/blogs/write"
-              className="blog-publish-cta-btn"
-              id="blog-detail-post-cta"
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                width={18}
-                height={18}
+              <ShareButtons title={blog.title} />
+              <Link
+                href="/pages/blogs/write"
+                className="blog-publish-cta-btn"
+                id="blog-detail-post-cta"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 4.5v15m7.5-7.5h-15"
-                />
-              </svg>
-              Post your own blog
-            </Link>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  width={18}
+                  height={18}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
+                Post your own blog
+              </Link>
+            </div>
           </div>
 
           {hasCoverImage && (
@@ -316,6 +345,8 @@ export default async function BlogDetailPage({ params }: Props) {
             />
           )}
 
+          <BlogReactions blogId={blog.id} initialCounts={reactionCounts} />
+
           {/* Tags */}
           {blog.tags && blog.tags.length > 0 && (
             <div className="blog-detail-tags" id="blog-detail-tags">
@@ -326,6 +357,8 @@ export default async function BlogDetailPage({ params }: Props) {
               ))}
             </div>
           )}
+
+          <BlogComments blogId={blog.id} slug={blog.slug} comments={comments} />
         </div>
       </section>
 

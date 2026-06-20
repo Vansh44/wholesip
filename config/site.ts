@@ -22,5 +22,11 @@ export const siteConfig = {
       "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/pcijqkoaf2_1780343617414.png",
     pistachios:
       "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/f33nes0qxrs_1780343888420.png",
+    instagramLogoUrl:
+      "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/h3jqvk24yp_1781950364831.png",
+    whatsappLogoUrl:
+      "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/i59f6lhpis_1781950504422.png",
+    youtubeLogoUrl:
+      "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/nqhbiqtd22_1781950553583.png",
   },
 };

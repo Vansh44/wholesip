@@ -24,17 +24,17 @@ const baseUrl = process.env.NEXT_PUBLIC_APP_URL
 
 export const metadata = {
   metadataBase: new URL(baseUrl),
-  title: "soakd | The Original Ragda",
+  title: "soakd | The Way Earth made it.",
   description: "Zero preservatives. 100% real ingredients.",
   openGraph: {
-    title: "soakd | The Original Ragda",
+    title: "soakd | The Way Earth made it.",
     description: "Zero preservatives. 100% real ingredients.",
     type: "website",
     siteName: "Soakd",
   },
   twitter: {
     card: "summary_large_image",
-    title: "soakd | The Original Ragda",
+    title: "soakd | The Way Earth made it.",
     description: "Zero preservatives. 100% real ingredients.",
   },
 };
