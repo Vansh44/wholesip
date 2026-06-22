@@ -366,8 +366,18 @@
   }
 
   .mainGrid {
-    grid-template-columns: 1fr;
-    padding: 48px 24px;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px 24px;
+    padding: 40px 24px;
+  }
+
+  .brandCol {
+    grid-column: 1 / -1;
+  }
+
+  .newsletterBar {
+    padding-top: 32px;
+    padding-bottom: 32px;
   }
 
   .newsletterBar,
@@ -375,6 +385,19 @@
   .bottomSection {
     padding-left: 24px;
     padding-right: 24px;
+  }
+
+  /* Even 2x2 grid instead of a lopsided wrap */
+  .trustInner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 12px;
+    justify-items: start;
+  }
+
+  .trustBadge {
+    font-size: 12px;
+    letter-spacing: 0.5px;
   }
 
   .legalRow,

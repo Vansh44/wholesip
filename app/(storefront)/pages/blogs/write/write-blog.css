@@ -108,7 +108,17 @@
     align-items: stretch;
   }
   .write-blog-header .write-blog-header-actions {
-    justify-content: stretch;
+    flex-wrap: wrap;
+  }
+  /* Let the action buttons share the row and grow instead of overflowing */
+  .write-blog-header .write-blog-header-actions > button,
+  .write-blog-header .write-blog-header-actions > a {
+    flex: 1 1 auto;
+    justify-content: center;
+    white-space: nowrap;
+  }
+  .write-blog-header .write-blog-submit-btn {
+    flex-basis: 100%;
   }
 }
 

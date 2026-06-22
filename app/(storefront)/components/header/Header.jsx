@@ -351,7 +351,30 @@ export default function Header() {
           </button>
         </div>
 
-        {/* The Search Bar has been removed from this drawer */}
+        <div className={styles.drawerSearch}>
+          <div className={styles.drawerSearchBar}>
+            <span className={styles.searchIcon}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="search..."
+              className={styles.searchInput}
+            />
+          </div>
+        </div>
 
         <nav className={styles.drawerNav}>
           <Link href="/pages/shop" onClick={() => setIsMenuOpen(false)}>
