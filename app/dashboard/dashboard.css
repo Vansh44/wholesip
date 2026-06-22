@@ -1986,3 +1986,190 @@ a.enquiry-detail-field:hover {
     display: none;
   }
 }
+
+/* ============================================================
+   MOBILE — sidebar drawer, overlay & responsive shell
+   The sidebar is in-flow on desktop (>=768px). Below that it becomes a
+   slide-in drawer toggled from the topbar hamburger, and the surrounding
+   chrome (topbar, content, tables) tightens up to fit a phone.
+   ============================================================ */
+
+/* Brand row: logo + (mobile-only) close button. No padding on desktop so the
+   logo keeps its original flush placement. */
+.dashboard-shell .dash-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dashboard-shell .dash-drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: var(--dash-radius-sm);
+  color: var(--dash-text-2);
+  cursor: pointer;
+}
+.dashboard-shell .dash-drawer-close:hover {
+  background: var(--dash-surface-2);
+  color: var(--dash-text);
+}
+
+/* Backdrop is inert/hidden unless explicitly opened on mobile. */
+.dashboard-shell .dash-sidebar-overlay {
+  display: none;
+}
+
+/* The hamburger is a no-op on desktop. The scoped `.dash-icon-btn` rule sets
+   display:flex with the same specificity as Tailwind's `md:hidden`, so this
+   dedicated rule (later in the cascade) is what actually hides it >=768px. */
+.dashboard-shell .dash-nav-toggle {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* The two-pane sidebar collapses into a single scrollable drawer column. */
+  .dashboard-shell .dash-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100vh;
+    height: 100dvh;
+    flex-direction: column;
+    width: 284px;
+    max-width: 86vw;
+    background: var(--dash-surface);
+    border-right: 1px solid var(--dash-border);
+    box-shadow: var(--dash-shadow-lg);
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 70;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .dashboard-shell .dash-sidebar--open {
+    transform: translateX(0);
+  }
+
+  /* Primary nav sizes to content; the whole drawer scrolls. */
+  .dashboard-shell .dash-primary {
+    height: auto;
+    flex: 0 0 auto;
+  }
+
+  .dashboard-shell .dash-brand-row {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--dash-border);
+  }
+
+  .dashboard-shell .dash-nav-scroll {
+    flex: 0 0 auto;
+    overflow: visible;
+    padding: 6px 12px 10px;
+  }
+
+  /* Sub-nav (e.g. Marketing → Coupons) stacks beneath the primary nav. */
+  .dashboard-shell .dash-subnav {
+    width: 100%;
+    flex: 0 0 auto;
+    border-right: none;
+    border-top: 1px solid var(--dash-border);
+  }
+
+  .dashboard-shell .dash-subnav-scroll {
+    overflow: visible;
+  }
+
+  .dashboard-shell .dash-sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.45);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 0.3s ease,
+      visibility 0.3s ease;
+    z-index: 65;
+  }
+
+  .dashboard-shell .dash-sidebar-overlay.open {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* ---- Topbar ---- */
+  .dashboard-shell .dash-topbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .dashboard-shell .dash-nav-toggle {
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  /* These scoped display:flex rules out-specify Tailwind's hidden/sm:flex, so
+     hide them here to keep the cramped mobile topbar legible. */
+  .dashboard-shell .dash-search-bar {
+    display: none;
+  }
+
+  .dashboard-shell .dash-icon-btn[aria-label="Messages"] {
+    display: none;
+  }
+
+  .dashboard-shell .dash-topbar-title {
+    font-size: 15px;
+  }
+
+  /* ---- Content ---- */
+  .dashboard-shell .dash-content {
+    padding: 16px 14px 32px;
+  }
+
+  .dashboard-shell .dash-page-header h1 {
+    font-size: 20px;
+  }
+
+  /* ---- Data tables scroll horizontally instead of overflowing ---- */
+  .dashboard-shell .dash-table:not(.enquiries-table) {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Cell-level positioning context. Without it the visually-hidden `.sr-only`
+     labels inside row-action buttons are position:absolute with no positioned
+     ancestor, so they escape the table's clip and stretch the whole document
+     sideways. Containing them in the cell keeps the page at viewport width. */
+  .dashboard-shell .dash-table td,
+  .dashboard-shell .dash-table th {
+    position: relative;
+  }
+
+  /* Segmented filter control scrolls sideways rather than getting clipped. */
+  .dashboard-shell .dash-filter-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .dashboard-shell .dash-filter-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .dashboard-shell .dash-filter-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}

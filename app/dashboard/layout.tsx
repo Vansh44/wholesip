@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/config/site";
 import { DashboardTopbar } from "./dashboard-topbar";
 import { DashboardSidebar } from "./dashboard-sidebar";
+import { MobileNavProvider } from "./dashboard-mobile-nav";
 import { getViewerContext } from "./lib/access";
 import { getNewEnquiriesCount } from "./enquiries/data";
 import {
@@ -106,20 +107,22 @@ export default async function DashboardLayout({
     <div
       className={`dashboard-shell ${dashFont.variable} ${dashMono.variable} flex`}
     >
-      <DashboardSidebar
-        groups={navGroups}
-        logoUrl={siteConfig.assets.logoUrl}
-      />
-
-      <div className="dash-main">
-        <DashboardTopbar
-          email={profile.email}
-          role={profile.role ?? ""}
-          firstName={profile.first_name}
-          lastName={profile.last_name}
+      <MobileNavProvider>
+        <DashboardSidebar
+          groups={navGroups}
+          logoUrl={siteConfig.assets.logoUrl}
         />
-        <div className="dash-content">{children}</div>
-      </div>
+
+        <div className="dash-main">
+          <DashboardTopbar
+            email={profile.email}
+            role={profile.role ?? ""}
+            firstName={profile.first_name}
+            lastName={profile.last_name}
+          />
+          <div className="dash-content">{children}</div>
+        </div>
+      </MobileNavProvider>
 
       <Toaster richColors position="top-right" />
     </div>

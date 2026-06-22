@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, Search, ArrowUpRight } from "lucide-react";
+import { Bell, Search, ArrowUpRight, Menu } from "lucide-react";
 import { TopbarProfile } from "./topbar-profile";
+import { useMobileNav } from "./dashboard-mobile-nav";
 
 const routeMeta: Record<string, { title: string; breadcrumb: string }> = {
   "/dashboard": { title: "Dashboard", breadcrumb: "Home / Dashboard" },
@@ -76,9 +77,19 @@ export function DashboardTopbar({
 }) {
   const pathname = usePathname();
   const { title, breadcrumb } = resolveMeta(pathname);
+  const { setOpen } = useMobileNav();
 
   return (
     <header className="dash-topbar">
+      <button
+        type="button"
+        className="dash-icon-btn dash-nav-toggle md:hidden"
+        aria-label="Open navigation menu"
+        onClick={() => setOpen(true)}
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
       <div className="min-w-0 flex-1">
         <div className="dash-topbar-title">{title}</div>
         <div className="dash-topbar-bc">{breadcrumb}</div>

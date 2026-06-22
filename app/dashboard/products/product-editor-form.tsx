@@ -612,110 +612,116 @@ export function ProductEditorForm({
           </p>
 
           {form.variants.length > 0 && (
-            <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_72px_72px_60px_84px_72px] gap-2 px-1 text-[10px] uppercase tracking-wide text-[#9ca3af]">
-                <span>Name</span>
-                <span>Base ₹</span>
-                <span>Sell ₹</span>
-                <span>Stock</span>
-                <span>SKU</span>
-                <span />
-              </div>
-              {form.variants.map((v, i) => (
-                <div
-                  key={i}
-                  className="space-y-2 border-b border-[#f3f4f6] pb-2 last:border-b-0"
-                >
-                  <div className="grid grid-cols-[1fr_72px_72px_60px_84px_72px] items-center gap-2">
-                    <input
-                      className={fieldClass}
-                      value={v.name}
-                      onChange={(e) => updateVariant(i, "name", e.target.value)}
-                      placeholder="500ml"
-                    />
-                    <NumberField
-                      className={fieldClass}
-                      value={v.base_price}
-                      onValueChange={(n) => updateVariant(i, "base_price", n)}
-                    />
-                    <NumberField
-                      className={fieldClass}
-                      value={v.selling_price}
-                      onValueChange={(n) =>
-                        updateVariant(i, "selling_price", n)
-                      }
-                    />
-                    <NumberField
-                      className={fieldClass}
-                      value={v.stock}
-                      onValueChange={(n) => updateVariant(i, "stock", n)}
-                      allowDecimal={false}
-                    />
-                    <input
-                      className={fieldClass}
-                      value={v.sku}
-                      onChange={(e) => updateVariant(i, "sku", e.target.value)}
-                      placeholder="SKU"
-                    />
-                    <div className="flex items-center justify-end gap-0.5">
-                      <button
-                        type="button"
-                        onClick={() => moveVariant(i, -1)}
-                        disabled={i === 0}
-                        title={i === 0 ? "Default variant" : "Move up"}
-                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-30"
+            <div className="overflow-x-auto sm:overflow-visible">
+              <div className="min-w-[500px] space-y-2 sm:min-w-0">
+                <div className="grid grid-cols-[1fr_72px_72px_60px_84px_72px] gap-2 px-1 text-[10px] uppercase tracking-wide text-[#9ca3af]">
+                  <span>Name</span>
+                  <span>Base ₹</span>
+                  <span>Sell ₹</span>
+                  <span>Stock</span>
+                  <span>SKU</span>
+                  <span />
+                </div>
+                {form.variants.map((v, i) => (
+                  <div
+                    key={i}
+                    className="space-y-2 border-b border-[#f3f4f6] pb-2 last:border-b-0"
+                  >
+                    <div className="grid grid-cols-[1fr_72px_72px_60px_84px_72px] items-center gap-2">
+                      <input
+                        className={fieldClass}
+                        value={v.name}
+                        onChange={(e) =>
+                          updateVariant(i, "name", e.target.value)
+                        }
+                        placeholder="500ml"
+                      />
+                      <NumberField
+                        className={fieldClass}
+                        value={v.base_price}
+                        onValueChange={(n) => updateVariant(i, "base_price", n)}
+                      />
+                      <NumberField
+                        className={fieldClass}
+                        value={v.selling_price}
+                        onValueChange={(n) =>
+                          updateVariant(i, "selling_price", n)
+                        }
+                      />
+                      <NumberField
+                        className={fieldClass}
+                        value={v.stock}
+                        onValueChange={(n) => updateVariant(i, "stock", n)}
+                        allowDecimal={false}
+                      />
+                      <input
+                        className={fieldClass}
+                        value={v.sku}
+                        onChange={(e) =>
+                          updateVariant(i, "sku", e.target.value)
+                        }
+                        placeholder="SKU"
+                      />
+                      <div className="flex items-center justify-end gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => moveVariant(i, -1)}
+                          disabled={i === 0}
+                          title={i === 0 ? "Default variant" : "Move up"}
+                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveVariant(i, 1)}
+                          disabled={i === form.variants.length - 1}
+                          title="Move down"
+                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeVariant(i)}
+                          title="Remove variant"
+                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[rgba(239,68,68,0.12)] hover:text-[#ef4444]"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-10 shrink-0 text-[10px] uppercase tracking-wide text-[#9ca3af]">
+                        Imgs
+                      </span>
+                      <VariantGallery
+                        images={v.images}
+                        onChange={(imgs) => updateVariant(i, "images", imgs)}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-10 shrink-0 text-[10px] uppercase tracking-wide text-[#9ca3af]"
+                        title="Optional sale price for this variant"
                       >
-                        <ChevronUp className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveVariant(i, 1)}
-                        disabled={i === form.variants.length - 1}
-                        title="Move down"
-                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-30"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeVariant(i)}
-                        title="Remove variant"
-                        className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[rgba(239,68,68,0.12)] hover:text-[#ef4444]"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        Sale
+                      </span>
+                      <NumberField
+                        className={`${fieldClass} w-24`}
+                        value={v.special_price ?? 0}
+                        onValueChange={(n) =>
+                          updateVariant(i, "special_price", n > 0 ? n : null)
+                        }
+                      />
+                      <span className="text-[11px] text-[#9ca3af]">
+                        ₹ — leave 0 for no sale. Shows a yellow tag on the
+                        variant chip when set.
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-10 shrink-0 text-[10px] uppercase tracking-wide text-[#9ca3af]">
-                      Imgs
-                    </span>
-                    <VariantGallery
-                      images={v.images}
-                      onChange={(imgs) => updateVariant(i, "images", imgs)}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-10 shrink-0 text-[10px] uppercase tracking-wide text-[#9ca3af]"
-                      title="Optional sale price for this variant"
-                    >
-                      Sale
-                    </span>
-                    <NumberField
-                      className={`${fieldClass} w-24`}
-                      value={v.special_price ?? 0}
-                      onValueChange={(n) =>
-                        updateVariant(i, "special_price", n > 0 ? n : null)
-                      }
-                    />
-                    <span className="text-[11px] text-[#9ca3af]">
-                      ₹ — leave 0 for no sale. Shows a yellow tag on the variant
-                      chip when set.
-                    </span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
