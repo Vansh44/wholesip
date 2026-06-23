@@ -3,7 +3,7 @@
 -- `permissions` map of { section_key: ["view","manage"] } that controls
 -- which dashboard sections an admin holding that role can see and edit.
 --
--- profiles.role stores a role *slug* (e.g. 'superadmin', 'member',
+-- admins.role stores a role *slug* (e.g. 'superadmin', 'member',
 -- 'support'). The two system roles below are seeded and cannot be
 -- deleted from the UI.
 --
@@ -13,7 +13,7 @@
 CREATE TABLE IF NOT EXISTS roles (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name         TEXT NOT NULL,                          -- display label, e.g. 'Support'
-  slug         TEXT NOT NULL UNIQUE,                    -- machine key stored in profiles.role
+  slug         TEXT NOT NULL UNIQUE,                    -- machine key stored in admins.role
   description  TEXT,
   permissions  JSONB NOT NULL DEFAULT '{}'::jsonb,      -- { "products": ["view","manage"], ... }
   color        TEXT NOT NULL DEFAULT 'grey',            -- pill tone: grey | blue | green | amber | violet
@@ -57,28 +57,28 @@ DROP POLICY IF EXISTS "Superadmins can insert roles" ON roles;
 CREATE POLICY "Superadmins can insert roles"
   ON roles FOR INSERT
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid() AND profiles.role = 'superadmin'
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid() AND admins.role = 'superadmin'
   ));
 
 DROP POLICY IF EXISTS "Superadmins can update roles" ON roles;
 CREATE POLICY "Superadmins can update roles"
   ON roles FOR UPDATE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid() AND profiles.role = 'superadmin'
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid() AND admins.role = 'superadmin'
   ))
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid() AND profiles.role = 'superadmin'
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid() AND admins.role = 'superadmin'
   ));
 
 DROP POLICY IF EXISTS "Superadmins can delete roles" ON roles;
 CREATE POLICY "Superadmins can delete roles"
   ON roles FOR DELETE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid() AND profiles.role = 'superadmin'
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid() AND admins.role = 'superadmin'
   ));
 
 -- ---------------------------------------------------------------

@@ -85,7 +85,7 @@ export default async function BlogsPage({
     // their own row, so the admin session can't resolve submitter names.
     const adminClient = createAdminClient();
     const { data: customers } = await adminClient
-      .from("customers")
+      .from("users")
       .select("id, first_name, last_name")
       .in("id", uniqueIds);
 

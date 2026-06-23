@@ -10,7 +10,7 @@
 -- 1. Track which customer submitted the blog (nullable — admin-created blogs
 --    won't have this).
 ALTER TABLE blogs
-  ADD COLUMN IF NOT EXISTS submitted_by UUID REFERENCES customers(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS submitted_by UUID REFERENCES users(id) ON DELETE SET NULL;
 
 -- 2. Flag to distinguish customer submissions from admin-authored blogs.
 ALTER TABLE blogs
@@ -36,10 +36,10 @@ DROP POLICY IF EXISTS "Customers can submit blogs for review" ON blogs;
 CREATE POLICY "Customers can submit blogs for review"
   ON blogs FOR INSERT
   WITH CHECK (
-    -- Must be an authenticated customer (exists in customers table)
+    -- Must be an authenticated customer (exists in users table)
     EXISTS (
-      SELECT 1 FROM customers
-      WHERE customers.id = auth.uid()
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid()
     )
     -- Must set status to pending_review
     AND status = 'pending_review'
@@ -74,7 +74,7 @@ CREATE POLICY "Customers can edit own pending submissions"
   );
 
 -- =============================================================
--- Storage RLS — let signed-in customers upload blog cover images
+-- Storage RLS — let signed-in users upload blog cover images
 -- The write editor uploads to the public `media` bucket under the
 -- `blog-covers/` folder. Reads are already public (bucket is public);
 -- only uploads (INSERT) need a policy for the `authenticated` role.

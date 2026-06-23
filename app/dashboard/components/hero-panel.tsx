@@ -12,7 +12,7 @@ export async function HeroPanel() {
 
   if (user) {
     const { data: profile } = await supabase
-      .from("profiles")
+      .from("admins")
       .select("first_name")
       .eq("id", user.id)
       .single();

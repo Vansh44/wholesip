@@ -161,7 +161,7 @@ describe("User Management Actions", () => {
       const result = await changeUserRole("user-1", "member");
 
       expect(result.success).toBe(true);
-      expect(mockAdminClient.from).toHaveBeenCalledWith("profiles");
+      expect(mockAdminClient.from).toHaveBeenCalledWith("admins");
     });
   });
 
@@ -170,7 +170,7 @@ describe("User Management Actions", () => {
       const result = await toggleUserSuspension("user-1", true);
 
       expect(result.success).toBe(true);
-      expect(mockAdminClient.from).toHaveBeenCalledWith("profiles");
+      expect(mockAdminClient.from).toHaveBeenCalledWith("admins");
     });
   });
 });

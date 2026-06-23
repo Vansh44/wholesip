@@ -56,7 +56,7 @@ export async function inviteUser(formData: FormData) {
   }
 
   const { data: callerProfile } = await supabase
-    .from("profiles")
+    .from("admins")
     .select("role")
     .eq("id", caller.id)
     .single();
@@ -73,7 +73,7 @@ export async function inviteUser(formData: FormData) {
   // (e.g. phone sign-up) can still collide at the profile layer.
   const normalizedEmail = email.trim().toLowerCase();
   const { data: existingProfile } = await adminClient
-    .from("profiles")
+    .from("admins")
     .select("id")
     .ilike("email", normalizedEmail)
     .maybeSingle();
@@ -95,7 +95,7 @@ export async function inviteUser(formData: FormData) {
   }
 
   // Insert profile
-  const { error: profileError } = await adminClient.from("profiles").upsert({
+  const { error: profileError } = await adminClient.from("admins").upsert({
     id: newUser.user.id,
     email: normalizedEmail,
     first_name: firstName.trim(),

@@ -30,7 +30,7 @@ export default async function RolesPage() {
   }
 
   // Count how many admins hold each role (by slug).
-  const { data: profiles } = await supabase.from("profiles").select("role");
+  const { data: profiles } = await supabase.from("admins").select("role");
   const counts = new Map<string, number>();
   for (const p of profiles ?? []) {
     if (p.role) counts.set(p.role, (counts.get(p.role) ?? 0) + 1);

@@ -1,6 +1,6 @@
 -- =============================================================
 -- Custom Access Token Hook
--- Embeds `user_role` and `force_password_reset` from `profiles`
+-- Embeds `user_role` and `force_password_reset` from `admins`
 -- into the JWT as custom claims, so the middleware can authorize
 -- dashboard routes without a per-request DB query.
 --
@@ -32,7 +32,7 @@ DECLARE
 BEGIN
   SELECT role, force_password_reset
     INTO v_role, v_force
-  FROM public.profiles
+  FROM public.admins
   WHERE id = (event->>'user_id')::uuid;
 
   claims := event->'claims';
@@ -58,15 +58,15 @@ $$;
 -- The auth admin role runs the hook; grant it the minimum needed access.
 GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION public.custom_access_token_hook TO supabase_auth_admin;
-GRANT SELECT ON TABLE public.profiles TO supabase_auth_admin;
+GRANT SELECT ON TABLE public.admins TO supabase_auth_admin;
 
 -- Don't let regular API roles invoke the hook directly.
 REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook
   FROM authenticated, anon, public;
 
--- RLS is enabled on profiles; allow the auth admin to read it for the hook.
-DROP POLICY IF EXISTS "Auth admin can read profiles for token hook" ON public.profiles;
-CREATE POLICY "Auth admin can read profiles for token hook"
-  ON public.profiles FOR SELECT
+-- RLS is enabled on admins; allow the auth admin to read it for the hook.
+DROP POLICY IF EXISTS "Auth admin can read admins for token hook" ON public.admins;
+CREATE POLICY "Auth admin can read admins for token hook"
+  ON public.admins FOR SELECT
   TO supabase_auth_admin
   USING (true);

@@ -26,7 +26,7 @@ export default async function UsersPage() {
   const supabase = await createClient();
 
   const { data: profiles, error } = await supabase
-    .from("profiles")
+    .from("admins")
     .select("*")
     .order("created_at", { ascending: false });
 

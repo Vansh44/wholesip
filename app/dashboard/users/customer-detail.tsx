@@ -42,7 +42,7 @@ export function CustomerDetail({
         toast.error(result.error);
         return;
       }
-      toast.success("Customer updated");
+      toast.success("User updated");
       setEditing(false);
       router.refresh();
     });
@@ -54,7 +54,7 @@ export function CustomerDetail({
         toast.error(result.error);
         return;
       }
-      toast.success("Customer deleted");
+      toast.success("User deleted");
       router.push("/dashboard/users");
       router.refresh();
     });
@@ -255,7 +255,7 @@ export function CustomerDetail({
             <div className="customer-detail-danger">
               {confirmDelete ? (
                 <>
-                  <span>Delete this customer?</span>
+                  <span>Delete this user?</span>
                   <div className="customer-detail-danger-row">
                     <Button
                       variant="destructive"

@@ -86,6 +86,18 @@ export const SECTIONS: DashboardSection[] = [
     icon: "customers",
     group: "Workspace",
     actions: ["view", "manage"],
+    children: [
+      {
+        label: "All Users",
+        href: "/dashboard/users",
+        icon: "customers",
+      },
+      {
+        label: "User Groups",
+        href: "/dashboard/users/user_groups",
+        icon: "user_groups",
+      },
+    ],
   },
   {
     key: "inventory",

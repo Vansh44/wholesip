@@ -42,7 +42,7 @@ export async function updateCustomer(
 
   const admin = createAdminClient();
   const { error } = await admin
-    .from("customers")
+    .from("users")
     .update({ first_name: firstName, last_name: lastName, email })
     .eq("id", id);
 
@@ -82,7 +82,7 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
   }
 
   if (authError) {
-    const { error } = await admin.from("customers").delete().eq("id", id);
+    const { error } = await admin.from("users").delete().eq("id", id);
     if (error) {
       console.error("Failed to delete orphaned customer row:", error);
       return { error: "Failed to delete customer. Please try again." };

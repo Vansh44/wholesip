@@ -9,7 +9,7 @@ import { submitReview, deleteReview } from "@/app/actions/review-actions";
 
 export interface ProductReview {
   id: string;
-  customer_id: string;
+  user_id: string;
   author_name: string;
   rating: number;
   comment: string | null;
@@ -106,7 +106,7 @@ export default function ReviewsSection({
   const [isPending, startTransition] = useTransition();
 
   const myReview = customer
-    ? reviews.find((r) => r.customer_id === customer.id)
+    ? reviews.find((r) => r.user_id === customer.id)
     : undefined;
 
   const [rating, setRating] = useState(myReview?.rating ?? 0);

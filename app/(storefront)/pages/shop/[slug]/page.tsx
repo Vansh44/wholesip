@@ -84,7 +84,7 @@ async function getReviews(productId: string): Promise<ProductReview[]> {
   const supabase = createPublicClient();
   const { data } = await supabase
     .from("product_reviews")
-    .select("id, customer_id, author_name, rating, comment, created_at")
+    .select("id, user_id, author_name, rating, comment, created_at")
     .eq("product_id", productId)
     .order("created_at", { ascending: false });
 

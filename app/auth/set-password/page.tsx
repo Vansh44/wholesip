@@ -55,7 +55,7 @@ export default function SetPasswordPage() {
       } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase
-          .from("profiles")
+          .from("admins")
           .select("first_name, last_name, phone")
           .eq("id", user.id)
           .single();

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { SidebarNavLink, navIcons, type NavIconKey } from "./sidebar-nav-link";
 import { useMobileNav } from "./dashboard-mobile-nav";
 
@@ -113,7 +113,11 @@ export function DashboardSidebar({
         {/* ── Sub-nav panel (only for sections with sub-pages) ── */}
         {showPanel && (
           <div className="dash-subnav">
-            <div className="dash-subnav-head">{activeSection.label}</div>
+            <Link href="/dashboard" className="dash-subnav-back">
+              <ArrowLeft className="h-4 w-4" strokeWidth={2} />
+              <span>Back</span>
+            </Link>
+            <div className="dash-subnav-title">{activeSection.label}</div>
             <div className="dash-subnav-scroll">
               <nav>
                 {activeSection.children!.map((c) => {

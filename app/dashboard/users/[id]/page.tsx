@@ -39,7 +39,7 @@ export default async function CustomerDetailPage({
             marginBottom: 18,
           }}
         >
-          Customer since {formatDateTime(customer.created_at)}
+          User since {formatDateTime(customer.created_at)}
         </p>
         <CustomerDetail customer={customer} canManage={canManage} />
       </div>

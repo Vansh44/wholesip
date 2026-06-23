@@ -50,7 +50,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 ];
 
 const FILTER_OPTIONS: { key: FilterKey; label: string }[] = [
-  { key: "all", label: "All customers" },
+  { key: "all", label: "All users" },
   { key: "recent", label: "New (30 days)" },
   { key: "reviewers", label: "Reviewers" },
   { key: "with_email", label: "Has email" },
@@ -159,7 +159,7 @@ export function CustomersManagementView({
         toast.error(result.error);
         return;
       }
-      toast.success("Customer updated");
+      toast.success("User updated");
       setEditTarget(null);
       router.refresh();
     });
@@ -173,7 +173,7 @@ export function CustomersManagementView({
         toast.error(result.error);
         return;
       }
-      toast.success("Customer deleted");
+      toast.success("User deleted");
       setDeleteTarget(null);
       router.refresh();
     });
@@ -191,7 +191,7 @@ export function CustomersManagementView({
     {
       key: "total",
       filterKey: "all",
-      label: "Total customers",
+      label: "Total users",
       value: stats.total,
       icon: <Users className="h-4 w-4" />,
     },
@@ -223,7 +223,7 @@ export function CustomersManagementView({
       <header className="dash-page-header row customers-header">
         <div>
           <h1>Users</h1>
-          <p>Storefront customers who created an account</p>
+          <p>Storefront users who created an account</p>
         </div>
         <div className="customers-total">
           <span>{stats.total}</span>
@@ -231,7 +231,7 @@ export function CustomersManagementView({
         </div>
       </header>
 
-      <section className="customers-metrics" aria-label="Filter customers">
+      <section className="customers-metrics" aria-label="Filter users">
         {metrics.map((metric) => {
           const active =
             metric.filterKey === "all"
@@ -275,7 +275,7 @@ export function CustomersManagementView({
         </label>
 
         <select
-          aria-label="Filter customers"
+          aria-label="Filter users"
           value={filter}
           onChange={(event) => setFilter(event.target.value as FilterKey)}
           className="customers-select"
@@ -317,9 +317,9 @@ export function CustomersManagementView({
       <div className="dash-card customers-table-card">
         <div className="dash-card-header customers-table-head">
           <div>
-            <div className="dash-card-title">Customers</div>
+            <div className="dash-card-title">Users</div>
             <div className="dash-card-sub">
-              {sorted.length} {sorted.length === 1 ? "customer" : "customers"}{" "}
+              {sorted.length} {sorted.length === 1 ? "user" : "users"}{" "}
               shown
             </div>
           </div>
@@ -327,11 +327,11 @@ export function CustomersManagementView({
 
         {sorted.length === 0 ? (
           <div className="customers-empty">
-            <div>No customers found</div>
+            <div>No users found</div>
             <p>
               {anyFilterActive
                 ? "Adjust the filters or search term."
-                : "Customers who sign up on the storefront will appear here."}
+                : "Users who sign up on the storefront will appear here."}
             </p>
           </div>
         ) : (
@@ -339,7 +339,7 @@ export function CustomersManagementView({
             <table className="dash-table customers-table">
               <thead>
                 <tr>
-                  <th>Customer</th>
+                  <th>User</th>
                   <th>Phone</th>
                   <th>Activity</th>
                   <th>Joined</th>
@@ -351,7 +351,7 @@ export function CustomersManagementView({
                   <tr
                     key={customer.id}
                     onClick={() => openDetail(customer)}
-                    title="View customer"
+                    title="View user"
                   >
                     <td>
                       <div className="customers-person">
@@ -464,9 +464,9 @@ export function CustomersManagementView({
       >
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader>
-            <DialogTitle>Edit customer</DialogTitle>
+            <DialogTitle>Edit user</DialogTitle>
             <DialogDescription>
-              Update this customer&apos;s name and email. Their phone number is
+              Update this user&apos;s name and email. Their phone number is
               their verified login and can&apos;t be changed here.
             </DialogDescription>
           </DialogHeader>
@@ -524,10 +524,10 @@ export function CustomersManagementView({
       >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Delete customer</DialogTitle>
+            <DialogTitle>Delete user</DialogTitle>
             <DialogDescription>
               Permanently delete{" "}
-              {deleteTarget ? customerName(deleteTarget) : "this customer"} and
+              {deleteTarget ? customerName(deleteTarget) : "this user"} and
               their account? Their reviews and blog submissions will also be
               removed. This cannot be undone.
             </DialogDescription>

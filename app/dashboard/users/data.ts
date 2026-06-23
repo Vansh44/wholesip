@@ -29,7 +29,7 @@ export async function getCustomers(): Promise<{
   const admin = createAdminClient();
 
   const { data, error } = await admin
-    .from("customers")
+    .from("users")
     .select(COLUMNS)
     .order("created_at", { ascending: false });
 
@@ -44,7 +44,7 @@ export async function getCustomers(): Promise<{
   // Tally activity. Both queries are best-effort — a missing table or column
   // just leaves the counts at zero rather than failing the whole page.
   const [reviewsRes, blogsRes] = await Promise.all([
-    admin.from("product_reviews").select("customer_id"),
+    admin.from("product_reviews").select("user_id"),
     admin
       .from("blogs")
       .select("submitted_by")
@@ -52,7 +52,7 @@ export async function getCustomers(): Promise<{
   ]);
 
   const reviewCounts = tally(
-    (reviewsRes.data ?? []).map((r) => r.customer_id as string | null),
+    (reviewsRes.data ?? []).map((r) => r.user_id as string | null),
   );
   const blogCounts = tally(
     (blogsRes.data ?? []).map((b) => b.submitted_by as string | null),
@@ -88,7 +88,7 @@ export async function getCustomer(id: string): Promise<CustomerDetail | null> {
   const admin = createAdminClient();
 
   const { data, error } = await admin
-    .from("customers")
+    .from("users")
     .select(COLUMNS)
     .eq("id", id)
     .single();
@@ -99,7 +99,7 @@ export async function getCustomer(id: string): Promise<CustomerDetail | null> {
     admin
       .from("product_reviews")
       .select("id, rating, comment, created_at, product_id, products(name)")
-      .eq("customer_id", id)
+      .eq("user_id", id)
       .order("created_at", { ascending: false }),
     admin
       .from("blogs")

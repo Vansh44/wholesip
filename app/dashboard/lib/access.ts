@@ -44,7 +44,7 @@ export const getViewerContext = cache(
     if (!user) return null;
 
     const { data: profile, error: profileError } = await supabase
-      .from("profiles")
+      .from("admins")
       .select("email, role, first_name, last_name")
       .eq("id", user.id)
       .single();
@@ -151,7 +151,7 @@ export async function getManagerUserId(
   if (!user) return null;
 
   const { data: profile } = await supabase
-    .from("profiles")
+    .from("admins")
     .select("role")
     .eq("id", user.id)
     .single();

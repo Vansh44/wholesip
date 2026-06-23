@@ -12,7 +12,7 @@ export async function deleteUser(userId: string) {
   if (!caller) return { error: "Not authenticated" };
 
   const { data: callerProfile } = await supabase
-    .from("profiles")
+    .from("admins")
     .select("role")
     .eq("id", caller.id)
     .single();
@@ -29,14 +29,14 @@ export async function deleteUser(userId: string) {
 
   // Don't allow deleting the last remaining superadmin (would lock everyone out).
   const { data: target } = await adminClient
-    .from("profiles")
+    .from("admins")
     .select("role")
     .eq("id", userId)
     .single();
 
   if (target?.role === "superadmin") {
     const { count } = await adminClient
-      .from("profiles")
+      .from("admins")
       .select("id", { count: "exact", head: true })
       .eq("role", "superadmin");
     if ((count ?? 0) <= 1) {
@@ -61,7 +61,7 @@ export async function changeUserRole(userId: string, role: string) {
   if (!caller) return { error: "Not authenticated" };
 
   const { data: callerProfile } = await supabase
-    .from("profiles")
+    .from("admins")
     .select("role")
     .eq("id", caller.id)
     .single();
@@ -87,14 +87,14 @@ export async function changeUserRole(userId: string, role: string) {
   // the dashboard with no one able to manage users.
   if (role !== "superadmin") {
     const { data: target } = await adminClient
-      .from("profiles")
+      .from("admins")
       .select("role")
       .eq("id", userId)
       .single();
 
     if (target?.role === "superadmin") {
       const { count } = await adminClient
-        .from("profiles")
+        .from("admins")
         .select("id", { count: "exact", head: true })
         .eq("role", "superadmin");
       if ((count ?? 0) <= 1) {
@@ -104,7 +104,7 @@ export async function changeUserRole(userId: string, role: string) {
   }
 
   const { error } = await adminClient
-    .from("profiles")
+    .from("admins")
     .update({ role })
     .eq("id", userId);
 
@@ -124,7 +124,7 @@ export async function toggleUserSuspension(
   if (!caller) return { error: "Not authenticated" };
 
   const { data: callerProfile } = await supabase
-    .from("profiles")
+    .from("admins")
     .select("role")
     .eq("id", caller.id)
     .single();
@@ -139,7 +139,7 @@ export async function toggleUserSuspension(
 
   const adminClient = createAdminClient();
   const { error } = await adminClient
-    .from("profiles")
+    .from("admins")
     .update({ is_suspended: isSuspended })
     .eq("id", userId);
 

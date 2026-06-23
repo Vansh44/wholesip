@@ -20,6 +20,8 @@ export interface CouponFormData {
   valid_from: string; // "" or yyyy-mm-dd
   valid_until: string; // "" or yyyy-mm-dd
   status: "active" | "disabled";
+  // User group ids this coupon is restricted to. Empty / omitted = public.
+  restricted_group_ids?: string[];
 }
 
 export interface ActionResult {
@@ -106,6 +108,82 @@ function revalidateCoupons() {
   revalidatePath("/dashboard/marketing/coupons");
 }
 
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+// Replace a coupon's group restrictions with `groupIds` (clear + insert).
+// Empty list leaves the coupon public. Best-effort: a missing
+// coupon_user_groups table (not yet migrated) is logged, not fatal — the
+// coupon itself still saves.
+async function syncCouponGroups(
+  supabase: SupabaseServerClient,
+  couponId: string,
+  groupIds: string[] | undefined,
+): Promise<void> {
+  const ids = Array.from(new Set((groupIds ?? []).filter(Boolean)));
+
+  const { error: delError } = await supabase
+    .from("coupon_user_groups")
+    .delete()
+    .eq("coupon_id", couponId);
+  if (delError) {
+    console.error("syncCouponGroups (clear) error:", delError);
+    return;
+  }
+
+  if (ids.length === 0) return;
+
+  const rows = ids.map((group_id) => ({ coupon_id: couponId, group_id }));
+  const { error: insError } = await supabase
+    .from("coupon_user_groups")
+    .insert(rows);
+  if (insError) console.error("syncCouponGroups (insert) error:", insError);
+}
+
+// Returns an error message if a group-restricted coupon can't be used by the
+// current caller, or null when it's allowed (incl. public coupons). Runs on
+// the shopper's session client: coupon_user_groups is publicly readable, and
+// user_group_members is RLS-scoped to the signed-in customer's own rows.
+async function checkGroupRestriction(
+  supabase: SupabaseServerClient,
+  couponId: string,
+): Promise<string | null> {
+  const { data: links, error: linksError } = await supabase
+    .from("coupon_user_groups")
+    .select("group_id")
+    .eq("coupon_id", couponId);
+
+  if (linksError) {
+    // Table not migrated / unreadable: treat the coupon as public rather than
+    // blocking a legitimate code.
+    console.error("checkGroupRestriction (links) error:", linksError);
+    return null;
+  }
+
+  const groupIds = (links ?? []).map((l) => l.group_id as string);
+  if (groupIds.length === 0) return null; // public coupon
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return "Sign in to use this coupon.";
+
+  const { data: memberships, error: memError } = await supabase
+    .from("user_group_members")
+    .select("group_id")
+    .eq("user_id", user.id)
+    .in("group_id", groupIds);
+
+  if (memError) {
+    console.error("checkGroupRestriction (membership) error:", memError);
+    return "Could not verify this coupon for your account. Please try again.";
+  }
+
+  if (!memberships || memberships.length === 0)
+    return "This coupon isn’t available for your account.";
+
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Create
 // ---------------------------------------------------------------------------
@@ -132,6 +210,12 @@ export async function createCoupon(
     console.error("createCoupon error:", error);
     return { error: error.message };
   }
+
+  await syncCouponGroups(
+    supabase,
+    (data as { id: string }).id,
+    form.restricted_group_ids,
+  );
 
   revalidateCoupons();
   return { success: true, data: data as Record<string, unknown> };
@@ -163,6 +247,8 @@ export async function updateCoupon(
     console.error("updateCoupon error:", error);
     return { error: error.message };
   }
+
+  await syncCouponGroups(supabase, id, form.restricted_group_ids);
 
   revalidateCoupons();
   return { success: true };
@@ -208,7 +294,7 @@ export async function validateCoupon(
   const { data, error } = await supabase
     .from("coupons")
     .select(
-      "code, discount_type, discount_value, min_order_amount, max_uses, used_count, valid_from, valid_until",
+      "id, code, discount_type, discount_value, min_order_amount, max_uses, used_count, valid_from, valid_until",
     )
     .eq("code", code)
     .maybeSingle();
@@ -218,6 +304,12 @@ export async function validateCoupon(
     return { error: "Could not check that code. Please try again." };
   }
   if (!data) return { error: "Invalid or expired coupon code." };
+
+  // Group restriction: a coupon linked to one or more user groups can only be
+  // applied by a signed-in customer who belongs to one of them. Public coupons
+  // (no links) skip this entirely.
+  const restriction = await checkGroupRestriction(supabase, data.id as string);
+  if (restriction) return { error: restriction };
 
   const now = Date.now();
   if (data.valid_from && new Date(data.valid_from).getTime() > now)

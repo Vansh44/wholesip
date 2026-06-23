@@ -16,15 +16,15 @@ const validReview = {
   comment: "Great",
 };
 
-// review-actions.ts — product reviews are written by signed-in customers.
-// The unique (product_id, customer_id) constraint makes this an upsert.
+// review-actions.ts — product reviews are written by signed-in users.
+// The unique (product_id, user_id) constraint makes this an upsert.
 describe("review-actions", () => {
   let supabase: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
     supabase = makeSupabase({
-      customers: makeChain({
+      users: makeChain({
         data: { first_name: "Ada", last_name: "Lovelace" },
         error: null,
       }),
@@ -52,10 +52,10 @@ describe("review-actions", () => {
       expect(result.error).toMatch(/1 to 5/);
     });
 
-    // A signed-in user without a customers row can't write a review — the
+    // A signed-in user without a users row can't write a review — the
     // join target for the author name is required.
     it("rejects when customer profile is missing", async () => {
-      supabase._tables.customers = makeChain({ data: null, error: null });
+      supabase._tables.users = makeChain({ data: null, error: null });
       const result = await submitReview(validReview);
       expect(result.error).toMatch(/profile/i);
     });
@@ -72,7 +72,7 @@ describe("review-actions", () => {
 
     // Fallback name when both first/last are missing/empty.
     it("falls back to 'Anonymous' when the customer's name is empty", async () => {
-      supabase._tables.customers = makeChain({
+      supabase._tables.users = makeChain({
         data: { first_name: "", last_name: null },
         error: null,
       });

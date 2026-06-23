@@ -2,7 +2,7 @@
 -- Supabase migration: coupons (storefront discount codes)
 -- Managed from the dashboard (Marketing → Coupons), applied in the
 -- storefront cart. Mirrors the categories/products table conventions
--- (status, updated_at trigger, RLS by profiles.role).
+-- (status, updated_at trigger, RLS by admins.role).
 -- Apply by hand in the Supabase SQL Editor (service key can't run DDL).
 -- Idempotent: safe to re-run.
 -- =============================================================
@@ -63,39 +63,39 @@ DROP POLICY IF EXISTS "Admins can read all coupons" ON coupons;
 CREATE POLICY "Admins can read all coupons"
   ON coupons FOR SELECT
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can insert coupons" ON coupons;
 CREATE POLICY "Admins can insert coupons"
   ON coupons FOR INSERT
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can update coupons" ON coupons;
 CREATE POLICY "Admins can update coupons"
   ON coupons FOR UPDATE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ))
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can delete coupons" ON coupons;
 CREATE POLICY "Admins can delete coupons"
   ON coupons FOR DELETE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));

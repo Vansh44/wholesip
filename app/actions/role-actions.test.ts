@@ -22,7 +22,7 @@ function buildAdmin(overrides: Record<string, any> = {}) {
   const tables: Record<string, any> = {
     // Slug uniqueness lookup → no collisions by default.
     roles: makeChain({ data: [], error: null }),
-    profiles: makeChain({ data: null, error: null, count: 0 }),
+    admins: makeChain({ data: null, error: null, count: 0 }),
     ...overrides,
   };
   const from = vi.fn((t: string) => {
@@ -43,7 +43,7 @@ describe("role-actions", () => {
     vi.clearAllMocks();
     // Default: caller IS a superadmin so the auth guard passes.
     supabase = makeSupabase({
-      profiles: makeChain({ data: { role: "superadmin" }, error: null }),
+      admins: makeChain({ data: { role: "superadmin" }, error: null }),
     });
     vi.mocked(createClient).mockResolvedValue(supabase);
     admin = buildAdmin();
@@ -62,14 +62,14 @@ describe("role-actions", () => {
 
     // Authenticated but no profile row (e.g. a customer hitting the dashboard).
     it("rejects callers without a profile", async () => {
-      supabase._tables.profiles = makeChain({ data: null, error: null });
+      supabase._tables.admins = makeChain({ data: null, error: null });
       const result = await createRole(validForm);
       expect(result.error).toMatch(/permission/i);
     });
 
     // A non-superadmin role without explicit roles.manage permission.
     it("rejects a role without roles.manage permission", async () => {
-      supabase._tables.profiles = makeChain({
+      supabase._tables.admins = makeChain({
         data: { role: "member" },
         error: null,
       });
@@ -84,7 +84,7 @@ describe("role-actions", () => {
     // A custom role that DOES include roles.manage — verifies the escape hatch
     // works for non-superadmins (delegation use case).
     it("allows a non-superadmin role with roles.manage", async () => {
-      supabase._tables.profiles = makeChain({
+      supabase._tables.admins = makeChain({
         data: { role: "manager" },
         error: null,
       });
@@ -223,7 +223,7 @@ describe("role-actions", () => {
       });
       // The count query is awaited directly (no .single()), so count must be
       // in listResult.
-      admin._tables.profiles = makeChain(
+      admin._tables.admins = makeChain(
         { data: null, error: null },
         { data: null, count: 3, error: null },
       );
@@ -237,7 +237,7 @@ describe("role-actions", () => {
         data: { slug: "editor", is_system: false },
         error: null,
       });
-      admin._tables.profiles = makeChain({ data: null, count: 0, error: null });
+      admin._tables.admins = makeChain({ data: null, count: 0, error: null });
       const result = await deleteRole("editor-id");
       expect(result.success).toBe(true);
     });

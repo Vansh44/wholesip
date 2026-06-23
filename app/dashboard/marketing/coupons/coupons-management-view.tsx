@@ -2,8 +2,11 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
+  Lock,
+  Mail,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -28,11 +31,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { deleteCoupon } from "@/app/actions/coupon-actions";
-import { CouponEditorDialog } from "./coupon-editor-dialog";
-import type { Coupon } from "./page";
+import type { Coupon, CouponGroup } from "./page";
+
+const BASE = "/dashboard/marketing/coupons";
 
 type Props = {
   coupons: Coupon[];
+  groups: CouponGroup[];
   canManage?: boolean;
 };
 
@@ -59,13 +64,19 @@ function isExpired(c: Coupon): boolean {
   return false;
 }
 
-export function CouponsManagementView({ coupons, canManage = true }: Props) {
+export function CouponsManagementView({
+  coupons,
+  groups,
+  canManage = true,
+}: Props) {
   const router = useRouter();
+  const groupName = useMemo(
+    () => new Map(groups.map((g) => [g.id, g.name])),
+    [groups],
+  );
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Coupon | null>(null);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editing, setEditing] = useState<Coupon | null>(null);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return coupons;
@@ -91,21 +102,6 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
     });
   };
 
-  const openEditor = (coupon?: Coupon) => {
-    setEditing(coupon ?? null);
-    setEditorOpen(true);
-  };
-
-  const closeEditor = () => {
-    setEditorOpen(false);
-    setEditing(null);
-  };
-
-  const handleSaved = () => {
-    closeEditor();
-    router.refresh();
-  };
-
   return (
     <div className="dash-page-enter">
       <header className="dash-page-header row">
@@ -114,13 +110,10 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
           <p>Create and manage storefront discount codes</p>
         </div>
         {canManage && (
-          <button
-            className="dash-btn dash-btn-primary shrink-0"
-            onClick={() => openEditor()}
-          >
+          <Link href={`${BASE}/new`} className="dash-btn dash-btn-primary shrink-0">
             <Plus className="h-4 w-4" />
             New coupon
-          </button>
+          </Link>
         )}
       </header>
 
@@ -162,13 +155,10 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
                 : "Create your first discount code for the storefront."}
             </p>
             {!search && canManage && (
-              <button
-                className="dash-btn dash-btn-primary"
-                onClick={() => openEditor()}
-              >
+              <Link href={`${BASE}/new`} className="dash-btn dash-btn-primary">
                 <Plus className="h-4 w-4" />
                 New coupon
-              </button>
+              </Link>
             )}
           </div>
         ) : (
@@ -193,6 +183,15 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
                       <div className="dash-cell-title mono">{c.code}</div>
                       {c.description && (
                         <div className="dash-cell-sub">{c.description}</div>
+                      )}
+                      {c.restricted_group_ids.length > 0 && (
+                        <div className="dash-cell-sub mt-1 flex flex-wrap items-center gap-1">
+                          <Lock className="h-3 w-3 text-[#9ca3af]" />
+                          {c.restricted_group_ids
+                            .map((id) => groupName.get(id))
+                            .filter(Boolean)
+                            .join(", ") || "Restricted"}
+                        </div>
                       )}
                     </td>
                     <td>
@@ -242,10 +241,17 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
                           >
                             <DropdownMenuItem
                               className="cursor-pointer"
-                              onClick={() => openEditor(c)}
+                              onClick={() => router.push(`${BASE}/${c.id}/edit`)}
                             >
                               <Pencil className="mr-2 h-4 w-4" />
                               Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onClick={() => router.push(`${BASE}/${c.id}/email`)}
+                            >
+                              <Mail className="mr-2 h-4 w-4" />
+                              Send email
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -299,13 +305,6 @@ export function CouponsManagementView({ coupons, canManage = true }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <CouponEditorDialog
-        open={editorOpen}
-        coupon={editing}
-        onClose={closeEditor}
-        onSaved={handleSaved}
-      />
     </div>
   );
 }

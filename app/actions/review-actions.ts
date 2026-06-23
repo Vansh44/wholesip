@@ -16,7 +16,7 @@ export interface ActionResult {
 }
 
 // Post or update the signed-in customer's review for a product. There's a
-// unique (product_id, customer_id) constraint, so this upserts: a second
+// unique (product_id, user_id) constraint, so this upserts: a second
 // submission edits the existing review rather than creating a duplicate.
 export async function submitReview(
   form: ReviewFormData,
@@ -38,7 +38,7 @@ export async function submitReview(
   // The reviewer's name is snapshotted onto the review (customers is own-row
   // only under RLS, so public readers can't join to it).
   const { data: customer } = await supabase
-    .from("customers")
+    .from("users")
     .select("first_name, last_name")
     .eq("id", user.id)
     .single();
@@ -54,13 +54,13 @@ export async function submitReview(
   const { error } = await supabase.from("product_reviews").upsert(
     {
       product_id: form.product_id,
-      customer_id: user.id,
+      user_id: user.id,
       author_name: authorName || "Anonymous",
       rating,
       comment: form.comment.trim() || null,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "product_id,customer_id" },
+    { onConflict: "product_id,user_id" },
   );
 
   if (error) {

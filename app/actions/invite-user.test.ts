@@ -55,11 +55,11 @@ describe("inviteUser", () => {
     resendSend.mockResolvedValue({});
     process.env.RESEND_API_KEY = "re_actual_key";
     supabase = makeSupabase({
-      profiles: makeChain({ data: { role: "superadmin" }, error: null }),
+      admins: makeChain({ data: { role: "superadmin" }, error: null }),
     });
     vi.mocked(createClient).mockResolvedValue(supabase);
     admin = makeSupabase({
-      profiles: makeChain({ data: null, error: null }), // not already-taken
+      admins: makeChain({ data: null, error: null }), // not already-taken
     });
     vi.mocked(createAdminClient).mockReturnValue(admin);
   });
@@ -94,7 +94,7 @@ describe("inviteUser", () => {
 
   // Only superadmins can invite — verifies even a 'member' caller is blocked.
   it("rejects non-superadmin callers", async () => {
-    supabase._tables.profiles = makeChain({
+    supabase._tables.admins = makeChain({
       data: { role: "member" },
       error: null,
     });
@@ -102,10 +102,10 @@ describe("inviteUser", () => {
     expect(result.error).toMatch(/unauthorized|superadmin/i);
   });
 
-  // Email collision check at the profiles layer (auth catches duplicates too,
+  // Email collision check at the admins layer (auth catches duplicates too,
   // but a phone-only auth account can collide at the profile layer).
   it("rejects when a profile with that email already exists", async () => {
-    admin._tables.profiles = makeChain({
+    admin._tables.admins = makeChain({
       data: { id: "existing" },
       error: null,
     });
@@ -124,20 +124,20 @@ describe("inviteUser", () => {
         email_confirm: true,
       }),
     );
-    expect(admin._tables.profiles.upsert).toHaveBeenCalled();
+    expect(admin._tables.admins.upsert).toHaveBeenCalled();
     expect(resendSend).toHaveBeenCalledTimes(1);
   });
 
   // If profile insert fails, the auth user must be cleaned up — leaves no
   // orphan auth accounts.
   it("cleans up the auth user if profile insert fails", async () => {
-    admin._tables.profiles = makeChain({
+    admin._tables.admins = makeChain({
       data: null,
       error: { code: "boom", message: "no" },
     });
     // Force the upsert path to return the error result rather than success.
-    admin._tables.profiles.upsert = vi.fn(() => admin._tables.profiles);
-    admin._tables.profiles.then = (resolve: any) =>
+    admin._tables.admins.upsert = vi.fn(() => admin._tables.admins);
+    admin._tables.admins.then = (resolve: any) =>
       Promise.resolve({
         data: null,
         error: { code: "boom", message: "no" },

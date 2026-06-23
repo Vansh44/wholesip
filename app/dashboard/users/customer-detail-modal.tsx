@@ -38,7 +38,7 @@ export function CustomerDetailModal({
         <DialogHeader>
           <DialogTitle>{customerName(customer)}</DialogTitle>
           <DialogDescription>
-            Customer since {formatDateTime(customer.created_at)}
+            User since {formatDateTime(customer.created_at)}
           </DialogDescription>
         </DialogHeader>
         <CustomerDetail customer={customer} canManage={canManage} />

@@ -163,7 +163,7 @@ export default function AuthModal() {
         // Check if customer profile exists
         if (data.user) {
           const { data: existingCustomer } = await supabase
-            .from("customers")
+            .from("users")
             .select("id")
             .eq("id", data.user.id)
             .single();
