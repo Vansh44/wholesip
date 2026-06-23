@@ -1,7 +1,6 @@
 import "./globals.css";
 import { Outfit, Roboto, Stick_No_Bills } from "next/font/google";
 import NextTopLoader from "nextjs-toploader";
-
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 const roboto = Roboto({
   weight: ["400", "700"],
@@ -50,7 +49,12 @@ export default function RootLayout({
       className={`${outfit.variable} ${roboto.variable} ${stickNoBills.variable}`}
     >
       <body className="antialiased">
-        <NextTopLoader />
+        <NextTopLoader
+          color="transparent"
+          height={0}
+          showSpinner={true}
+          template='<div class="custom-spinner" role="spinner"><div class="loader"></div></div><div role="bar" style="display: none;"><div class="peg"></div></div>'
+        />
         {children}
       </body>
     </html>
