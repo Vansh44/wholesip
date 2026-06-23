@@ -222,8 +222,6 @@ a {
   .dashboard-status-dot {
     @apply h-2 w-2 rounded-full bg-accent;
   }
-<<<<<<< Updated upstream
-=======
 
   /* HTML: <div class="loader"></div> */
   .loader {
@@ -265,5 +263,4 @@ a {
   .dark #nprogress .custom-spinner {
     background: rgba(11, 15, 25, 0.6);
   }
->>>>>>> Stashed changes
 }
