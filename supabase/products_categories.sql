@@ -1,7 +1,7 @@
 -- =============================================================
 -- Supabase migration: categories + products + product_variants
 -- Storefront catalog with admin management and RLS.
--- Mirrors the blogs table conventions (status, RLS by profiles.role).
+-- Mirrors the blogs table conventions (status, RLS by admins.role).
 -- Apply by hand in the Supabase SQL Editor (service key can't run DDL).
 -- Idempotent: safe to re-run.
 -- =============================================================
@@ -150,41 +150,41 @@ DROP POLICY IF EXISTS "Admins can read all categories" ON categories;
 CREATE POLICY "Admins can read all categories"
   ON categories FOR SELECT
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can insert categories" ON categories;
 CREATE POLICY "Admins can insert categories"
   ON categories FOR INSERT
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can update categories" ON categories;
 CREATE POLICY "Admins can update categories"
   ON categories FOR UPDATE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ))
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can delete categories" ON categories;
 CREATE POLICY "Admins can delete categories"
   ON categories FOR DELETE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 -- ---------- products ----------
@@ -197,41 +197,41 @@ DROP POLICY IF EXISTS "Admins can read all products" ON products;
 CREATE POLICY "Admins can read all products"
   ON products FOR SELECT
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can insert products" ON products;
 CREATE POLICY "Admins can insert products"
   ON products FOR INSERT
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can update products" ON products;
 CREATE POLICY "Admins can update products"
   ON products FOR UPDATE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ))
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can delete products" ON products;
 CREATE POLICY "Admins can delete products"
   ON products FOR DELETE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 -- ---------- product_variants ----------
@@ -249,39 +249,39 @@ DROP POLICY IF EXISTS "Admins can read all variants" ON product_variants;
 CREATE POLICY "Admins can read all variants"
   ON product_variants FOR SELECT
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can insert variants" ON product_variants;
 CREATE POLICY "Admins can insert variants"
   ON product_variants FOR INSERT
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can update variants" ON product_variants;
 CREATE POLICY "Admins can update variants"
   ON product_variants FOR UPDATE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ))
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can delete variants" ON product_variants;
 CREATE POLICY "Admins can delete variants"
   ON product_variants FOR DELETE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));

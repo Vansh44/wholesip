@@ -1,16 +1,10 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NumberField } from "@/components/ui/number-field";
 import {
@@ -18,26 +12,14 @@ import {
   updateCoupon,
   type CouponFormData,
 } from "@/app/actions/coupon-actions";
-import type { Coupon } from "./page";
+import type { Coupon, CouponGroup } from "./page";
 
 type Props = {
-  open: boolean;
   coupon: Coupon | null;
-  onClose: () => void;
-  onSaved: () => void;
+  groups: CouponGroup[];
 };
 
-const EMPTY: CouponFormData = {
-  code: "",
-  description: "",
-  discount_type: "percentage",
-  discount_value: 10,
-  min_order_amount: 0,
-  max_uses: 0,
-  valid_from: "",
-  valid_until: "",
-  status: "active",
-};
+const LIST_HREF = "/dashboard/marketing/coupons";
 
 const fieldClass =
   "w-full rounded-md border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af] focus:border-[#4f46e5]";
@@ -52,34 +34,56 @@ function toDateInput(value: string | null): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function CouponEditorDialog({ open, coupon, onClose, onSaved }: Props) {
-  const [form, setForm] = useState<CouponFormData>(EMPTY);
+function initialForm(coupon: Coupon | null): CouponFormData {
+  if (!coupon) {
+    return {
+      code: "",
+      description: "",
+      discount_type: "percentage",
+      discount_value: 10,
+      min_order_amount: 0,
+      max_uses: 0,
+      valid_from: "",
+      valid_until: "",
+      status: "active",
+      restricted_group_ids: [],
+    };
+  }
+  return {
+    code: coupon.code,
+    description: coupon.description ?? "",
+    discount_type: coupon.discount_type,
+    discount_value: coupon.discount_value,
+    min_order_amount: coupon.min_order_amount,
+    max_uses: coupon.max_uses,
+    valid_from: toDateInput(coupon.valid_from),
+    valid_until: toDateInput(coupon.valid_until),
+    status: coupon.status,
+    restricted_group_ids: coupon.restricted_group_ids ?? [],
+  };
+}
+
+export function CouponForm({ coupon, groups }: Props) {
+  const router = useRouter();
+  const [form, setForm] = useState<CouponFormData>(() => initialForm(coupon));
   const [isPending, startTransition] = useTransition();
   const isEditing = !!coupon;
-
-  useEffect(() => {
-    if (!open) return;
-    if (coupon) {
-      setForm({
-        code: coupon.code,
-        description: coupon.description ?? "",
-        discount_type: coupon.discount_type,
-        discount_value: coupon.discount_value,
-        min_order_amount: coupon.min_order_amount,
-        max_uses: coupon.max_uses,
-        valid_from: toDateInput(coupon.valid_from),
-        valid_until: toDateInput(coupon.valid_until),
-        status: coupon.status,
-      });
-    } else {
-      setForm(EMPTY);
-    }
-  }, [open, coupon]);
 
   const set = <K extends keyof CouponFormData>(
     key: K,
     value: CouponFormData[K],
   ) => setForm((f) => ({ ...f, [key]: value }));
+
+  const toggleGroup = (id: string) =>
+    setForm((f) => {
+      const cur = f.restricted_group_ids ?? [];
+      return {
+        ...f,
+        restricted_group_ids: cur.includes(id)
+          ? cur.filter((g) => g !== id)
+          : [...cur, id],
+      };
+    });
 
   const isPercentage = form.discount_type === "percentage";
 
@@ -96,22 +100,28 @@ export function CouponEditorDialog({ open, coupon, onClose, onSaved }: Props) {
         toast.error(result.error);
       } else {
         toast.success(isEditing ? "Coupon updated" : "Coupon created");
-        onSaved();
+        router.push(LIST_HREF);
+        router.refresh();
       }
     });
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit coupon" : "New coupon"}</DialogTitle>
-          <DialogDescription>
-            Discount codes shoppers can apply in the cart.
-          </DialogDescription>
-        </DialogHeader>
+    <div className="dash-page-enter">
+      <header className="dash-page-header">
+        <Link
+          href={LIST_HREF}
+          className="mb-2 inline-flex items-center gap-1 text-sm text-[#6b7280] hover:text-[#4f46e5]"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to coupons
+        </Link>
+        <h1>{isEditing ? "Edit coupon" : "New coupon"}</h1>
+        <p>Discount codes shoppers can apply in the cart.</p>
+      </header>
 
-        <div className="space-y-4 py-2">
+      <div className="dash-card max-w-[640px] p-6">
+        <div className="space-y-4">
           <div>
             <label className={labelClass}>Code *</label>
             <input
@@ -219,10 +229,51 @@ export function CouponEditorDialog({ open, coupon, onClose, onSaved }: Props) {
               <option value="disabled">Disabled</option>
             </select>
           </div>
+
+          <div>
+            <label className={labelClass}>Restrict to user groups</label>
+            {groups.length === 0 ? (
+              <p className="text-[11px] text-[#9ca3af]">
+                No user groups yet. Create groups under Users → User Groups to
+                limit a coupon to specific customers.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {groups.map((g) => {
+                    const on = (form.restricted_group_ids ?? []).includes(g.id);
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => toggleGroup(g.id)}
+                        className={`rounded-full border px-3 py-1 text-xs transition ${
+                          on
+                            ? "border-[#4f46e5] bg-[#eef2ff] text-[#4f46e5]"
+                            : "border-[#e5e7eb] text-[#6b7280] hover:border-[#c7d2fe]"
+                        }`}
+                      >
+                        {g.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1.5 text-[11px] text-[#9ca3af]">
+                  {(form.restricted_group_ids ?? []).length === 0
+                    ? "Empty = everyone can use this coupon."
+                    : "Only signed-in customers in the selected group(s) can apply this code."}
+                </p>
+              </>
+            )}
+          </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isPending}>
+        <div className="mt-6 flex justify-end gap-2 border-t border-[#f0f0f0] pt-4">
+          <Button
+            variant="outline"
+            onClick={() => router.push(LIST_HREF)}
+            disabled={isPending}
+          >
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isPending}>
@@ -232,8 +283,8 @@ export function CouponEditorDialog({ open, coupon, onClose, onSaved }: Props) {
                 ? "Save changes"
                 : "Create coupon"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </div>
   );
 }

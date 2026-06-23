@@ -38,7 +38,7 @@ describe("setPassword", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     supabase = makeSupabase({
-      profiles: makeChain({ data: null, error: null }),
+      admins: makeChain({ data: null, error: null }),
     });
     vi.mocked(createClient).mockResolvedValue(supabase);
   });
@@ -69,7 +69,7 @@ describe("setPassword", () => {
     expect(result?.error).toMatch(/first name/i);
   });
 
-  // Phone is required because customers.phone is NOT NULL; the UI is
+  // Phone is required because users.phone is NOT NULL; the UI is
   // expected to have verified it via OTP before submitting.
   it("requires a phone of length >= 10", async () => {
     const result = await setPassword(
@@ -87,7 +87,7 @@ describe("setPassword", () => {
     });
     const result = await setPassword(makeFormData(validForm));
     expect(result?.error).toMatch(/password rejected/i);
-    expect(supabase._tables.profiles.update).not.toHaveBeenCalled();
+    expect(supabase._tables.admins.update).not.toHaveBeenCalled();
   });
 
   // Happy path — set password, clear flag, refresh JWT, then redirect to
@@ -100,7 +100,7 @@ describe("setPassword", () => {
     expect(supabase.auth.updateUser).toHaveBeenCalledWith({
       password: "supersecret",
     });
-    const updatePayload = supabase._tables.profiles.update.mock.calls[0][0];
+    const updatePayload = supabase._tables.admins.update.mock.calls[0][0];
     expect(updatePayload.force_password_reset).toBe(false);
     expect(updatePayload.first_name).toBe("Ada");
     // refreshSession mints a fresh JWT with the cleared flag, so the

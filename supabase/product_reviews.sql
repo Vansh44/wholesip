@@ -1,8 +1,8 @@
 -- =============================================================
 -- Supabase migration: product_reviews (storefront customer reviews)
--- Signed-in customers can post one review per product; everyone can read.
+-- Signed-in users can post one review per product; everyone can read.
 -- Mirrors the customer-authored conventions (own-row RLS via auth.uid()).
--- author_name is denormalised on the row because the customers table is
+-- author_name is denormalised on the row because the users table is
 -- own-row-only under RLS, so a public reader can't join to it for the name.
 -- Apply by hand in the Supabase SQL Editor (service key can't run DDL).
 -- Idempotent: safe to re-run.
@@ -11,13 +11,13 @@
 CREATE TABLE IF NOT EXISTS product_reviews (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   product_id   UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  customer_id  UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   author_name  TEXT NOT NULL DEFAULT '',          -- snapshot of the reviewer's name
   rating       INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
   comment      TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (product_id, customer_id)               -- one review per customer per product
+  UNIQUE (product_id, user_id)               -- one review per customer per product
 );
 
 CREATE INDEX IF NOT EXISTS idx_product_reviews_product
@@ -56,19 +56,19 @@ DROP POLICY IF EXISTS "Customers can insert own review" ON product_reviews;
 CREATE POLICY "Customers can insert own review"
   ON product_reviews FOR INSERT
   WITH CHECK (
-    customer_id = auth.uid()
-    AND EXISTS (SELECT 1 FROM customers WHERE customers.id = auth.uid())
+    user_id = auth.uid()
+    AND EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid())
   );
 
 -- A customer may edit their own review.
 DROP POLICY IF EXISTS "Customers can update own review" ON product_reviews;
 CREATE POLICY "Customers can update own review"
   ON product_reviews FOR UPDATE
-  USING (customer_id = auth.uid())
-  WITH CHECK (customer_id = auth.uid());
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 
 -- A customer may delete their own review.
 DROP POLICY IF EXISTS "Customers can delete own review" ON product_reviews;
 CREATE POLICY "Customers can delete own review"
   ON product_reviews FOR DELETE
-  USING (customer_id = auth.uid());
+  USING (user_id = auth.uid());

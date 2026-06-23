@@ -116,7 +116,7 @@ export async function submitBlogComment(form: {
   if (!user) return { error: "Please sign in to comment." };
 
   const { data: customer } = await supabase
-    .from("customers")
+    .from("users")
     .select("first_name, last_name")
     .eq("id", user.id)
     .single();
@@ -131,7 +131,7 @@ export async function submitBlogComment(form: {
 
   const { error } = await supabase.from("blog_comments").insert({
     blog_id: form.blog_id,
-    customer_id: user.id,
+    user_id: user.id,
     author_name: authorName || "Anonymous",
     body,
   });

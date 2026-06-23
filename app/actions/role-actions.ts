@@ -43,7 +43,7 @@ async function requireRolesManager(): Promise<string | null> {
   if (!user) return null;
 
   const { data: profile } = await supabase
-    .from("profiles")
+    .from("admins")
     .select("role")
     .eq("id", user.id)
     .single();
@@ -217,7 +217,7 @@ export async function deleteRole(id: string): Promise<RoleActionResult> {
   // Block deletion while admins still hold this role — they'd be left with
   // no permissions. Surface the count so the user knows to reassign first.
   const { count } = await admin
-    .from("profiles")
+    .from("admins")
     .select("id", { count: "exact", head: true })
     .eq("role", role.slug);
 

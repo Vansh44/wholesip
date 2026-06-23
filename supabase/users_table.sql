@@ -1,5 +1,5 @@
--- Create customers table for storefront users (separate from admin profiles)
-CREATE TABLE IF NOT EXISTS customers (
+-- Create users table for storefront users (separate from admin admins)
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   phone TEXT NOT NULL UNIQUE,
   email TEXT UNIQUE,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 
 -- Auto-update updated_at on row changes
-CREATE OR REPLACE FUNCTION update_customers_updated_at()
+CREATE OR REPLACE FUNCTION update_users_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = NOW();
@@ -18,28 +18,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER customers_updated_at_trigger
-  BEFORE UPDATE ON customers
+CREATE TRIGGER users_updated_at_trigger
+  BEFORE UPDATE ON users
   FOR EACH ROW
-  EXECUTE FUNCTION update_customers_updated_at();
+  EXECUTE FUNCTION update_users_updated_at();
 
 -- Enable Row Level Security
-ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
 -- Customers can read their own row
 CREATE POLICY "Customers can read own row"
-  ON customers FOR SELECT
+  ON users FOR SELECT
   USING (auth.uid() = id);
 
 -- Customers can update their own row
 CREATE POLICY "Customers can update own row"
-  ON customers FOR UPDATE
+  ON users FOR UPDATE
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
 -- Customers can insert their own row (for profile completion)
 CREATE POLICY "Customers can insert own row"
-  ON customers FOR INSERT
+  ON users FOR INSERT
   WITH CHECK (auth.uid() = id);
 
 -- Allow service_role full access (for admin operations)

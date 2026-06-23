@@ -26,7 +26,7 @@ describe("updateCustomerProfile", () => {
     vi.clearAllMocks();
     supabase = makeSupabase(
       {
-        customers: makeChain({ data: null, error: null }),
+        users: makeChain({ data: null, error: null }),
       },
       { id: "user-1", email: "old@example.com", phone: "+11234567890" },
     );
@@ -78,22 +78,22 @@ describe("updateCustomerProfile", () => {
   });
 
   // Phone is written from auth.user.phone only — never from the form, never
-  // empty. Critical because customers.phone is NOT NULL UNIQUE and an empty
+  // empty. Critical because users.phone is NOT NULL UNIQUE and an empty
   // string would collide across every phone-less customer.
   it("only writes phone when auth has a verified value", async () => {
     await updateCustomerProfile(makeFormData({ firstName: "Ada" }));
-    const upserted = supabase._tables.customers.upsert.mock.calls[0][0];
+    const upserted = supabase._tables.users.upsert.mock.calls[0][0];
     expect(upserted.phone).toBe("+11234567890");
   });
 
   it("omits phone entirely when auth has no phone", async () => {
     supabase = makeSupabase(
-      { customers: makeChain({ data: null, error: null }) },
+      { users: makeChain({ data: null, error: null }) },
       { id: "user-1", email: "old@example.com", phone: null },
     );
     vi.mocked(createClient).mockResolvedValue(supabase);
     await updateCustomerProfile(makeFormData({ firstName: "Ada" }));
-    const upserted = supabase._tables.customers.upsert.mock.calls[0][0];
+    const upserted = supabase._tables.users.upsert.mock.calls[0][0];
     expect(upserted.phone).toBeUndefined();
   });
 });

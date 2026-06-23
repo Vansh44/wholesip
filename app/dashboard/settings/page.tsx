@@ -18,7 +18,7 @@ export default async function SettingsPage({
   if (!user) redirect("/auth/login");
 
   const { data: profile } = await supabase
-    .from("profiles")
+    .from("admins")
     .select("first_name, last_name, role, email, phone")
     .eq("id", user.id)
     .single();

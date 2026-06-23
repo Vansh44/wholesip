@@ -20,7 +20,7 @@ export async function updateProfileName(formData: FormData): Promise<Result> {
   if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase
-    .from("profiles")
+    .from("admins")
     .update({
       first_name: firstName,
       last_name: lastName || null,
@@ -104,7 +104,7 @@ export async function setVerifiedPhone(phone: string): Promise<Result> {
   }
 
   const { error } = await supabase
-    .from("profiles")
+    .from("admins")
     .update({ phone: normalized })
     .eq("id", user.id);
 

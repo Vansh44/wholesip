@@ -50,7 +50,7 @@ export async function updateCustomerProfile(formData: FormData) {
   }
 
   const { error: upsertError } = await supabase
-    .from("customers")
+    .from("users")
     .upsert(profilePayload, { onConflict: "id" });
 
   if (upsertError) {

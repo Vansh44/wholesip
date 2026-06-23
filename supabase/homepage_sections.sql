@@ -41,30 +41,30 @@ DROP POLICY IF EXISTS "Admins can insert homepage_sections" ON homepage_sections
 CREATE POLICY "Admins can insert homepage_sections"
   ON homepage_sections FOR INSERT
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can update homepage_sections" ON homepage_sections;
 CREATE POLICY "Admins can update homepage_sections"
   ON homepage_sections FOR UPDATE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ))
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can delete homepage_sections" ON homepage_sections;
 CREATE POLICY "Admins can delete homepage_sections"
   ON homepage_sections FOR DELETE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));

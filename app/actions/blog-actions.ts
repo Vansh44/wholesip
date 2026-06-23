@@ -81,7 +81,7 @@ async function getCustomerContact(
   try {
     const adminClient = createAdminClient();
     const { data } = await adminClient
-      .from("customers")
+      .from("users")
       .select("email, first_name")
       .eq("id", submittedBy)
       .single();
@@ -502,7 +502,7 @@ export async function submitCustomerBlog(
 
   // Verify user is a customer
   const { data: customer } = await supabase
-    .from("customers")
+    .from("users")
     .select("id, first_name, last_name")
     .eq("id", user.id)
     .single();
@@ -598,7 +598,7 @@ export async function saveCustomerBlogDraft(
   }
 
   const { data: customer } = await supabase
-    .from("customers")
+    .from("users")
     .select("id, first_name, last_name")
     .eq("id", user.id)
     .single();

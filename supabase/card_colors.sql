@@ -34,32 +34,32 @@ DROP POLICY IF EXISTS "Admins can insert card_colors" ON card_colors;
 CREATE POLICY "Admins can insert card_colors"
   ON card_colors FOR INSERT
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can update card_colors" ON card_colors;
 CREATE POLICY "Admins can update card_colors"
   ON card_colors FOR UPDATE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ))
   WITH CHECK (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 DROP POLICY IF EXISTS "Admins can delete card_colors" ON card_colors;
 CREATE POLICY "Admins can delete card_colors"
   ON card_colors FOR DELETE
   USING (EXISTS (
-    SELECT 1 FROM profiles
-    WHERE profiles.id = auth.uid()
-      AND profiles.role IN ('superadmin', 'member')
+    SELECT 1 FROM admins
+    WHERE admins.id = auth.uid()
+      AND admins.role IN ('superadmin', 'member')
   ));
 
 -- Optional starter palette (only inserts if the table is empty).

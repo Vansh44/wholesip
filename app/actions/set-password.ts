@@ -50,7 +50,7 @@ export async function setPassword(formData: FormData) {
     // since the UI forced them to verify. But better: update profiles with the frontend one.
 
     await supabase
-      .from("profiles")
+      .from("admins")
       .update({
         force_password_reset: false,
         first_name: firstName.trim(),

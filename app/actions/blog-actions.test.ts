@@ -76,14 +76,14 @@ describe("blog-actions", () => {
     vi.clearAllMocks();
     supabase = makeSupabase({
       blogs: makeChain({ data: { id: "b1" }, error: null }),
-      customers: makeChain({
+      users: makeChain({
         data: { id: "user-1", first_name: "Ada", last_name: "Lovelace" },
         error: null,
       }),
     });
     vi.mocked(createClient).mockResolvedValue(supabase);
     admin = makeSupabase({
-      customers: makeChain({
+      users: makeChain({
         data: { email: "ada@example.com", first_name: "Ada" },
         error: null,
       }),
@@ -213,7 +213,7 @@ describe("blog-actions", () => {
   });
 
   // submitCustomerBlog — the public-facing endpoint used by signed-in
-  // customers from /pages/blogs/write. Inserts the row with status
+  // users from /pages/blogs/write. Inserts the row with status
   // pending_review, populated via the customer's profile name.
   describe("submitCustomerBlog", () => {
     // Anonymous visitors are blocked from this action.
@@ -223,10 +223,10 @@ describe("blog-actions", () => {
       expect(result.error).toMatch(/sign in/i);
     });
 
-    // Without a customers row the action stops — a signed-in admin can't
+    // Without a users row the action stops — a signed-in admin can't
     // accidentally hit this endpoint.
     it("rejects when customer profile is missing", async () => {
-      supabase._tables.customers = makeChain({ data: null, error: null });
+      supabase._tables.users = makeChain({ data: null, error: null });
       const result = await submitCustomerBlog(customerForm);
       expect(result.error).toMatch(/profile/i);
     });

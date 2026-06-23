@@ -14,7 +14,7 @@ DROP POLICY IF EXISTS "Customers can submit blogs for review" ON blogs;
 CREATE POLICY "Customers can submit blogs for review"
   ON blogs FOR INSERT
   WITH CHECK (
-    EXISTS (SELECT 1 FROM customers WHERE customers.id = auth.uid())
+    EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid())
     AND status IN ('draft', 'pending_review')
     AND submitted_by = auth.uid()
     AND is_customer_submission = true
@@ -39,7 +39,7 @@ CREATE POLICY "Customers can edit own drafts and pending submissions"
   );
 
 -- DELETE: a customer may delete (withdraw) their own draft or pending
--- submission. Published posts are not deletable by customers.
+-- submission. Published posts are not deletable by users.
 DROP POLICY IF EXISTS "Customers can delete own drafts and pending submissions" ON blogs;
 CREATE POLICY "Customers can delete own drafts and pending submissions"
   ON blogs FOR DELETE

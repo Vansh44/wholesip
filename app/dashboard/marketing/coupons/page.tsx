@@ -16,6 +16,15 @@ export interface Coupon {
   valid_until: string | null;
   created_at: string;
   updated_at: string;
+  /** Groups this coupon is restricted to. Empty = public (anyone can apply). */
+  restricted_group_ids: string[];
+}
+
+/** A user group, for the coupon editor's restriction picker. */
+export interface CouponGroup {
+  id: string;
+  name: string;
+  color: string;
 }
 
 export default async function CouponsPage() {
@@ -44,9 +53,34 @@ export default async function CouponsPage() {
     );
   }
 
+  // User groups (for the restriction picker) and the coupon→group links.
+  // Both are best-effort: if those tables aren't migrated yet, coupons still
+  // load and simply behave as public (no restrictions).
+  const [groupsRes, linksRes] = await Promise.all([
+    supabase
+      .from("user_groups")
+      .select("id, name, color")
+      .order("name", { ascending: true }),
+    supabase.from("coupon_user_groups").select("coupon_id, group_id"),
+  ]);
+
+  const linksByCoupon = new Map<string, string[]>();
+  for (const link of linksRes.data ?? []) {
+    const cid = link.coupon_id as string;
+    const list = linksByCoupon.get(cid) ?? [];
+    list.push(link.group_id as string);
+    linksByCoupon.set(cid, list);
+  }
+
+  const enriched: Coupon[] = (coupons ?? []).map((c) => ({
+    ...(c as Omit<Coupon, "restricted_group_ids">),
+    restricted_group_ids: linksByCoupon.get(c.id as string) ?? [],
+  }));
+
   return (
     <CouponsManagementView
-      coupons={(coupons ?? []) as Coupon[]}
+      coupons={enriched}
+      groups={(groupsRes.data ?? []) as CouponGroup[]}
       canManage={canManage}
     />
   );

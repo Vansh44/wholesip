@@ -81,9 +81,9 @@ CREATE POLICY "Admins can read all blogs"
   ON blogs FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('superadmin', 'member')
+      SELECT 1 FROM admins
+      WHERE admins.id = auth.uid()
+        AND admins.role IN ('superadmin', 'member')
     )
   );
 
@@ -92,9 +92,9 @@ CREATE POLICY "Admins can insert blogs"
   ON blogs FOR INSERT
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('superadmin', 'member')
+      SELECT 1 FROM admins
+      WHERE admins.id = auth.uid()
+        AND admins.role IN ('superadmin', 'member')
     )
   );
 
@@ -103,16 +103,16 @@ CREATE POLICY "Admins can update blogs"
   ON blogs FOR UPDATE
   USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('superadmin', 'member')
+      SELECT 1 FROM admins
+      WHERE admins.id = auth.uid()
+        AND admins.role IN ('superadmin', 'member')
     )
   )
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('superadmin', 'member')
+      SELECT 1 FROM admins
+      WHERE admins.id = auth.uid()
+        AND admins.role IN ('superadmin', 'member')
     )
   );
 
@@ -121,8 +121,8 @@ CREATE POLICY "Admins can delete blogs"
   ON blogs FOR DELETE
   USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('superadmin', 'member')
+      SELECT 1 FROM admins
+      WHERE admins.id = auth.uid()
+        AND admins.role IN ('superadmin', 'member')
     )
   );

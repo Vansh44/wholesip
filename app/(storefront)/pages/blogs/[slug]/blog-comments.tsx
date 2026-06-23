@@ -11,7 +11,7 @@ import {
 
 export interface BlogComment {
   id: string;
-  customer_id: string;
+  user_id: string;
   author_name: string;
   body: string;
   created_at: string;
@@ -161,7 +161,7 @@ export function BlogComments({
           </p>
         ) : (
           visible.map((c) => {
-            const isMine = customer?.id === c.customer_id;
+            const isMine = customer?.id === c.user_id;
             return (
               <article key={c.id} className="blog-comment-card">
                 <div className="blog-comment-card-head">

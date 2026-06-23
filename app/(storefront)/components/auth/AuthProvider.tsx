@@ -50,7 +50,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   const fetchCustomer = useCallback(
     async (userId: string) => {
       const { data } = await supabase
-        .from("customers")
+        .from("users")
         .select("*")
         .eq("id", userId)
         .single();

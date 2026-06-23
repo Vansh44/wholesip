@@ -112,6 +112,9 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  /* Pin the width so the column stays put when it swaps between the top-level
+     nav and a drilled-in section's (shorter) sub-pages. */
+  width: var(--dash-sidebar-w);
 }
 
 .dashboard-shell .dash-brand {
@@ -251,6 +254,14 @@
   text-transform: uppercase;
   color: var(--dash-text-3);
   padding: 22px 18px 10px;
+}
+
+/* "← Back" row at the top of a drilled-in section. It's a regular nav item
+   (so it aligns with the sub-pages below it) with a bolder label + a divider. */
+.dashboard-shell .dash-nav-item.dash-subnav-back {
+  font-weight: 600;
+  color: var(--dash-text);
+  margin: 6px 0 8px;
 }
 
 .dashboard-shell .dash-subnav-scroll {
@@ -1984,5 +1995,772 @@ a.enquiry-detail-field:hover {
 
   .dashboard-shell .enquiries-total {
     display: none;
+  }
+}
+
+/* ============================================================
+   MOBILE — sidebar drawer, overlay & responsive shell
+   The sidebar is in-flow on desktop (>=768px). Below that it becomes a
+   slide-in drawer toggled from the topbar hamburger, and the surrounding
+   chrome (topbar, content, tables) tightens up to fit a phone.
+   ============================================================ */
+
+/* Brand row: logo + (mobile-only) close button. No padding on desktop so the
+   logo keeps its original flush placement. */
+.dashboard-shell .dash-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dashboard-shell .dash-drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: var(--dash-radius-sm);
+  color: var(--dash-text-2);
+  cursor: pointer;
+}
+.dashboard-shell .dash-drawer-close:hover {
+  background: var(--dash-surface-2);
+  color: var(--dash-text);
+}
+
+/* Backdrop is inert/hidden unless explicitly opened on mobile. */
+.dashboard-shell .dash-sidebar-overlay {
+  display: none;
+}
+
+/* The hamburger is a no-op on desktop. The scoped `.dash-icon-btn` rule sets
+   display:flex with the same specificity as Tailwind's `md:hidden`, so this
+   dedicated rule (later in the cascade) is what actually hides it >=768px. */
+.dashboard-shell .dash-nav-toggle {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* The two-pane sidebar collapses into a single scrollable drawer column. */
+  .dashboard-shell .dash-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100vh;
+    height: 100dvh;
+    flex-direction: column;
+    width: 284px;
+    max-width: 86vw;
+    background: var(--dash-surface);
+    border-right: 1px solid var(--dash-border);
+    box-shadow: var(--dash-shadow-lg);
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 70;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .dashboard-shell .dash-sidebar--open {
+    transform: translateX(0);
+  }
+
+  /* Primary nav fills the drawer; the whole drawer scrolls. */
+  .dashboard-shell .dash-primary {
+    height: auto;
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  .dashboard-shell .dash-brand-row {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--dash-border);
+  }
+
+  .dashboard-shell .dash-nav-scroll {
+    flex: 0 0 auto;
+    overflow: visible;
+    padding: 6px 12px 10px;
+  }
+
+  /* Sub-nav (e.g. Marketing → Coupons) stacks beneath the primary nav. */
+  .dashboard-shell .dash-subnav {
+    width: 100%;
+    flex: 0 0 auto;
+    border-right: none;
+    border-top: 1px solid var(--dash-border);
+  }
+
+  .dashboard-shell .dash-subnav-scroll {
+    overflow: visible;
+  }
+
+  .dashboard-shell .dash-sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.45);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 0.3s ease,
+      visibility 0.3s ease;
+    z-index: 65;
+  }
+
+  .dashboard-shell .dash-sidebar-overlay.open {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* ---- Topbar ---- */
+  .dashboard-shell .dash-topbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .dashboard-shell .dash-nav-toggle {
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  /* These scoped display:flex rules out-specify Tailwind's hidden/sm:flex, so
+     hide them here to keep the cramped mobile topbar legible. */
+  .dashboard-shell .dash-search-bar {
+    display: none;
+  }
+
+  .dashboard-shell .dash-icon-btn[aria-label="Messages"] {
+    display: none;
+  }
+
+  .dashboard-shell .dash-topbar-title {
+    font-size: 15px;
+  }
+
+  /* ---- Content ---- */
+  .dashboard-shell .dash-content {
+    padding: 16px 14px 32px;
+  }
+
+  .dashboard-shell .dash-page-header h1 {
+    font-size: 20px;
+  }
+
+  /* ---- Data tables scroll horizontally instead of overflowing ---- */
+  .dashboard-shell .dash-table:not(.enquiries-table) {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Cell-level positioning context. Without it the visually-hidden `.sr-only`
+     labels inside row-action buttons are position:absolute with no positioned
+     ancestor, so they escape the table's clip and stretch the whole document
+     sideways. Containing them in the cell keeps the page at viewport width. */
+  .dashboard-shell .dash-table td,
+  .dashboard-shell .dash-table th {
+    position: relative;
+  }
+
+  /* Segmented filter control scrolls sideways rather than getting clipped. */
+  .dashboard-shell .dash-filter-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .dashboard-shell .dash-filter-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .dashboard-shell .dash-filter-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
+/* ============================================================
+   USERS (storefront customers) — list, metrics, table & detail
+   Mirrors the Enquiries section's visual language using the shared
+   --dash-* tokens. The detail block is intentionally NOT scoped to
+   .dashboard-shell because the intercepted modal portals to <body>.
+   ============================================================ */
+.dashboard-shell .customers-header {
+  margin-bottom: 16px;
+}
+
+.dashboard-shell .customers-header h1 {
+  font-size: 26px;
+  letter-spacing: 0;
+}
+
+.dashboard-shell .customers-total {
+  display: flex;
+  min-width: 96px;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  border-left: 1px solid rgba(17, 24, 39, 0.09);
+  padding-left: 18px;
+}
+
+.dashboard-shell .customers-total span {
+  color: #101827;
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.dashboard-shell .customers-total small {
+  margin-top: 4px;
+  color: var(--dash-text-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dashboard-shell .customers-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dashboard-shell .customer-metric {
+  display: flex;
+  min-height: 82px;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  padding: 14px 16px;
+  text-align: left;
+  box-shadow: var(--dash-shadow-xs);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.dashboard-shell .customer-metric:hover {
+  border-color: var(--dash-border-hover);
+  box-shadow: var(--dash-shadow-sm);
+  transform: translateY(-1px);
+}
+
+.dashboard-shell .customer-metric.active {
+  border-color: rgba(79, 70, 229, 0.28);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08);
+}
+
+.dashboard-shell .customer-metric-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--dash-surface-2);
+  color: var(--dash-text-2);
+}
+
+.dashboard-shell .customer-metric-total .customer-metric-icon {
+  background: var(--dash-accent-soft);
+  color: var(--dash-accent);
+}
+
+.dashboard-shell .customer-metric-reviewers .customer-metric-icon {
+  background: var(--dash-amber-soft);
+  color: var(--dash-amber);
+}
+
+.dashboard-shell .customer-metric-withEmail .customer-metric-icon {
+  background: var(--dash-green-soft);
+  color: var(--dash-green);
+}
+
+.dashboard-shell .customer-metric strong {
+  display: block;
+  color: #101827;
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.dashboard-shell .customer-metric small {
+  display: block;
+  margin-top: 6px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dashboard-shell .customers-command {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dashboard-shell .customers-search {
+  display: flex;
+  flex: 1 1 auto;
+  height: 40px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  padding: 0 12px;
+  color: var(--dash-text-3);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dashboard-shell .customers-search:focus-within {
+  border-color: var(--dash-accent);
+  box-shadow: 0 0 0 3px var(--dash-accent-soft);
+}
+
+.dashboard-shell .customers-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--dash-text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: 0;
+}
+
+.dashboard-shell .customers-search input::placeholder {
+  color: var(--dash-text-3);
+}
+
+.dashboard-shell .customers-select {
+  height: 40px;
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  color: var(--dash-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 170px;
+  padding: 0 12px;
+}
+
+.dashboard-shell .customers-table-card {
+  border-radius: 10px;
+}
+
+.dashboard-shell .customers-table-head {
+  min-height: 66px;
+}
+
+.dashboard-shell .customers-table-wrap {
+  overflow-x: auto;
+}
+
+.dashboard-shell .customers-table {
+  min-width: 860px;
+}
+
+.dashboard-shell .customers-table tbody tr {
+  cursor: pointer;
+}
+
+.dashboard-shell .customers-table td {
+  height: 72px;
+}
+
+.dashboard-shell .customers-person {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 240px;
+}
+
+.dashboard-shell .customers-person > span {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-shell .customers-person strong {
+  display: block;
+  max-width: 210px;
+  overflow: hidden;
+  color: var(--dash-text);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-shell .customers-person a,
+.dashboard-shell .customers-person .customers-noemail {
+  display: block;
+  max-width: 230px;
+  overflow: hidden;
+  color: var(--dash-text-2);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-shell .customers-person .customers-noemail {
+  color: var(--dash-text-3);
+  font-style: italic;
+}
+
+.dashboard-shell .customers-phone,
+.dashboard-shell .customers-date {
+  white-space: nowrap;
+}
+
+.dashboard-shell .customers-activity {
+  display: flex;
+  gap: 14px;
+}
+
+.dashboard-shell .customers-activity span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--dash-text-2);
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.dashboard-shell .customers-activity svg {
+  color: var(--dash-text-3);
+}
+
+.dashboard-shell .customers-row-menu {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  color: var(--dash-text-2);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dashboard-shell .customers-row-menu:hover {
+  border-color: var(--dash-border-hover);
+  background: var(--dash-surface-2);
+  color: var(--dash-text);
+}
+
+.dashboard-shell .customers-empty {
+  padding: 54px 24px;
+  text-align: center;
+}
+
+.dashboard-shell .customers-empty div {
+  color: var(--dash-text);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.dashboard-shell .customers-empty p {
+  margin-top: 6px;
+  color: var(--dash-text-3);
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .dashboard-shell .customers-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dashboard-shell .customers-total {
+    display: none;
+  }
+  .dashboard-shell .customers-command {
+    flex-wrap: wrap;
+  }
+  .dashboard-shell .customers-select {
+    flex: 1 1 auto;
+  }
+}
+
+/* ---------- Shared edit form (dialog + inline detail) ---------- */
+.customers-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.customers-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.customers-form label > span {
+  color: #8b93a3;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.customers-form input {
+  height: 38px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 11px;
+  color: #1f2937;
+  font-family: inherit;
+  font-size: 13.5px;
+  outline: 0;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.customers-form input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.customers-form-phone {
+  color: #8b93a3;
+  font-size: 12.5px;
+}
+
+.customers-form-phone code {
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  color: #1f2937;
+}
+
+/* ---------- Customer detail (full page + portaled modal) ----------
+   Literal light values (not --dash-* tokens) so the body-portaled modal
+   renders correctly outside the dashboard shell. */
+.customer-detail {
+  color: #1f2937;
+}
+
+.customer-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 188px;
+  gap: 20px;
+}
+
+.customer-detail-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.customer-detail-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.customer-detail-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 10px;
+  background: #fff;
+  padding: 11px 13px;
+  color: #1f2937;
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+a.customer-detail-field:hover {
+  border-color: rgba(79, 70, 229, 0.35);
+  background: rgba(79, 70, 229, 0.04);
+}
+
+.customer-detail-field > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #8b93a3;
+}
+
+.customer-detail-field > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13.5px;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.customer-detail-field small {
+  color: #8b93a3;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.customer-detail-field code {
+  font-family: var(--font-dash-mono), ui-monospace, monospace;
+  font-size: 13px;
+}
+
+.customer-detail-field em {
+  color: #8b93a3;
+  font-style: italic;
+}
+
+.customer-detail-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #8b93a3;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.customer-detail-muted {
+  color: #8b93a3;
+  font-size: 13px;
+}
+
+.customer-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.customer-detail-list li {
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 10px;
+  background: #f9fafb;
+  padding: 10px 12px;
+}
+
+.customer-detail-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.customer-detail-list-head strong,
+.customer-detail-link {
+  color: #111827;
+  font-size: 13.5px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.customer-detail-link:hover {
+  color: #4f46e5;
+  text-decoration: underline;
+}
+
+.customer-detail-stars {
+  color: #f59e0b;
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.customer-detail-list p {
+  margin-top: 5px;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.customer-detail-list small {
+  display: block;
+  margin-top: 5px;
+  color: #8b93a3;
+  font-size: 11.5px;
+}
+
+.customer-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.customer-detail-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.customer-detail-action-list > button {
+  width: 100%;
+}
+
+.customer-detail-danger {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.customer-detail-danger > span {
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.customer-detail-danger-row {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 560px) {
+  .customer-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .customer-detail-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .customer-detail-actions {
+    border-top: 1px solid rgba(17, 24, 39, 0.08);
+    padding-top: 16px;
   }
 }

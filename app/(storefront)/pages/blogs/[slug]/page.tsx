@@ -109,7 +109,7 @@ async function getComments(blogId: string): Promise<BlogComment[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("blog_comments")
-    .select("id, customer_id, author_name, body, created_at")
+    .select("id, user_id, author_name, body, created_at")
     .eq("blog_id", blogId)
     .order("created_at", { ascending: false });
   return (data ?? []) as BlogComment[];
