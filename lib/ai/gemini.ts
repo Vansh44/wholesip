@@ -120,7 +120,8 @@ export async function callGemini(
       };
     if (res.status >= 500)
       return {
-        error: "The AI service is busy right now. Please try again in a moment.",
+        error:
+          "The AI service is busy right now. Please try again in a moment.",
       };
     return { error: `AI request failed (${res.status}). Try again.` };
   }

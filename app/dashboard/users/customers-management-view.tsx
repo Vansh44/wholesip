@@ -319,8 +319,7 @@ export function CustomersManagementView({
           <div>
             <div className="dash-card-title">Users</div>
             <div className="dash-card-sub">
-              {sorted.length} {sorted.length === 1 ? "user" : "users"}{" "}
-              shown
+              {sorted.length} {sorted.length === 1 ? "user" : "users"} shown
             </div>
           </div>
         </div>

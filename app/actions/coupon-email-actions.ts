@@ -114,7 +114,8 @@ export async function generateCouponEmail(
   const brand = await loadBrandSoul();
   if (!brand) {
     return {
-      error: "brand/brand.md is missing or empty. Paste your brand guide first.",
+      error:
+        "brand/brand.md is missing or empty. Paste your brand guide first.",
     };
   }
 
@@ -122,9 +123,13 @@ export async function generateCouponEmail(
     `Coupon code: ${input.code}`,
     `Offer: ${input.discountLabel}`,
     input.validUntilLabel ? `Valid until: ${input.validUntilLabel}` : "",
-    input.description ? `Internal note about the coupon: ${input.description}` : "",
+    input.description
+      ? `Internal note about the coupon: ${input.description}`
+      : "",
     `Audience: ${input.audienceLabel}`,
-    input.instructions ? `Extra direction from the team: ${input.instructions}` : "",
+    input.instructions
+      ? `Extra direction from the team: ${input.instructions}`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");

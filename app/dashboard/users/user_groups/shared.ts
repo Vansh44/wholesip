@@ -42,5 +42,7 @@ const GROUP_BADGE_CLASS: Record<GroupColor, string> = {
 };
 
 export function groupBadgeClass(color: string): string {
-  return GROUP_BADGE_CLASS[(color as GroupColor) ?? "blue"] ?? "dash-badge-blue";
+  return (
+    GROUP_BADGE_CLASS[(color as GroupColor) ?? "blue"] ?? "dash-badge-blue"
+  );
 }

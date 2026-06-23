@@ -153,7 +153,9 @@ export function GroupsManagementView({ groups, canManage = true }: Props) {
                 <tr key={g.id}>
                   <td>
                     <div className="flex items-center gap-2">
-                      <span className={`dash-badge ${groupBadgeClass(g.color)}`}>
+                      <span
+                        className={`dash-badge ${groupBadgeClass(g.color)}`}
+                      >
                         {g.name}
                       </span>
                     </div>

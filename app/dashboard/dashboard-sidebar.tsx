@@ -66,7 +66,9 @@ export function DashboardSidebar({
       <aside
         className={`dash-sidebar shrink-0 ${open ? "dash-sidebar--open" : ""}`}
       >
-        {/* ── Primary nav (icon + name) ── */}
+        {/* Single drill-down column. By default it shows the grouped top-level
+            nav. Inside a section that has sub-pages, the top-level nav is
+            replaced by a "Back" link + that section's sub-pages. */}
         <div className="dash-primary">
           <div className="dash-brand-row">
             <Link href="/dashboard" className="dash-brand">
@@ -89,57 +91,61 @@ export function DashboardSidebar({
             </button>
           </div>
 
-          <div className="dash-nav-scroll">
-            {groups.map((g) => (
-              <div key={g.group} className="pt-1">
-                <div className="dash-nav-label">{g.group}</div>
+          {showPanel ? (
+            <div className="dash-nav-scroll">
+              <Link
+                href="/dashboard"
+                className="dash-nav-item dash-subnav-back"
+              >
+                <span className="dash-nav-icon" aria-hidden>
+                  <ArrowLeft className="h-[17px] w-[17px]" strokeWidth={2} />
+                </span>
+                <span className="truncate">Back</span>
+              </Link>
+              <div className="pt-1">
+                <div className="dash-nav-label">{activeSection.label}</div>
                 <nav>
-                  {g.items.map((item) => (
-                    <SidebarNavLink
-                      key={item.href}
-                      href={item.href}
-                      label={item.label}
-                      icon={item.icon}
-                      badge={item.badge}
-                      badgeTone={item.badgeTone}
-                    />
-                  ))}
+                  {activeSection.children!.map((c) => {
+                    const Icon = navIcons[c.icon ?? activeSection.icon];
+                    const active = matches(pathname, c.href);
+                    return (
+                      <Link
+                        key={c.href}
+                        href={c.href}
+                        className={`dash-nav-item ${active ? "active" : ""}`}
+                      >
+                        <span className="dash-nav-icon" aria-hidden>
+                          <Icon className="h-[17px] w-[17px]" strokeWidth={2} />
+                        </span>
+                        <span className="truncate">{c.label}</span>
+                      </Link>
+                    );
+                  })}
                 </nav>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Sub-nav panel (only for sections with sub-pages) ── */}
-        {showPanel && (
-          <div className="dash-subnav">
-            <Link href="/dashboard" className="dash-subnav-back">
-              <ArrowLeft className="h-4 w-4" strokeWidth={2} />
-              <span>Back</span>
-            </Link>
-            <div className="dash-subnav-title">{activeSection.label}</div>
-            <div className="dash-subnav-scroll">
-              <nav>
-                {activeSection.children!.map((c) => {
-                  const Icon = navIcons[c.icon ?? activeSection.icon];
-                  const active = matches(pathname, c.href);
-                  return (
-                    <Link
-                      key={c.href}
-                      href={c.href}
-                      className={`dash-nav-item ${active ? "active" : ""}`}
-                    >
-                      <span className="dash-nav-icon" aria-hidden>
-                        <Icon className="h-[17px] w-[17px]" strokeWidth={2} />
-                      </span>
-                      <span className="truncate">{c.label}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="dash-nav-scroll">
+              {groups.map((g) => (
+                <div key={g.group} className="pt-1">
+                  <div className="dash-nav-label">{g.group}</div>
+                  <nav>
+                    {g.items.map((item) => (
+                      <SidebarNavLink
+                        key={item.href}
+                        href={item.href}
+                        label={item.label}
+                        icon={item.icon}
+                        badge={item.badge}
+                        badgeTone={item.badgeTone}
+                      />
+                    ))}
+                  </nav>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </aside>
     </>
   );

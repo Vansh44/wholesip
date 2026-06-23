@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSectionAccess } from "../lib/access";
 import { UsersManagementView } from "./users-management-view";
 
@@ -25,7 +26,13 @@ export default async function UsersPage() {
 
   const supabase = await createClient();
 
-  const { data: profiles, error } = await supabase
+  // The admins (staff) table is RLS-scoped to own-row reads for the session
+  // client, so cross-row listing goes through the service-role admin client —
+  // same pattern as the Users (customers) list. The page is already gated by
+  // requireSectionAccess("admins", "view") above.
+  const admin = createAdminClient();
+
+  const { data: profiles, error } = await admin
     .from("admins")
     .select("*")
     .order("created_at", { ascending: false });
@@ -37,13 +44,14 @@ export default async function UsersPage() {
     .order("name", { ascending: true });
 
   if (error) {
+    console.error("Failed to load admins:", error);
     return (
       <div className="max-w-md border border-destructive/20 bg-destructive/5 p-6 text-sm text-destructive">
         <div className="mb-1 flex items-center gap-2 font-semibold">
           <span>⚠️</span> Failed to load users
         </div>
         <p className="leading-relaxed text-destructive/80">
-          Make sure you have superadmin access and the profiles table exists in
+          Make sure you have superadmin access and the admins table exists in
           your database.
         </p>
       </div>

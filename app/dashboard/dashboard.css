@@ -112,6 +112,9 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  /* Pin the width so the column stays put when it swaps between the top-level
+     nav and a drilled-in section's (shorter) sub-pages. */
+  width: var(--dash-sidebar-w);
 }
 
 .dashboard-shell .dash-brand {
@@ -253,29 +256,12 @@
   padding: 22px 18px 10px;
 }
 
-/* "← Back" row at the top of the sub-nav panel, returning to the dashboard
-   home. Followed by the section title, then the section's sub-pages. */
-.dashboard-shell .dash-subnav-back {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 18px 18px 14px;
-  font-size: 14px;
+/* "← Back" row at the top of a drilled-in section. It's a regular nav item
+   (so it aligns with the sub-pages below it) with a bolder label + a divider. */
+.dashboard-shell .dash-nav-item.dash-subnav-back {
   font-weight: 600;
-  color: var(--dash-text-2);
-  transition: color 0.15s ease;
-}
-.dashboard-shell .dash-subnav-back:hover {
   color: var(--dash-text);
-}
-
-.dashboard-shell .dash-subnav-title {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--dash-text-3);
-  padding: 0 18px 10px;
+  margin: 6px 0 8px;
 }
 
 .dashboard-shell .dash-subnav-scroll {
@@ -2082,10 +2068,11 @@ a.enquiry-detail-field:hover {
     transform: translateX(0);
   }
 
-  /* Primary nav sizes to content; the whole drawer scrolls. */
+  /* Primary nav fills the drawer; the whole drawer scrolls. */
   .dashboard-shell .dash-primary {
     height: auto;
     flex: 0 0 auto;
+    width: 100%;
   }
 
   .dashboard-shell .dash-brand-row {

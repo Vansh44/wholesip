@@ -110,7 +110,10 @@ export function CouponsManagementView({
           <p>Create and manage storefront discount codes</p>
         </div>
         {canManage && (
-          <Link href={`${BASE}/new`} className="dash-btn dash-btn-primary shrink-0">
+          <Link
+            href={`${BASE}/new`}
+            className="dash-btn dash-btn-primary shrink-0"
+          >
             <Plus className="h-4 w-4" />
             New coupon
           </Link>
@@ -241,14 +244,18 @@ export function CouponsManagementView({
                           >
                             <DropdownMenuItem
                               className="cursor-pointer"
-                              onClick={() => router.push(`${BASE}/${c.id}/edit`)}
+                              onClick={() =>
+                                router.push(`${BASE}/${c.id}/edit`)
+                              }
                             >
                               <Pencil className="mr-2 h-4 w-4" />
                               Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="cursor-pointer"
-                              onClick={() => router.push(`${BASE}/${c.id}/email`)}
+                              onClick={() =>
+                                router.push(`${BASE}/${c.id}/email`)
+                              }
                             >
                               <Mail className="mr-2 h-4 w-4" />
                               Send email

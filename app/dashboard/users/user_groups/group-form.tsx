@@ -34,8 +34,10 @@ export function GroupForm({ group }: Props) {
   });
   const [isPending, startTransition] = useTransition();
 
-  const set = <K extends keyof GroupFormData>(key: K, value: GroupFormData[K]) =>
-    setForm((f) => ({ ...f, [key]: value }));
+  const set = <K extends keyof GroupFormData>(
+    key: K,
+    value: GroupFormData[K],
+  ) => setForm((f) => ({ ...f, [key]: value }));
 
   const handleSave = () => {
     if (!form.name.trim()) {
