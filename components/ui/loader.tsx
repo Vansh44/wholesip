@@ -1,11 +1,19 @@
-import * as React from "react"
-import { cn } from "@/lib/utils"
+import Image, { ImageProps } from "next/image";
+import { cn } from "@/lib/utils";
 
-export function Loader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+interface LoaderProps extends Omit<ImageProps, "src" | "alt"> {
+  className?: string;
+}
+
+export function Loader({ className, ...props }: LoaderProps) {
   return (
-    <div
-      className={cn("loader", className)}
+    <Image
+      src="/loader.svg"
+      alt="Loading..."
+      width={200}
+      height={60}
+      className={cn("w-32 h-auto", className)}
       {...props}
     />
-  )
+  );
 }

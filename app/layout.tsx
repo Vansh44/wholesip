@@ -53,7 +53,7 @@ export default function RootLayout({
           color="transparent"
           height={0}
           showSpinner={true}
-          template='<div class="custom-spinner" role="spinner"><div class="loader"></div></div><div role="bar" style="display: none;"><div class="peg"></div></div>'
+          template='<div class="custom-spinner" role="spinner"><img src="/loader.svg" alt="Loading..." class="w-32 h-auto" /></div><div role="bar" style="display: none;"><div class="peg"></div></div>'
         />
         {children}
       </body>
