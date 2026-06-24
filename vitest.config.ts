@@ -14,20 +14,40 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
-      // Scope to the code we actually unit-test. Excludes Supabase SDK
-      // wrappers, email templates, and Next.js route/component files, which
-      // are covered by integration/e2e flows rather than vitest.
+      // NOTE: the istanbul text-summary tree occasionally omits a row for a
+      // fully-covered file (e.g. group-form.tsx, which is at 100%) — see the
+      // HTML report (coverage/index.html) for the complete, authoritative
+      // picture.
+      //
+      // Scope to the code we actually unit-test. Remaining Supabase SDK
+      // wrappers, email layout templates, and untested Next.js route/component
+      // files are covered by integration/e2e flows rather than vitest.
       include: [
+        // Pure lib utilities
         "lib/utils.ts",
         "lib/slug.ts",
         "lib/pricing.ts",
         "lib/sanitize.ts",
         "lib/blog-config.ts",
+        "lib/og-image.ts",
+        "lib/phone-labels.ts",
+        "lib/blog-reactions.ts",
+        "lib/email/coupon-campaign.ts",
+        "lib/homepage/section-types.ts",
+        "lib/ai/gemini.ts",
         "lib/supabase/storage-cleanup.ts",
+        // Server actions + permission logic
         "app/actions/**/*.ts",
         "app/dashboard/lib/permissions.ts",
+        // Behavior-tested client components (storefront + dashboard).
+        "**/components/cart/CartProvider.tsx",
+        "**/components/cart/CouponField.tsx",
+        "**/components/auth/AuthProvider.tsx",
+        "**/pages/enquiries/enquiries-form.tsx",
+        "**/user_groups/group-form.tsx",
+        "**/marketing/coupons/coupon-form.tsx",
       ],
-      exclude: ["**/*.test.ts", "**/_test-helpers.ts"],
+      exclude: ["**/*.test.{ts,tsx}", "**/_test-helpers.ts"],
     },
   },
 });
