@@ -189,13 +189,21 @@ describe("EnquiriesForm", () => {
     expect(await screen.findByText(/Enter the 6-digit code/)).toBeTruthy();
     expect(signInWithOtp).toHaveBeenCalledTimes(1);
 
-    // Fill the 6 digits; the 6th auto-triggers verify.
+    // Fill the 6 digits; the 6th auto-triggers verify. Use synchronous
+    // fireEvent.change (re-querying each input by label) rather than
+    // user.type — the component auto-advances focus on each keystroke, and on
+    // slow CI runners the async per-key typing can land on a re-rendered input
+    // and drop a digit, so auto-verify never fires.
     for (let i = 1; i <= 6; i++) {
-      await user.type(screen.getByLabelText(`Digit ${i}`), String(i));
+      fireEvent.change(screen.getByLabelText(`Digit ${i}`), {
+        target: { value: String(i) },
+      });
     }
 
     // Verified (async verifyOtp resolves) -> phone shows verified.
-    expect(await screen.findByText(/· verified/)).toBeTruthy();
+    expect(
+      await screen.findByText(/· verified/, undefined, { timeout: 3000 }),
+    ).toBeTruthy();
 
     expect(verifyOtp).toHaveBeenCalledTimes(1);
     expect(verifyOtp).toHaveBeenCalledWith(
