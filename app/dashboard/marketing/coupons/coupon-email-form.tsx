@@ -192,7 +192,6 @@ export function CouponEmailForm({ coupon, groups }: Props) {
           : "";
         toast.success(`Sent to ${res.sent} customer(s)${skipped}`);
         router.push(LIST_HREF);
-        router.refresh();
       }
     });
   };
