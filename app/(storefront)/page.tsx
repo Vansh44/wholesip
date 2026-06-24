@@ -1,4 +1,5 @@
 import Hero from "@/app/(storefront)/components/hero/Hero";
+import StructuredData from "@/app/(storefront)/components/structured-data";
 import {
   getEnabledHomepageSections,
   getPublishedProducts,
@@ -28,6 +29,13 @@ import "@/app/(storefront)/components/homepage/homepage.css";
 // revalidatePath("/") in the actions.
 export const revalidate = 300;
 
+export const metadata = {
+  title: "Soakd | The Way Earth Made It",
+  description:
+    "Soakd — zero preservatives, 100% real ingredients. The way Earth made it.",
+  alternates: { canonical: "/" },
+};
+
 // A homepage product row: ShopCard's needs + category_id for category-mode
 // filtering. Matches the shop page's product select shape.
 type HomeProduct = ShopCardProduct & { category_id: string | null };
@@ -40,6 +48,7 @@ export default async function Home() {
   if (sections.length === 0) {
     return (
       <main>
+        <StructuredData />
         <Hero />
       </main>
     );
@@ -116,6 +125,7 @@ export default async function Home() {
 
   return (
     <main>
+      <StructuredData />
       <Hero />
       <div className="home-sections">
         {sections.map((s) => (
