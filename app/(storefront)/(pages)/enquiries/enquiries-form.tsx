@@ -9,6 +9,7 @@ import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { customPhoneLabels } from "@/lib/phone-labels";
 import { CountrySelect } from "@/components/ui/phone-country-select";
+import { useOtpThrottle } from "@/lib/use-otp-throttle";
 
 // Preset enquiry topics. "Other" reveals a free-text field.
 const SUBJECT_OPTIONS = [
@@ -75,6 +76,15 @@ export default function EnquiriesForm() {
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  // Client-side caps on wrong-code submissions and resends (see hook).
+  const {
+    verifyBlocked,
+    resendBlocked,
+    registerFailedVerify,
+    registerResend,
+    reset: resetOtpThrottle,
+  } = useOtpThrottle();
+
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // An already-signed-in customer's phone is verified (their account number),
@@ -117,6 +127,12 @@ export default function EnquiriesForm() {
       setError("Please enter a valid 10-digit phone number.");
       return;
     }
+    // A send while a code is already out is a "resend" — cap those.
+    const isResend = otpSent;
+    if (isResend && resendBlocked) {
+      setError("Too many code requests. Please try again later.");
+      return;
+    }
     setError("");
     setSendingOtp(true);
     try {
@@ -129,6 +145,7 @@ export default function EnquiriesForm() {
         setSendingOtp(false);
         return;
       }
+      if (isResend) registerResend();
       setOtp(Array(OTP_LENGTH).fill(""));
       setOtpSent(true);
       setResendTimer(RESEND_COOLDOWN);
@@ -143,6 +160,7 @@ export default function EnquiriesForm() {
   // ---- Phone: verify the OTP (does NOT establish a session) ----
   const handleVerifyOtp = useCallback(
     async (otpValue: string) => {
+      if (verifyBlocked) return;
       setError("");
       setVerifying(true);
       try {
@@ -153,6 +171,7 @@ export default function EnquiriesForm() {
           type: "sms",
         });
         if (verifyError) {
+          registerFailedVerify();
           setError(verifyError.message);
           setVerifying(false);
           return;
@@ -168,13 +187,14 @@ export default function EnquiriesForm() {
         setVerifying(false);
       }
     },
-    [fullPhone],
+    [fullPhone, verifyBlocked, registerFailedVerify],
   );
 
   const resetPhone = () => {
     setOtpSent(false);
     setOtp(Array(OTP_LENGTH).fill(""));
     setError("");
+    resetOtpThrottle();
   };
 
   // ---- OTP input handlers ----
@@ -454,7 +474,7 @@ export default function EnquiriesForm() {
                             maxLength={1}
                             value={digit}
                             placeholder="·"
-                            disabled={verifying}
+                            disabled={verifying || verifyBlocked}
                             onChange={(e) => handleOtpChange(i, e.target.value)}
                             onKeyDown={(e) => handleOtpKeyDown(i, e)}
                             aria-label={`Digit ${i + 1}`}
@@ -478,7 +498,11 @@ export default function EnquiriesForm() {
                       )}
 
                       <div className={styles.resendRow}>
-                        {resendTimer > 0 ? (
+                        {resendBlocked ? (
+                          <span>
+                            Too many code requests. Please try again later.
+                          </span>
+                        ) : resendTimer > 0 ? (
                           <span>Resend code in {resendTimer}s</span>
                         ) : (
                           <button

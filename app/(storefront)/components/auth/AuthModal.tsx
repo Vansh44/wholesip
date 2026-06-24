@@ -11,6 +11,7 @@ import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { customPhoneLabels } from "@/lib/phone-labels";
 import { CountrySelect } from "@/components/ui/phone-country-select";
+import { useOtpThrottle } from "@/lib/use-otp-throttle";
 
 type Step = "phone" | "otp" | "profile";
 
@@ -33,6 +34,15 @@ export default function AuthModal() {
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const phoneInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Client-side caps on wrong-code submissions and resends (see hook).
+  const {
+    verifyBlocked,
+    resendBlocked,
+    registerFailedVerify,
+    registerResend,
+    reset: resetOtpThrottle,
+  } = useOtpThrottle();
+
   // Reset state when modal closes
   useEffect(() => {
     if (!isAuthModalOpen) {
@@ -47,10 +57,11 @@ export default function AuthModal() {
         setError("");
         setLoading(false);
         setResendTimer(0);
+        resetOtpThrottle();
       }, 400);
       return () => clearTimeout(t);
     }
-  }, [isAuthModalOpen]);
+  }, [isAuthModalOpen, resetOtpThrottle]);
 
   // Focus phone input on open
   useEffect(() => {
@@ -118,6 +129,10 @@ export default function AuthModal() {
 
   // ---- Resend OTP ----
   const handleResendOtp = async () => {
+    if (resendBlocked) {
+      setError("Too many code requests. Please try again later.");
+      return;
+    }
     setError("");
     setLoading(true);
 
@@ -130,6 +145,7 @@ export default function AuthModal() {
       if (otpError) {
         setError(otpError.message);
       } else {
+        registerResend();
         setResendTimer(RESEND_COOLDOWN);
         setOtp(Array(OTP_LENGTH).fill(""));
         setTimeout(() => otpRefs.current[0]?.focus(), 100);
@@ -143,6 +159,7 @@ export default function AuthModal() {
   // ---- Step 2: Verify OTP ----
   const handleVerifyOtp = useCallback(
     async (otpValue: string) => {
+      if (verifyBlocked) return;
       setError("");
       setLoading(true);
 
@@ -155,6 +172,7 @@ export default function AuthModal() {
         });
 
         if (verifyError) {
+          registerFailedVerify();
           setError(verifyError.message);
           setLoading(false);
           return;
@@ -184,7 +202,13 @@ export default function AuthModal() {
         setLoading(false);
       }
     },
-    [fullPhone, refreshCustomer, closeAuthModal],
+    [
+      fullPhone,
+      refreshCustomer,
+      closeAuthModal,
+      verifyBlocked,
+      registerFailedVerify,
+    ],
   );
 
   // ---- OTP input handlers ----
@@ -315,6 +339,7 @@ export default function AuthModal() {
           setStep("phone");
           setOtp(Array(OTP_LENGTH).fill(""));
           setError("");
+          resetOtpThrottle();
         }}
       >
         <svg
@@ -341,6 +366,7 @@ export default function AuthModal() {
             setStep("phone");
             setOtp(Array(OTP_LENGTH).fill(""));
             setError("");
+            resetOtpThrottle();
           }}
         >
           Edit
@@ -360,6 +386,7 @@ export default function AuthModal() {
             maxLength={1}
             value={digit}
             placeholder="·"
+            disabled={verifyBlocked}
             onChange={(e) => handleOtpChange(i, e.target.value)}
             onKeyDown={(e) => handleOtpKeyDown(i, e)}
             id={`auth-otp-input-${i}`}
@@ -381,8 +408,16 @@ export default function AuthModal() {
 
       {error && <p className={styles.error}>{error}</p>}
 
+      {verifyBlocked && !resendBlocked && (
+        <p className={styles.error}>
+          Too many incorrect attempts. Request a new code to try again.
+        </p>
+      )}
+
       <div className={styles.secondaryAction}>
-        {resendTimer > 0 ? (
+        {resendBlocked ? (
+          <span>Too many code requests. Please try again later.</span>
+        ) : resendTimer > 0 ? (
           <span>Resend OTP in {resendTimer}s</span>
         ) : (
           <button

@@ -35,6 +35,7 @@ export default defineConfig({
         "lib/email/coupon-campaign.ts",
         "lib/homepage/section-types.ts",
         "lib/ai/gemini.ts",
+        "lib/use-otp-throttle.ts",
         "lib/supabase/storage-cleanup.ts",
         // Server actions + permission logic
         "app/actions/**/*.ts",
