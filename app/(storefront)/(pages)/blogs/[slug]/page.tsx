@@ -137,7 +137,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title,
       description,
-      url: `/(pages)/blogs/${blog.slug}`,
+      url: `/blogs/${blog.slug}`,
       type: "article",
       publishedTime: blog.published_at ?? undefined,
       authors: blog.author ? [blog.author] : undefined,
@@ -173,7 +173,7 @@ function formatDate(dateStr: string | null): string {
 
 function BackLink() {
   return (
-    <Link href="/(pages)/blogs" className="blog-back-link" id="blog-back-link">
+    <Link href="/blogs" className="blog-back-link" id="blog-back-link">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
@@ -254,7 +254,7 @@ export default async function BlogDetailPage({ params }: Props) {
             >
               <ShareButtons title={blog.title} />
               <Link
-                href="/(pages)/blogs/write"
+                href="/blogs/write"
                 className="blog-publish-cta-btn"
                 id="blog-detail-post-cta"
               >

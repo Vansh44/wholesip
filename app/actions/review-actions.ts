@@ -94,6 +94,6 @@ export async function deleteReview(
     return { error: error.message };
   }
 
-  revalidatePath(`/(pages)/shop/${slug}`);
+  revalidatePath(`/shop/${slug}`);
   return { success: true };
 }

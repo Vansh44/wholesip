@@ -28,11 +28,7 @@ export function RelatedProducts({ products }: { products: RelatedProduct[] }) {
         {products.map((p) => {
           const pr = effectivePricing(p);
           return (
-            <Link
-              key={p.id}
-              href={`/(pages)/shop/${p.slug}`}
-              className="shop-card"
-            >
+            <Link key={p.id} href={`/shop/${p.slug}`} className="shop-card">
               <div className="shop-card-img">
                 {p.image_url ? (
                   <Image

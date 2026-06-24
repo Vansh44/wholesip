@@ -12,7 +12,7 @@ export const revalidate = 3600;
 type ChangeFreq = MetadataRoute.Sitemap[number]["changeFrequency"];
 
 // Public, indexable content pages. Storefront routes live in the
-// (storefront)/(pages) route groups — both are parenthesised, so they add no
+// (storefront)/ route groups — both are parenthesised, so they add no
 // URL segment (e.g. /shop, not /pages/shop). Auth-gated / utility routes —
 // cart, profile, order tracking, blog authoring, my-submissions — are
 // intentionally left out.
