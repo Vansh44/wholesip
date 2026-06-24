@@ -29,7 +29,12 @@ describe("account-settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     supabase = makeSupabase(
-      { admins: makeChain({ data: null, error: null }, { data: null, error: null }) },
+      {
+        admins: makeChain(
+          { data: null, error: null },
+          { data: null, error: null },
+        ),
+      },
       { id: "user-1", email: "admin@example.com", phone: "919876543210" },
     );
     supabase.auth.signInWithPassword = vi

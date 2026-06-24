@@ -58,8 +58,7 @@ describe("EnquiriesForm", () => {
     // reachable, and submit via the form's submit event (the canonical way to
     // exercise onSubmit in jsdom — a bare submit-button click does not reliably
     // dispatch the form's submit until a field has been interacted with).
-    const submitForm = () =>
-      fireEvent.submit(document.querySelector("form")!);
+    const submitForm = () => fireEvent.submit(document.querySelector("form")!);
 
     it("empty name", async () => {
       setAuth({ user: { phone: "919999999999" }, customer: null });
@@ -101,7 +100,9 @@ describe("EnquiriesForm", () => {
       await user.type(screen.getByLabelText(/email/i), "bob@x.com");
       await user.selectOptions(screen.getByLabelText(/subject/i), "Other");
       submitForm();
-      expect(await screen.findByText("Please enter your subject.")).toBeTruthy();
+      expect(
+        await screen.findByText("Please enter your subject."),
+      ).toBeTruthy();
       expect(mockedSubmit).not.toHaveBeenCalled();
     });
 

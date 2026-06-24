@@ -52,10 +52,7 @@ describe("clampLimit", () => {
 // into a clean, storable config (irrelevant keys dropped) or returns an error.
 describe("validateConfig", () => {
   it("rejects an unknown section type", () => {
-    const out = validateConfig(
-      "testimonials" as never,
-      {},
-    );
+    const out = validateConfig("testimonials" as never, {});
     expect(out).toEqual({ error: "Unknown section type." });
   });
 
@@ -350,9 +347,9 @@ describe("summarizeSection", () => {
       category_id: null,
       limit: 8,
     };
-    expect(
-      summarizeSection({ type: "featured_products", config }),
-    ).toBe("Editor's Picks · 3 hand-picked");
+    expect(summarizeSection({ type: "featured_products", config })).toBe(
+      "Editor's Picks · 3 hand-picked",
+    );
   });
 
   it("summarises featured_products in category mode", () => {

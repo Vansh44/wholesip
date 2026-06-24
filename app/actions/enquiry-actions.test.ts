@@ -59,7 +59,10 @@ describe("enquiry-actions", () => {
 
     // Malformed email is rejected before any DB call.
     it("rejects invalid email", async () => {
-      const result = await submitEnquiry({ ...validInput, email: "not-an-email" });
+      const result = await submitEnquiry({
+        ...validInput,
+        email: "not-an-email",
+      });
       expect(result.error).toMatch(/valid email/i);
     });
 

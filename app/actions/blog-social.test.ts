@@ -92,10 +92,13 @@ describe("blog-social", () => {
 
     // Upsert failure → friendly error + zeroed counts.
     it("returns an error when the upsert fails", async () => {
-      admin._tables.blog_likes = makeChain({}, {
-        data: null,
-        error: { message: "boom" },
-      });
+      admin._tables.blog_likes = makeChain(
+        {},
+        {
+          data: null,
+          error: { message: "boom" },
+        },
+      );
       const result = await toggleBlogReaction("b1", "v1", "like", true);
       expect(result.error).toMatch(/couldn.?t save/i);
       expect(result.counts).toEqual({
@@ -132,10 +135,13 @@ describe("blog-social", () => {
 
     // Delete failure → friendly error + zeroed counts.
     it("returns an error when the delete fails", async () => {
-      admin._tables.blog_likes = makeChain({}, {
-        data: null,
-        error: { message: "boom" },
-      });
+      admin._tables.blog_likes = makeChain(
+        {},
+        {
+          data: null,
+          error: { message: "boom" },
+        },
+      );
       const result = await toggleBlogReaction("b1", "v1", "love", false);
       expect(result.error).toMatch(/couldn.?t remove/i);
       expect(result.counts).toEqual({
@@ -224,10 +230,13 @@ describe("blog-social", () => {
 
     // Insert error surfaces its message.
     it("returns the raw message on an insert error", async () => {
-      supabase._tables.blog_comments = makeChain({}, {
-        data: null,
-        error: { message: "boom" },
-      });
+      supabase._tables.blog_comments = makeChain(
+        {},
+        {
+          data: null,
+          error: { message: "boom" },
+        },
+      );
       const result = await submitBlogComment(commentForm);
       expect(result.error).toBe("boom");
     });
@@ -249,10 +258,13 @@ describe("blog-social", () => {
 
     // Delete error surfaces its message.
     it("returns the raw message on a delete error", async () => {
-      supabase._tables.blog_comments = makeChain({}, {
-        data: null,
-        error: { message: "boom" },
-      });
+      supabase._tables.blog_comments = makeChain(
+        {},
+        {
+          data: null,
+          error: { message: "boom" },
+        },
+      );
       const result = await deleteBlogComment("cmt-1", "hello");
       expect(result.error).toBe("boom");
     });

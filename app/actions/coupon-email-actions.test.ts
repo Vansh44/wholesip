@@ -109,7 +109,13 @@ describe("listEmailRecipients", () => {
             phone: "+1",
           },
           // missing optional fields → fall back to "" / null
-          { id: "c2", first_name: null, last_name: null, email: null, phone: null },
+          {
+            id: "c2",
+            first_name: null,
+            last_name: null,
+            email: null,
+            phone: null,
+          },
         ],
         error: null,
       }),

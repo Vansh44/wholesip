@@ -81,7 +81,9 @@ describe("CouponField", () => {
     const user = userEvent.setup();
     renderField();
 
-    const input = screen.getByPlaceholderText("Coupon code") as HTMLInputElement;
+    const input = screen.getByPlaceholderText(
+      "Coupon code",
+    ) as HTMLInputElement;
     await user.type(input, "save10");
     expect(input).toHaveValue("SAVE10");
   });
@@ -99,7 +101,9 @@ describe("CouponField", () => {
     expect(toast.error).not.toHaveBeenCalled();
     // Switched to the applied view: code shown, input gone.
     expect(screen.getByText("SAVE10")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("Coupon code")).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("Coupon code"),
+    ).not.toBeInTheDocument();
     // 10% of 200 = 20.
     expect(screen.getByText("You save ₹20")).toBeInTheDocument();
   });
@@ -157,7 +161,9 @@ describe("CouponField", () => {
     await user.type(screen.getByPlaceholderText("Coupon code"), "save10");
     await user.click(screen.getByRole("button", { name: "Apply" }));
 
-    expect(screen.getByText("Add ₹500 min order to use this")).toBeInTheDocument();
+    expect(
+      screen.getByText("Add ₹500 min order to use this"),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/You save/)).not.toBeInTheDocument();
   });
 });

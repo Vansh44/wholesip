@@ -122,20 +122,26 @@ describe("user-group-actions", () => {
 
     // 23505 duplicate-key → friendly message.
     it("returns friendly error on unique-violation", async () => {
-      admin._tables.user_groups = makeChain({}, {
-        data: null,
-        error: { code: "23505", message: "dup" },
-      });
+      admin._tables.user_groups = makeChain(
+        {},
+        {
+          data: null,
+          error: { code: "23505", message: "dup" },
+        },
+      );
       const result = await updateUserGroup("g1", validForm);
       expect(result.error).toMatch(/already exists/i);
     });
 
     // Generic DB error surfaces its message.
     it("returns the raw message on a generic DB error", async () => {
-      admin._tables.user_groups = makeChain({}, {
-        data: null,
-        error: { code: "P0001", message: "boom" },
-      });
+      admin._tables.user_groups = makeChain(
+        {},
+        {
+          data: null,
+          error: { code: "P0001", message: "boom" },
+        },
+      );
       const result = await updateUserGroup("g1", validForm);
       expect(result.error).toBe("boom");
     });
@@ -159,10 +165,13 @@ describe("user-group-actions", () => {
 
     // DB error surfaces its message.
     it("returns the raw message on a DB error", async () => {
-      admin._tables.user_groups = makeChain({}, {
-        data: null,
-        error: { code: "P0001", message: "boom" },
-      });
+      admin._tables.user_groups = makeChain(
+        {},
+        {
+          data: null,
+          error: { code: "P0001", message: "boom" },
+        },
+      );
       const result = await deleteUserGroup("g1");
       expect(result.error).toBe("boom");
     });
@@ -214,10 +223,13 @@ describe("user-group-actions", () => {
 
     // If the clear step fails the action bails before inserting.
     it("returns error when the clear step fails", async () => {
-      admin._tables.user_group_members = makeChain({}, {
-        data: null,
-        error: { message: "delete failed" },
-      });
+      admin._tables.user_group_members = makeChain(
+        {},
+        {
+          data: null,
+          error: { message: "delete failed" },
+        },
+      );
       const result = await setGroupMembers("g1", ["c1"]);
       expect(result.error).toBe("delete failed");
       expect(admin._tables.user_group_members.insert).not.toHaveBeenCalled();
