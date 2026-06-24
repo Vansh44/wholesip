@@ -30,7 +30,7 @@ export function RelatedProducts({ products }: { products: RelatedProduct[] }) {
           return (
             <Link
               key={p.id}
-              href={`/pages/shop/${p.slug}`}
+              href={`/(pages)/shop/${p.slug}`}
               className="shop-card"
             >
               <div className="shop-card-img">

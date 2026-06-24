@@ -15,7 +15,7 @@ const slides = [
     bottleAsset: siteConfig.assets.almondBottle,
     singleAsset: siteConfig.assets.singleAlmond,
     clusterAsset: siteConfig.assets.almonds,
-    redirectPath: "/pages/shop/almond-milk",
+    redirectPath: "/shop/almond-milk",
   },
   {
     id: "blueberries",
@@ -25,7 +25,7 @@ const slides = [
     bottleAsset: siteConfig.assets.blueberryBottle,
     singleAsset: siteConfig.assets.singleBlueberry,
     clusterAsset: siteConfig.assets.blueberries,
-    redirectPath: "/pages/shop",
+    redirectPath: "/shop",
   },
   {
     id: "pistachios",
@@ -35,7 +35,7 @@ const slides = [
     bottleAsset: siteConfig.assets.pistachioBottle,
     singleAsset: siteConfig.assets.singlePistachio,
     clusterAsset: siteConfig.assets.pistachios,
-    redirectPath: "/pages/shop",
+    redirectPath: "/shop",
   },
 ];
 

@@ -67,7 +67,7 @@ export function DashboardSidebar({
         className={`dash-sidebar shrink-0 ${open ? "dash-sidebar--open" : ""}`}
       >
         {/* Single drill-down column. By default it shows the grouped top-level
-            nav. Inside a section that has sub-pages, the top-level nav is
+            nav. Inside a section that has sub-(pages), the top-level nav is
             replaced by a "Back" link + that section's sub-pages. */}
         <div className="dash-primary">
           <div className="dash-brand-row">

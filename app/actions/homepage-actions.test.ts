@@ -146,9 +146,9 @@ describe("validateConfig", () => {
     it("keeps a normal cta_href", () => {
       const r = validateConfig("promo_banner", {
         heading: "Hi",
-        cta_href: "/pages/shop",
+        cta_href: "/shop",
       });
-      expect((r as any).config.cta_href).toBe("/pages/shop");
+      expect((r as any).config.cta_href).toBe("/(pages)/shop");
     });
   });
 

@@ -213,7 +213,7 @@ describe("blog-actions", () => {
   });
 
   // submitCustomerBlog — the public-facing endpoint used by signed-in
-  // users from /pages/blogs/write. Inserts the row with status
+  // users from /blogs/write. Inserts the row with status
   // pending_review, populated via the customer's profile name.
   describe("submitCustomerBlog", () => {
     // Anonymous visitors are blocked from this action.

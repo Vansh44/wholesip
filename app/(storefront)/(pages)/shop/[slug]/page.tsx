@@ -112,7 +112,7 @@ export async function generateMetadata({
     openGraph: {
       title,
       description,
-      url: `/pages/shop/${product.slug}`,
+      url: `/(pages)/shop/${product.slug}`,
       type: "website",
       images: ogImageUrl
         ? [

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     title: "Blog | Soakd",
     description:
       "Stories, insights and updates from the Soakd team. Discover wellness tips, recipes, and the latest from our kitchen.",
-    url: "/pages/blogs",
+    url: "/(pages)/blogs",
     type: "website",
   },
 };

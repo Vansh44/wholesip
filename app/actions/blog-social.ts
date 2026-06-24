@@ -141,7 +141,7 @@ export async function submitBlogComment(form: {
     return { error: error.message };
   }
 
-  revalidatePath(`/pages/blogs/${form.slug}`);
+  revalidatePath(`/blogs/${form.slug}`);
   return { success: true };
 }
 
@@ -166,6 +166,6 @@ export async function deleteBlogComment(
     return { error: error.message };
   }
 
-  revalidatePath(`/pages/blogs/${slug}`);
+  revalidatePath(`/blogs/${slug}`);
   return { success: true };
 }

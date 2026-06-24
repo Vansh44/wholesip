@@ -43,7 +43,7 @@ export default function CartDrawer() {
 
   const goToCart = () => {
     closeCart();
-    router.push("/pages/cart");
+    router.push("/cart");
   };
 
   const isEmpty = hydrated && items.length === 0;
@@ -106,7 +106,7 @@ export default function CartDrawer() {
                 return (
                   <li key={key} className={styles.item}>
                     <Link
-                      href={`/pages/shop/${item.slug}`}
+                      href={`/shop/${item.slug}`}
                       className={styles.itemImg}
                       onClick={closeCart}
                     >
@@ -125,7 +125,7 @@ export default function CartDrawer() {
 
                     <div className={styles.itemBody}>
                       <Link
-                        href={`/pages/shop/${item.slug}`}
+                        href={`/shop/${item.slug}`}
                         className={styles.itemName}
                         onClick={closeCart}
                       >

@@ -7,9 +7,9 @@ import type { HomepageSection } from "@/lib/homepage/section-types";
 // Cached PUBLIC storefront reads.
 //
 // These wrap the cookie-free anon client (lib/supabase/public.ts) in
-// `unstable_cache` so the storefront's hot pages (home, shop, blog index,
+// `unstable_cache` so the storefront's hot (pages) (home, shop, blog index,
 // product detail) no longer hit Postgres on every request — the previous model
-// re-ran every query per visit because the pages were `force-dynamic`.
+// re-ran every query per visit because the (pages) were `force-dynamic`.
 //
 // Freshness: each entry carries a coarse tag and a `revalidate` fallback. The
 // dashboard write actions call `revalidateTag(...)` (see app/actions/*) so edits

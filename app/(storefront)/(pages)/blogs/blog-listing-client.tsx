@@ -47,7 +47,7 @@ function formatDate(dateStr: string | null): string {
 function BlogCard({ blog }: { blog: Blog }) {
   return (
     <Link
-      href={`/pages/blogs/${blog.slug}`}
+      href={`/(pages)/blogs/${blog.slug}`}
       className="blog-card"
       id={`blog-card-${blog.slug}`}
     >
@@ -150,7 +150,7 @@ export default function BlogListingClient({
 
   const handlePublishClick = () => {
     if (user && customer) {
-      router.push("/pages/blogs/write");
+      router.push("/(pages)/blogs/write");
     } else {
       pendingWriteRef.current = true;
       openAuthModal();
@@ -162,7 +162,7 @@ export default function BlogListingClient({
   useEffect(() => {
     if (pendingWriteRef.current && user && customer) {
       pendingWriteRef.current = false;
-      router.push("/pages/blogs/write");
+      router.push("/(pages)/blogs/write");
     }
   }, [user, customer, router]);
 
@@ -311,7 +311,7 @@ export default function BlogListingClient({
 
             <button
               className="blog-publish-cta-btn blog-publish-cta-btn--ghost"
-              onClick={() => router.push("/pages/blogs/my-submissions")}
+              onClick={() => router.push("/(pages)/blogs/my-submissions")}
               id="blog-my-submissions-cta"
             >
               <svg

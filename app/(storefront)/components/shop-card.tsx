@@ -22,7 +22,7 @@ export function ShopCard({ product: p }: { product: ShopCardProduct }) {
   const pr = effectivePricing(p);
   return (
     <Link
-      href={`/pages/shop/${p.slug}`}
+      href={`/shop/${p.slug}`}
       className="shop-card"
       style={
         { "--card-bg": p.card_color || DEFAULT_CARD_BG } as React.CSSProperties

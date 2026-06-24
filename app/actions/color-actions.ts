@@ -48,7 +48,7 @@ function normalizeHex(input: string): string | null {
 function revalidateColors() {
   revalidatePath("/dashboard/colors");
   revalidatePath("/dashboard/products");
-  revalidatePath("/pages/shop");
+  revalidatePath("/shop");
   // Card colors render on product cards — refresh the cached product reads.
   revalidateTag(TAGS.products, "max");
 }

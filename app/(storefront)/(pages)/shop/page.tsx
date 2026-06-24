@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     title: "Shop | Soakd",
     description:
       "Browse the full Soakd range — wholesome, real-food products crafted with care.",
-    url: "/pages/shop",
+    url: "/(pages)/shop",
     type: "website",
   },
 };

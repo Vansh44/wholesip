@@ -68,7 +68,7 @@ export async function submitReview(
     return { error: error.message };
   }
 
-  revalidatePath(`/pages/shop/${form.slug}`);
+  revalidatePath(`/shop/${form.slug}`);
   return { success: true };
 }
 
@@ -94,6 +94,6 @@ export async function deleteReview(
     return { error: error.message };
   }
 
-  revalidatePath(`/pages/shop/${slug}`);
+  revalidatePath(`/(pages)/shop/${slug}`);
   return { success: true };
 }

@@ -59,7 +59,7 @@ export async function sendBlogApprovedEmail(opts: {
     return;
   }
 
-  const blogUrl = `${SITE_URL}/pages/blogs/${opts.slug}`;
+  const blogUrl = `${SITE_URL}/blogs/${opts.slug}`;
 
   try {
     const { data, error } = await resend.emails.send({
@@ -140,7 +140,7 @@ export async function sendBlogRejectedEmail(opts: {
         </p>
         <div style="text-align: center; margin: 32px 0;">
           <a
-            href="${SITE_URL}/pages/blogs/write"
+            href="${SITE_URL}/blogs/write"
             style="display: inline-block; background: #000; color: #fff; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600;"
           >
             Write Another Blog

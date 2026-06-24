@@ -178,13 +178,13 @@ export default function ProductDetailClient({
   const handleBuyNow = () => {
     if (outOfStock) return;
     addToCart();
-    router.push("/pages/cart");
+    router.push("/(pages)/cart");
   };
 
   return (
     <main className="shop-main">
       <nav className="shop-breadcrumb">
-        <Link href="/pages/shop">Shop</Link>
+        <Link href="/(pages)/shop">Shop</Link>
         <span>/</span>
         {product.category && product.category.status === "active" ? (
           <>

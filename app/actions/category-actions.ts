@@ -89,7 +89,7 @@ const MAX_SLUG_ATTEMPTS = 6;
 function revalidateCatalog() {
   revalidatePath("/dashboard/categories");
   revalidatePath("/dashboard/products");
-  revalidatePath("/pages/shop");
+  revalidatePath("/shop");
   // Category changes affect the shop + homepage category lists.
   revalidateTag(TAGS.categories, "max");
 }

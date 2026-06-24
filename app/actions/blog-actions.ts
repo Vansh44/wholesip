@@ -193,7 +193,7 @@ export async function createBlog(
 
     if (!error) {
       revalidatePath("/dashboard/blogs");
-      revalidatePath("/pages/blogs");
+      revalidatePath("/blogs");
       revalidateTag(TAGS.blogs, "max");
       return { success: true, data: data as Record<string, unknown> };
     }
@@ -308,8 +308,8 @@ export async function updateBlog(
       await deleteStorageUrls(oldRefs.filter((u) => !newRefs.has(u)));
 
       revalidatePath("/dashboard/blogs");
-      revalidatePath("/pages/blogs");
-      revalidatePath(`/pages/blogs/${slug}`);
+      revalidatePath("/blogs");
+      revalidatePath(`/blogs/${slug}`);
       revalidateTag(TAGS.blogs, "max");
       return { success: true };
     }
@@ -356,7 +356,7 @@ export async function deleteBlog(id: string): Promise<ActionResult> {
   ]);
 
   revalidatePath("/dashboard/blogs");
-  revalidatePath("/pages/blogs");
+  revalidatePath("/blogs");
   revalidateTag(TAGS.blogs, "max");
   return { success: true };
 }
@@ -388,7 +388,7 @@ export async function publishBlog(id: string): Promise<ActionResult> {
   }
 
   revalidatePath("/dashboard/blogs");
-  revalidatePath("/pages/blogs");
+  revalidatePath("/blogs");
   revalidateTag(TAGS.blogs, "max");
   return { success: true };
 }
@@ -420,7 +420,7 @@ export async function unpublishBlog(id: string): Promise<ActionResult> {
   }
 
   revalidatePath("/dashboard/blogs");
-  revalidatePath("/pages/blogs");
+  revalidatePath("/blogs");
   revalidateTag(TAGS.blogs, "max");
   return { success: true };
 }
@@ -930,7 +930,7 @@ export async function approveCustomerBlog(id: string): Promise<ActionResult> {
   }
 
   revalidatePath("/dashboard/blogs");
-  revalidatePath("/pages/blogs");
+  revalidatePath("/blogs");
   revalidateTag(TAGS.blogs, "max");
   return { success: true };
 }
