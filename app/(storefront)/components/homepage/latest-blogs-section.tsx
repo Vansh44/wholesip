@@ -50,11 +50,7 @@ export function LatestBlogsSection({
       )}
       <div className="home-blog-grid">
         {blogs.map((b) => (
-          <Link
-            key={b.id}
-            href={`/pages/blogs/${b.slug}`}
-            className="home-blog-card"
-          >
+          <Link key={b.id} href={`/blogs/${b.slug}`} className="home-blog-card">
             <div className="home-blog-img">
               {b.cover_image_url ? (
                 <Image

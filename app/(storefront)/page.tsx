@@ -20,7 +20,7 @@ import {
   type LatestBlogsConfig,
   type ShopByCategoryConfig,
 } from "@/lib/homepage/section-types";
-import "@/app/(storefront)/pages/shop/shop.css"; // .shop-card styles for featured grid
+import "@/app/(storefront)/(pages)/shop/shop.css"; // .shop-card styles for featured grid
 import "@/app/(storefront)/components/homepage/homepage.css";
 
 // Storefront reads run through `unstable_cache` (lib/storefront/queries) so the

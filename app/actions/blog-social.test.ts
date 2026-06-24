@@ -244,7 +244,7 @@ describe("blog-social", () => {
     // Happy path revalidates the blog detail page.
     it("revalidates the blog page on success", async () => {
       await submitBlogComment(commentForm);
-      expect(revalidatePath).toHaveBeenCalledWith("/pages/blogs/hello");
+      expect(revalidatePath).toHaveBeenCalledWith("/blogs/hello");
     });
   });
 
@@ -278,7 +278,7 @@ describe("blog-social", () => {
         "id",
         "cmt-1",
       );
-      expect(revalidatePath).toHaveBeenCalledWith("/pages/blogs/hello");
+      expect(revalidatePath).toHaveBeenCalledWith("/blogs/hello");
     });
   });
 });

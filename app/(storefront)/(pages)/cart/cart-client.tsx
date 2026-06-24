@@ -46,7 +46,7 @@ export default function CartClient() {
           <p className="cart-empty-sub">
             Looks like you haven&apos;t added anything yet.
           </p>
-          <Link href="/pages/shop" className="cart-empty-cta">
+          <Link href="/shop" className="cart-empty-cta">
             Continue shopping
           </Link>
         </div>
@@ -114,7 +114,7 @@ export default function CartClient() {
           >
             Proceed to Checkout
           </button>
-          <Link href="/pages/shop" className="cart-continue-link">
+          <Link href="/shop" className="cart-continue-link">
             Continue shopping
           </Link>
           <button className="cart-clear-btn" onClick={clear}>
@@ -142,7 +142,7 @@ function CartLine({
 
   return (
     <li className="cart-item">
-      <Link href={`/pages/shop/${item.slug}`} className="cart-item-img">
+      <Link href={`/shop/${item.slug}`} className="cart-item-img">
         {item.image ? (
           <Image
             src={item.image}
@@ -158,7 +158,7 @@ function CartLine({
 
       <div className="cart-item-body">
         <div className="cart-item-info">
-          <Link href={`/pages/shop/${item.slug}`} className="cart-item-name">
+          <Link href={`/shop/${item.slug}`} className="cart-item-name">
             {item.name}
           </Link>
           {item.variantName && (

@@ -113,7 +113,7 @@
   height: 100%;
   min-height: 0;
   /* Pin the width so the column stays put when it swaps between the top-level
-     nav and a drilled-in section's (shorter) sub-pages. */
+     nav and a drilled-in section's (shorter) sub-(pages). */
   width: var(--dash-sidebar-w);
 }
 
@@ -257,7 +257,7 @@
 }
 
 /* "← Back" row at the top of a drilled-in section. It's a regular nav item
-   (so it aligns with the sub-pages below it) with a bolder label + a divider. */
+   (so it aligns with the sub-(pages) below it) with a bolder label + a divider. */
 .dashboard-shell .dash-nav-item.dash-subnav-back {
   font-weight: 600;
   color: var(--dash-text);

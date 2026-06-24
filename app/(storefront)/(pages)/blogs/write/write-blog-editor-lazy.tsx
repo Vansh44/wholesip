@@ -4,9 +4,9 @@ import dynamic from "next/dynamic";
 
 // The TipTap editor (+ ProseMirror, BubbleMenu, slash-command) is the heaviest
 // client payload on any storefront route and was shipping to every visitor of
-// /pages/blogs/write and /pages/blogs/my-submissions. Load it on the client
+// /blogs/write and /blogs/my-submissions. Load it on the client
 // only (ssr:false — TipTap is browser-only), behind a lightweight shell. The
-// pages stay Server Components (they export metadata), so the ssr:false dynamic
+// (pages) stay Server Components (they export metadata), so the ssr:false dynamic
 // import lives here in a Client Component as Next requires.
 const WriteBlogEditor = dynamic(() => import("./write-blog-editor"), {
   ssr: false,

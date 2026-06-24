@@ -493,7 +493,7 @@ function BannerFields({
             className={fieldClass}
             value={config.cta_href}
             onChange={(e) => set("cta_href", e.target.value)}
-            placeholder="/pages/shop"
+            placeholder="/shop"
           />
         </div>
       </div>

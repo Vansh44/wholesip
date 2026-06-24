@@ -177,8 +177,8 @@ async function replaceVariants(
 
 function revalidateProduct(slug?: string) {
   revalidatePath("/dashboard/products");
-  revalidatePath("/pages/shop");
-  if (slug) revalidatePath(`/pages/shop/${slug}`);
+  revalidatePath("/shop");
+  if (slug) revalidatePath(`/shop/${slug}`);
   // Bust the shared cached product reads used by home + shop + detail.
   revalidateTag(TAGS.products, "max");
 }

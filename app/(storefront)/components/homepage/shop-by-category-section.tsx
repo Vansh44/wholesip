@@ -40,7 +40,7 @@ export function ShopByCategorySection({
         {categories.map((c) => (
           <Link
             key={c.id}
-            href={`/pages/shop?category=${encodeURIComponent(c.slug)}`}
+            href={`/shop?category=${encodeURIComponent(c.slug)}`}
             className="home-cat-tile"
           >
             <div className="home-cat-img">

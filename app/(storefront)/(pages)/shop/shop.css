@@ -9,7 +9,7 @@
 
 :root {
   /* Mapped onto the global cream + ink theme (--soakd-* in globals.css)
-     so the shop listing AND product pages stay consistent. */
+     so the shop listing AND product (pages) stay consistent. */
   --shop-bg: var(--soakd-cream); /* page background — near white */
   --shop-surface: var(--soakd-surface); /* cards / inputs (white) */
   --shop-surface-alt: var(--soakd-cream-deep); /* image placeholders */

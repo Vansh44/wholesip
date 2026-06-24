@@ -101,7 +101,7 @@ describe("sanitizeBlogContent", () => {
     expect(out).not.toContain("fixed");
   });
 
-  // <iframe> embeds are not in the allowlist — they could host malicious pages.
+  // <iframe> embeds are not in the allowlist — they could host malicious (pages).
   it("drops iframe and embed tags", () => {
     const out = sanitizeBlogContent(
       `<p>hi</p><iframe src="https://evil.com"></iframe>`,

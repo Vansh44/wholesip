@@ -6,7 +6,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 // `cookies()`, which opts the calling route into dynamic rendering and is not
 // allowed inside an `unstable_cache`/`use cache` scope. This client reads no
 // request state, so its callers can be wrapped in `unstable_cache` and the
-// storefront pages can be statically/ISR rendered.
+// storefront (pages) can be statically/ISR rendered.
 //
 // Only use this for data that is safe to serve from a shared cache to every
 // visitor — i.e. published catalog/blog/category content that anon RLS already

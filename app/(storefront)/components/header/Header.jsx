@@ -102,11 +102,11 @@ export default function Header() {
         </Link>
 
         <nav className={styles.navLinks}>
-          <Link href="/pages/shop">Shop</Link>
-          <Link href="/pages/track-order">Track Order</Link>
-          <Link href="/pages/find-us">Find Us</Link>
-          <Link href="/pages/enquiries">Enquiries</Link>
-          <Link href="/pages/blogs">Blogs</Link>
+          <Link href="/shop">Shop</Link>
+          <Link href="/track-order">Track Order</Link>
+          <Link href="/find-us">Find Us</Link>
+          <Link href="/enquiries">Enquiries</Link>
+          <Link href="/blogs">Blogs</Link>
         </nav>
       </div>
 
@@ -213,7 +213,7 @@ export default function Header() {
                 )}
                 <div className={styles.profileDropdownDivider} />
                 <Link
-                  href="/pages/profile"
+                  href="/profile"
                   className={styles.profileDropdownItem}
                   role="menuitem"
                   onClick={() => setIsProfileOpen(false)}
@@ -223,7 +223,7 @@ export default function Header() {
                   <ChevronRight size={16} className={styles.profileItemArrow} />
                 </Link>
                 <Link
-                  href="/pages/track-order"
+                  href="/track-order"
                   className={styles.profileDropdownItem}
                   role="menuitem"
                   onClick={() => setIsProfileOpen(false)}
@@ -233,7 +233,7 @@ export default function Header() {
                   <ChevronRight size={16} className={styles.profileItemArrow} />
                 </Link>
                 <Link
-                  href="/pages/blogs/my-submissions"
+                  href="/blogs/my-submissions"
                   className={styles.profileDropdownItem}
                   role="menuitem"
                   onClick={() => setIsProfileOpen(false)}
@@ -243,7 +243,7 @@ export default function Header() {
                   <ChevronRight size={16} className={styles.profileItemArrow} />
                 </Link>
                 <Link
-                  href="/pages/enquiries"
+                  href="/enquiries"
                   className={styles.profileDropdownItem}
                   role="menuitem"
                   onClick={() => setIsProfileOpen(false)}
@@ -377,19 +377,19 @@ export default function Header() {
         </div>
 
         <nav className={styles.drawerNav}>
-          <Link href="/pages/shop" onClick={() => setIsMenuOpen(false)}>
+          <Link href="/shop" onClick={() => setIsMenuOpen(false)}>
             Shop
           </Link>
-          <Link href="/pages/track-order" onClick={() => setIsMenuOpen(false)}>
+          <Link href="/track-order" onClick={() => setIsMenuOpen(false)}>
             Track Order
           </Link>
-          <Link href="/pages/find-us" onClick={() => setIsMenuOpen(false)}>
+          <Link href="/find-us" onClick={() => setIsMenuOpen(false)}>
             Find Us
           </Link>
-          <Link href="/pages/enquiries" onClick={() => setIsMenuOpen(false)}>
+          <Link href="/enquiries" onClick={() => setIsMenuOpen(false)}>
             Enquiries
           </Link>
-          <Link href="/pages/blogs" onClick={() => setIsMenuOpen(false)}>
+          <Link href="/blogs" onClick={() => setIsMenuOpen(false)}>
             Blogs
           </Link>
         </nav>
@@ -403,7 +403,7 @@ export default function Header() {
                 <span className={styles.drawerAuthName}>{displayName}</span>
               </div>
               <Link
-                href="/pages/profile"
+                href="/profile"
                 className={styles.drawerAuthBtn}
                 onClick={() => setIsMenuOpen(false)}
                 style={{ marginBottom: "12px", display: "block" }}

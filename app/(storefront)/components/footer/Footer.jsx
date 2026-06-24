@@ -218,13 +218,13 @@ export default function Footer() {
         <div className={styles.linkCol}>
           <h4 className={styles.columnTitle}>Shop</h4>
           <nav className={styles.linkList}>
-            <Link href="/pages/shop">All Products</Link>
-            <Link href="/pages/shop?category=butters">Nut Butters</Link>
-            <Link href="/pages/shop?category=milks">Nut Milks</Link>
-            <Link href="/pages/shop?category=snacks">Snacks</Link>
-            <Link href="/pages/shop?tag=bestseller">Bestsellers</Link>
-            <Link href="/pages/shop?tag=new">New Arrivals</Link>
-            <Link href="/pages/gift-packs">Gift Packs</Link>
+            <Link href="/shop">All Products</Link>
+            <Link href="/shop?category=butters">Nut Butters</Link>
+            <Link href="/shop?category=milks">Nut Milks</Link>
+            <Link href="/shop?category=snacks">Snacks</Link>
+            <Link href="/shop?tag=bestseller">Bestsellers</Link>
+            <Link href="/shop?tag=new">New Arrivals</Link>
+            <Link href="/gift-packs">Gift Packs</Link>
           </nav>
         </div>
 
@@ -232,12 +232,12 @@ export default function Footer() {
         <div className={styles.linkCol}>
           <h4 className={styles.columnTitle}>Company</h4>
           <nav className={styles.linkList}>
-            <Link href="/pages/our-story">Our Story</Link>
-            <Link href="/pages/process">The Process</Link>
-            <Link href="/pages/ingredients">Our Ingredients</Link>
-            <Link href="/pages/sustainability">Sustainability</Link>
-            <Link href="/pages/blogs">Blog &amp; Recipes</Link>
-            <Link href="/pages/careers">Careers</Link>
+            <Link href="/our-story">Our Story</Link>
+            <Link href="/process">The Process</Link>
+            <Link href="/ingredients">Our Ingredients</Link>
+            <Link href="/sustainability">Sustainability</Link>
+            <Link href="/blogs">Blog &amp; Recipes</Link>
+            <Link href="/careers">Careers</Link>
           </nav>
         </div>
 
@@ -245,12 +245,12 @@ export default function Footer() {
         <div className={styles.linkCol}>
           <h4 className={styles.columnTitle}>Support</h4>
           <nav className={styles.linkList}>
-            <Link href="/pages/faqs">FAQs</Link>
-            <Link href="/pages/track-order">Track My Order</Link>
-            <Link href="/pages/returns">Returns &amp; Refunds</Link>
-            <Link href="/pages/shipping">Shipping Info</Link>
-            <Link href="/pages/enquiries">Bulk / Wholesale</Link>
-            <Link href="/pages/contact">Contact Us</Link>
+            <Link href="/faqs">FAQs</Link>
+            <Link href="/track-order">Track My Order</Link>
+            <Link href="/returns">Returns &amp; Refunds</Link>
+            <Link href="/shipping">Shipping Info</Link>
+            <Link href="/enquiries">Bulk / Wholesale</Link>
+            <Link href="/contact">Contact Us</Link>
           </nav>
         </div>
       </div>
@@ -263,13 +263,13 @@ export default function Footer() {
             &copy; {currentYear} Soakd Foods Pvt. Ltd. All rights reserved.
           </p>
           <div className={styles.legalLinks}>
-            <Link href="/pages/privacy-policy">Privacy Policy</Link>
+            <Link href="/privacy-policy">Privacy Policy</Link>
             <span className={styles.legalDivider}>·</span>
-            <Link href="/pages/terms">Terms of Use</Link>
+            <Link href="/terms">Terms of Use</Link>
             <span className={styles.legalDivider}>·</span>
-            <Link href="/pages/refund-policy">Refund Policy</Link>
+            <Link href="/refund-policy">Refund Policy</Link>
             <span className={styles.legalDivider}>·</span>
-            <Link href="/pages/cookie-policy">Cookie Policy</Link>
+            <Link href="/cookie-policy">Cookie Policy</Link>
           </div>
         </div>
       </div>

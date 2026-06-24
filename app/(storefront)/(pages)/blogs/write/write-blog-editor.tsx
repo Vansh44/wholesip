@@ -435,7 +435,7 @@ export default function WriteBlogEditor({
   // pending submissions open in the editor to keep writing / editing.
   const handleCardClick = (blog: Submission) => {
     if (blog.status === "published") {
-      router.push(`/pages/blogs/${blog.slug}`);
+      router.push(`/blogs/${blog.slug}`);
     } else {
       handleEditSubmission(blog);
     }
@@ -513,7 +513,7 @@ export default function WriteBlogEditor({
           <button className="write-blog-submit-btn" onClick={openAuthModal}>
             Sign In to Start Writing
           </button>
-          <Link href="/pages/blogs" className="write-blog-auth-back">
+          <Link href="/blogs" className="write-blog-auth-back">
             <ArrowLeft size={16} /> Back to Blogs
           </Link>
         </div>
@@ -540,7 +540,7 @@ export default function WriteBlogEditor({
             >
               View My Submissions
             </button>
-            <Link href="/pages/blogs" className="write-blog-submit-btn">
+            <Link href="/blogs" className="write-blog-submit-btn">
               Back to Blogs
             </Link>
           </div>
@@ -555,7 +555,7 @@ export default function WriteBlogEditor({
         <div className="write-blog-submissions">
           <div className="write-blog-subs-head">
             <div>
-              <Link href="/pages/blogs" className="write-blog-subs-back">
+              <Link href="/blogs" className="write-blog-subs-back">
                 <ArrowLeft size={16} /> Back to Blogs
               </Link>
               <h1 className="write-blog-subs-title">My Submissions</h1>
@@ -786,7 +786,7 @@ export default function WriteBlogEditor({
       <div className="write-blog-header">
         <div className="flex flex-col gap-1">
           <Link
-            href="/pages/blogs"
+            href="/blogs"
             className="flex items-center gap-2 text-[var(--blog-muted)] hover:text-[var(--blog-dark)] transition-colors text-sm font-medium mb-1"
           >
             <ArrowLeft size={16} /> Back to Blogs

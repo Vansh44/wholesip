@@ -504,10 +504,7 @@ export function BlogsManagementView({
                               <DropdownMenuItem
                                 className="cursor-pointer"
                                 onClick={() =>
-                                  window.open(
-                                    `/pages/blogs/${blog.slug}`,
-                                    "_blank",
-                                  )
+                                  window.open(`/blogs/${blog.slug}`, "_blank")
                                 }
                               >
                                 <Eye className="mr-2 h-4 w-4" />

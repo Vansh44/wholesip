@@ -411,7 +411,7 @@ export function ProductsManagementView({
                           <DropdownMenuItem
                             className="cursor-pointer"
                             onClick={() =>
-                              window.open(`/pages/shop/${p.slug}`, "_blank")
+                              window.open(`/shop/${p.slug}`, "_blank")
                             }
                           >
                             <Eye className="mr-2 h-4 w-4" />
