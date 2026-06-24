@@ -148,7 +148,7 @@ describe("validateConfig", () => {
         heading: "Hi",
         cta_href: "/shop",
       });
-      expect((r as any).config.cta_href).toBe("/(pages)/shop");
+      expect((r as any).config.cta_href).toBe("/shop");
     });
   });
 
