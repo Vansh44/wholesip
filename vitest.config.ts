@@ -43,7 +43,7 @@ export default defineConfig({
         "**/components/cart/CartProvider.tsx",
         "**/components/cart/CouponField.tsx",
         "**/components/auth/AuthProvider.tsx",
-        "**/pages/enquiries/enquiries-form.tsx",
+        "**/enquiries/enquiries-form.tsx",
         "**/user_groups/group-form.tsx",
         "**/marketing/coupons/coupon-form.tsx",
       ],

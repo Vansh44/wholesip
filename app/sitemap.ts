@@ -11,30 +11,32 @@ export const revalidate = 3600;
 
 type ChangeFreq = MetadataRoute.Sitemap[number]["changeFrequency"];
 
-// Public, indexable content pages. Storefront URLs live under /pages/* (the
-// homepage is "/"). Auth-gated / utility routes — cart, profile, order
-// tracking, blog authoring, my-submissions — are intentionally left out.
+// Public, indexable content pages. Storefront routes live in the
+// (storefront)/(pages) route groups — both are parenthesised, so they add no
+// URL segment (e.g. /shop, not /pages/shop). Auth-gated / utility routes —
+// cart, profile, order tracking, blog authoring, my-submissions — are
+// intentionally left out.
 const STATIC_PATHS: { path: string; priority: number; freq: ChangeFreq }[] = [
   { path: "/", priority: 1, freq: "daily" },
-  { path: "/pages/shop", priority: 0.9, freq: "daily" },
-  { path: "/pages/blogs", priority: 0.7, freq: "weekly" },
-  { path: "/pages/gift-packs", priority: 0.7, freq: "weekly" },
-  { path: "/pages/our-story", priority: 0.6, freq: "monthly" },
-  { path: "/pages/ingredients", priority: 0.6, freq: "monthly" },
-  { path: "/pages/process", priority: 0.5, freq: "monthly" },
-  { path: "/pages/sustainability", priority: 0.5, freq: "monthly" },
-  { path: "/pages/find-us", priority: 0.5, freq: "monthly" },
-  { path: "/pages/wholesale", priority: 0.5, freq: "monthly" },
-  { path: "/pages/contact", priority: 0.5, freq: "monthly" },
-  { path: "/pages/enquiries", priority: 0.4, freq: "monthly" },
-  { path: "/pages/faqs", priority: 0.4, freq: "monthly" },
-  { path: "/pages/careers", priority: 0.3, freq: "monthly" },
-  { path: "/pages/shipping", priority: 0.3, freq: "yearly" },
-  { path: "/pages/returns", priority: 0.3, freq: "yearly" },
-  { path: "/pages/refund-policy", priority: 0.3, freq: "yearly" },
-  { path: "/pages/privacy-policy", priority: 0.3, freq: "yearly" },
-  { path: "/pages/terms", priority: 0.3, freq: "yearly" },
-  { path: "/pages/cookie-policy", priority: 0.3, freq: "yearly" },
+  { path: "/shop", priority: 0.9, freq: "daily" },
+  { path: "/blogs", priority: 0.7, freq: "weekly" },
+  { path: "/gift-packs", priority: 0.7, freq: "weekly" },
+  { path: "/our-story", priority: 0.6, freq: "monthly" },
+  { path: "/ingredients", priority: 0.6, freq: "monthly" },
+  { path: "/process", priority: 0.5, freq: "monthly" },
+  { path: "/sustainability", priority: 0.5, freq: "monthly" },
+  { path: "/find-us", priority: 0.5, freq: "monthly" },
+  { path: "/wholesale", priority: 0.5, freq: "monthly" },
+  { path: "/contact", priority: 0.5, freq: "monthly" },
+  { path: "/enquiries", priority: 0.4, freq: "monthly" },
+  { path: "/faqs", priority: 0.4, freq: "monthly" },
+  { path: "/careers", priority: 0.3, freq: "monthly" },
+  { path: "/shipping", priority: 0.3, freq: "yearly" },
+  { path: "/returns", priority: 0.3, freq: "yearly" },
+  { path: "/refund-policy", priority: 0.3, freq: "yearly" },
+  { path: "/privacy-policy", priority: 0.3, freq: "yearly" },
+  { path: "/terms", priority: 0.3, freq: "yearly" },
+  { path: "/cookie-policy", priority: 0.3, freq: "yearly" },
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -57,7 +59,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const productEntries: MetadataRoute.Sitemap = (products as { slug: string }[])
     .filter((p) => p.slug)
     .map((p) => ({
-      url: `${SITE_URL}/pages/shop/${p.slug}`,
+      url: `${SITE_URL}/shop/${p.slug}`,
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.8,
@@ -68,7 +70,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   )
     .filter((b) => b.slug)
     .map((b) => ({
-      url: `${SITE_URL}/pages/blogs/${b.slug}`,
+      url: `${SITE_URL}/blogs/${b.slug}`,
       lastModified: b.published_at ? new Date(b.published_at) : now,
       changeFrequency: "monthly",
       priority: 0.6,
