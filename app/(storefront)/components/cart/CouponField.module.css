@@ -1,5 +1,5 @@
 /* Coupon apply / applied states — shared by cart page + drawer.
-   Driven by the global --soakd-* tokens. */
+   Driven by the global --wholesip-* tokens. */
 
 .row {
   display: flex;
@@ -9,10 +9,10 @@
 .input {
   flex: 1 1 auto;
   min-width: 0;
-  border: 1px solid var(--soakd-border);
+  border: 1px solid var(--wholesip-border);
   border-radius: 9px;
-  background: var(--soakd-cream);
-  color: var(--soakd-ink);
+  background: var(--wholesip-cream);
+  color: var(--wholesip-ink);
   padding: 10px 12px;
   font-size: 0.9rem;
   letter-spacing: 0.03em;
@@ -24,18 +24,18 @@
 .input::placeholder {
   text-transform: none;
   letter-spacing: normal;
-  color: var(--soakd-ink-faint);
+  color: var(--wholesip-ink-faint);
 }
 
 .input:focus {
-  border-color: var(--soakd-ink);
+  border-color: var(--wholesip-ink);
 }
 
 .applyBtn {
   flex: 0 0 auto;
-  border: 1.5px solid var(--soakd-ink);
+  border: 1.5px solid var(--wholesip-ink);
   background: transparent;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   border-radius: 9px;
   padding: 0 18px;
   font-size: 0.875rem;
@@ -66,7 +66,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px dashed var(--soakd-ink);
+  border: 1px dashed var(--wholesip-ink);
   border-radius: 9px;
   padding: 9px 12px;
   background: rgba(23, 19, 15, 0.04);
@@ -88,12 +88,12 @@
   font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 
 .note {
   font-size: 0.78rem;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
 }
 
 .remove {
@@ -102,7 +102,7 @@
   height: 24px;
   border: none;
   background: transparent;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
   font-size: 0.85rem;
   cursor: pointer;
   border-radius: 6px;
@@ -113,5 +113,5 @@
 
 .remove:hover {
   background: rgba(23, 19, 15, 0.08);
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }

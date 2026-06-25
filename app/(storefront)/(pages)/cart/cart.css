@@ -1,19 +1,19 @@
 /* ============================================================
    Storefront Cart page
-   Driven by the global --soakd-* tokens (cream canvas + ink
+   Driven by the global --wholesip-* tokens (cream canvas + ink
    accent). Mirrors the shop/PDP token mapping for consistency.
    ============================================================ */
 
 .cart-main {
-  --cart-bg: var(--soakd-cream);
-  --cart-surface: var(--soakd-surface);
-  --cart-surface-alt: var(--soakd-cream-deep);
-  --cart-text: var(--soakd-ink);
-  --cart-text-muted: var(--soakd-ink-soft);
-  --cart-text-faint: var(--soakd-ink-faint);
-  --cart-border: var(--soakd-border);
-  --cart-accent: var(--soakd-accent);
-  --cart-accent-hover: var(--soakd-accent-deep);
+  --cart-bg: var(--wholesip-cream);
+  --cart-surface: var(--wholesip-surface);
+  --cart-surface-alt: var(--wholesip-cream-deep);
+  --cart-text: var(--wholesip-ink);
+  --cart-text-muted: var(--wholesip-ink-soft);
+  --cart-text-faint: var(--wholesip-ink-faint);
+  --cart-border: var(--wholesip-border);
+  --cart-accent: var(--wholesip-accent);
+  --cart-accent-hover: var(--wholesip-accent-deep);
   --cart-accent-soft: rgba(23, 19, 15, 0.08);
   --cart-on-accent: #ffffff;
 

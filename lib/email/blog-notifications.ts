@@ -4,10 +4,10 @@ import { wrapBrandedEmail } from "./layout";
 // Public site origin used to build links inside emails. Falls back to the
 // production domain (matches the hardcoded link in invite-user.ts).
 const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL || "https://getsoakd.in"
+  process.env.NEXT_PUBLIC_SITE_URL || "https://wholesip.com"
 ).replace(/\/$/, "");
 
-const FROM_ADDRESS = "Soakd <admin@getsoakd.in>";
+const FROM_ADDRESS = "WholeSip <admin@wholesip.com>";
 
 /** Escape user-supplied values before interpolating into email HTML. */
 function escapeHtml(value: string): string {
@@ -32,7 +32,7 @@ function emailShell(bodyHtml: string): string {
   return wrapBrandedEmail(`${bodyHtml}
     <p style="margin-top:32px;">
       Warm regards,<br />
-      <strong>Team Soakd</strong>
+      <strong>Team WholeSip</strong>
     </p>`);
 }
 
@@ -65,14 +65,14 @@ export async function sendBlogApprovedEmail(opts: {
     const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: opts.to,
-      subject: `🎉 Your blog "${opts.title}" is now live on Soakd!`,
+      subject: `🎉 Your blog "${opts.title}" is now live on WholeSip!`,
       html: emailShell(`
         <h2 style="margin-top: 0;">Congratulations! 🎉</h2>
         <p>${greeting(opts.firstName)}</p>
         <p>
           Great news — your blog
           <strong>"${escapeHtml(opts.title)}"</strong> has been reviewed and
-          approved by our team. It's now published and live on the Soakd
+          approved by our team. It's now published and live on the WholeSip
           journal for everyone to read.
         </p>
         <div style="text-align: center; margin: 32px 0;">
@@ -84,7 +84,7 @@ export async function sendBlogApprovedEmail(opts: {
           </a>
         </div>
         <p>
-          Thank you for sharing your story with the Soakd community. We can't
+          Thank you for sharing your story with the WholeSip community. We can't
           wait to see what you write next!
         </p>
       `),
@@ -124,13 +124,13 @@ export async function sendBlogRejectedEmail(opts: {
     const { data, error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: opts.to,
-      subject: `Update on your Soakd blog submission`,
+      subject: `Update on your WholeSip blog submission`,
       html: emailShell(`
         <h2 style="margin-top: 0;">About your blog submission</h2>
         <p>${greeting(opts.firstName)}</p>
         <p>
           Thank you for submitting your blog
-          <strong>"${escapeHtml(opts.title)}"</strong> to Soakd. After review,
+          <strong>"${escapeHtml(opts.title)}"</strong> to WholeSip. After review,
           our team has decided not to publish it at this time.
         </p>
         <p>

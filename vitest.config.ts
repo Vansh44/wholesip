@@ -35,10 +35,12 @@ export default defineConfig({
         "lib/email/coupon-campaign.ts",
         "lib/homepage/section-types.ts",
         "lib/ai/gemini.ts",
+        "lib/use-otp-throttle.ts",
         "lib/supabase/storage-cleanup.ts",
         // Server actions + permission logic
         "app/actions/**/*.ts",
         "app/dashboard/lib/permissions.ts",
+        "app/dashboard/lib/use-row-selection.ts",
         // Behavior-tested client components (storefront + dashboard).
         "**/components/cart/CartProvider.tsx",
         "**/components/cart/CouponField.tsx",

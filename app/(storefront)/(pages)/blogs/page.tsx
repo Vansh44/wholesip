@@ -6,13 +6,13 @@ import "./blogs.css";
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "Blog | Soakd",
+  title: "Blog | WholeSip",
   description:
-    "Stories, insights and updates from the Soakd team. Discover wellness tips, recipes, and the latest from our kitchen.",
+    "Stories, insights and updates from the WholeSip team. Discover wellness tips, recipes, and the latest from our kitchen.",
   openGraph: {
-    title: "Blog | Soakd",
+    title: "Blog | WholeSip",
     description:
-      "Stories, insights and updates from the Soakd team. Discover wellness tips, recipes, and the latest from our kitchen.",
+      "Stories, insights and updates from the WholeSip team. Discover wellness tips, recipes, and the latest from our kitchen.",
     url: "/blogs",
     type: "website",
   },
@@ -37,7 +37,7 @@ export default async function BlogsPage() {
       {/* Hero Section */}
       <section className="blog-hero">
         <div className="blog-hero-content blog-animate-in">
-          <span className="blog-hero-kicker">The Soakd Journal</span>
+          <span className="blog-hero-kicker">The WholeSip Journal</span>
           {/* <h1 className="blog-hero-title">Our Blog</h1> */}
           <p className="blog-hero-subtitle">
             Stories, insights and updates from our team

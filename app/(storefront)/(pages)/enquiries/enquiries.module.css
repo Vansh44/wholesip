@@ -1,7 +1,7 @@
 .container {
   min-height: 100vh;
   padding: 140px 24px 80px;
-  background-color: var(--soakd-cream);
+  background-color: var(--wholesip-cream);
   font-family: var(--font-outfit), sans-serif;
 }
 
@@ -18,13 +18,13 @@
 .title {
   font-size: 40px;
   font-weight: 700;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   margin-bottom: 12px;
 }
 
 .subtitle {
   font-size: 16px;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
   font-weight: 400;
   line-height: 1.6;
   max-width: 480px;
@@ -32,23 +32,23 @@
 }
 
 .card {
-  background: var(--soakd-surface);
+  background: var(--wholesip-surface);
   border-radius: 24px;
   padding: 40px;
   box-shadow: 0 8px 24px rgba(43, 38, 32, 0.06);
-  border: 1px solid var(--soakd-border);
+  border: 1px solid var(--wholesip-border);
 }
 
 .cardTitle {
   font-size: 22px;
   font-weight: 600;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   margin-bottom: 6px;
 }
 
 .cardSubtitle {
   font-size: 14px;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
   margin-bottom: 24px;
   line-height: 1.5;
 }
@@ -81,7 +81,7 @@
 
 .hint {
   font-size: 12.5px;
-  color: var(--soakd-ink-faint);
+  color: var(--wholesip-ink-faint);
 }
 
 .input {
@@ -92,13 +92,13 @@
   background: #fafafa;
   font-size: 15px;
   font-family: var(--font-outfit), sans-serif;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   transition: all 0.2s ease;
 }
 
 .input:focus {
   outline: none;
-  border-color: var(--soakd-ink);
+  border-color: var(--wholesip-ink);
   background: #ffffff;
 }
 
@@ -129,14 +129,14 @@
   background: #fafafa;
   font-size: 15px;
   font-family: var(--font-outfit), sans-serif;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .countrySelect:focus {
   outline: none;
-  border-color: var(--soakd-ink);
+  border-color: var(--wholesip-ink);
   background: #ffffff;
 }
 
@@ -149,13 +149,13 @@
   background: #fafafa;
   font-size: 15px;
   font-family: var(--font-outfit), sans-serif;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   transition: all 0.2s ease;
 }
 
 .phoneInput:focus {
   outline: none;
-  border-color: var(--soakd-ink);
+  border-color: var(--wholesip-ink);
   background: #ffffff;
 }
 
@@ -181,7 +181,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: var(--soakd-accent);
+  background: var(--wholesip-accent);
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
@@ -211,18 +211,18 @@
   justify-content: center;
   border-radius: 12px;
   background: transparent;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
   font-size: 14px;
   font-weight: 600;
   font-family: var(--font-outfit), sans-serif;
-  border: 1.5px solid var(--soakd-border);
+  border: 1.5px solid var(--wholesip-border);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
 }
 
 .changeBtn:hover {
-  background: var(--soakd-cream-deep);
+  background: var(--wholesip-cream-deep);
 }
 
 /* Inline OTP panel revealed under the phone row */
@@ -230,13 +230,13 @@
   margin-top: 14px;
   padding: 16px;
   border-radius: 14px;
-  background: var(--soakd-cream-deep);
-  border: 1px solid var(--soakd-border);
+  background: var(--wholesip-cream-deep);
+  border: 1px solid var(--wholesip-border);
 }
 
 .otpHint {
   font-size: 13.5px;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
   margin-bottom: 12px;
 }
 
@@ -252,7 +252,7 @@
   background-position: right 14px center;
   font-size: 15px;
   font-family: var(--font-outfit), sans-serif;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
@@ -261,14 +261,14 @@
 
 .select:focus {
   outline: none;
-  border-color: var(--soakd-ink);
+  border-color: var(--wholesip-ink);
   background-color: #ffffff;
 }
 
 .submitHint {
   text-align: center;
   font-size: 12.5px;
-  color: var(--soakd-ink-faint);
+  color: var(--wholesip-ink-faint);
   margin-top: -8px;
 }
 
@@ -277,7 +277,7 @@
   margin-top: 6px;
   padding: 16px;
   border-radius: 12px;
-  background: var(--soakd-accent);
+  background: var(--wholesip-accent);
   color: #ffffff;
   font-size: 15px;
   font-weight: 600;
@@ -306,17 +306,17 @@
   padding: 13px 22px;
   border-radius: 12px;
   background: transparent;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   font-size: 14px;
   font-weight: 600;
   font-family: var(--font-outfit), sans-serif;
-  border: 1.5px solid var(--soakd-border);
+  border: 1.5px solid var(--wholesip-border);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .secondaryBtn:hover {
-  background: var(--soakd-cream-deep);
+  background: var(--wholesip-cream-deep);
 }
 
 .backBtn {
@@ -327,7 +327,7 @@
   border: none;
   padding: 0;
   margin-bottom: 18px;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
   font-size: 14px;
   font-weight: 500;
   font-family: var(--font-outfit), sans-serif;
@@ -335,7 +335,7 @@
 }
 
 .backBtn:hover {
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 
 /* ---------------- OTP ---------------- */
@@ -361,13 +361,13 @@
   border-radius: 12px;
   border: 1.5px solid #eaeaea;
   background: #fafafa;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   transition: all 0.2s ease;
 }
 
 .otpInput:focus {
   outline: none;
-  border-color: var(--soakd-ink);
+  border-color: var(--wholesip-ink);
   background: #ffffff;
 }
 
@@ -377,14 +377,14 @@
 
 .resendRow {
   font-size: 14px;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
 }
 
 .resendBtn {
   background: none;
   border: none;
   padding: 0;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   font-size: 14px;
   font-weight: 600;
   font-family: var(--font-outfit), sans-serif;
@@ -407,7 +407,7 @@
 
 .mutedText {
   font-size: 14px;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
 }
 
 /* ---------------- Status messages ---------------- */
@@ -444,13 +444,13 @@
 .successTitle {
   font-size: 24px;
   font-weight: 700;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   margin-bottom: 10px;
 }
 
 .successText {
   font-size: 15px;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
   line-height: 1.6;
   max-width: 420px;
   margin: 0 auto;
@@ -470,7 +470,7 @@
 
 .spinnerDark {
   border: 2px solid rgba(26, 26, 26, 0.15);
-  border-top-color: var(--soakd-ink);
+  border-top-color: var(--wholesip-ink);
 }
 
 @keyframes enq-spin {

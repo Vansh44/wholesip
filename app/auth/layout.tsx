@@ -1,7 +1,7 @@
 import React from "react";
 
 export const metadata = {
-  title: "Soakd — Sign In",
+  title: "WholeSip — Sign In",
 };
 
 export default function AuthLayout({

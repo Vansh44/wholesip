@@ -9,7 +9,7 @@ import { useRouter, usePathname } from "next/navigation";
 const socialLinks = [
   {
     name: "Instagram",
-    href: "https://instagram.com/getsoakd.official",
+    href: "https://instagram.com/wholesip.official",
     icon: (
       <Image
         src={siteConfig.assets.instagramLogoUrl}
@@ -26,7 +26,7 @@ const socialLinks = [
   },
   {
     name: "YouTube",
-    href: "https://youtube.com/@soakd",
+    href: "https://youtube.com/@wholesip",
     icon: (
       <Image
         src={siteConfig.assets.youtubeLogoUrl}
@@ -131,7 +131,7 @@ export default function Footer() {
           <Link href="/" className={styles.logo} onClick={handleLogoClick}>
             <Image
               src={siteConfig.assets.logoUrl}
-              alt="Soakd Logo"
+              alt="WholeSip Logo"
               width={160}
               height={60}
               priority
@@ -145,7 +145,7 @@ export default function Footer() {
 
           {/* Contact Info */}
           <div className={styles.contactBlock}>
-            <a href="mailto:hello@soakd.in" className={styles.contactLine}>
+            <a href="mailto:hello@wholesip.in" className={styles.contactLine}>
               <svg
                 width="14"
                 height="14"
@@ -160,7 +160,7 @@ export default function Footer() {
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                 <polyline points="22,6 12,13 2,6" />
               </svg>
-              hello@soakd.in
+              hello@wholesip.in
             </a>
             <a href="tel:+919999999999" className={styles.contactLine}>
               <svg
@@ -260,7 +260,7 @@ export default function Footer() {
         {/* Legal Links + Copyright */}
         <div className={styles.legalRow}>
           <p className={styles.copyright}>
-            &copy; {currentYear} Soakd Foods Pvt. Ltd. All rights reserved.
+            &copy; {currentYear} WholeSip Foods Pvt. Ltd. All rights reserved.
           </p>
           <div className={styles.legalLinks}>
             <Link href="/privacy-policy">Privacy Policy</Link>
@@ -274,7 +274,7 @@ export default function Footer() {
         </div>
       </div>
       <div className={styles.credit}>
-        <strong>Built with ❤️ by Soakd Team</strong>
+        <strong>Built with ❤️ by WholeSip Team</strong>
       </div>
     </footer>
   );

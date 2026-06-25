@@ -174,8 +174,8 @@ describe("renderCouponEmailBody", () => {
   });
 
   // The brand sign-off is always present.
-  it("includes the Team Soakd sign-off", () => {
-    expect(renderCouponEmailBody(base)).toContain("Team Soakd");
+  it("includes the Team WholeSip sign-off", () => {
+    expect(renderCouponEmailBody(base)).toContain("Team WholeSip");
   });
 });
 
@@ -186,7 +186,7 @@ describe("renderCouponEmail", () => {
   it("wraps the body in a full HTML document", () => {
     const out = renderCouponEmail(base);
     expect(out).toContain("<!DOCTYPE html>");
-    expect(out).toContain("Team Soakd");
+    expect(out).toContain("Team WholeSip");
     expect(out).toContain("Hi Ada,");
     expect(out).toContain("SAVE20");
   });

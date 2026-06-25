@@ -1,7 +1,7 @@
 import { siteConfig } from "@/config/site";
 
 /**
- * Wraps email body content in the shared Soakd branded layout.
+ * Wraps email body content in the shared WholeSip branded layout.
  *
  * Returns a full HTML document that forces a light color scheme: the
  * `color-scheme` / `supported-color-schemes` meta + CSS tell clients the email
@@ -41,7 +41,7 @@ export function wrapBrandedEmail(bodyHtml: string): string {
               <td align="center" bgcolor="#ffffff" style="background-color:#ffffff; padding:28px 24px; border-bottom:1px solid #f0f0f0;">
                 <img
                   src="${siteConfig.assets.logoUrl}"
-                  alt="Soakd"
+                  alt="WholeSip"
                   width="140"
                   style="display:block; width:140px; max-width:55%; height:auto;"
                 />

@@ -127,21 +127,21 @@ a {
      Deliberately NOT beige/almond and NOT cocoa/green (both earlier themes).
      Applied via the .storefront-root wrapper (NOT the admin dashboard).
      Consumed by Header, Footer, and the shop --shop-* tokens in shop.css. */
-  --soakd-cream: #fdfcfb; /* page background — near white */
-  --soakd-cream-deep: #f4f2ee; /* alt surface / hover / image tiles */
-  --soakd-surface: #ffffff; /* pure-white cards / inputs */
-  --soakd-ink: #17130f; /* headings + body — near black, high contrast */
-  --soakd-ink-soft: #574f47; /* muted text */
-  --soakd-ink-faint: #9c958c; /* subtle / struck price */
-  --soakd-taupe: #eee7de; /* promo ticker / soft band */
-  --soakd-sand: #f0ebe3; /* chips / soft pill surface */
-  --soakd-butter: #f3ecc9; /* highlight (used sparingly) */
-  --soakd-border: #e8e2d9; /* hairline */
-  --soakd-accent: #17130f; /* near-black — links / primary CTA */
-  --soakd-accent-deep: #000000; /* accent hover */
-  --soakd-tile: #f4dfe0; /* default product card tile when a product
+  --wholesip-cream: #fdfcfb; /* page background — near white */
+  --wholesip-cream-deep: #f4f2ee; /* alt surface / hover / image tiles */
+  --wholesip-surface: #ffffff; /* pure-white cards / inputs */
+  --wholesip-ink: #17130f; /* headings + body — near black, high contrast */
+  --wholesip-ink-soft: #574f47; /* muted text */
+  --wholesip-ink-faint: #9c958c; /* subtle / struck price */
+  --wholesip-taupe: #eee7de; /* promo ticker / soft band */
+  --wholesip-sand: #f0ebe3; /* chips / soft pill surface */
+  --wholesip-butter: #f3ecc9; /* highlight (used sparingly) */
+  --wholesip-border: #e8e2d9; /* hairline */
+  --wholesip-accent: #17130f; /* near-black — links / primary CTA */
+  --wholesip-accent-deep: #000000; /* accent hover */
+  --wholesip-tile: #f4dfe0; /* default product card tile when a product
                             sets no --card-bg (soft pastel) */
-  --soakd-accent-warm: #ce8662; /* terracotta — ticker separators & small
+  --wholesip-accent-warm: #ce8662; /* terracotta — ticker separators & small
                                    warm accents only (NOT the primary accent;
                                    the primary accent stays ink) */
 }

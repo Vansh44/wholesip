@@ -1,5 +1,5 @@
 /* Homepage managed sections — rendered below the hero. Uses the global
-   --soakd-* storefront palette; no new tokens. */
+   --wholesip-* storefront palette; no new tokens. */
 
 .home-sections {
   width: 100%;
@@ -29,14 +29,14 @@
   font-size: clamp(1.5rem, 3.5vw, 2.25rem);
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   margin: 0;
 }
 
 .home-section-sub {
   margin: 6px 0 0;
   font-size: 0.95rem;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
 }
 
 /* ---- Featured products grid (reuses .shop-card from shop.css) ---- */
@@ -68,7 +68,7 @@
    .shop-card rules in shop.css are otherwise scoped under .shop-listing and
    wouldn't reach the homepage. */
 .home-product-grid .shop-card {
-  background: var(--card-bg, var(--soakd-tile, #f4dfe0));
+  background: var(--card-bg, var(--wholesip-tile, #f4dfe0));
   border: none;
   border-radius: 20px;
   padding: 10px;
@@ -100,7 +100,7 @@
   left: auto;
   right: 14px;
   top: 14px;
-  background: var(--soakd-ink);
+  background: var(--wholesip-ink);
   color: #fff;
   font-size: 13px;
   padding: 6px 14px;
@@ -116,21 +116,21 @@
   font-family: var(--font-outfit), sans-serif;
   font-weight: 700;
   font-size: 1.15rem;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 
 .home-product-grid .shop-card-price,
 .home-product-grid .shop-card-sell,
 .home-product-grid .shop-card-from {
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 
 .home-product-grid .shop-card-base {
-  color: var(--soakd-ink-faint);
+  color: var(--wholesip-ink-faint);
 }
 
 .home-product-grid .shop-card-off {
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   background: rgba(255, 255, 255, 0.55);
 }
 
@@ -160,7 +160,7 @@
   align-items: center;
   gap: 10px;
   text-decoration: none;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 
 .home-cat-img {
@@ -169,8 +169,8 @@
   aspect-ratio: 1 / 1;
   border-radius: 999px;
   overflow: hidden;
-  background: var(--soakd-cream-deep);
-  border: 1px solid var(--soakd-border);
+  background: var(--wholesip-cream-deep);
+  border: 1px solid var(--wholesip-border);
   transition: transform 0.18s ease;
 }
 .home-cat-tile:hover .home-cat-img {
@@ -216,15 +216,111 @@
   }
 }
 
+/* Horizontal carousel variant — fits any number of posts in a swipeable row
+   with prev/next arrows. Arrows live just outside the track; the track itself
+   scrolls (drag, trackpad, touch) with the scrollbar hidden for a clean look. */
+.home-blog-carousel {
+  position: relative;
+}
+
+.home-blog-scroll {
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-behavior: smooth;
+  /* A touch of vertical padding so card hover-lift + shadow aren't clipped. */
+  padding: 4px 2px 14px;
+  /* Hidden scrollbar — navigation is via arrows / drag / swipe. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+  cursor: grab;
+}
+.home-blog-scroll::-webkit-scrollbar {
+  display: none;
+}
+.home-blog-scroll.is-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+}
+.home-blog-scroll .home-blog-card {
+  flex: 0 0 clamp(280px, 30%, 380px);
+  scroll-snap-align: start;
+}
+/* Don't let an in-progress drag select card text. */
+.home-blog-scroll.is-dragging * {
+  user-select: none;
+}
+
+/* Round nav buttons, vertically centred on the row, fading out at the ends. */
+.home-blog-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: var(--wholesip-surface);
+  color: var(--wholesip-ink);
+  border: 1px solid var(--wholesip-border);
+  box-shadow: 0 8px 24px rgba(23, 19, 15, 0.14);
+  cursor: pointer;
+  opacity: 1;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.2s ease,
+    background 0.18s ease;
+}
+.home-blog-arrow:hover {
+  transform: translateY(-50%) scale(1.08);
+  box-shadow: 0 12px 30px rgba(23, 19, 15, 0.2);
+}
+.home-blog-arrow:active {
+  transform: translateY(-50%) scale(0.96);
+}
+.home-blog-arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+.home-blog-arrow-prev {
+  left: -10px;
+}
+.home-blog-arrow-next {
+  right: -10px;
+}
+
+/* Touch devices swipe natively — hide the arrows and use full-width cards. */
+@media (max-width: 700px) {
+  .home-blog-arrow {
+    display: none;
+  }
+  .home-blog-scroll .home-blog-card {
+    flex-basis: 85%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-blog-scroll {
+    scroll-behavior: auto;
+  }
+}
+
 .home-blog-card {
   display: flex;
   flex-direction: column;
-  background: var(--soakd-surface);
-  border: 1px solid var(--soakd-border);
+  background: var(--wholesip-surface);
+  border: 1px solid var(--wholesip-border);
   border-radius: 18px;
   overflow: hidden;
   text-decoration: none;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   transition:
     transform 0.18s ease,
     box-shadow 0.18s ease;
@@ -238,7 +334,7 @@
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 10;
-  background: var(--soakd-cream-deep);
+  background: var(--wholesip-cream-deep);
 }
 .home-blog-img-el {
   object-fit: cover;
@@ -256,7 +352,7 @@
   position: absolute;
   top: 12px;
   left: 12px;
-  background: var(--soakd-ink);
+  background: var(--wholesip-ink);
   color: #fff;
   font-size: 11px;
   font-weight: 600;
@@ -278,11 +374,11 @@
   font-weight: 700;
   line-height: 1.3;
   margin: 0;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 .home-blog-excerpt {
   font-size: 0.9rem;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -298,13 +394,13 @@
   flex-wrap: wrap;
   gap: 8px;
   font-size: 0.78rem;
-  color: var(--soakd-ink-faint);
+  color: var(--wholesip-ink-faint);
 }
 .home-blog-meta-dot {
   width: 3px;
   height: 3px;
   border-radius: 999px;
-  background: var(--soakd-ink-faint);
+  background: var(--wholesip-ink-faint);
 }
 
 /* ---- Promo banner ---- */
@@ -314,7 +410,7 @@
   min-height: clamp(260px, 38vw, 460px);
   display: flex;
   overflow: hidden;
-  background: var(--soakd-cream-deep);
+  background: var(--wholesip-cream-deep);
 }
 
 .home-banner-img {
@@ -366,7 +462,7 @@
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
 }
 .home-banner.theme-dark .home-banner-content {
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 
 .home-banner-heading {
@@ -392,21 +488,21 @@
   font-weight: 600;
   font-size: 0.95rem;
   text-decoration: none;
-  background: var(--soakd-ink);
-  color: var(--soakd-cream);
+  background: var(--wholesip-ink);
+  color: var(--wholesip-cream);
   transition:
     transform 0.15s ease,
     background 0.15s ease;
 }
 .home-banner-cta:hover {
   transform: translateY(-2px);
-  background: var(--soakd-accent-deep);
+  background: var(--wholesip-accent-deep);
 }
 /* On a dark-text banner, the dark button needs the inverse for contrast. */
 .home-banner.theme-light .home-banner-cta {
   background: #fff;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 .home-banner.theme-light .home-banner-cta:hover {
-  background: var(--soakd-cream);
+  background: var(--wholesip-cream);
 }

@@ -5,7 +5,7 @@ import { Check, Link2, Share2 } from "lucide-react";
 
 /**
  * Copy-link + native-share buttons, reused on the blog detail and product
- * (pages). Styled via .soakd-share* in storefront-theme.css (global). Share uses
+ * (pages). Styled via .wholesip-share* in storefront-theme.css (global). Share uses
  * the Web Share API when available (mobile / supporting browsers) and falls
  * back to copying the link.
  */
@@ -39,10 +39,10 @@ export function ShareButtons({ title }: { title: string }) {
   };
 
   return (
-    <div className="soakd-share">
+    <div className="wholesip-share">
       <button
         type="button"
-        className="soakd-share-btn"
+        className="wholesip-share-btn"
         onClick={copy}
         aria-label="Copy link"
       >
@@ -51,7 +51,7 @@ export function ShareButtons({ title }: { title: string }) {
       </button>
       <button
         type="button"
-        className="soakd-share-btn"
+        className="wholesip-share-btn"
         onClick={share}
         aria-label="Share"
       >

@@ -93,7 +93,7 @@ export default function Header() {
         <Link href="/" className={styles.logo}>
           <Image
             src={siteConfig.assets.logoUrl}
-            alt="Soakd Logo"
+            alt="WholeSip Logo"
             width={180}
             height={60}
             priority
@@ -328,7 +328,7 @@ export default function Header() {
             className={styles.logo}
             onClick={() => setIsMenuOpen(false)}
           >
-            soakd
+            wholesip
           </Link>
           <button
             className={styles.closeBtn}

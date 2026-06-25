@@ -244,7 +244,9 @@ describe("CartProvider", () => {
     const user = userEvent.setup();
     const { unmount } = renderCart();
     await user.click(screen.getByText("addP1"));
-    expect(JSON.parse(localStorage.getItem("soakd-cart-v1")!)).toHaveLength(1);
+    expect(JSON.parse(localStorage.getItem("wholesip-cart-v1")!)).toHaveLength(
+      1,
+    );
 
     unmount();
     renderCart();
@@ -253,7 +255,7 @@ describe("CartProvider", () => {
   });
 
   it("ignores malformed persisted storage without throwing", () => {
-    localStorage.setItem("soakd-cart-v1", "{not json");
+    localStorage.setItem("wholesip-cart-v1", "{not json");
     expect(() => renderCart()).not.toThrow();
     expect(screen.getByTestId("totalItems")).toHaveTextContent("0");
   });

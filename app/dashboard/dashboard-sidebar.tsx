@@ -74,7 +74,7 @@ export function DashboardSidebar({
             <Link href="/dashboard" className="dash-brand">
               <Image
                 src={logoUrl}
-                alt="Soakd Logo"
+                alt="WholeSip Logo"
                 width={150}
                 height={50}
                 priority

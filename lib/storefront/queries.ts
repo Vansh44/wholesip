@@ -36,6 +36,8 @@ export interface ProductCardRow {
   featured: boolean;
   sort_order: number;
   card_color: string | null;
+  /** Resolved category name (flattened from the joined categories row). */
+  category: string | null;
   variants: {
     base_price: number;
     selling_price: number;
@@ -63,17 +65,18 @@ export interface BlogCardRow {
   reading_time: number | null;
   tags: string[];
   categories: string[] | null;
+  featured: boolean;
 }
 
 // Columns the shop + homepage product cards actually render. Deliberately NOT
 // `*` / `variants(*)` — we only need pricing-relevant variant fields.
 const PRODUCT_CARD_COLUMNS =
-  "id, name, slug, description, category_id, base_price, selling_price, image_url, status, featured, sort_order, card_color, variants:product_variants(base_price, selling_price, special_price, sort_order)";
+  "id, name, slug, description, category_id, base_price, selling_price, image_url, status, featured, sort_order, card_color, category:categories(name), variants:product_variants(base_price, selling_price, special_price, sort_order)";
 
 // Blog card columns — crucially excludes `content` (full article HTML), which
 // the listing/cards never render but `select('*')` used to ship for every post.
 const BLOG_CARD_COLUMNS =
-  "id, title, slug, excerpt, cover_image_url, author, published_at, reading_time, tags, categories";
+  "id, title, slug, excerpt, cover_image_url, author, published_at, reading_time, tags, categories, featured";
 
 export const getPublishedProducts = unstable_cache(
   async (): Promise<ProductCardRow[]> => {
@@ -88,7 +91,15 @@ export const getPublishedProducts = unstable_cache(
       console.error("getPublishedProducts:", error.message);
       return [];
     }
-    return (data ?? []) as ProductCardRow[];
+    // PostgREST returns the embedded category as a nested object; flatten it to
+    // a plain name string so cards can read `product.category` directly.
+    const rows = (data ?? []) as unknown as (Omit<
+      ProductCardRow,
+      "category"
+    > & {
+      category: { name: string } | null;
+    })[];
+    return rows.map((r) => ({ ...r, category: r.category?.name ?? null }));
   },
   ["storefront-published-products"],
   { tags: [TAGS.products], revalidate: REVALIDATE },

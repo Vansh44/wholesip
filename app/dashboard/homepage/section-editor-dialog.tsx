@@ -93,7 +93,7 @@ function OrderedPicker({
                 onClick={() => move(i, -1)}
                 disabled={i === 0}
                 title="Move up"
-                className="text-muted-foreground hover:bg-accent flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+                className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
               >
                 <ChevronUp className="h-4 w-4" />
               </button>
@@ -102,7 +102,7 @@ function OrderedPicker({
                 onClick={() => move(i, 1)}
                 disabled={i === selectedIds.length - 1}
                 title="Move down"
-                className="text-muted-foreground hover:bg-accent flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+                className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
               >
                 <ChevronDown className="h-4 w-4" />
               </button>
@@ -568,18 +568,34 @@ function BlogFields({
         </div>
       </div>
 
-      <div>
-        <label className={labelClass}>Which posts?</label>
-        <select
-          className={fieldClass}
-          value={config.source}
-          onChange={(e) =>
-            set("source", e.target.value as LatestBlogsConfig["source"])
-          }
-        >
-          <option value="latest">Latest published (auto)</option>
-          <option value="manual">Hand-picked</option>
-        </select>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Which posts?</label>
+          <select
+            className={fieldClass}
+            value={config.source}
+            onChange={(e) =>
+              set("source", e.target.value as LatestBlogsConfig["source"])
+            }
+          >
+            <option value="latest">Latest published (auto)</option>
+            <option value="featured">Featured posts (auto)</option>
+            <option value="manual">Hand-picked</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelClass}>Layout</label>
+          <select
+            className={fieldClass}
+            value={config.layout}
+            onChange={(e) =>
+              set("layout", e.target.value as LatestBlogsConfig["layout"])
+            }
+          >
+            <option value="grid">Grid</option>
+            <option value="scroll">Horizontal scroll</option>
+          </select>
+        </div>
       </div>
 
       {config.source === "manual" ? (

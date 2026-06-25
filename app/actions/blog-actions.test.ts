@@ -31,10 +31,14 @@ import {
   rejectCustomerBlog,
   revertCustomerBlogToDraft,
   deleteCustomerBlog,
+  bulkSetBlogStatus,
+  bulkSetBlogFeatured,
+  bulkDeleteBlogs,
 } from "./blog-actions";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import {
   sendBlogApprovedEmail,
   sendBlogRejectedEmail,
@@ -90,6 +94,83 @@ describe("blog-actions", () => {
     });
     vi.mocked(createAdminClient).mockReturnValue(admin);
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+  });
+
+  describe("bulk operations", () => {
+    it("bulkSetBlogStatus rejects when not authorised", async () => {
+      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      const r = await bulkSetBlogStatus(["b1"], "published");
+      expect(r.error).toMatch(/not authenticated/i);
+    });
+
+    it("bulkSetBlogStatus rejects an empty selection", async () => {
+      const r = await bulkSetBlogStatus([], "published");
+      expect(r.error).toMatch(/nothing selected/i);
+    });
+
+    it("bulkSetBlogStatus publishes the selected ids", async () => {
+      const r = await bulkSetBlogStatus(["b1", "b2"], "published");
+      expect(r.success).toBe(true);
+      const chain = supabase._tables.blogs;
+      expect(chain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "published" }),
+      );
+      // published_at is set when publishing.
+      expect(chain.update.mock.calls[0][0].published_at).toBeTruthy();
+      expect(chain.in).toHaveBeenCalledWith("id", ["b1", "b2"]);
+    });
+
+    it("bulkSetBlogStatus clears published_at when unpublishing", async () => {
+      await bulkSetBlogStatus(["b1"], "draft");
+      const chain = supabase._tables.blogs;
+      expect(chain.update.mock.calls[0][0]).toMatchObject({
+        status: "draft",
+        published_at: null,
+      });
+    });
+
+    it("bulkSetBlogStatus surfaces a DB error", async () => {
+      supabase._tables.blogs = makeChain(
+        { data: null, error: null },
+        { data: null, error: { message: "boom" } },
+      );
+      const r = await bulkSetBlogStatus(["b1"], "published");
+      expect(r.error).toBe("boom");
+    });
+
+    it("bulkSetBlogFeatured updates the featured flag for the ids", async () => {
+      const r = await bulkSetBlogFeatured(["b1", "b2"], true);
+      expect(r.success).toBe(true);
+      const chain = supabase._tables.blogs;
+      expect(chain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ featured: true }),
+      );
+      expect(chain.in).toHaveBeenCalledWith("id", ["b1", "b2"]);
+    });
+
+    it("bulkDeleteBlogs deletes the ids and cleans up storage", async () => {
+      const r = await bulkDeleteBlogs(["b1", "b2"]);
+      expect(r.success).toBe(true);
+      const chain = supabase._tables.blogs;
+      expect(chain.delete).toHaveBeenCalled();
+      expect(chain.in).toHaveBeenCalledWith("id", ["b1", "b2"]);
+      expect(deleteStorageUrls).toHaveBeenCalled();
+    });
+
+    it("bulkDeleteBlogs rejects when not authorised", async () => {
+      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      const r = await bulkDeleteBlogs(["b1"]);
+      expect(r.error).toMatch(/not authenticated/i);
+    });
+
+    it("bulkDeleteBlogs surfaces a DB error", async () => {
+      supabase._tables.blogs = makeChain(
+        { data: null, error: null },
+        { data: null, error: { message: "nope" } },
+      );
+      const r = await bulkDeleteBlogs(["b1"]);
+      expect(r.error).toBe("nope");
+    });
   });
 
   describe("createBlog", () => {

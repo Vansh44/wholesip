@@ -448,6 +448,84 @@ export async function toggleProductPublish(
 }
 
 // ---------------------------------------------------------------------------
+// Bulk operations (dashboard multi-select)
+// ---------------------------------------------------------------------------
+
+/** Publish or unpublish many products at once. */
+export async function bulkToggleProductPublish(
+  ids: string[],
+  publish: boolean,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const userId = await getAdminUserId();
+  if (!userId) return { error: "Not authenticated" };
+  if (ids.length === 0) return { error: "Nothing selected." };
+
+  const { error } = await supabase
+    .from("products")
+    .update({
+      status: publish ? "published" : "draft",
+      published_at: publish ? new Date().toISOString() : null,
+      updated_by: userId,
+    })
+    .in("id", ids);
+
+  if (error) {
+    console.error("bulkToggleProductPublish error:", error);
+    return { error: error.message };
+  }
+  revalidateProduct();
+  return { success: true };
+}
+
+/** Feature or unfeature many products at once. */
+export async function bulkSetProductFeatured(
+  ids: string[],
+  featured: boolean,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const userId = await getAdminUserId();
+  if (!userId) return { error: "Not authenticated" };
+  if (ids.length === 0) return { error: "Nothing selected." };
+
+  const { error } = await supabase
+    .from("products")
+    .update({ featured, updated_by: userId })
+    .in("id", ids);
+
+  if (error) {
+    console.error("bulkSetProductFeatured error:", error);
+    return { error: error.message };
+  }
+  revalidateProduct();
+  return { success: true };
+}
+
+/** Permanently delete many products, cleaning up their storage assets. */
+export async function bulkDeleteProducts(ids: string[]): Promise<ActionResult> {
+  const supabase = await createClient();
+  const userId = await getAdminUserId();
+  if (!userId) return { error: "Not authenticated" };
+  if (ids.length === 0) return { error: "Nothing selected." };
+
+  // Gather images for every product first (variants cascade in the DB; files
+  // do not).
+  const urls: string[] = [];
+  for (const id of ids) {
+    urls.push(...(await fetchProductImageUrls(supabase, id)));
+  }
+
+  const { error } = await supabase.from("products").delete().in("id", ids);
+  if (error) {
+    console.error("bulkDeleteProducts error:", error);
+    return { error: error.message };
+  }
+  await deleteStorageUrls(urls);
+  revalidateProduct();
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // AI description generation (Gemini)
 //
 // Pipeline:  brand/brand.md (soul)  +  product-desc.md (task rules)  +

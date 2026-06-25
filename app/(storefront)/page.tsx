@@ -30,9 +30,9 @@ import "@/app/(storefront)/components/homepage/homepage.css";
 export const revalidate = 300;
 
 export const metadata = {
-  title: "Soakd | The Way Earth Made It",
+  title: "WholeSip | The Way Earth Made It",
   description:
-    "Soakd — zero preservatives, 100% real ingredients. The way Earth made it.",
+    "WholeSip — zero preservatives, 100% real ingredients. The way Earth made it.",
   alternates: { canonical: "/" },
 };
 
@@ -107,12 +107,20 @@ export default async function Home() {
       categoriesBySection.set(s.id, rows);
     } else if (s.type === "latest_blogs") {
       const c = s.config as LatestBlogsConfig;
-      const rows =
-        c.source === "manual"
-          ? c.blog_ids
-              .map((id) => blogById.get(id))
-              .filter((x): x is BlogCardData => !!x)
-          : allBlogs.slice(0, clampLimit(c.limit));
+      let rows: BlogCardData[];
+      if (c.source === "manual") {
+        rows = c.blog_ids
+          .map((id) => blogById.get(id))
+          .filter((x): x is BlogCardData => !!x);
+      } else {
+        // "featured" narrows to flagged posts first; "latest" uses all
+        // (already newest-first). Both then cap to the limit.
+        const pool =
+          c.source === "featured"
+            ? allBlogs.filter((b) => b.featured)
+            : allBlogs;
+        rows = pool.slice(0, clampLimit(c.limit));
+      }
       blogsBySection.set(s.id, rows);
     }
   }

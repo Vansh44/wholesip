@@ -78,7 +78,7 @@ export function renderCouponEmailBody(content: CouponEmailContent): string {
 ${couponBox(content.code, content.discountLabel, content.validUntilLabel)}
 <p style="margin-top:28px;">
   Warm regards,<br />
-  <strong>Team Soakd</strong>
+  <strong>Team WholeSip</strong>
 </p>`;
 }
 

@@ -41,7 +41,16 @@ import {
   unpublishBlog,
   approveCustomerBlog,
   rejectCustomerBlog,
+  bulkSetBlogStatus,
+  bulkSetBlogFeatured,
+  bulkDeleteBlogs,
 } from "@/app/actions/blog-actions";
+import { useRowSelection } from "@/app/dashboard/lib/use-row-selection";
+import {
+  BulkActionBar,
+  RowCheckbox,
+  SelectAllCheckbox,
+} from "@/app/dashboard/components/bulk-actions";
 import dynamic from "next/dynamic";
 import type { Blog } from "./page";
 
@@ -118,6 +127,31 @@ export function BlogsManagementView({
 
     return result;
   }, [blogs, filter, search]);
+
+  // ── Bulk selection ────────────────────────────────────────
+  const visibleIds = useMemo(
+    () => filteredBlogs.map((b) => b.id),
+    [filteredBlogs],
+  );
+  const selection = useRowSelection(visibleIds);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  const runBulk = (
+    action: () => Promise<{ error?: string; success?: boolean }>,
+    successMsg: string,
+  ) => {
+    startTransition(async () => {
+      const result = await action();
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success(successMsg);
+        selection.clear();
+        setBulkDeleteOpen(false);
+        router.refresh();
+      }
+    });
+  };
 
   // ── Tab counts ────────────────────────────────────────────
   const counts = useMemo(
@@ -319,6 +353,15 @@ export function BlogsManagementView({
           <table className="dash-table">
             <thead>
               <tr>
+                {canManage && (
+                  <th className="dash-checkbox-cell">
+                    <SelectAllCheckbox
+                      checked={selection.allSelected}
+                      indeterminate={selection.someSelected}
+                      onChange={selection.toggleAll}
+                    />
+                  </th>
+                )}
                 <th className="w-14">Cover</th>
                 <th>Title</th>
                 <th>Categories</th>
@@ -331,7 +374,21 @@ export function BlogsManagementView({
             </thead>
             <tbody>
               {filteredBlogs.map((blog) => (
-                <tr key={blog.id}>
+                <tr
+                  key={blog.id}
+                  className={
+                    selection.isSelected(blog.id) ? "is-selected" : undefined
+                  }
+                >
+                  {canManage && (
+                    <td className="dash-checkbox-cell">
+                      <RowCheckbox
+                        checked={selection.isSelected(blog.id)}
+                        onToggle={() => selection.toggle(blog.id)}
+                        label={`Select ${blog.title}`}
+                      />
+                    </td>
+                  )}
                   {/* Cover */}
                   <td>
                     {blog.cover_image_url ? (
@@ -531,6 +588,121 @@ export function BlogsManagementView({
           </table>
         )}
       </div>
+
+      {/* Bulk action bar (appears while rows are selected) */}
+      {canManage && (
+        <BulkActionBar
+          count={selection.count}
+          onClear={selection.clear}
+          busy={isPending}
+        >
+          <button
+            type="button"
+            className="dash-bulk-btn"
+            disabled={isPending}
+            onClick={() =>
+              runBulk(
+                () => bulkSetBlogStatus(selection.selectedIds, "published"),
+                "Selected blogs published",
+              )
+            }
+          >
+            <Send className="h-4 w-4" />
+            Publish
+          </button>
+          <button
+            type="button"
+            className="dash-bulk-btn"
+            disabled={isPending}
+            onClick={() =>
+              runBulk(
+                () => bulkSetBlogStatus(selection.selectedIds, "draft"),
+                "Selected blogs unpublished",
+              )
+            }
+          >
+            <Undo2 className="h-4 w-4" />
+            Unpublish
+          </button>
+          <button
+            type="button"
+            className="dash-bulk-btn"
+            disabled={isPending}
+            onClick={() =>
+              runBulk(
+                () => bulkSetBlogFeatured(selection.selectedIds, true),
+                "Selected blogs featured",
+              )
+            }
+          >
+            <Star className="h-4 w-4" />
+            Feature
+          </button>
+          <button
+            type="button"
+            className="dash-bulk-btn"
+            disabled={isPending}
+            onClick={() =>
+              runBulk(
+                () => bulkSetBlogFeatured(selection.selectedIds, false),
+                "Selected blogs unfeatured",
+              )
+            }
+          >
+            <Star className="h-4 w-4" />
+            Unfeature
+          </button>
+          <button
+            type="button"
+            className="dash-bulk-btn dash-bulk-btn-danger"
+            disabled={isPending}
+            onClick={() => setBulkDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </button>
+        </BulkActionBar>
+      )}
+
+      {/* Bulk delete confirmation */}
+      <Dialog
+        open={bulkDeleteOpen}
+        onOpenChange={(open) => !open && setBulkDeleteOpen(false)}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              Delete {selection.count} blog{selection.count === 1 ? "" : "s"}
+            </DialogTitle>
+            <DialogDescription>
+              This permanently deletes the selected blog
+              {selection.count === 1 ? "" : "s"} and their images. This action
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteOpen(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isPending}
+              onClick={() =>
+                runBulk(
+                  () => bulkDeleteBlogs(selection.selectedIds),
+                  `Deleted ${selection.count} blog${selection.count === 1 ? "" : "s"}`,
+                )
+              }
+            >
+              {isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog

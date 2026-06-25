@@ -49,8 +49,12 @@ describe("loadBrandSoul", () => {
   });
 
   it("returns trimmed brand content", async () => {
-    mockReadFile.mockResolvedValue("  We are Soakd, calm and warm.  \n" as any);
-    await expect(loadBrandSoul()).resolves.toBe("We are Soakd, calm and warm.");
+    mockReadFile.mockResolvedValue(
+      "  We are WholeSip, calm and warm.  \n" as any,
+    );
+    await expect(loadBrandSoul()).resolves.toBe(
+      "We are WholeSip, calm and warm.",
+    );
   });
 
   it("returns null when the file is only the placeholder HTML comment", async () => {
@@ -78,7 +82,7 @@ describe("loadBrandSoul", () => {
 
 describe("brandSystemText", () => {
   it("embeds the brand text and appends the brand's soul instruction", () => {
-    const brand = "We are Soakd.";
+    const brand = "We are WholeSip.";
     const out = brandSystemText(brand);
     expect(out).toContain(brand);
     expect(out).toContain("The text above is the brand's soul");

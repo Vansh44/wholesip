@@ -8,7 +8,7 @@ export default function Process() {
       style={{
         padding: "140px 64px 80px",
         minHeight: "100vh",
-        background: "var(--soakd-cream)",
+        background: "var(--wholesip-cream)",
       }}
     >
       <h1 style={{ fontSize: "3rem", marginBottom: "20px" }}>The Process</h1>

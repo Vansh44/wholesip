@@ -3,32 +3,32 @@
    Theme: near-white cream canvas + near-black INK accent, with
    soft pastel per-product tiles. (NOT green, NOT cocoa — those
    were earlier themes; do not reintroduce them.)
-   All colours are driven from the --soakd-* tokens in globals.css.
+   All colours are driven from the --wholesip-* tokens in globals.css.
    Change colours THERE, never reintroduce raw hex inline here.
    ============================================================ */
 
 :root {
-  /* Mapped onto the global cream + ink theme (--soakd-* in globals.css)
+  /* Mapped onto the global cream + ink theme (--wholesip-* in globals.css)
      so the shop listing AND product (pages) stay consistent. */
-  --shop-bg: var(--soakd-cream); /* page background — near white */
-  --shop-surface: var(--soakd-surface); /* cards / inputs (white) */
-  --shop-surface-alt: var(--soakd-cream-deep); /* image placeholders */
+  --shop-bg: var(--wholesip-cream); /* page background — near white */
+  --shop-surface: var(--wholesip-surface); /* cards / inputs (white) */
+  --shop-surface-alt: var(--wholesip-cream-deep); /* image placeholders */
 
-  --shop-text: var(--soakd-ink); /* headings + body */
-  --shop-text-muted: var(--soakd-ink-soft); /* subtitles / labels */
-  --shop-text-subtle: var(--soakd-ink-soft); /* descriptions / breadcrumb */
-  --shop-text-faint: var(--soakd-ink-faint); /* struck-through base price */
+  --shop-text: var(--wholesip-ink); /* headings + body */
+  --shop-text-muted: var(--wholesip-ink-soft); /* subtitles / labels */
+  --shop-text-subtle: var(--wholesip-ink-soft); /* descriptions / breadcrumb */
+  --shop-text-faint: var(--wholesip-ink-faint); /* struck-through base price */
 
-  --shop-border: var(--soakd-border);
-  --shop-border-soft: rgba(23, 19, 15, 0.08); /* derived from --soakd-ink */
-  --shop-shadow: rgba(23, 19, 15, 0.18); /* derived from --soakd-ink */
+  --shop-border: var(--wholesip-border);
+  --shop-border-soft: rgba(23, 19, 15, 0.08); /* derived from --wholesip-ink */
+  --shop-shadow: rgba(23, 19, 15, 0.18); /* derived from --wholesip-ink */
 
-  --shop-accent: var(--soakd-accent); /* near-black ink / primary CTA */
-  --shop-accent-hover: var(--soakd-accent-deep);
+  --shop-accent: var(--wholesip-accent); /* near-black ink / primary CTA */
+  --shop-accent-hover: var(--wholesip-accent-deep);
   --shop-accent-soft: rgba(23, 19, 15, 0.08); /* faint ink wash (CTA hover) */
   --shop-on-accent: #ffffff; /* text on near-black */
 
-  --shop-sale: var(--soakd-accent); /* discount badge text */
+  --shop-sale: var(--wholesip-accent); /* discount badge text */
   --shop-sale-bg: rgba(23, 19, 15, 0.06); /* faint ink wash behind badge */
 
   --shop-overlay: rgba(23, 19, 15, 0.92); /* lightbox backdrop */
@@ -184,6 +184,37 @@
   flex: 1;
 }
 
+/* .shop-card-cat {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #1f1408;
+  border: 1px solid #1f1408;
+  border-radius: 999px;
+  margin: 0 0 -2px;
+} */
+.shop-card-cat {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 4px 12px;
+
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+
+  color: #1f1408;
+  border: 1px solid #1f1408;
+  border-radius: 999px;
+
+  margin-bottom: 12px;
+  width: fit-content;
+  display: inline-block;
+  background: #f5f5f5;
+}
+
 .shop-card-name {
   font-size: 1rem;
   font-weight: 600;
@@ -268,7 +299,7 @@
    .shop-card "you may also like" grid) keeps the neutral skin.
    ============================================================ */
 .shop-listing {
-  background: var(--soakd-cream);
+  background: var(--wholesip-cream);
   padding: 80px 0 80px; /* full-bleed: no side padding */
 }
 
@@ -295,11 +326,11 @@
    The separator is drawn by CSS (.shop-ticker-item::after) — so in the
    JSX render just "{phrase}", NOT "✦ {phrase}".
    To use the softer LIGHT variant instead: set background to
-   var(--soakd-taupe), the item color to var(--soakd-ink-soft), and add
-   `border-block: 0.5px solid var(--soakd-border);` here. */
+   var(--wholesip-taupe), the item color to var(--wholesip-ink-soft), and add
+   `border-block: 0.5px solid var(--wholesip-border);` here. */
 .shop-ticker {
   overflow: hidden;
-  background: var(--soakd-ink); /* near-black band */
+  background: var(--wholesip-ink); /* near-black band */
   font-family: var(--font-outfit), sans-serif;
   padding: 9px 0; /* thinner, more refined bar */
 }
@@ -338,7 +369,7 @@
 .shop-ticker-item::after {
   content: "✦";
   font-size: 7px;
-  color: var(--soakd-accent-warm, #ce8662);
+  color: var(--wholesip-accent-warm, #ce8662);
   margin-left: 36px;
   vertical-align: middle;
   opacity: 0.85;
@@ -389,8 +420,8 @@
 }
 
 .shop-listing .shop-kicker {
-  color: var(--soakd-ink);
-  background: var(--soakd-sand);
+  color: var(--wholesip-ink);
+  background: var(--wholesip-sand);
   padding: 7px 18px;
   border-radius: 999px;
   letter-spacing: 0.04em;
@@ -412,7 +443,7 @@
   font-size: clamp(36px, 4.5vw, 60px);
   line-height: 0.95;
   letter-spacing: -0.04em;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   margin: 0;
 }
 
@@ -423,8 +454,8 @@
   font-weight: 600;
   font-size: clamp(15px, 1.6vw, 19px);
   line-height: 1.4;
-  color: var(--soakd-cream);
-  background: var(--soakd-ink);
+  color: var(--wholesip-cream);
+  background: var(--wholesip-ink);
   padding: 16px 22px;
   border-radius: 14px;
   transform: rotate(-2.5deg);
@@ -439,22 +470,22 @@
 }
 
 .shop-listing .shop-chip {
-  border: 1px solid var(--soakd-border);
-  color: var(--soakd-ink-soft);
-  background: var(--soakd-surface);
+  border: 1px solid var(--wholesip-border);
+  color: var(--wholesip-ink-soft);
+  background: var(--wholesip-surface);
   font-weight: 600;
 }
 
 .shop-listing .shop-chip:hover {
-  border-color: var(--soakd-ink);
-  color: var(--soakd-ink);
-  background: var(--soakd-cream-deep);
+  border-color: var(--wholesip-ink);
+  color: var(--wholesip-ink);
+  background: var(--wholesip-cream-deep);
 }
 
 .shop-listing .shop-chip.active {
-  background: var(--soakd-ink);
-  color: var(--soakd-cream);
-  border-color: var(--soakd-ink);
+  background: var(--wholesip-ink);
+  color: var(--wholesip-cream);
+  border-color: var(--wholesip-ink);
 }
 
 /* Product count line */
@@ -463,7 +494,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 13px;
   font-weight: 500;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
 }
 
 /* Product cards — fixed 4 per row, responsive down */
@@ -494,7 +525,7 @@
 /* Soft pastel colour tile. A product may set --card-bg; otherwise fall back
    to the brand default tile token (defined in globals.css). */
 .shop-listing .shop-card {
-  background: var(--card-bg, var(--soakd-tile, #f4dfe0));
+  background: var(--card-bg, var(--wholesip-tile, #f4dfe0));
   border: none;
   border-radius: 20px;
   padding: 10px;
@@ -528,7 +559,7 @@
   left: auto;
   right: 14px;
   top: 14px;
-  background: var(--soakd-ink);
+  background: var(--wholesip-ink);
   color: #fff;
   font-size: 13px;
   padding: 6px 14px;
@@ -545,21 +576,21 @@
   font-family: var(--font-outfit), sans-serif;
   font-weight: 700;
   font-size: 1.15rem;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 
 .shop-listing .shop-card-price,
 .shop-listing .shop-card-sell,
 .shop-listing .shop-card-from {
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 
 .shop-listing .shop-card-base {
-  color: var(--soakd-ink-faint);
+  color: var(--wholesip-ink-faint);
 }
 
 .shop-listing .shop-card-off {
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   background: rgba(255, 255, 255, 0.55);
 }
 

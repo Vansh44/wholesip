@@ -52,8 +52,8 @@ type CartContextType = {
 
 const CartContext = createContext<CartContextType | null>(null);
 
-const STORAGE_KEY = "soakd-cart-v1";
-const COUPON_KEY = "soakd-coupon-v1";
+const STORAGE_KEY = "wholesip-cart-v1";
+const COUPON_KEY = "wholesip-coupon-v1";
 
 // A cart line is uniquely identified by product + variant.
 export function lineKey(productId: string, variantId: string | null): string {

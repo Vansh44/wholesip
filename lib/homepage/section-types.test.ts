@@ -202,6 +202,7 @@ describe("validateConfig", () => {
         source: "latest",
         blog_ids: [],
         limit: 5,
+        layout: "grid",
       });
     });
 
@@ -230,6 +231,35 @@ describe("validateConfig", () => {
       });
       const config = (out as { config: LatestBlogsConfig }).config;
       expect(config.limit).toBe(LIMIT_MIN);
+    });
+
+    it("defaults layout to 'grid' and honours layout='scroll'", () => {
+      const grid = (
+        validateConfig("latest_blogs", { source: "latest" }) as {
+          config: LatestBlogsConfig;
+        }
+      ).config;
+      expect(grid.layout).toBe("grid");
+
+      const scroll = (
+        validateConfig("latest_blogs", {
+          source: "manual",
+          blog_ids: ["b1"],
+          layout: "scroll",
+        }) as { config: LatestBlogsConfig }
+      ).config;
+      expect(scroll.layout).toBe("scroll");
+    });
+
+    it("keeps source=featured and needs no blog_ids", () => {
+      const out = validateConfig("latest_blogs", {
+        source: "featured",
+        limit: 4,
+      });
+      const config = (out as { config: LatestBlogsConfig }).config;
+      expect(config.source).toBe("featured");
+      expect(config.blog_ids).toEqual([]);
+      expect(config.limit).toBe(4);
     });
   });
 
@@ -448,6 +478,7 @@ describe("summarizeSection", () => {
       source: "manual",
       blog_ids: ["b1", "b2"],
       limit: 3,
+      layout: "scroll",
     };
     expect(summarizeSection({ type: "latest_blogs", config: manual })).toBe(
       "Journal · 2 hand-picked",
@@ -459,9 +490,22 @@ describe("summarizeSection", () => {
       source: "latest",
       blog_ids: [],
       limit: 5,
+      layout: "grid",
     };
     expect(summarizeSection({ type: "latest_blogs", config: latest })).toBe(
       "Blog posts · latest · up to 5",
+    );
+
+    const featured: LatestBlogsConfig = {
+      heading: "",
+      subheading: "",
+      source: "featured",
+      blog_ids: [],
+      limit: 4,
+      layout: "grid",
+    };
+    expect(summarizeSection({ type: "latest_blogs", config: featured })).toBe(
+      "Blog posts · featured · up to 4",
     );
   });
 });

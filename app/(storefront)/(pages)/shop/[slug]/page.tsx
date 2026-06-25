@@ -96,13 +96,13 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const product = await getProduct(slug);
-  if (!product) return { title: "Product not found | Soakd" };
+  if (!product) return { title: "Product not found | WholeSip" };
 
-  const title = product.seo_title || `${product.name} | Soakd`;
+  const title = product.seo_title || `${product.name} | WholeSip`;
   const description =
     product.seo_description ||
     product.description ||
-    `Shop ${product.name} at Soakd.`;
+    `Shop ${product.name} at WholeSip.`;
 
   const ogImageUrl = getOgImageUrl(product.image_url);
 
