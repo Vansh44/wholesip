@@ -1,13 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="wholesip">
-  <rect width="32" height="32" rx="8" fill="#17130f" />
-  <text
-    x="16"
-    y="16.5"
-    text-anchor="middle"
-    dominant-baseline="central"
-    font-family="'Inter','Helvetica Neue',Arial,sans-serif"
-    font-weight="800"
-    font-size="20"
-    fill="#fdfcfb"
-  >s</text>
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="WholeSip">
+  <defs>
+    <clipPath id="inside">
+      <path d="M156,148 L172,392 Q173,398 183,398 L329,398 Q339,398 340,392 L356,148 Z"/>
+    </clipPath>
+  </defs>
+  <rect width="512" height="512" rx="118" fill="#5F7042"/>
+  <g clip-path="url(#inside)">
+    <path d="M150,256 C188,236 226,278 256,258 C286,238 324,278 362,254 L362,430 L150,430 Z" fill="#F1EEE0"/>
+  </g>
+  <path d="M150,148 L168,390 Q170,402 184,402 L328,402 Q342,402 344,390 L362,148"
+        fill="none" stroke="#F1EEE0" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="256" y="338" text-anchor="middle" font-family="Quicksand, 'Trebuchet MS', sans-serif"
+        font-weight="700" font-size="33" letter-spacing="-1.2" fill="#5F7042">WholeSip</text>
 </svg>
