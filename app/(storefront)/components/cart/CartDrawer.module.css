@@ -1,6 +1,6 @@
 /* ============================================
    Cart Drawer — right-side slide-in panel
-   Driven by the global --soakd-* tokens.
+   Driven by the global --wholesip-* tokens.
    ============================================ */
 
 .overlay {
@@ -31,8 +31,8 @@
   width: 100%;
   max-width: 420px;
   height: 100%;
-  background: var(--soakd-cream);
-  color: var(--soakd-ink);
+  background: var(--wholesip-cream);
+  color: var(--wholesip-ink);
   box-shadow: -8px 0 40px rgba(23, 19, 15, 0.16);
   transform: translateX(100%);
   transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
@@ -48,7 +48,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 20px 22px;
-  border-bottom: 1px solid var(--soakd-border);
+  border-bottom: 1px solid var(--wholesip-border);
   flex: 0 0 auto;
 }
 
@@ -68,7 +68,7 @@
   height: 22px;
   padding: 0 6px;
   border-radius: 999px;
-  background: var(--soakd-ink);
+  background: var(--wholesip-ink);
   color: #fff;
   display: inline-flex;
   align-items: center;
@@ -79,13 +79,13 @@
   width: 36px;
   height: 36px;
   border: none;
-  background: var(--soakd-sand);
+  background: var(--wholesip-sand);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
   transition:
     background 0.2s ease,
     color 0.2s ease,
@@ -93,8 +93,8 @@
 }
 
 .closeBtn:hover {
-  background: var(--soakd-cream-deep);
-  color: var(--soakd-ink);
+  background: var(--wholesip-cream-deep);
+  color: var(--wholesip-ink);
   transform: scale(1.05);
 }
 
@@ -115,7 +115,7 @@
   gap: 14px;
   align-items: flex-start;
   padding-bottom: 14px;
-  border-bottom: 1px solid var(--soakd-border);
+  border-bottom: 1px solid var(--wholesip-border);
 }
 
 .item:last-child {
@@ -130,7 +130,7 @@
   height: 72px;
   border-radius: 12px;
   overflow: hidden;
-  background: var(--soakd-cream-deep);
+  background: var(--wholesip-cream-deep);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -156,7 +156,7 @@
 .itemName {
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   text-decoration: none;
   line-height: 1.25;
 }
@@ -167,7 +167,7 @@
 
 .itemVariant {
   font-size: 0.8rem;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
 }
 
 .itemFooter {
@@ -181,10 +181,10 @@
 .stepper {
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--soakd-border);
+  border: 1px solid var(--wholesip-border);
   border-radius: 8px;
   overflow: hidden;
-  background: var(--soakd-surface);
+  background: var(--wholesip-surface);
 }
 
 .stepperBtn {
@@ -195,7 +195,7 @@
   justify-content: center;
   font-size: 1.05rem;
   line-height: 1;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -211,8 +211,8 @@
   text-align: center;
   font-size: 0.88rem;
   font-weight: 600;
-  border-left: 1px solid var(--soakd-border);
-  border-right: 1px solid var(--soakd-border);
+  border-left: 1px solid var(--wholesip-border);
+  border-right: 1px solid var(--wholesip-border);
   align-self: stretch;
   display: flex;
   align-items: center;
@@ -222,14 +222,14 @@
 .itemPrice {
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 
 .itemRemove {
   flex: 0 0 auto;
   background: transparent;
   border: none;
-  color: var(--soakd-ink-faint);
+  color: var(--wholesip-ink-faint);
   cursor: pointer;
   padding: 2px;
   display: flex;
@@ -237,15 +237,15 @@
 }
 
 .itemRemove:hover {
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
 }
 
 /* ── Footer ── */
 .footer {
   flex: 0 0 auto;
   padding: 18px 22px 22px;
-  border-top: 1px solid var(--soakd-border);
-  background: var(--soakd-surface);
+  border-top: 1px solid var(--wholesip-border);
+  background: var(--wholesip-surface);
 }
 
 .couponWrap {
@@ -257,12 +257,12 @@
   align-items: baseline;
   justify-content: space-between;
   font-size: 0.88rem;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
   margin-bottom: 6px;
 }
 
 .discountRow {
-  color: var(--soakd-ink);
+  color: var(--wholesip-ink);
   font-weight: 600;
 }
 
@@ -283,7 +283,7 @@
 .shippingNote {
   margin: 6px 0 16px;
   font-size: 0.8rem;
-  color: var(--soakd-ink-soft);
+  color: var(--wholesip-ink-soft);
 }
 
 .actions {
@@ -308,8 +308,8 @@
 
 .viewCartBtn {
   background: transparent;
-  color: var(--soakd-ink);
-  border: 1.5px solid var(--soakd-ink);
+  color: var(--wholesip-ink);
+  border: 1.5px solid var(--wholesip-ink);
 }
 
 .viewCartBtn:hover {
@@ -317,14 +317,14 @@
 }
 
 .checkoutBtn {
-  background: var(--soakd-ink);
+  background: var(--wholesip-ink);
   color: #fff;
-  border: 1.5px solid var(--soakd-ink);
+  border: 1.5px solid var(--wholesip-ink);
 }
 
 .checkoutBtn:hover {
-  background: var(--soakd-accent-deep);
-  border-color: var(--soakd-accent-deep);
+  background: var(--wholesip-accent-deep);
+  border-color: var(--wholesip-accent-deep);
 }
 
 /* ── Empty state ── */
@@ -352,7 +352,7 @@
 
 .emptyCta {
   margin-top: 4px;
-  background: var(--soakd-ink);
+  background: var(--wholesip-ink);
   color: #fff;
   border: none;
   border-radius: 11px;
@@ -364,5 +364,5 @@
 }
 
 .emptyCta:hover {
-  background: var(--soakd-accent-deep);
+  background: var(--wholesip-accent-deep);
 }

@@ -9,7 +9,7 @@ import {
   type ReactionCounts,
 } from "@/lib/blog-reactions";
 
-const VISITOR_KEY = "soakd_visitor_id";
+const VISITOR_KEY = "wholesip_visitor_id";
 
 const REACTION_META: Record<BlogReaction, { emoji: string; label: string }> = {
   like: { emoji: "👍", label: "Like" },
@@ -63,7 +63,7 @@ export function BlogReactions({
   const [hidden, setHidden] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const mineKey = `soakd_blog_reactions_${blogId}`;
+  const mineKey = `wholesip_blog_reactions_${blogId}`;
 
   // Hydrate the visitor's saved reactions from localStorage after mount.
   useEffect(() => {

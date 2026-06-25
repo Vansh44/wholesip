@@ -7,13 +7,13 @@ import ShopClient, { type ShopProduct, type ShopCategory } from "./shop-client";
 import "./shop.css";
 
 export const metadata: Metadata = {
-  title: "Shop | Soakd",
+  title: "Shop | WholeSip",
   description:
-    "Browse the full Soakd range — wholesome, real-food products crafted with care.",
+    "Browse the full WholeSip range — wholesome, real-food products crafted with care.",
   openGraph: {
-    title: "Shop | Soakd",
+    title: "Shop | WholeSip",
     description:
-      "Browse the full Soakd range — wholesome, real-food products crafted with care.",
+      "Browse the full WholeSip range — wholesome, real-food products crafted with care.",
     url: "/shop",
     type: "website",
   },

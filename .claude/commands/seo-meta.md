@@ -1,5 +1,5 @@
 ---
-description: Generate SEO title & meta description (SOAKD)
+description: Generate SEO title & meta description (WHOLESIP)
 ---
 
 This command shares its rules with the dashboard's SEO "Generate with AI" button so both stay identical. The canonical files live in the app so they deploy with the site.

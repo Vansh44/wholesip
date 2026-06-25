@@ -285,7 +285,7 @@ export default function AuthModal() {
   // ---- Render steps ----
   const renderPhoneStep = () => (
     <div className={styles.step} key="phone">
-      <h2 className={styles.title}>Welcome to Soakd</h2>
+      <h2 className={styles.title}>Welcome to WholeSip</h2>
       <p className={styles.subtitle}>
         Enter your mobile number to sign in or create an account
       </p>
@@ -528,7 +528,7 @@ export default function AuthModal() {
       }}
       role="dialog"
       aria-modal="true"
-      aria-label="Sign in to Soakd"
+      aria-label="Sign in to WholeSip"
     >
       <div className={styles.modal}>
         <button
@@ -556,7 +556,7 @@ export default function AuthModal() {
           <div className={styles.branding}>
             <Image
               src={siteConfig.assets.logoUrl}
-              alt="Soakd"
+              alt="WholeSip"
               width={120}
               height={44}
               className={styles.brandLogo}

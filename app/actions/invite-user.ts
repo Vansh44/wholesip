@@ -120,16 +120,16 @@ export async function inviteUser(formData: FormData) {
     try {
       const resend = new Resend(resendApiKey);
       await resend.emails.send({
-        from: "Soakd Dashboard <admin@getsoakd.in>",
+        from: "WholeSip Dashboard <admin@wholesip.com>",
         to: email,
-        subject: "Welcome to Soakd Dashboard",
+        subject: "Welcome to WholeSip Dashboard",
         html: wrapBrandedEmail(`
         <h2 style="margin-top: 0;">You've Been Invited 🎉</h2>
 
         <p>Hello ${escapeHtml(firstName)}${lastName ? " " + escapeHtml(lastName) : ""},</p>
 
         <p>
-          You have been invited to join the <strong>Soakd Admin Dashboard</strong>
+          You have been invited to join the <strong>WholeSip Admin Dashboard</strong>
           as a <strong>${escapeHtml(role)}</strong>.
         </p>
 
@@ -166,7 +166,7 @@ export async function inviteUser(formData: FormData) {
 
         <div style="text-align: center; margin: 32px 0;">
           <a
-            href="https://getsoakd.in/dashboard"
+            href="https://wholesip.com/dashboard"
             style="
               display: inline-block;
               background: #000;
@@ -187,7 +187,7 @@ export async function inviteUser(formData: FormData) {
 
         <p>
           Regards,<br />
-          <strong>Team Soakd</strong>
+          <strong>Team WholeSip</strong>
         </p>
       `),
       });

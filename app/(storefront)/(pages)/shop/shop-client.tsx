@@ -98,7 +98,7 @@ export default function ShopClient({
         <div className="shop-panel-body">
           {/* Hero: kicker + big lowercase headline + sticky note */}
           <section className="shop-hero">
-            <span className="shop-kicker">the soakd store</span>
+            <span className="shop-kicker">the wholesip store</span>
             <div className="shop-hero-row">
               <h1 className="shop-title">
                 the whole shelf

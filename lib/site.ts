@@ -10,14 +10,14 @@ function resolveSiteUrl(): string {
       : `https://${fromEnv}`
     : process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
-      : "https://getsoakd.in";
+      : "https://wholesip.com";
   return raw.replace(/\/+$/, "");
 }
 
 export const SITE_URL = resolveSiteUrl();
 
-export const BRAND_NAME = "Soakd";
+export const BRAND_NAME = "WholeSip";
 
-// Spelling variants Google might otherwise treat as a typo of "get soaked".
+// Spelling variants Google might otherwise split into two separate words.
 // Surfaced as schema.org `alternateName` so the brand reads as a proper noun.
-export const BRAND_ALTERNATE_NAMES = ["soakd", "getsoakd", "get soakd"];
+export const BRAND_ALTERNATE_NAMES = ["wholesip", "whole sip", "Whole Sip"];

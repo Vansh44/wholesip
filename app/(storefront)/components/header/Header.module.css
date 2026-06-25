@@ -73,7 +73,7 @@
 .searchBar {
   display: flex;
   align-items: center;
-  background: var(--soakd-sand, #e7dcc6);
+  background: var(--wholesip-sand, #e7dcc6);
   border: 1px solid rgba(43, 38, 32, 0.14);
   border-radius: 20px;
   padding: 0 16px;
@@ -338,7 +338,7 @@
 }
 
 .profileDropdownLoginBtn:hover {
-  background: var(--soakd-accent);
+  background: var(--wholesip-accent);
   transform: translateY(-1px);
 }
 
@@ -374,7 +374,7 @@
 }
 
 .profileDropdownItem:hover svg {
-  color: var(--soakd-accent);
+  color: var(--wholesip-accent);
 }
 
 /* Trailing chevron pushed to the right edge */
@@ -524,7 +524,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--soakd-sand, #e7dcc6);
+  background: var(--wholesip-sand, #e7dcc6);
   border: 1px solid rgba(43, 38, 32, 0.14);
   border-radius: 20px;
   padding: 0 16px;
@@ -553,7 +553,7 @@
 }
 
 .drawerNav a:hover {
-  color: var(--soakd-accent);
+  color: var(--wholesip-accent);
   padding-left: 4px;
 }
 

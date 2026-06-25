@@ -1,29 +1,29 @@
 /* ============================================
-   SOAKD BLOG — Magazine-Quality Styles
+   WHOLESIP BLOG — Magazine-Quality Styles
    ============================================ */
 
 @import url("https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600&display=swap");
 
 /* — Color tokens —
-   Mapped onto the global soft-pastel + cream theme (--soakd-* in globals.css)
+   Mapped onto the global soft-pastel + cream theme (--wholesip-* in globals.css)
    so the Journal matches the rest of the storefront. */
 :root {
-  --blog-bg: var(--soakd-cream);
-  --blog-bg-alt: var(--soakd-cream-deep); /* image wells / soft fills */
-  --blog-card: var(--soakd-surface);
-  --blog-card-hover: var(--soakd-surface);
-  --blog-border: var(--soakd-border);
-  --blog-border-light: var(--soakd-border);
-  --blog-dark: var(--soakd-ink); /* heading ink */
-  --blog-body: var(--soakd-ink-soft);
-  --blog-muted: var(--soakd-ink-faint);
-  --blog-accent: var(--soakd-accent); /* cocoa */
-  --blog-accent-deep: var(--soakd-accent-deep);
-  --blog-accent-soft: var(--soakd-sand); /* chips / badges */
+  --blog-bg: var(--wholesip-cream);
+  --blog-bg-alt: var(--wholesip-cream-deep); /* image wells / soft fills */
+  --blog-card: var(--wholesip-surface);
+  --blog-card-hover: var(--wholesip-surface);
+  --blog-border: var(--wholesip-border);
+  --blog-border-light: var(--wholesip-border);
+  --blog-dark: var(--wholesip-ink); /* heading ink */
+  --blog-body: var(--wholesip-ink-soft);
+  --blog-muted: var(--wholesip-ink-faint);
+  --blog-accent: var(--wholesip-accent); /* cocoa */
+  --blog-accent-deep: var(--wholesip-accent-deep);
+  --blog-accent-soft: var(--wholesip-sand); /* chips / badges */
   --blog-accent-light: #d8c4a8;
-  --blog-surface: var(--soakd-cream-deep);
-  --blog-tag-bg: var(--soakd-sand);
-  --blog-tag-hover: var(--soakd-cream-deep);
+  --blog-surface: var(--wholesip-cream-deep);
+  --blog-tag-bg: var(--wholesip-sand);
+  --blog-tag-hover: var(--wholesip-cream-deep);
 }
 
 /* ============================================

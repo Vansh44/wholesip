@@ -6,9 +6,9 @@ import "./write-blog.css";
 // lazily loaded) editor. No reason to force per-request dynamic rendering.
 
 export const metadata: Metadata = {
-  title: "Write a Blog | Soakd",
+  title: "Write a Blog | WholeSip",
   description:
-    "Share your story with the Soakd community. Write and submit your blog post for review.",
+    "Share your story with the WholeSip community. Write and submit your blog post for review.",
 };
 
 export default function WriteBlogPage() {

@@ -1,8 +1,8 @@
 import { SITE_URL, BRAND_NAME, BRAND_ALTERNATE_NAMES } from "@/lib/site";
 
 // Organization + WebSite JSON-LD for the storefront homepage. The Organization
-// `alternateName` list is the key signal that tells search engines "soakd" /
-// "getsoakd" is a brand name — not a misspelling of "get soaked" — so they stop
+// `alternateName` list is the key signal that tells search engines "WholeSip" /
+// "whole sip" is a single brand name — not two separate words — so they stop
 // auto-correcting brand queries.
 export default function StructuredData() {
   const graph = {
@@ -21,7 +21,7 @@ export default function StructuredData() {
         "@type": "WebSite",
         "@id": `${SITE_URL}/#website`,
         name: BRAND_NAME,
-        alternateName: "getsoakd",
+        alternateName: "wholesip",
         url: SITE_URL,
         publisher: { "@id": `${SITE_URL}/#organization` },
       },

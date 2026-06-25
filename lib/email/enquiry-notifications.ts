@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { wrapBrandedEmail } from "./layout";
 
-const FROM_ADDRESS = "Soakd <admin@getsoakd.in>";
+const FROM_ADDRESS = "WholeSip <admin@wholesip.com>";
 
 /** Escape user-supplied values before interpolating into email HTML. */
 function escapeHtml(value: string): string {
@@ -26,7 +26,7 @@ function emailShell(bodyHtml: string): string {
   return wrapBrandedEmail(`${bodyHtml}
     <p style="margin-top:32px;">
       Warm regards,<br />
-      <strong>Team Soakd</strong>
+      <strong>Team WholeSip</strong>
     </p>`);
 }
 
@@ -63,7 +63,7 @@ export async function sendEnquiryAcknowledgementEmail(opts: {
         <h2 style="margin-top: 0;">Thanks for reaching out!</h2>
         <p>Hi ${escapeHtml(opts.name)},</p>
         <p>
-          We've received your enquiry and a member of the Soakd team will get
+          We've received your enquiry and a member of the WholeSip team will get
           back to you as soon as possible, usually within 1–2 business days.
         </p>
         <p style="margin: 24px 0 6px;">

@@ -121,18 +121,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!blog) {
     return {
-      title: "Blog Not Found | Soakd",
+      title: "Blog Not Found | WholeSip",
     };
   }
 
   const title = blog.seo_title || blog.title;
   const description =
-    blog.seo_description || blog.excerpt || "Read this article on Soakd Blog.";
+    blog.seo_description ||
+    blog.excerpt ||
+    "Read this article on WholeSip Blog.";
 
   const ogImageUrl = getOgImageUrl(blog.cover_image_url);
 
   return {
-    title: `${title} | Soakd`,
+    title: `${title} | WholeSip`,
     description,
     openGraph: {
       title,

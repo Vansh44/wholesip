@@ -39,7 +39,7 @@ export default function LoginPage() {
     <div className="w-full">
       <div className="mb-10 text-center">
         <h1 className="text-xl font-semibold tracking-tight text-primary">
-          Log in to Soakd
+          Log in to WholeSip
         </h1>
       </div>
 

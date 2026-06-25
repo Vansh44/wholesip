@@ -30,9 +30,9 @@ import "@/app/(storefront)/components/homepage/homepage.css";
 export const revalidate = 300;
 
 export const metadata = {
-  title: "Soakd | The Way Earth Made It",
+  title: "WholeSip | The Way Earth Made It",
   description:
-    "Soakd — zero preservatives, 100% real ingredients. The way Earth made it.",
+    "WholeSip — zero preservatives, 100% real ingredients. The way Earth made it.",
   alternates: { canonical: "/" },
 };
 

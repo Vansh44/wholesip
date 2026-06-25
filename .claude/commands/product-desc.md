@@ -1,5 +1,5 @@
 ---
-description: Generate a brand-voice product description (SOAKD)
+description: Generate a brand-voice product description (WHOLESIP)
 ---
 
 This command shares its rules with the dashboard's "Generate with AI" button so both stay identical. The canonical files live in the app so they deploy with the site.

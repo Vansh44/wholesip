@@ -507,8 +507,8 @@ export default function WriteBlogEditor({
           </div>
           <h1 className="write-blog-auth-title">Share Your Story</h1>
           <p className="write-blog-auth-desc">
-            Sign in to write and publish your own blog posts on Soakd. Join our
-            community of health and wellness enthusiasts.
+            Sign in to write and publish your own blog posts on WholeSip. Join
+            our community of health and wellness enthusiasts.
           </p>
           <button className="write-blog-submit-btn" onClick={openAuthModal}>
             Sign In to Start Writing

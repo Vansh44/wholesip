@@ -17,7 +17,7 @@ const WriteBlogEditor = dynamic(() => import("./write-blog-editor"), {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: "var(--soakd-text-3, #8b8378)",
+        color: "var(--wholesip-text-3, #8b8378)",
         fontSize: 14,
       }}
     >

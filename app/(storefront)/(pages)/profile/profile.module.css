@@ -1,7 +1,7 @@
 .container {
   min-height: 100vh;
   padding: 140px 24px 80px;
-  background-color: var(--soakd-cream);
+  background-color: var(--wholesip-cream);
   font-family: var(--font-outfit), sans-serif;
 }
 
@@ -34,11 +34,11 @@
 }
 
 .card {
-  background: var(--soakd-surface);
+  background: var(--wholesip-surface);
   border-radius: 24px;
   padding: 40px;
   box-shadow: 0 8px 24px rgba(43, 38, 32, 0.06);
-  border: 1px solid var(--soakd-border);
+  border: 1px solid var(--wholesip-border);
   display: flex;
   flex-direction: column;
 }
@@ -107,7 +107,7 @@
   margin-top: auto;
   padding: 16px;
   border-radius: 12px;
-  background: var(--soakd-accent);
+  background: var(--wholesip-accent);
   color: #ffffff;
   font-size: 15px;
   font-weight: 600;
@@ -121,7 +121,7 @@
 }
 
 .submitBtn:hover:not(:disabled) {
-  background: var(--soakd-accent-deep);
+  background: var(--wholesip-accent-deep);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }

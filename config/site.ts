@@ -1,6 +1,6 @@
 export const siteConfig = {
-  name: "Soakd",
-  description: "Soakd Operations Center",
+  name: "WholeSip",
+  description: "WholeSip Operations Center",
   assets: {
     logoUrl:
       "https://oiblxqrvyekxdbimvhod.supabase.co/storage/v1/object/public/media/dashboard-uploads/uqp5k01oo8h_1780346025941.png",

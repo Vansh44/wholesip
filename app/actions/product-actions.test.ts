@@ -47,7 +47,7 @@ const validForm = {
   featured: false,
   sort_order: 0,
   card_color: "#fff",
-  seo_title: "Almonds — Soakd",
+  seo_title: "Almonds — WholeSip",
   seo_description: "Real, raw almonds.",
   variants: [],
 };

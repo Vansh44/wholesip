@@ -245,7 +245,7 @@ export function EnquiriesManagementView({
 
   const replyMailto = (enquiry: Enquiry) =>
     `mailto:${enquiry.email}?subject=${encodeURIComponent(
-      `Re: ${enquiry.subject?.trim() || "Your enquiry to Soakd"}`,
+      `Re: ${enquiry.subject?.trim() || "Your enquiry to WholeSip"}`,
     )}`;
 
   const metrics: { key: EnquiryStatus; label: string; value: number }[] = [
