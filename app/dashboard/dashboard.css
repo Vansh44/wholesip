@@ -2764,3 +2764,119 @@ a.customer-detail-field:hover {
     padding-top: 16px;
   }
 }
+
+/* ===========================================================================
+   Bulk selection — checkboxes, selected-row highlight, floating action bar.
+   Shared by every dashboard list view (see app/dashboard/components/
+   bulk-actions.tsx + lib/use-row-selection.ts).
+   =========================================================================== */
+.dash-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--dash-accent);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+/* Leading checkbox column — keep it tight. */
+.dash-checkbox-cell {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+  padding-right: 0 !important;
+}
+
+.dash-table tbody tr.is-selected td {
+  background: var(--dash-accent-soft);
+}
+
+.dash-bulk-bar {
+  position: fixed;
+  bottom: 26px;
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 12px 9px 18px;
+  background: var(--dash-text); /* dark slate pill */
+  color: #fff;
+  border-radius: 999px;
+  box-shadow: var(--dash-shadow-lg);
+  animation: dash-bulk-rise 0.18s ease;
+}
+@keyframes dash-bulk-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 14px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+/* Keep horizontal centering after the rise keyframe finishes. */
+.dash-bulk-bar {
+  transform: translateX(-50%);
+}
+.dash-bulk-count {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dash-bulk-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.18);
+}
+.dash-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dash-bulk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    opacity 0.14s ease;
+}
+.dash-bulk-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.22);
+}
+.dash-bulk-btn-danger {
+  background: rgba(248, 113, 113, 0.9);
+}
+.dash-bulk-btn-danger:hover:not(:disabled) {
+  background: #ef4444;
+}
+.dash-bulk-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.dash-bulk-clear {
+  padding: 6px 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.dash-bulk-clear:hover:not(:disabled) {
+  color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-bulk-bar {
+    animation: none;
+  }
+}

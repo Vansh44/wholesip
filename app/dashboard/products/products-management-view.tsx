@@ -37,7 +37,16 @@ import { Button } from "@/components/ui/button";
 import {
   deleteProduct,
   toggleProductPublish,
+  bulkToggleProductPublish,
+  bulkSetProductFeatured,
+  bulkDeleteProducts,
 } from "@/app/actions/product-actions";
+import { useRowSelection } from "@/app/dashboard/lib/use-row-selection";
+import {
+  BulkActionBar,
+  RowCheckbox,
+  SelectAllCheckbox,
+} from "@/app/dashboard/components/bulk-actions";
 import { ProductEditorDialog } from "./product-editor-dialog";
 import { effectivePricing, formatPrice } from "@/lib/pricing";
 import type { Product, CategoryOption, CardColorOption } from "./page";
@@ -99,6 +108,28 @@ export function ProductsManagementView({
 
     return result;
   }, [products, filter, categoryFilter, search]);
+
+  // ── Bulk selection ────────────────────────────────────────
+  const visibleIds = useMemo(() => filtered.map((p) => p.id), [filtered]);
+  const selection = useRowSelection(visibleIds);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  const runBulk = (
+    action: () => Promise<{ error?: string; success?: boolean }>,
+    successMsg: string,
+  ) => {
+    startTransition(async () => {
+      const result = await action();
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success(successMsg);
+        selection.clear();
+        setBulkDeleteOpen(false);
+        router.refresh();
+      }
+    });
+  };
 
   const counts = useMemo(
     () => ({
@@ -273,6 +304,15 @@ export function ProductsManagementView({
           <table className="dash-table">
             <thead>
               <tr>
+                {canManage && (
+                  <th className="dash-checkbox-cell">
+                    <SelectAllCheckbox
+                      checked={selection.allSelected}
+                      indeterminate={selection.someSelected}
+                      onChange={selection.toggleAll}
+                    />
+                  </th>
+                )}
                 <th className="w-14">Image</th>
                 <th>Name</th>
                 <th>Category</th>
@@ -287,9 +327,23 @@ export function ProductsManagementView({
                 <tr
                   key={p.id}
                   onClick={canManage ? () => openEdit(p) : undefined}
-                  className={canManage ? "cursor-pointer" : undefined}
+                  className={`${canManage ? "cursor-pointer" : ""}${
+                    selection.isSelected(p.id) ? " is-selected" : ""
+                  }`}
                   title={canManage ? "Edit product" : undefined}
                 >
+                  {canManage && (
+                    <td
+                      className="dash-checkbox-cell"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <RowCheckbox
+                        checked={selection.isSelected(p.id)}
+                        onToggle={() => selection.toggle(p.id)}
+                        label={`Select ${p.name}`}
+                      />
+                    </td>
+                  )}
                   <td>
                     {p.image_url ? (
                       <div className="dash-thumb">
@@ -436,6 +490,122 @@ export function ProductsManagementView({
           </table>
         )}
       </div>
+
+      {/* Bulk action bar (appears while rows are selected) */}
+      {canManage && (
+        <BulkActionBar
+          count={selection.count}
+          onClear={selection.clear}
+          busy={isPending}
+        >
+          <button
+            type="button"
+            className="dash-bulk-btn"
+            disabled={isPending}
+            onClick={() =>
+              runBulk(
+                () => bulkToggleProductPublish(selection.selectedIds, true),
+                "Selected products published",
+              )
+            }
+          >
+            <Send className="h-4 w-4" />
+            Publish
+          </button>
+          <button
+            type="button"
+            className="dash-bulk-btn"
+            disabled={isPending}
+            onClick={() =>
+              runBulk(
+                () => bulkToggleProductPublish(selection.selectedIds, false),
+                "Selected products unpublished",
+              )
+            }
+          >
+            <Undo2 className="h-4 w-4" />
+            Unpublish
+          </button>
+          <button
+            type="button"
+            className="dash-bulk-btn"
+            disabled={isPending}
+            onClick={() =>
+              runBulk(
+                () => bulkSetProductFeatured(selection.selectedIds, true),
+                "Selected products featured",
+              )
+            }
+          >
+            <Star className="h-4 w-4" />
+            Feature
+          </button>
+          <button
+            type="button"
+            className="dash-bulk-btn"
+            disabled={isPending}
+            onClick={() =>
+              runBulk(
+                () => bulkSetProductFeatured(selection.selectedIds, false),
+                "Selected products unfeatured",
+              )
+            }
+          >
+            <Star className="h-4 w-4" />
+            Unfeature
+          </button>
+          <button
+            type="button"
+            className="dash-bulk-btn dash-bulk-btn-danger"
+            disabled={isPending}
+            onClick={() => setBulkDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </button>
+        </BulkActionBar>
+      )}
+
+      {/* Bulk delete confirmation */}
+      <Dialog
+        open={bulkDeleteOpen}
+        onOpenChange={(open) => !open && setBulkDeleteOpen(false)}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              Delete {selection.count} product
+              {selection.count === 1 ? "" : "s"}
+            </DialogTitle>
+            <DialogDescription>
+              This permanently deletes the selected product
+              {selection.count === 1 ? "" : "s"}, their variants and images.
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteOpen(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isPending}
+              onClick={() =>
+                runBulk(
+                  () => bulkDeleteProducts(selection.selectedIds),
+                  `Deleted ${selection.count} product${selection.count === 1 ? "" : "s"}`,
+                )
+              }
+            >
+              {isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <Dialog

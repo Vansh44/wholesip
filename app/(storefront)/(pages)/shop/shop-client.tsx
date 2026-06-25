@@ -15,6 +15,7 @@ export interface ShopProduct {
   featured: boolean;
   sort_order: number;
   card_color: string | null;
+  category?: string | null;
   variants: {
     base_price: number;
     selling_price: number;

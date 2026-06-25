@@ -14,6 +14,8 @@ export type ShopCardProduct = PricedLike & {
   image_url: string | null;
   featured?: boolean;
   card_color?: string | null;
+  /** Resolved category name; shown as an eyebrow label when present. */
+  category?: string | null;
 };
 
 // Single source of truth for the storefront product card — used by the shop
@@ -40,9 +42,9 @@ export function ShopCard({ product: p }: { product: ShopCardProduct }) {
         ) : (
           <div className="shop-card-img-placeholder">🥛</div>
         )}
-        {p.featured && <span className="shop-card-badge">fave</span>}
       </div>
       <div className="shop-card-body">
+        {p.category && <span className="shop-card-cat">{p.category}</span>}
         <h3 className="shop-card-name">{p.name}</h3>
         <div className="shop-card-price">
           {pr.hasVariants && <span className="shop-card-from">from </span>}

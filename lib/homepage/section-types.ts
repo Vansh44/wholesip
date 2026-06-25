@@ -70,7 +70,7 @@ export interface PromoBannerConfig {
   theme: BannerTheme;
 }
 
-export type BlogSource = "latest" | "manual";
+export type BlogSource = "latest" | "manual" | "featured";
 
 export interface LatestBlogsConfig {
   heading: string;
@@ -79,8 +79,10 @@ export interface LatestBlogsConfig {
   source: BlogSource;
   /** Ordered blog ids — used when source = "manual". */
   blog_ids: string[];
-  /** Max blogs to show (latest mode). 1–12. */
+  /** Max blogs to show (latest mode). 1–12. Manual mode shows all picked. */
   limit: number;
+  /** Wrapped grid vs horizontal scroll row. */
+  layout: "grid" | "scroll";
 }
 
 export type AnySectionConfig =
@@ -145,6 +147,7 @@ export const EMPTY_CONFIG: {
     source: "latest",
     blog_ids: [],
     limit: 3,
+    layout: "grid",
   },
 };
 
@@ -259,7 +262,10 @@ export function validateConfig(
   }
 
   if (type === "latest_blogs") {
-    const source = input.source === "manual" ? "manual" : "latest";
+    const source =
+      input.source === "manual" || input.source === "featured"
+        ? input.source
+        : "latest";
     if (source === "manual" && strArray(input.blog_ids).length === 0) {
       return { error: "Pick at least one blog post." };
     }
@@ -269,6 +275,7 @@ export function validateConfig(
       source,
       blog_ids: source === "manual" ? strArray(input.blog_ids) : [],
       limit: clampLimit(Number(input.limit)),
+      layout: input.layout === "scroll" ? "scroll" : "grid",
     };
     return { config };
   }
@@ -324,9 +331,11 @@ export function summarizeSection(section: {
     case "latest_blogs": {
       const b = c as LatestBlogsConfig;
       const head = b.heading?.trim() || "Blog posts";
-      return b.source === "manual"
-        ? `${head} · ${b.blog_ids.length} hand-picked`
-        : `${head} · latest · up to ${b.limit}`;
+      if (b.source === "manual")
+        return `${head} · ${b.blog_ids.length} hand-picked`;
+      if (b.source === "featured")
+        return `${head} · featured · up to ${b.limit}`;
+      return `${head} · latest · up to ${b.limit}`;
     }
     default:
       return section.type;

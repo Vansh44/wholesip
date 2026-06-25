@@ -24,6 +24,9 @@ import {
   deleteProduct,
   toggleProductPublish,
   generateProductDescription,
+  bulkToggleProductPublish,
+  bulkSetProductFeatured,
+  bulkDeleteProducts,
 } from "./product-actions";
 import { createClient } from "@/lib/supabase/server";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
@@ -63,6 +66,64 @@ describe("product-actions", () => {
     });
     vi.mocked(createClient).mockResolvedValue(supabase);
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+  });
+
+  describe("bulk operations", () => {
+    it("bulkToggleProductPublish rejects when not authorised", async () => {
+      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      const r = await bulkToggleProductPublish(["p1"], true);
+      expect(r.error).toMatch(/not authenticated/i);
+    });
+
+    it("bulkToggleProductPublish rejects an empty selection", async () => {
+      const r = await bulkToggleProductPublish([], true);
+      expect(r.error).toMatch(/nothing selected/i);
+    });
+
+    it("bulkToggleProductPublish publishes the selected ids", async () => {
+      const r = await bulkToggleProductPublish(["p1", "p2"], true);
+      expect(r.success).toBe(true);
+      const chain = supabase._tables.products;
+      expect(chain.update.mock.calls[0][0]).toMatchObject({
+        status: "published",
+      });
+      expect(chain.update.mock.calls[0][0].published_at).toBeTruthy();
+      expect(chain.in).toHaveBeenCalledWith("id", ["p1", "p2"]);
+    });
+
+    it("bulkToggleProductPublish unpublishes (clears published_at)", async () => {
+      await bulkToggleProductPublish(["p1"], false);
+      expect(supabase._tables.products.update.mock.calls[0][0]).toMatchObject({
+        status: "draft",
+        published_at: null,
+      });
+    });
+
+    it("bulkSetProductFeatured sets the featured flag", async () => {
+      const r = await bulkSetProductFeatured(["p1"], true);
+      expect(r.success).toBe(true);
+      expect(supabase._tables.products.update).toHaveBeenCalledWith(
+        expect.objectContaining({ featured: true }),
+      );
+    });
+
+    it("bulkDeleteProducts deletes the ids and cleans up storage", async () => {
+      const r = await bulkDeleteProducts(["p1", "p2"]);
+      expect(r.success).toBe(true);
+      const chain = supabase._tables.products;
+      expect(chain.delete).toHaveBeenCalled();
+      expect(chain.in).toHaveBeenCalledWith("id", ["p1", "p2"]);
+      expect(deleteStorageUrls).toHaveBeenCalled();
+    });
+
+    it("bulkDeleteProducts surfaces a DB error", async () => {
+      supabase._tables.products = makeChain(
+        { data: { id: "p1", slug: "almonds" }, error: null },
+        { data: null, error: { message: "boom" } },
+      );
+      const r = await bulkDeleteProducts(["p1"]);
+      expect(r.error).toBe("boom");
+    });
   });
 
   describe("createProduct", () => {

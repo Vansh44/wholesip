@@ -210,7 +210,7 @@ export function HomepageManagementView({
                             onClick={() => move(i, -1)}
                             disabled={i === 0 || isPending}
                             title="Move up"
-                            className="text-muted-foreground hover:bg-accent flex h-7 w-6 items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-30"
+                            className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-30"
                           >
                             <ChevronUp className="h-4 w-4" />
                           </button>
@@ -219,7 +219,7 @@ export function HomepageManagementView({
                             onClick={() => move(i, 1)}
                             disabled={i === ordered.length - 1 || isPending}
                             title="Move down"
-                            className="text-muted-foreground hover:bg-accent flex h-7 w-6 items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-30"
+                            className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-30"
                           >
                             <ChevronDown className="h-4 w-4" />
                           </button>
@@ -319,7 +319,7 @@ export function HomepageManagementView({
                 <button
                   key={type}
                   onClick={() => openCreate(type)}
-                  className="hover:border-primary hover:bg-accent flex w-full items-start gap-3 rounded-lg border p-3 text-left"
+                  className="hover:border-primary hover:bg-muted flex w-full items-start gap-3 rounded-lg border p-3 text-left"
                 >
                   {Icon && (
                     <span className="dash-thumb dash-thumb-empty h-9 w-9">

@@ -216,6 +216,102 @@
   }
 }
 
+/* Horizontal carousel variant — fits any number of posts in a swipeable row
+   with prev/next arrows. Arrows live just outside the track; the track itself
+   scrolls (drag, trackpad, touch) with the scrollbar hidden for a clean look. */
+.home-blog-carousel {
+  position: relative;
+}
+
+.home-blog-scroll {
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scroll-behavior: smooth;
+  /* A touch of vertical padding so card hover-lift + shadow aren't clipped. */
+  padding: 4px 2px 14px;
+  /* Hidden scrollbar — navigation is via arrows / drag / swipe. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+  cursor: grab;
+}
+.home-blog-scroll::-webkit-scrollbar {
+  display: none;
+}
+.home-blog-scroll.is-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+}
+.home-blog-scroll .home-blog-card {
+  flex: 0 0 clamp(280px, 30%, 380px);
+  scroll-snap-align: start;
+}
+/* Don't let an in-progress drag select card text. */
+.home-blog-scroll.is-dragging * {
+  user-select: none;
+}
+
+/* Round nav buttons, vertically centred on the row, fading out at the ends. */
+.home-blog-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: var(--soakd-surface);
+  color: var(--soakd-ink);
+  border: 1px solid var(--soakd-border);
+  box-shadow: 0 8px 24px rgba(23, 19, 15, 0.14);
+  cursor: pointer;
+  opacity: 1;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.2s ease,
+    background 0.18s ease;
+}
+.home-blog-arrow:hover {
+  transform: translateY(-50%) scale(1.08);
+  box-shadow: 0 12px 30px rgba(23, 19, 15, 0.2);
+}
+.home-blog-arrow:active {
+  transform: translateY(-50%) scale(0.96);
+}
+.home-blog-arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+.home-blog-arrow-prev {
+  left: -10px;
+}
+.home-blog-arrow-next {
+  right: -10px;
+}
+
+/* Touch devices swipe natively — hide the arrows and use full-width cards. */
+@media (max-width: 700px) {
+  .home-blog-arrow {
+    display: none;
+  }
+  .home-blog-scroll .home-blog-card {
+    flex-basis: 85%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-blog-scroll {
+    scroll-behavior: auto;
+  }
+}
+
 .home-blog-card {
   display: flex;
   flex-direction: column;

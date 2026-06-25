@@ -426,6 +426,101 @@ export async function unpublishBlog(id: string): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------------------
+// Bulk operations (dashboard multi-select)
+// ---------------------------------------------------------------------------
+
+/** Publish or unpublish many blogs at once. */
+export async function bulkSetBlogStatus(
+  ids: string[],
+  status: "published" | "draft",
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const userId = await getAdminUserId();
+  if (!userId) return { error: "Not authenticated" };
+  if (ids.length === 0) return { error: "Nothing selected." };
+
+  const { error } = await supabase
+    .from("blogs")
+    .update({
+      status,
+      published_at: status === "published" ? new Date().toISOString() : null,
+      updated_by: userId,
+    })
+    .in("id", ids);
+
+  if (error) {
+    console.error("bulkSetBlogStatus error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/blogs");
+  revalidatePath("/blogs");
+  revalidateTag(TAGS.blogs, "max");
+  return { success: true };
+}
+
+/** Feature or unfeature many blogs at once. */
+export async function bulkSetBlogFeatured(
+  ids: string[],
+  featured: boolean,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const userId = await getAdminUserId();
+  if (!userId) return { error: "Not authenticated" };
+  if (ids.length === 0) return { error: "Nothing selected." };
+
+  const { error } = await supabase
+    .from("blogs")
+    .update({ featured, updated_by: userId })
+    .in("id", ids);
+
+  if (error) {
+    console.error("bulkSetBlogFeatured error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/blogs");
+  revalidatePath("/blogs");
+  revalidateTag(TAGS.blogs, "max");
+  return { success: true };
+}
+
+/** Permanently delete many blogs, cleaning up their storage assets. */
+export async function bulkDeleteBlogs(ids: string[]): Promise<ActionResult> {
+  const supabase = await createClient();
+  const userId = await getAdminUserId();
+  if (!userId) return { error: "Not authenticated" };
+  if (ids.length === 0) return { error: "Nothing selected." };
+
+  // Collect every referenced asset before the rows go (storage won't cascade).
+  const { data: rows } = await supabase
+    .from("blogs")
+    .select("cover_image_url, content")
+    .in("id", ids);
+
+  const { error } = await supabase.from("blogs").delete().in("id", ids);
+  if (error) {
+    console.error("bulkDeleteBlogs error:", error);
+    return { error: error.message };
+  }
+
+  const urls: (string | null)[] = [];
+  for (const r of (rows ?? []) as {
+    cover_image_url: string | null;
+    content: string | null;
+  }[]) {
+    urls.push(r.cover_image_url);
+    urls.push(...extractMediaUrlsFromHtml(r.content));
+  }
+  await deleteStorageUrls(urls);
+
+  revalidatePath("/dashboard/blogs");
+  revalidatePath("/blogs");
+  revalidateTag(TAGS.blogs, "max");
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // Auto-save Draft (lightweight update — no slug re-check)
 // ---------------------------------------------------------------------------
 

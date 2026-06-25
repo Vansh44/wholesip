@@ -40,6 +40,7 @@ export default defineConfig({
         // Server actions + permission logic
         "app/actions/**/*.ts",
         "app/dashboard/lib/permissions.ts",
+        "app/dashboard/lib/use-row-selection.ts",
         // Behavior-tested client components (storefront + dashboard).
         "**/components/cart/CartProvider.tsx",
         "**/components/cart/CouponField.tsx",
