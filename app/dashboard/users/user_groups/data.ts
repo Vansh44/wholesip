@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getActingStoreId } from "@/app/dashboard/lib/access";
 import type { GroupCustomer, UserGroup } from "./shared";
 
 /**
@@ -16,10 +17,12 @@ export async function getUserGroupsData(): Promise<{
   error: boolean;
 }> {
   const admin = createAdminClient();
+  const storeId = await getActingStoreId();
 
   const { data: groupRows, error } = await admin
     .from("user_groups")
     .select("id, name, description, color, created_at, updated_at")
+    .eq("store_id", storeId)
     .order("name", { ascending: true });
 
   if (error) {
@@ -31,10 +34,14 @@ export async function getUserGroupsData(): Promise<{
   }
 
   const [membersRes, customersRes] = await Promise.all([
-    admin.from("user_group_members").select("group_id, user_id"),
+    admin
+      .from("user_group_members")
+      .select("group_id, user_id")
+      .eq("store_id", storeId),
     admin
       .from("users")
       .select("id, first_name, last_name, email, phone")
+      .eq("store_id", storeId)
       .order("created_at", { ascending: false }),
   ]);
 

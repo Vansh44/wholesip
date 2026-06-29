@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { getActingStoreId } from "@/app/dashboard/lib/access";
 import type { Product, CategoryOption, CardColorOption } from "./page";
 
 /**
@@ -15,6 +16,7 @@ export async function getProductEditData(id: string): Promise<{
   colors: CardColorOption[];
 } | null> {
   const supabase = await createClient();
+  const storeId = await getActingStoreId();
 
   const [{ data: product }, { data: categories }, { data: colors }] =
     await Promise.all([
@@ -24,15 +26,18 @@ export async function getProductEditData(id: string): Promise<{
           "*, category:categories(id, name, slug), variants:product_variants(*)",
         )
         .eq("id", id)
+        .eq("store_id", storeId)
         .single(),
       supabase
         .from("categories")
         .select("id, name, slug, status")
+        .eq("store_id", storeId)
         .order("sort_order", { ascending: true })
         .order("name", { ascending: true }),
       supabase
         .from("card_colors")
         .select("id, name, hex")
+        .eq("store_id", storeId)
         .order("sort_order", { ascending: true })
         .order("name", { ascending: true }),
     ]);

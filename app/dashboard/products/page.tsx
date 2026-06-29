@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireSectionAccess } from "../lib/access";
+import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import {
   DASHBOARD_PAGE_SIZE,
   ilikeOr,
@@ -100,6 +100,7 @@ export default async function ProductsPage({
   const from = (page - 1) * pageSize;
 
   const supabase = await createClient();
+  const storeId = await getActingStoreId();
 
   // The list view only shows a variant COUNT (editing re-fetches the full
   // product + variants via /dashboard/products/[id]), so pull just variant ids
@@ -110,6 +111,7 @@ export default async function ProductsPage({
       "*, category:categories(id, name, slug), variants:product_variants(id)",
       { count: "exact" },
     )
+    .eq("store_id", storeId)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
 
@@ -126,7 +128,10 @@ export default async function ProductsPage({
   if (term) listQuery = listQuery.or(ilikeOr(["name", "slug"], term));
 
   const countQuery = () =>
-    supabase.from("products").select("id", { count: "exact", head: true });
+    supabase
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("store_id", storeId);
 
   const [
     { data: products, error, count },
@@ -141,11 +146,13 @@ export default async function ProductsPage({
     supabase
       .from("categories")
       .select("id, name, slug, status")
+      .eq("store_id", storeId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
     supabase
       .from("card_colors")
       .select("id, name, hex")
+      .eq("store_id", storeId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
     countQuery(),

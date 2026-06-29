@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireSectionAccess } from "../lib/access";
+import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import { CategoriesManagementView } from "./categories-management-view";
 
 export interface Category {
@@ -21,6 +21,7 @@ export default async function CategoriesPage() {
   const canManage = access.can("categories", "manage");
 
   const supabase = await createClient();
+  const storeId = await getActingStoreId();
 
   // Categories + grouped product counts in parallel. Counts are tallied in
   // Postgres (product_counts_by_category RPC) instead of pulling every product
@@ -29,6 +30,7 @@ export default async function CategoriesPage() {
     supabase
       .from("categories")
       .select("*")
+      .eq("store_id", storeId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
     supabase.rpc("product_counts_by_category"),
