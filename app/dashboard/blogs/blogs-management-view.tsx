@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
 import {
@@ -44,6 +44,7 @@ import {
   bulkSetBlogStatus,
   bulkSetBlogFeatured,
   bulkDeleteBlogs,
+  getBlogForEditor,
 } from "@/app/actions/blog-actions";
 import { useRowSelection } from "@/app/dashboard/lib/use-row-selection";
 import {
@@ -51,8 +52,9 @@ import {
   RowCheckbox,
   SelectAllCheckbox,
 } from "@/app/dashboard/components/bulk-actions";
+import { ListPagination } from "@/app/dashboard/components/list-pagination";
 import dynamic from "next/dynamic";
-import type { Blog } from "./page";
+import type { Blog, BlogCounts, BlogFilter } from "./page";
 
 // Lazy-load the editor dialog so its heavy TipTap/ProseMirror bundle downloads
 // on first open instead of with the Blogs page. ssr:false (client-only); the
@@ -63,27 +65,37 @@ const BlogEditorDialog = dynamic(
   { ssr: false },
 );
 
-type FilterTab = "all" | "published" | "drafts" | "featured" | "pending";
-
 type Props = {
   blogs: Blog[];
   canManage?: boolean;
-  initialFilter?: FilterTab;
+  counts: BlogCounts;
+  total: number;
+  page: number;
+  pageSize: number;
+  query: string;
+  filter: BlogFilter;
 };
 
 export function BlogsManagementView({
   blogs,
   canManage = true,
-  initialFilter = "all",
+  counts,
+  total,
+  page,
+  pageSize,
+  query,
+  filter,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
-  const [filter, setFilter] = useState<FilterTab>(initialFilter);
-  const [search, setSearch] = useState("");
+  const [navigating, startNavigation] = useTransition();
+  const [search, setSearch] = useState(query);
   const [deleteTarget, setDeleteTarget] = useState<Blog | null>(null);
   const [rejectTarget, setRejectTarget] = useState<Blog | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingBlog, setEditingBlog] = useState<Blog | null>(null);
+  const [openingEditor, setOpeningEditor] = useState(false);
   // Latch: mount the lazy editor dialog on first open, then keep it mounted so
   // its close animation can play (and TipTap isn't re-fetched on reopen). The
   // "adjust state during render" pattern (same as the blog listing's page
@@ -93,46 +105,38 @@ export function BlogsManagementView({
     setEditorEverOpened(true);
   }
 
-  // ── Filtering & Search ────────────────────────────────────
-  const filteredBlogs = useMemo(() => {
-    let result = [...blogs];
+  // ── URL-driven filter + search ────────────────────────────
+  const hrefFor = (next: {
+    q?: string;
+    filter?: BlogFilter;
+    page?: number;
+  }): string => {
+    const q = (next.q ?? query).trim();
+    const f = next.filter ?? filter;
+    const changedFacet = next.q !== undefined || next.filter !== undefined;
+    const p = next.page ?? (changedFacet ? 1 : page);
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (f !== "all") params.set("filter", f);
+    if (p > 1) params.set("page", String(p));
+    const qs = params.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  };
 
-    // Tab filter
-    switch (filter) {
-      case "published":
-        result = result.filter((b) => b.status === "published");
-        break;
-      case "drafts":
-        result = result.filter((b) => b.status === "draft");
-        break;
-      case "featured":
-        result = result.filter((b) => b.featured);
-        break;
-      case "pending":
-        result = result.filter((b) => b.status === "pending_review");
-        break;
-    }
+  const go = (next: Parameters<typeof hrefFor>[0]) =>
+    startNavigation(() => router.push(hrefFor(next)));
 
-    // Search
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (b) =>
-          b.title.toLowerCase().includes(q) ||
-          (b.categories &&
-            b.categories.some((c) => c.toLowerCase().includes(q))) ||
-          (b.tags && b.tags.some((t) => t.toLowerCase().includes(q))),
-      );
-    }
+  useEffect(() => {
+    if (search.trim() === query.trim()) return;
+    const handle = setTimeout(() => {
+      startNavigation(() => router.push(hrefFor({ q: search })));
+    }, 400);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
-    return result;
-  }, [blogs, filter, search]);
-
-  // ── Bulk selection ────────────────────────────────────────
-  const visibleIds = useMemo(
-    () => filteredBlogs.map((b) => b.id),
-    [filteredBlogs],
-  );
+  // ── Bulk selection (scoped to the current page) ───────────
+  const visibleIds = useMemo(() => blogs.map((b) => b.id), [blogs]);
   const selection = useRowSelection(visibleIds);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
@@ -152,18 +156,6 @@ export function BlogsManagementView({
       }
     });
   };
-
-  // ── Tab counts ────────────────────────────────────────────
-  const counts = useMemo(
-    () => ({
-      all: blogs.length,
-      published: blogs.filter((b) => b.status === "published").length,
-      drafts: blogs.filter((b) => b.status === "draft").length,
-      featured: blogs.filter((b) => b.featured).length,
-      pending: blogs.filter((b) => b.status === "pending_review").length,
-    }),
-    [blogs],
-  );
 
   // ── Actions ───────────────────────────────────────────────
   const handleDelete = () => {
@@ -221,8 +213,23 @@ export function BlogsManagementView({
     });
   };
 
-  const openEditor = (blog?: Blog) => {
-    setEditingBlog(blog ?? null);
+  // The list omits the heavy `content` HTML, so fetch the full post before
+  // opening the editor for an existing one. Never open with a half-loaded
+  // object — saving that would blank the body. New posts open immediately.
+  const openEditor = async (blog?: Blog) => {
+    if (!blog) {
+      setEditingBlog(null);
+      setEditorOpen(true);
+      return;
+    }
+    setOpeningEditor(true);
+    const full = await getBlogForEditor(blog.id);
+    setOpeningEditor(false);
+    if (!full) {
+      toast.error("Could not load this post. Please try again.");
+      return;
+    }
+    setEditingBlog(full as unknown as Blog);
     setEditorOpen(true);
   };
 
@@ -247,7 +254,7 @@ export function BlogsManagementView({
   };
 
   const tabs: {
-    key: FilterTab;
+    key: BlogFilter;
     label: string;
     count: number;
     alert?: boolean;
@@ -266,7 +273,7 @@ export function BlogsManagementView({
 
   // ── Render ────────────────────────────────────────────────
   return (
-    <div className="dash-page-enter">
+    <div className="dash-page-enter" aria-busy={openingEditor}>
       {/* Page Header */}
       <header className="dash-page-header row">
         <div>
@@ -276,6 +283,7 @@ export function BlogsManagementView({
         {canManage && (
           <button
             className="dash-btn dash-btn-primary shrink-0"
+            disabled={openingEditor}
             onClick={() => openEditor()}
           >
             <Plus className="h-4 w-4" />
@@ -293,7 +301,7 @@ export function BlogsManagementView({
               className={`dash-filter-tab${filter === tab.key ? " active" : ""}${
                 tab.alert ? " has-alert" : ""
               }`}
-              onClick={() => setFilter(tab.key)}
+              onClick={() => go({ filter: tab.key })}
             >
               {tab.label}
               <span className="dash-tab-count">{tab.count}</span>
@@ -318,13 +326,13 @@ export function BlogsManagementView({
           <div>
             <div className="dash-card-title">Blog posts</div>
             <div className="dash-card-sub">
-              {filteredBlogs.length}{" "}
-              {filteredBlogs.length === 1 ? "post" : "posts"}
+              {total} {total === 1 ? "post" : "posts"}
+              {navigating ? " · updating…" : ""}
             </div>
           </div>
         </div>
 
-        {filteredBlogs.length === 0 ? (
+        {blogs.length === 0 ? (
           <div className="dash-empty">
             <span className="dash-empty-icon">
               <FileText className="h-5 w-5" />
@@ -373,7 +381,7 @@ export function BlogsManagementView({
               </tr>
             </thead>
             <tbody>
-              {filteredBlogs.map((blog) => (
+              {blogs.map((blog) => (
                 <tr
                   key={blog.id}
                   className={
@@ -397,6 +405,7 @@ export function BlogsManagementView({
                           src={blog.cover_image_url}
                           alt={blog.title}
                           fill
+                          sizes="48px"
                           className="object-cover"
                         />
                       </div>
@@ -587,6 +596,14 @@ export function BlogsManagementView({
             </tbody>
           </table>
         )}
+
+        <ListPagination
+          page={page}
+          total={total}
+          pageSize={pageSize}
+          busy={navigating}
+          onPage={(p) => go({ page: p })}
+        />
       </div>
 
       {/* Bulk action bar (appears while rows are selected) */}

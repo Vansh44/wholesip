@@ -70,6 +70,28 @@ async function getAdminUserId(): Promise<string | null> {
   return getManagerUserId("blogs");
 }
 
+/**
+ * Full blog row by id (including the heavy `content` HTML) for the editor.
+ * The dashboard list omits `content` to keep its payload small, so the editor
+ * fetches the complete post here when opening an existing one — never opening
+ * with a half-loaded object (which could blank-save the body). Returns null if
+ * the post is missing or the caller can't manage blogs.
+ */
+export async function getBlogForEditor(
+  id: string,
+): Promise<Record<string, unknown> | null> {
+  const userId = await getAdminUserId();
+  if (!userId) return null;
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("blogs")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error || !data) return null;
+  return data;
+}
+
 // Looks up a customer's email + first name by id, bypassing RLS via the
 // service-role client. The customers table only lets a customer read their own
 // row, so an admin session can't read a submitter — this is used purely to

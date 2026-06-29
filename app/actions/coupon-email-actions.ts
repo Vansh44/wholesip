@@ -1,16 +1,26 @@
 "use server";
 
+import { after } from "next/server";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { callGemini, brandSystemText, loadBrandSoul } from "@/lib/ai/gemini";
+import { triggerEmailWorker } from "@/lib/email/trigger-worker";
 import {
   mergeTokens,
   renderCouponEmail,
   type CouponEmailContent,
 } from "@/lib/email/coupon-campaign";
 
-const FROM_ADDRESS = "WholeSip <admin@wholesip.com>";
+const RECIPIENT_PAGE_SIZE = 50;
+
+/** Strip PostgREST filter-control chars so a search term can't break `.or()`. */
+function sanitizeSearch(q: string): string {
+  return q
+    .replace(/[(),:*%\\]/g, " ")
+    .trim()
+    .slice(0, 100);
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,34 +64,67 @@ export interface SendEmailInput {
 }
 
 export interface SendEmailResult {
-  sent?: number;
+  /** Recipients (with an email) queued for background sending. */
+  queued?: number;
   skippedNoEmail?: number;
   error?: string;
 }
 
+export interface ListRecipientsResult {
+  customers: RecipientOption[];
+  /** Total customers with an email on file (for the "all" audience count). */
+  total: number;
+  error?: string;
+}
+
 // ---------------------------------------------------------------------------
-// Recipients — lazy-loaded by the email dialog for the "specific" picker.
+// Recipients — searched server-side by the email dialog's "specific" picker.
+// Returns at most RECIPIENT_PAGE_SIZE matches so it stays fast with 100k+
+// customers (never loads the whole table into the browser).
 // ---------------------------------------------------------------------------
 
-export async function listEmailRecipients(): Promise<{
-  customers: RecipientOption[];
-  error?: string;
-}> {
+export async function listEmailRecipients(
+  search = "",
+): Promise<ListRecipientsResult> {
   const userId = await getManagerUserId("marketing");
-  if (!userId) return { customers: [], error: "Not authenticated" };
+  if (!userId) return { customers: [], total: 0, error: "Not authenticated" };
 
   const admin = createAdminClient();
-  const { data, error } = await admin
+
+  // Count of all emailable customers — drives the "all customers" estimate.
+  const { count: total } = await admin
+    .from("users")
+    .select("id", { count: "exact", head: true })
+    .not("email", "is", null);
+
+  let query = admin
     .from("users")
     .select("id, first_name, last_name, email, phone")
-    .order("created_at", { ascending: false });
+    .not("email", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(RECIPIENT_PAGE_SIZE);
+
+  const term = sanitizeSearch(search);
+  if (term) {
+    const like = `*${term}*`;
+    query = query.or(
+      `first_name.ilike.${like},last_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`,
+    );
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("listEmailRecipients error:", error);
-    return { customers: [], error: "Could not load customers." };
+    return {
+      customers: [],
+      total: total ?? 0,
+      error: "Could not load customers.",
+    };
   }
 
   return {
+    total: total ?? 0,
     customers: (data ?? []).map((c) => ({
       id: c.id as string,
       first_name: (c.first_name as string) ?? "",
@@ -242,8 +285,15 @@ async function resolveRecipients(
   return (data ?? []) as RecipientOption[];
 }
 
-const BATCH_SIZE = 100;
+const RECIPIENT_INSERT_CHUNK = 1000;
 
+/**
+ * Queue a coupon campaign for background delivery. We resolve the audience and
+ * write one row per recipient to email_campaign_recipients, then return
+ * immediately — the worker (app/api/cron/send-emails) does the actual sending.
+ * This is what lets a 100k-recipient campaign work at all: doing it inline
+ * would exceed the serverless function timeout.
+ */
 export async function sendCouponEmail(
   input: SendEmailInput,
 ): Promise<SendEmailResult> {
@@ -253,8 +303,8 @@ export async function sendCouponEmail(
   if (!input.subject.trim() || !input.body.trim())
     return { error: "Add a subject and body before sending." };
 
-  const resend = getResend();
-  if (!resend)
+  // Fail fast in the UI if email isn't set up (the worker checks again too).
+  if (!getResend())
     return {
       error:
         "Email isn't configured (RESEND_API_KEY missing). Add it to send campaigns.",
@@ -266,50 +316,59 @@ export async function sendCouponEmail(
 
   if (withEmail.length === 0)
     return {
-      sent: 0,
+      queued: 0,
       skippedNoEmail,
       error: "None of the selected customers have an email address on file.",
     };
 
-  // Build a personalised message per recipient, then send in batches of 100
-  // (Resend's batch limit). Each entry can carry its own merged subject/html.
-  const messages = withEmail.map((r) => {
-    const firstName = r.first_name?.trim() || "there";
-    return {
-      from: FROM_ADDRESS,
-      to: r.email as string,
-      subject: mergeTokens(input.subject, firstName),
-      html: renderCouponEmail({
-        body: input.body,
-        firstName,
-        code: input.code,
-        discountLabel: input.discountLabel,
-        validUntilLabel: input.validUntilLabel,
-      }),
-    };
-  });
+  const admin = createAdminClient();
 
-  let sent = 0;
-  for (let i = 0; i < messages.length; i += BATCH_SIZE) {
-    const chunk = messages.slice(i, i + BATCH_SIZE);
-    try {
-      const { data, error } = await resend.batch.send(chunk);
-      if (error) {
-        console.error("sendCouponEmail batch error:", error);
-      } else {
-        sent += data?.data?.length ?? chunk.length;
-      }
-    } catch (e) {
-      console.error("sendCouponEmail batch threw:", e);
+  // 1. Create the campaign (holds the shared subject/body/code).
+  const { data: campaign, error: campaignError } = await admin
+    .from("email_campaigns")
+    .insert({
+      subject: input.subject,
+      body: input.body,
+      code: input.code,
+      discount_label: input.discountLabel,
+      valid_until_label: input.validUntilLabel ?? null,
+      total: withEmail.length,
+      skipped_no_email: skippedNoEmail,
+      created_by: userId,
+    })
+    .select("id")
+    .single();
+
+  if (campaignError || !campaign) {
+    console.error("Failed to create email campaign:", campaignError);
+    return {
+      error:
+        "Could not queue the campaign. Apply supabase/email_campaigns.sql, then try again.",
+    };
+  }
+
+  // 2. Insert one recipient row per address, in chunks (one round trip each).
+  const rows = withEmail.map((r) => ({
+    campaign_id: campaign.id as string,
+    email: r.email as string,
+    first_name: r.first_name?.trim() || "",
+  }));
+
+  for (let i = 0; i < rows.length; i += RECIPIENT_INSERT_CHUNK) {
+    const { error: insertError } = await admin
+      .from("email_campaign_recipients")
+      .insert(rows.slice(i, i + RECIPIENT_INSERT_CHUNK));
+    if (insertError) {
+      console.error("Failed to enqueue recipients:", insertError);
+      return {
+        error:
+          "Could not queue all recipients. Some may not receive the email — check the logs.",
+      };
     }
   }
 
-  if (sent === 0)
-    return {
-      sent: 0,
-      skippedNoEmail,
-      error: "Sending failed. Check the server logs and your Resend setup.",
-    };
+  // 3. Kick the worker after the response is sent (cron is the fallback).
+  after(() => triggerEmailWorker());
 
-  return { sent, skippedNoEmail };
+  return { queued: withEmail.length, skippedNoEmail };
 }

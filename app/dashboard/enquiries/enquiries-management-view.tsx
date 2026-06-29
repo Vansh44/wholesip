@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Archive,
   CheckCircle2,
@@ -35,26 +35,23 @@ import {
   updateEnquiryStatus,
   type EnquiryStatus,
 } from "@/app/actions/enquiry-actions";
+import { ListPagination } from "../components/list-pagination";
+import type { EnquirySort, EnquiryStats } from "./data";
 import { DateRangePicker } from "./date-range-picker";
-import { STATUS_ACTIONS, STATUS_META, type Enquiry } from "./shared";
+import {
+  NO_SUBJECT,
+  STATUS_ACTIONS,
+  STATUS_META,
+  type Enquiry,
+} from "./shared";
 
 type FilterTab = "all" | EnquiryStatus;
-type SortKey = "status" | "newest" | "oldest";
 
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+const SORT_OPTIONS: { key: EnquirySort; label: string }[] = [
   { key: "status", label: "Status: new first" },
   { key: "newest", label: "Newest first" },
   { key: "oldest", label: "Oldest first" },
 ];
-
-const STATUS_ORDER: Record<EnquiryStatus, number> = {
-  new: 0,
-  in_progress: 1,
-  resolved: 2,
-  archived: 3,
-};
-
-const NO_SUBJECT = "__none__";
 
 const STATUS_ICONS: Record<EnquiryStatus, React.ReactNode> = {
   new: <Clock3 className="h-4 w-4" />,
@@ -62,13 +59,6 @@ const STATUS_ICONS: Record<EnquiryStatus, React.ReactNode> = {
   resolved: <CheckCircle2 className="h-4 w-4" />,
   archived: <Archive className="h-4 w-4" />,
 };
-
-function localDateKey(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate(),
-  ).padStart(2, "0")}`;
-}
 
 function initials(name: string) {
   return (
@@ -84,152 +74,113 @@ function initials(name: string) {
 export function EnquiriesManagementView({
   enquiries,
   canManage = true,
-  initialFilter = "all",
+  stats,
+  subjectOptions,
+  total,
+  page,
+  pageSize,
+  query,
+  status,
+  subject,
+  fromDate,
+  toDate,
+  sort,
 }: {
   enquiries: Enquiry[];
   canManage?: boolean;
-  initialFilter?: FilterTab;
+  stats: EnquiryStats;
+  subjectOptions: { subjects: string[]; hasNone: boolean };
+  total: number;
+  page: number;
+  pageSize: number;
+  query: string;
+  status: FilterTab;
+  subject: string;
+  fromDate: string;
+  toDate: string;
+  sort: EnquirySort;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
-  const [filter, setFilter] = useState<FilterTab>(initialFilter);
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<SortKey>("status");
-  const [subjectFilter, setSubjectFilter] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [navigating, startNavigation] = useTransition();
+  const [search, setSearch] = useState(query);
   const [deleteTarget, setDeleteTarget] = useState<Enquiry | null>(null);
 
   const openDetail = (enquiry: Enquiry) =>
     router.push(`/dashboard/enquiries/${enquiry.id}`);
 
-  const counts = useMemo(
-    () => ({
-      all: enquiries.length,
-      new: enquiries.filter((enquiry) => enquiry.status === "new").length,
-      in_progress: enquiries.filter(
-        (enquiry) => enquiry.status === "in_progress",
-      ).length,
-      resolved: enquiries.filter((enquiry) => enquiry.status === "resolved")
-        .length,
-      archived: enquiries.filter((enquiry) => enquiry.status === "archived")
-        .length,
-    }),
-    [enquiries],
-  );
+  const hrefFor = (next: {
+    q?: string;
+    status?: FilterTab;
+    subject?: string;
+    sort?: EnquirySort;
+    from?: string;
+    to?: string;
+    page?: number;
+  }): string => {
+    const q = (next.q ?? query).trim();
+    const st = next.status ?? status;
+    const subj = next.subject ?? subject;
+    const so = next.sort ?? sort;
+    const f = next.from ?? fromDate;
+    const t = next.to ?? toDate;
+    const changedFacet =
+      next.q !== undefined ||
+      next.status !== undefined ||
+      next.subject !== undefined ||
+      next.sort !== undefined ||
+      next.from !== undefined ||
+      next.to !== undefined;
+    const p = next.page ?? (changedFacet ? 1 : page);
 
-  const subjectOptions = useMemo(() => {
-    const subjects = new Set<string>();
-    let hasNone = false;
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (st !== "all") params.set("status", st);
+    if (subj) params.set("subject", subj);
+    if (so !== "status") params.set("sort", so);
+    if (f) params.set("from", f);
+    if (t) params.set("to", t);
+    if (p > 1) params.set("page", String(p));
+    const qs = params.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  };
 
-    for (const enquiry of enquiries) {
-      const subject = enquiry.subject?.trim();
-      if (subject) subjects.add(subject);
-      else hasNone = true;
-    }
+  const go = (next: Parameters<typeof hrefFor>[0]) =>
+    startNavigation(() => router.push(hrefFor(next)));
 
-    return {
-      subjects: Array.from(subjects).sort((a, b) => a.localeCompare(b)),
-      hasNone,
-    };
-  }, [enquiries]);
-
-  const filtered = useMemo(() => {
-    let result = [...enquiries];
-
-    if (filter !== "all") {
-      result = result.filter((enquiry) => enquiry.status === filter);
-    }
-
-    if (subjectFilter) {
-      result =
-        subjectFilter === NO_SUBJECT
-          ? result.filter((enquiry) => !enquiry.subject?.trim())
-          : result.filter(
-              (enquiry) => (enquiry.subject?.trim() || "") === subjectFilter,
-            );
-    }
-
-    // Smart date filter: one date (only a single input filled) matches that
-    // exact day; both filled selects the inclusive range between them.
-    const rangeStart = fromDate || toDate;
-    const rangeEnd = toDate || fromDate;
-    if (rangeStart) {
-      result = result.filter(
-        (enquiry) => localDateKey(enquiry.created_at) >= rangeStart,
-      );
-    }
-    if (rangeEnd) {
-      result = result.filter(
-        (enquiry) => localDateKey(enquiry.created_at) <= rangeEnd,
-      );
-    }
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (enquiry) =>
-          enquiry.name.toLowerCase().includes(q) ||
-          enquiry.email.toLowerCase().includes(q) ||
-          enquiry.phone.toLowerCase().includes(q) ||
-          (enquiry.subject ?? "").toLowerCase().includes(q) ||
-          (enquiry.subject_detail ?? "").toLowerCase().includes(q) ||
-          enquiry.message.toLowerCase().includes(q),
-      );
-    }
-
-    return result;
-  }, [enquiries, filter, fromDate, search, subjectFilter, toDate]);
-
-  const sorted = useMemo(() => {
-    const result = [...filtered];
-
-    if (sort === "newest") {
-      result.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-    } else if (sort === "oldest") {
-      result.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
-    } else {
-      result.sort((a, b) => {
-        const byStatus = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
-        return byStatus !== 0
-          ? byStatus
-          : +new Date(b.created_at) - +new Date(a.created_at);
-      });
-    }
-
-    return result;
-  }, [filtered, sort]);
+  useEffect(() => {
+    if (search.trim() === query.trim()) return;
+    const handle = setTimeout(() => {
+      startNavigation(() => router.push(hrefFor({ q: search })));
+    }, 400);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const anyFilterActive =
-    !!search.trim() ||
-    filter !== "all" ||
-    !!subjectFilter ||
-    !!fromDate ||
-    !!toDate;
+    !!query.trim() || status !== "all" || !!subject || !!fromDate || !!toDate;
 
-  const handleStatus = (enquiry: Enquiry, status: EnquiryStatus) => {
+  const handleStatus = (enquiry: Enquiry, next: EnquiryStatus) => {
     startTransition(async () => {
-      const result = await updateEnquiryStatus(enquiry.id, status);
+      const result = await updateEnquiryStatus(enquiry.id, next);
       if (result.error) {
         toast.error(result.error);
         return;
       }
-
-      toast.success(`Marked as ${STATUS_META[status].label.toLowerCase()}`);
+      toast.success(`Marked as ${STATUS_META[next].label.toLowerCase()}`);
       router.refresh();
     });
   };
 
   const handleDelete = () => {
     if (!deleteTarget) return;
-
     startTransition(async () => {
       const result = await deleteEnquiry(deleteTarget.id);
       if (result.error) {
         toast.error(result.error);
         return;
       }
-
       toast.success("Enquiry deleted");
       setDeleteTarget(null);
       router.refresh();
@@ -248,11 +199,14 @@ export function EnquiriesManagementView({
       `Re: ${enquiry.subject?.trim() || "Your enquiry to WholeSip"}`,
     )}`;
 
+  const rangeFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeTo = Math.min(page * pageSize, total);
+
   const metrics: { key: EnquiryStatus; label: string; value: number }[] = [
-    { key: "new", label: "New", value: counts.new },
-    { key: "in_progress", label: "In progress", value: counts.in_progress },
-    { key: "resolved", label: "Resolved", value: counts.resolved },
-    { key: "archived", label: "Archived", value: counts.archived },
+    { key: "new", label: "New", value: stats.new },
+    { key: "in_progress", label: "In progress", value: stats.in_progress },
+    { key: "resolved", label: "Resolved", value: stats.resolved },
+    { key: "archived", label: "Archived", value: stats.archived },
   ];
 
   return (
@@ -263,7 +217,7 @@ export function EnquiriesManagementView({
           <p>Messages submitted through the storefront enquiry form</p>
         </div>
         <div className="enquiries-total">
-          <span>{counts.all}</span>
+          <span>{stats.all}</span>
           <small>Total</small>
         </div>
       </header>
@@ -277,11 +231,11 @@ export function EnquiriesManagementView({
             key={metric.key}
             type="button"
             className={`enquiry-metric enquiry-metric-${metric.key}${
-              filter === metric.key ? " active" : ""
+              status === metric.key ? " active" : ""
             }`}
-            aria-pressed={filter === metric.key}
+            aria-pressed={status === metric.key}
             onClick={() =>
-              setFilter(filter === metric.key ? "all" : metric.key)
+              go({ status: status === metric.key ? "all" : metric.key })
             }
           >
             <span className="enquiry-metric-icon">
@@ -309,7 +263,7 @@ export function EnquiriesManagementView({
         <select
           aria-label="Order by"
           value={sort}
-          onChange={(event) => setSort(event.target.value as SortKey)}
+          onChange={(event) => go({ sort: event.target.value as EnquirySort })}
           className="enquiries-select"
         >
           {SORT_OPTIONS.map((option) => (
@@ -323,14 +277,14 @@ export function EnquiriesManagementView({
       <section className="enquiries-filters">
         <select
           aria-label="Filter by subject"
-          value={subjectFilter}
-          onChange={(event) => setSubjectFilter(event.target.value)}
+          value={subject}
+          onChange={(event) => go({ subject: event.target.value })}
           className="enquiries-select enquiries-subject-select"
         >
           <option value="">All subjects</option>
-          {subjectOptions.subjects.map((subject) => (
-            <option key={subject} value={subject}>
-              {subject}
+          {subjectOptions.subjects.map((s) => (
+            <option key={s} value={s}>
+              {s}
             </option>
           ))}
           {subjectOptions.hasNone && (
@@ -342,10 +296,7 @@ export function EnquiriesManagementView({
           <span>Received</span>
           <DateRangePicker
             value={{ from: fromDate, to: toDate }}
-            onChange={(next) => {
-              setFromDate(next.from);
-              setToDate(next.to);
-            }}
+            onChange={(next) => go({ from: next.from, to: next.to })}
           />
         </div>
 
@@ -354,11 +305,8 @@ export function EnquiriesManagementView({
             type="button"
             className="dash-btn dash-btn-ghost dash-btn-sm"
             onClick={() => {
-              setFilter("all");
               setSearch("");
-              setSubjectFilter("");
-              setFromDate("");
-              setToDate("");
+              startNavigation(() => router.push(pathname));
             }}
           >
             Clear
@@ -371,13 +319,15 @@ export function EnquiriesManagementView({
           <div>
             <div className="dash-card-title">Inbox</div>
             <div className="dash-card-sub">
-              {sorted.length} {sorted.length === 1 ? "message" : "messages"}{" "}
-              shown
+              {total === 0
+                ? "No messages"
+                : `Showing ${rangeFrom}–${rangeTo} of ${total}`}
+              {navigating ? " · updating…" : ""}
             </div>
           </div>
         </div>
 
-        {sorted.length === 0 ? (
+        {enquiries.length === 0 ? (
           <div className="enquiries-empty">
             <div>No enquiries found</div>
             <p>
@@ -401,7 +351,7 @@ export function EnquiriesManagementView({
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((enquiry) => (
+                {enquiries.map((enquiry) => (
                   <tr
                     key={enquiry.id}
                     onClick={() => openDetail(enquiry)}
@@ -513,6 +463,14 @@ export function EnquiriesManagementView({
             </table>
           </div>
         )}
+
+        <ListPagination
+          page={page}
+          total={total}
+          pageSize={pageSize}
+          busy={navigating}
+          onPage={(p) => go({ page: p })}
+        />
       </div>
 
       <Dialog

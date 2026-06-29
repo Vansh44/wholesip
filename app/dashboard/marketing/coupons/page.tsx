@@ -1,5 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireSectionAccess } from "../../lib/access";
+import {
+  DASHBOARD_PAGE_SIZE,
+  ilikeOr,
+  pickPage,
+  pickParam,
+  sanitizeSearch,
+} from "../../lib/list-params";
 import { CouponsManagementView } from "./coupons-management-view";
 
 export interface Coupon {
@@ -27,16 +34,35 @@ export interface CouponGroup {
   color: string;
 }
 
-export default async function CouponsPage() {
+export default async function CouponsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const access = await requireSectionAccess("marketing", "view");
   const canManage = access.can("marketing", "manage");
 
+  const sp = await searchParams;
+  const page = pickPage(sp.page);
+  const q = pickParam(sp.q);
+  const pageSize = DASHBOARD_PAGE_SIZE;
+  const from = (page - 1) * pageSize;
+
   const supabase = await createClient();
 
-  const { data: coupons, error } = await supabase
+  let query = supabase
     .from("coupons")
-    .select("*")
+    .select("*", { count: "exact" })
     .order("created_at", { ascending: false });
+
+  const term = sanitizeSearch(q);
+  if (term) query = query.or(ilikeOr(["code", "description"], term));
+
+  const {
+    data: coupons,
+    error,
+    count,
+  } = await query.range(from, from + pageSize - 1);
 
   if (error) {
     return (
@@ -53,15 +79,23 @@ export default async function CouponsPage() {
     );
   }
 
-  // User groups (for the restriction picker) and the coupon→group links.
-  // Both are best-effort: if those tables aren't migrated yet, coupons still
-  // load and simply behave as public (no restrictions).
+  // User groups (for the restriction picker) and the coupon→group links for the
+  // coupons ON THIS PAGE only. Both are best-effort: if those tables aren't
+  // migrated yet, coupons still load and simply behave as public.
+  const pageCouponIds = (coupons ?? []).map((c) => c.id as string);
   const [groupsRes, linksRes] = await Promise.all([
     supabase
       .from("user_groups")
       .select("id, name, color")
       .order("name", { ascending: true }),
-    supabase.from("coupon_user_groups").select("coupon_id, group_id"),
+    pageCouponIds.length
+      ? supabase
+          .from("coupon_user_groups")
+          .select("coupon_id, group_id")
+          .in("coupon_id", pageCouponIds)
+      : Promise.resolve({
+          data: [] as { coupon_id: string; group_id: string }[],
+        }),
   ]);
 
   const linksByCoupon = new Map<string, string[]>();
@@ -82,6 +116,10 @@ export default async function CouponsPage() {
       coupons={enriched}
       groups={(groupsRes.data ?? []) as CouponGroup[]}
       canManage={canManage}
+      total={count ?? 0}
+      page={page}
+      pageSize={pageSize}
+      query={q}
     />
   );
 }

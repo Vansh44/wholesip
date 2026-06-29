@@ -3,7 +3,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue(new Headers()),
+}));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimit: vi.fn().mockResolvedValue({ allowed: true }),
+  clientIp: vi.fn(() => "1.2.3.4"),
+}));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
 }));
@@ -20,6 +27,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { sendEnquiryAcknowledgementEmail } from "@/lib/email/enquiry-notifications";
 import { revalidatePath } from "next/cache";
+import { rateLimit } from "@/lib/rate-limit";
 import { makeChain, makeSupabase } from "./_test-helpers";
 
 const validInput = {
@@ -48,6 +56,7 @@ describe("enquiry-actions", () => {
     vi.mocked(createAdminClient).mockReturnValue(admin);
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
     vi.mocked(sendEnquiryAcknowledgementEmail).mockResolvedValue(undefined);
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true });
   });
 
   describe("submitEnquiry", () => {
@@ -128,6 +137,15 @@ describe("enquiry-actions", () => {
       const inserted = admin._tables.enquiries.insert.mock.calls[0][0];
       expect(inserted.subject).toBe("Other");
       expect(inserted.subject_detail).toBe("Partnership idea");
+    });
+
+    // When the IP has exceeded its window, reject before touching the DB.
+    it("rejects when rate limited (no insert, no email)", async () => {
+      vi.mocked(rateLimit).mockResolvedValue({ allowed: false });
+      const result = await submitEnquiry(validInput);
+      expect(result.error).toMatch(/too many enquiries/i);
+      expect(admin._tables.enquiries.insert).not.toHaveBeenCalled();
+      expect(sendEnquiryAcknowledgementEmail).not.toHaveBeenCalled();
     });
 
     // DB insert failure → friendly message, no email, no revalidate.

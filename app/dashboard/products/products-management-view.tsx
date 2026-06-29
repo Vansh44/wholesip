@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
 import {
@@ -48,16 +48,28 @@ import {
   SelectAllCheckbox,
 } from "@/app/dashboard/components/bulk-actions";
 import { ProductEditorDialog } from "./product-editor-dialog";
+import { ListPagination } from "@/app/dashboard/components/list-pagination";
 import { effectivePricing, formatPrice } from "@/lib/pricing";
-import type { Product, CategoryOption, CardColorOption } from "./page";
-
-type FilterTab = "all" | "published" | "drafts" | "featured";
+import type {
+  Product,
+  CategoryOption,
+  CardColorOption,
+  ProductFilter,
+  ProductCounts,
+} from "./page";
 
 type Props = {
   products: Product[];
   categories: CategoryOption[];
   colors: CardColorOption[];
   canManage?: boolean;
+  counts: ProductCounts;
+  total: number;
+  page: number;
+  pageSize: number;
+  query: string;
+  filter: ProductFilter;
+  categoryFilter: string;
 };
 
 export function ProductsManagementView({
@@ -65,52 +77,60 @@ export function ProductsManagementView({
   categories,
   colors,
   canManage = true,
+  counts,
+  total,
+  page,
+  pageSize,
+  query,
+  filter,
+  categoryFilter,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
-  const [filter, setFilter] = useState<FilterTab>("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [search, setSearch] = useState("");
+  const [navigating, startNavigation] = useTransition();
+  const [search, setSearch] = useState(query);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
 
-  const filtered = useMemo(() => {
-    let result = [...products];
+  const hrefFor = (next: {
+    q?: string;
+    filter?: ProductFilter;
+    category?: string;
+    page?: number;
+  }): string => {
+    const q = (next.q ?? query).trim();
+    const f = next.filter ?? filter;
+    const cat = next.category ?? categoryFilter;
+    const changedFacet =
+      next.q !== undefined ||
+      next.filter !== undefined ||
+      next.category !== undefined;
+    const p = next.page ?? (changedFacet ? 1 : page);
 
-    switch (filter) {
-      case "published":
-        result = result.filter((p) => p.status === "published");
-        break;
-      case "drafts":
-        result = result.filter((p) => p.status === "draft");
-        break;
-      case "featured":
-        result = result.filter((p) => p.featured);
-        break;
-    }
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (f !== "all") params.set("filter", f);
+    if (cat !== "all") params.set("category", cat);
+    if (p > 1) params.set("page", String(p));
+    const qs = params.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  };
 
-    if (categoryFilter !== "all") {
-      result =
-        categoryFilter === "uncategorized"
-          ? result.filter((p) => !p.category_id)
-          : result.filter((p) => p.category_id === categoryFilter);
-    }
+  const go = (next: Parameters<typeof hrefFor>[0]) =>
+    startNavigation(() => router.push(hrefFor(next)));
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.slug.toLowerCase().includes(q) ||
-          (p.category?.name.toLowerCase().includes(q) ?? false),
-      );
-    }
+  useEffect(() => {
+    if (search.trim() === query.trim()) return;
+    const handle = setTimeout(() => {
+      startNavigation(() => router.push(hrefFor({ q: search })));
+    }, 400);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
-    return result;
-  }, [products, filter, categoryFilter, search]);
-
-  // ── Bulk selection ────────────────────────────────────────
-  const visibleIds = useMemo(() => filtered.map((p) => p.id), [filtered]);
+  // ── Bulk selection (scoped to the current page) ────────────
+  const visibleIds = useMemo(() => products.map((p) => p.id), [products]);
   const selection = useRowSelection(visibleIds);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
@@ -130,16 +150,6 @@ export function ProductsManagementView({
       }
     });
   };
-
-  const counts = useMemo(
-    () => ({
-      all: products.length,
-      published: products.filter((p) => p.status === "published").length,
-      drafts: products.filter((p) => p.status === "draft").length,
-      featured: products.filter((p) => p.featured).length,
-    }),
-    [products],
-  );
 
   const handleDelete = () => {
     if (!deleteTarget) return;
@@ -179,7 +189,7 @@ export function ProductsManagementView({
   const openEdit = (product: Product) =>
     router.push(`/dashboard/products/${product.id}`);
 
-  const tabs: { key: FilterTab; label: string; count: number }[] = [
+  const tabs: { key: ProductFilter; label: string; count: number }[] = [
     { key: "all", label: "All", count: counts.all },
     { key: "published", label: "Published", count: counts.published },
     { key: "drafts", label: "Drafts", count: counts.drafts },
@@ -211,7 +221,7 @@ export function ProductsManagementView({
             <button
               key={tab.key}
               className={`dash-filter-tab${filter === tab.key ? " active" : ""}`}
-              onClick={() => setFilter(tab.key)}
+              onClick={() => go({ filter: tab.key })}
             >
               {tab.label}
               <span className="dash-tab-count">{tab.count}</span>
@@ -222,7 +232,7 @@ export function ProductsManagementView({
         <div className="dash-toolbar-actions">
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => go({ category: e.target.value })}
             className="rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-[7px] text-[13px] text-[var(--dash-text)] outline-none"
           >
             <option value="all">All categories</option>
@@ -267,12 +277,13 @@ export function ProductsManagementView({
           <div>
             <div className="dash-card-title">Products</div>
             <div className="dash-card-sub">
-              {filtered.length} {filtered.length === 1 ? "product" : "products"}
+              {total} {total === 1 ? "product" : "products"}
+              {navigating ? " · updating…" : ""}
             </div>
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {products.length === 0 ? (
           <div className="dash-empty">
             <span className="dash-empty-icon">
               <Package className="h-5 w-5" />
@@ -323,7 +334,7 @@ export function ProductsManagementView({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
+              {products.map((p) => (
                 <tr
                   key={p.id}
                   onClick={canManage ? () => openEdit(p) : undefined}
@@ -351,6 +362,7 @@ export function ProductsManagementView({
                           src={p.image_url}
                           alt={p.name}
                           fill
+                          sizes="48px"
                           className="object-cover"
                         />
                       </div>
@@ -489,6 +501,14 @@ export function ProductsManagementView({
             </tbody>
           </table>
         )}
+
+        <ListPagination
+          page={page}
+          total={total}
+          pageSize={pageSize}
+          busy={navigating}
+          onPage={(p) => go({ page: p })}
+        />
       </div>
 
       {/* Bulk action bar (appears while rows are selected) */}

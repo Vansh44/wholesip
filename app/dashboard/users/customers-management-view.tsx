@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
+  ChevronLeft,
+  ChevronRight,
   Eye,
   Mail,
   MoreHorizontal,
@@ -31,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { deleteCustomer, updateCustomer } from "@/app/actions/customer-actions";
+import type { CustomerFilter, CustomerSort, CustomerStats } from "./data";
 import {
   avatarBackground,
   customerName,
@@ -39,17 +42,14 @@ import {
   type Customer,
 } from "./shared";
 
-type SortKey = "newest" | "oldest" | "name" | "active";
-type FilterKey = "all" | "recent" | "reviewers" | "with_email";
-
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+const SORT_OPTIONS: { key: CustomerSort; label: string }[] = [
   { key: "newest", label: "Newest first" },
   { key: "oldest", label: "Oldest first" },
   { key: "name", label: "Name A–Z" },
   { key: "active", label: "Most active" },
 ];
 
-const FILTER_OPTIONS: { key: FilterKey; label: string }[] = [
+const FILTER_OPTIONS: { key: CustomerFilter; label: string }[] = [
   { key: "all", label: "All users" },
   { key: "recent", label: "New (30 days)" },
   { key: "reviewers", label: "Reviewers" },
@@ -59,21 +59,32 @@ const FILTER_OPTIONS: { key: FilterKey; label: string }[] = [
 export function CustomersManagementView({
   customers,
   canManage = true,
-  recentCount,
-  recentCutoff,
+  stats,
+  total,
+  page,
+  pageSize,
+  query,
+  filter,
+  sort,
 }: {
   customers: Customer[];
   canManage?: boolean;
-  /** Sign-ups in the last 30 days — computed server-side to keep render pure. */
-  recentCount: number;
-  /** Epoch ms cut-off for the "New (30 days)" filter (computed server-side). */
-  recentCutoff: number;
+  /** Aggregate counts for the metric cards (computed server-side). */
+  stats: CustomerStats;
+  /** Total rows in the current filtered set, for pagination. */
+  total: number;
+  page: number;
+  pageSize: number;
+  query: string;
+  filter: CustomerFilter;
+  sort: CustomerSort;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<SortKey>("newest");
-  const [filter, setFilter] = useState<FilterKey>("all");
+  const [navigating, startNavigation] = useTransition();
+  const [searchInput, setSearchInput] = useState(query);
+
   const [editTarget, setEditTarget] = useState<Customer | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
 
@@ -92,60 +103,51 @@ export function CustomersManagementView({
     setEditTarget(customer);
   };
 
-  const stats = useMemo(
-    () => ({
-      total: customers.length,
-      withEmail: customers.filter((c) => !!c.email).length,
-      reviewers: customers.filter((c) => c.review_count > 0).length,
-      recent: recentCount,
-    }),
-    [customers, recentCount],
-  );
+  // Build a URL for the list with the given facet changes. Changing the
+  // search/filter/sort resets to page 1 unless a page is given explicitly.
+  const hrefFor = (next: {
+    q?: string;
+    filter?: CustomerFilter;
+    sort?: CustomerSort;
+    page?: number;
+  }): string => {
+    const q = (next.q ?? query).trim();
+    const f = next.filter ?? filter;
+    const s = next.sort ?? sort;
+    const changedFacet =
+      next.q !== undefined ||
+      next.filter !== undefined ||
+      next.sort !== undefined;
+    const p = next.page ?? (changedFacet ? 1 : page);
 
-  const filtered = useMemo(() => {
-    let result = [...customers];
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (f !== "all") params.set("filter", f);
+    if (s !== "newest") params.set("sort", s);
+    if (p > 1) params.set("page", String(p));
+    const qs = params.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  };
 
-    if (filter === "recent") {
-      result = result.filter(
-        (c) => new Date(c.created_at).getTime() >= recentCutoff,
-      );
-    } else if (filter === "reviewers") {
-      result = result.filter((c) => c.review_count > 0);
-    } else if (filter === "with_email") {
-      result = result.filter((c) => !!c.email);
-    }
+  const go = (next: Parameters<typeof hrefFor>[0]) =>
+    startNavigation(() => router.push(hrefFor(next)));
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (c) =>
-          customerName(c).toLowerCase().includes(q) ||
-          (c.email ?? "").toLowerCase().includes(q) ||
-          c.phone.toLowerCase().includes(q),
-      );
-    }
+  // Debounce the search box → URL. Only navigates when the term actually
+  // changed from what the server already rendered.
+  useEffect(() => {
+    if (searchInput.trim() === query.trim()) return;
+    const handle = setTimeout(() => {
+      startNavigation(() => router.push(hrefFor({ q: searchInput })));
+    }, 400);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
 
-    return result;
-  }, [customers, filter, recentCutoff, search]);
+  const anyFilterActive = !!query.trim() || filter !== "all";
 
-  const sorted = useMemo(() => {
-    const result = [...filtered];
-    if (sort === "oldest") {
-      result.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
-    } else if (sort === "name") {
-      result.sort((a, b) => customerName(a).localeCompare(customerName(b)));
-    } else if (sort === "active") {
-      result.sort(
-        (a, b) =>
-          b.review_count + b.blog_count - (a.review_count + a.blog_count),
-      );
-    } else {
-      result.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-    }
-    return result;
-  }, [filtered, sort]);
-
-  const anyFilterActive = !!search.trim() || filter !== "all";
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const rangeFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeTo = Math.min(page * pageSize, total);
 
   const handleSave = () => {
     if (!editTarget) return;
@@ -183,7 +185,7 @@ export function CustomersManagementView({
   // `filterKey` is the filter it applies (clicking an active one resets to all).
   const metrics: {
     key: string;
-    filterKey: FilterKey;
+    filterKey: CustomerFilter;
     label: string;
     value: number;
     icon: React.ReactNode;
@@ -246,11 +248,12 @@ export function CustomersManagementView({
               }`}
               aria-pressed={active}
               onClick={() =>
-                setFilter(
-                  metric.filterKey === "all" || active
-                    ? "all"
-                    : metric.filterKey,
-                )
+                go({
+                  filter:
+                    metric.filterKey === "all" || active
+                      ? "all"
+                      : metric.filterKey,
+                })
               }
             >
               <span className="customer-metric-icon">{metric.icon}</span>
@@ -269,15 +272,17 @@ export function CustomersManagementView({
           <input
             type="text"
             placeholder="Search name, email, phone..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
           />
         </label>
 
         <select
           aria-label="Filter users"
           value={filter}
-          onChange={(event) => setFilter(event.target.value as FilterKey)}
+          onChange={(event) =>
+            go({ filter: event.target.value as CustomerFilter })
+          }
           className="customers-select"
         >
           {FILTER_OPTIONS.map((option) => (
@@ -290,7 +295,7 @@ export function CustomersManagementView({
         <select
           aria-label="Order by"
           value={sort}
-          onChange={(event) => setSort(event.target.value as SortKey)}
+          onChange={(event) => go({ sort: event.target.value as CustomerSort })}
           className="customers-select"
         >
           {SORT_OPTIONS.map((option) => (
@@ -305,8 +310,8 @@ export function CustomersManagementView({
             type="button"
             className="dash-btn dash-btn-ghost dash-btn-sm"
             onClick={() => {
-              setSearch("");
-              setFilter("all");
+              setSearchInput("");
+              go({ q: "", filter: "all" });
             }}
           >
             Clear
@@ -319,12 +324,15 @@ export function CustomersManagementView({
           <div>
             <div className="dash-card-title">Users</div>
             <div className="dash-card-sub">
-              {sorted.length} {sorted.length === 1 ? "user" : "users"} shown
+              {total === 0
+                ? "No users"
+                : `Showing ${rangeFrom}–${rangeTo} of ${total}`}
+              {navigating ? " · updating…" : ""}
             </div>
           </div>
         </div>
 
-        {sorted.length === 0 ? (
+        {customers.length === 0 ? (
           <div className="customers-empty">
             <div>No users found</div>
             <p>
@@ -346,7 +354,7 @@ export function CustomersManagementView({
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((customer) => (
+                {customers.map((customer) => (
                   <tr
                     key={customer.id}
                     onClick={() => openDetail(customer)}
@@ -452,6 +460,32 @@ export function CustomersManagementView({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div className="customers-pagination">
+            <button
+              type="button"
+              className="dash-btn dash-btn-ghost dash-btn-sm"
+              disabled={page <= 1 || navigating}
+              onClick={() => go({ page: page - 1 })}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </button>
+            <span className="customers-pagination-info">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              type="button"
+              className="dash-btn dash-btn-ghost dash-btn-sm"
+              disabled={page >= totalPages || navigating}
+              onClick={() => go({ page: page + 1 })}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
         )}
       </div>

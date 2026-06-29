@@ -19,11 +19,16 @@ export default async function ColorsPage() {
 
   const supabase = await createClient();
 
-  const { data: colors, error } = await supabase
-    .from("card_colors")
-    .select("*")
-    .order("sort_order", { ascending: true })
-    .order("name", { ascending: true });
+  // Colours + grouped product counts in parallel. Counts come from a Postgres
+  // GROUP BY (product_counts_by_color RPC) rather than scanning every product.
+  const [{ data: colors, error }, { data: countRows }] = await Promise.all([
+    supabase
+      .from("card_colors")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
+    supabase.rpc("product_counts_by_color"),
+  ]);
 
   if (error) {
     return (
@@ -40,16 +45,14 @@ export default async function ColorsPage() {
     );
   }
 
-  // Count products using each colour (matched by hex).
+  // Count products using each colour (matched by lower-cased hex).
   const list = (colors ?? []) as CardColor[];
-  const { data: products } = await supabase
-    .from("products")
-    .select("card_color");
-
   const counts = new Map<string, number>();
-  for (const p of products ?? []) {
-    const hex = (p.card_color as string | null)?.toLowerCase();
-    if (hex) counts.set(hex, (counts.get(hex) ?? 0) + 1);
+  for (const row of (countRows ?? []) as {
+    card_color: string;
+    cnt: number;
+  }[]) {
+    if (row.card_color) counts.set(row.card_color, Number(row.cnt));
   }
   for (const c of list) {
     c.product_count = counts.get(c.hex.toLowerCase()) ?? 0;

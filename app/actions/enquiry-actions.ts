@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { sendEnquiryAcknowledgementEmail } from "@/lib/email/enquiry-notifications";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export type EnquiryStatus = "new" | "in_progress" | "resolved" | "archived";
 
@@ -54,6 +56,19 @@ export async function submitEnquiry(
   }
   if (!subject) return { error: "Please select a subject." };
   if (!message) return { error: "Please enter a message." };
+
+  // Anonymous public endpoint — throttle per IP so it can't be used to spam
+  // the inbox (and our acknowledgement-email quota). 5 submissions / hour.
+  const ip = clientIp(await headers());
+  const { allowed } = await rateLimit(`enquiry:${ip}`, {
+    max: 5,
+    windowSeconds: 3600,
+  });
+  if (!allowed) {
+    return {
+      error: "Too many enquiries from your network. Please try again later.",
+    };
+  }
 
   const admin = createAdminClient();
   const { error } = await admin.from("enquiries").insert({

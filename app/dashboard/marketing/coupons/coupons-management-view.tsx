@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -14,6 +14,7 @@ import {
   Ticket,
   Trash2,
 } from "lucide-react";
+import { ListPagination } from "../../components/list-pagination";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +40,10 @@ type Props = {
   coupons: Coupon[];
   groups: CouponGroup[];
   canManage?: boolean;
+  total: number;
+  page: number;
+  pageSize: number;
+  query: string;
 };
 
 function formatDiscount(c: Coupon): string {
@@ -68,25 +73,41 @@ export function CouponsManagementView({
   coupons,
   groups,
   canManage = true,
+  total,
+  page,
+  pageSize,
+  query,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const groupName = useMemo(
     () => new Map(groups.map((g) => [g.id, g.name])),
     [groups],
   );
   const [isPending, startTransition] = useTransition();
-  const [search, setSearch] = useState("");
+  const [navigating, startNavigation] = useTransition();
+  const [search, setSearch] = useState(query);
   const [deleteTarget, setDeleteTarget] = useState<Coupon | null>(null);
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return coupons;
-    const q = search.toLowerCase();
-    return coupons.filter(
-      (c) =>
-        c.code.toLowerCase().includes(q) ||
-        (c.description ?? "").toLowerCase().includes(q),
-    );
-  }, [coupons, search]);
+  const hrefFor = (next: { q?: string; page?: number }): string => {
+    const q = (next.q ?? query).trim();
+    const p = next.page ?? (next.q !== undefined ? 1 : page);
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (p > 1) params.set("page", String(p));
+    const qs = params.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  };
+
+  // Debounce the search box → URL; the server returns the matching page.
+  useEffect(() => {
+    if (search.trim() === query.trim()) return;
+    const handle = setTimeout(() => {
+      startNavigation(() => router.push(hrefFor({ q: search })));
+    }, 400);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const handleDelete = () => {
     if (!deleteTarget) return;
@@ -139,12 +160,13 @@ export function CouponsManagementView({
           <div>
             <div className="dash-card-title">Coupons</div>
             <div className="dash-card-sub">
-              {filtered.length} {filtered.length === 1 ? "coupon" : "coupons"}
+              {total} {total === 1 ? "coupon" : "coupons"}
+              {navigating ? " · updating…" : ""}
             </div>
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {coupons.length === 0 ? (
           <div className="dash-empty">
             <span className="dash-empty-icon">
               <Ticket className="h-5 w-5" />
@@ -178,7 +200,7 @@ export function CouponsManagementView({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => {
+              {coupons.map((c) => {
                 const expired = isExpired(c);
                 return (
                   <tr key={c.id}>
@@ -279,6 +301,16 @@ export function CouponsManagementView({
             </tbody>
           </table>
         )}
+
+        <ListPagination
+          page={page}
+          total={total}
+          pageSize={pageSize}
+          busy={navigating}
+          onPage={(p) =>
+            startNavigation(() => router.push(hrefFor({ page: p })))
+          }
+        />
       </div>
 
       {/* Delete Confirmation */}

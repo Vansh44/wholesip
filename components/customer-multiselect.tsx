@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 
 export type CustomerOption = {
@@ -40,6 +40,15 @@ type Props = {
   emailOnly?: boolean;
   /** Optional max height for the scroll area. */
   maxHeightClass?: string;
+  /**
+   * When provided, searching is delegated to the server (debounced) instead of
+   * filtering the `customers` prop locally — required when the full list is too
+   * large to ship to the browser. The parent re-fetches and passes back the
+   * matches as `customers`.
+   */
+  onSearch?: (term: string) => void;
+  /** Show a loading hint while a server search is in flight. */
+  loading?: boolean;
 };
 
 export function CustomerMultiselect({
@@ -49,8 +58,25 @@ export function CustomerMultiselect({
   onSetMany,
   emailOnly = false,
   maxHeightClass = "max-h-[320px]",
+  onSearch,
+  loading = false,
 }: Props) {
   const [search, setSearch] = useState("");
+  const serverMode = !!onSearch;
+
+  // Keep the latest onSearch in a ref so the debounce effect can depend only on
+  // the search term (an inline parent callback would otherwise reset it every
+  // render and never fire).
+  const onSearchRef = useRef(onSearch);
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  });
+
+  useEffect(() => {
+    if (!onSearchRef.current) return;
+    const handle = setTimeout(() => onSearchRef.current?.(search.trim()), 350);
+    return () => clearTimeout(handle);
+  }, [search]);
 
   const pool = useMemo(
     () => (emailOnly ? customers.filter((c) => c.email) : customers),
@@ -58,6 +84,8 @@ export function CustomerMultiselect({
   );
 
   const filtered = useMemo(() => {
+    // In server mode the parent already returns the matches; show them as-is.
+    if (serverMode) return pool;
     const q = search.trim().toLowerCase();
     if (!q) return pool;
     return pool.filter((c) => {
@@ -67,7 +95,7 @@ export function CustomerMultiselect({
         c.phone.toLowerCase().includes(q)
       );
     });
-  }, [pool, search]);
+  }, [pool, search, serverMode]);
 
   const allVisibleSelected =
     filtered.length > 0 && filtered.every((c) => selected.has(c.id));
@@ -100,11 +128,17 @@ export function CustomerMultiselect({
       </div>
 
       <div className={`${maxHeightClass} overflow-y-auto`}>
-        {filtered.length === 0 ? (
+        {loading ? (
+          <p className="px-3 py-6 text-center text-sm text-[#9ca3af]">
+            Searching…
+          </p>
+        ) : filtered.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-[#9ca3af]">
             {emailOnly && pool.length === 0
               ? "No customers have an email on file."
-              : "No customers match your search."}
+              : serverMode && !search.trim()
+                ? "Type to search customers by name, email or phone."
+                : "No customers match your search."}
           </p>
         ) : (
           <ul>

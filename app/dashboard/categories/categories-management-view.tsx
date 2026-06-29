@@ -175,6 +175,7 @@ export function CategoriesManagementView({
                           src={c.image_url}
                           alt={c.name}
                           fill
+                          sizes="48px"
                           className="object-cover"
                         />
                       </div>

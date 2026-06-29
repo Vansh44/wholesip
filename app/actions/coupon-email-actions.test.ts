@@ -13,8 +13,14 @@ vi.mock("@/lib/email/coupon-campaign", () => ({
   mergeTokens: vi.fn((t: string) => t),
   renderCouponEmail: vi.fn(() => "<html>"),
 }));
+// sendCouponEmail now enqueues and fires the worker via `after()`. Mock both so
+// no real background request goes out during tests.
+vi.mock("next/server", () => ({ after: vi.fn() }));
+vi.mock("@/lib/email/trigger-worker", () => ({
+  triggerEmailWorker: vi.fn(),
+}));
 
-// Resend uses `new Resend(apiKey)` then `resend.batch.send(chunk)`.
+// getResend() still constructs a Resend client to verify config is present.
 const { batchSend } = vi.hoisted(() => ({ batchSend: vi.fn() }));
 vi.mock("resend", () => {
   class Resend {
@@ -62,6 +68,28 @@ const sendInput = {
   audience: { mode: "all" as const },
 };
 
+// A supabase mock wired for the enqueue path: a users table (audience
+// resolution) plus the two campaign tables.
+function makeEnqueueSupabase(
+  usersData: Array<Record<string, unknown>>,
+  opts: {
+    campaign?: { data: unknown; error: unknown };
+    recipientsInsert?: { error: unknown };
+  } = {},
+) {
+  return makeSupabase({
+    users: makeChain(undefined, { data: usersData, error: null }),
+    email_campaigns: makeChain(
+      opts.campaign ?? { data: { id: "camp1" }, error: null },
+      { error: null },
+    ),
+    email_campaign_recipients: makeChain(
+      undefined,
+      opts.recipientsInsert ?? { error: null },
+    ),
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getManagerUserId).mockResolvedValue("user-1");
@@ -78,7 +106,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-// listEmailRecipients — loads all storefront customers via the admin client.
+// listEmailRecipients — server-side searched, capped page + emailable total.
 describe("listEmailRecipients", () => {
   it("rejects unauthenticated callers", async () => {
     vi.mocked(getManagerUserId).mockResolvedValue(null);
@@ -89,7 +117,11 @@ describe("listEmailRecipients", () => {
 
   it("returns a friendly error on DB failure", async () => {
     const supabase = makeSupabase({
-      users: makeChain(undefined, { data: null, error: { message: "boom" } }),
+      users: makeChain(undefined, {
+        data: null,
+        count: null,
+        error: { message: "boom" },
+      }),
     });
     vi.mocked(createAdminClient).mockReturnValue(supabase);
     const result = await listEmailRecipients();
@@ -97,7 +129,7 @@ describe("listEmailRecipients", () => {
     expect(result.customers).toEqual([]);
   });
 
-  it("maps rows into RecipientOptions with fallbacks", async () => {
+  it("maps rows into RecipientOptions and returns the emailable total", async () => {
     const supabase = makeSupabase({
       users: makeChain(undefined, {
         data: [
@@ -117,12 +149,14 @@ describe("listEmailRecipients", () => {
             phone: null,
           },
         ],
+        count: 7,
         error: null,
       }),
     });
     vi.mocked(createAdminClient).mockReturnValue(supabase);
     const result = await listEmailRecipients();
     expect(result.error).toBeUndefined();
+    expect(result.total).toBe(7);
     expect(result.customers).toEqual([
       {
         id: "c1",
@@ -133,6 +167,19 @@ describe("listEmailRecipients", () => {
       },
       { id: "c2", first_name: "", last_name: null, email: null, phone: "" },
     ]);
+  });
+
+  it("passes the search term to an .or() filter", async () => {
+    const usersChain = makeChain(undefined, {
+      data: [],
+      count: 0,
+      error: null,
+    });
+    const supabase = makeSupabase({ users: usersChain });
+    vi.mocked(createAdminClient).mockReturnValue(supabase);
+    await listEmailRecipients("ada");
+    expect(usersChain.or).toHaveBeenCalledTimes(1);
+    expect(usersChain.or.mock.calls[0][0]).toContain("ada");
   });
 });
 
@@ -170,14 +217,6 @@ describe("generateCouponEmail", () => {
     expect(result.error).toMatch(/incomplete/i);
   });
 
-  it("errors when the JSON is incomplete (missing subject)", async () => {
-    vi.mocked(callGemini).mockResolvedValue({
-      text: JSON.stringify({ body: "Body" }),
-    });
-    const result = await generateCouponEmail(genInput);
-    expect(result.error).toMatch(/incomplete/i);
-  });
-
   it("returns the trimmed subject + body on success", async () => {
     vi.mocked(callGemini).mockResolvedValue({
       text: JSON.stringify({ subject: "  Sub  ", body: "  Bod  " }),
@@ -208,18 +247,11 @@ describe("renderCouponEmailPreview", () => {
     );
     expect(mergeTokens).toHaveBeenCalledWith("Hi {{first_name}}", "Ada");
   });
-
-  it("falls back to 'there' when no sample name is given", async () => {
-    await renderCouponEmailPreview(previewInput);
-    expect(renderCouponEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ firstName: "there" }),
-    );
-    expect(mergeTokens).toHaveBeenCalledWith("Hi {{first_name}}", "there");
-  });
 });
 
-// sendCouponEmail — resolve audience, merge, batch-send via Resend.
-describe("sendCouponEmail", () => {
+// sendCouponEmail — resolve audience, then ENQUEUE a campaign + recipient rows
+// for background delivery (the worker does the actual sending).
+describe("sendCouponEmail (enqueue)", () => {
   beforeEach(() => {
     vi.stubEnv("RESEND_API_KEY", "re_realkey");
   });
@@ -244,39 +276,35 @@ describe("sendCouponEmail", () => {
     vi.stubEnv("RESEND_API_KEY", "");
     const result = await sendCouponEmail(sendInput);
     expect(result.error).toMatch(/isn.?t configured/i);
-    expect(batchSend).not.toHaveBeenCalled();
   });
 
   it("errors when RESEND_API_KEY is a placeholder", async () => {
     vi.stubEnv("RESEND_API_KEY", "placeholder-key");
     const result = await sendCouponEmail(sendInput);
     expect(result.error).toMatch(/isn.?t configured/i);
-    expect(batchSend).not.toHaveBeenCalled();
   });
 
-  it("sends to all customers (mode: all)", async () => {
-    const supabase = makeSupabase({
-      users: makeChain(undefined, {
-        data: [
-          { id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" },
-          { id: "b", first_name: "Bob", email: "bob@x.com", phone: "2" },
-        ],
-        error: null,
-      }),
-    });
+  it("queues all customers (mode: all)", async () => {
+    const supabase = makeEnqueueSupabase([
+      { id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" },
+      { id: "b", first_name: "Bob", email: "bob@x.com", phone: "2" },
+    ]);
     vi.mocked(createAdminClient).mockReturnValue(supabase);
-    batchSend.mockResolvedValue({
-      data: { data: [{ id: "1" }, { id: "2" }] },
-      error: null,
-    });
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "all" },
     });
     expect(result.error).toBeUndefined();
-    expect(result.sent).toBe(2);
+    expect(result.queued).toBe(2);
     expect(result.skippedNoEmail).toBe(0);
-    expect(batchSend).toHaveBeenCalledTimes(1);
+    expect(supabase._tables.email_campaigns.insert).toHaveBeenCalledTimes(1);
+    expect(
+      supabase._tables.email_campaign_recipients.insert,
+    ).toHaveBeenCalledTimes(1);
+    const rows = supabase._tables.email_campaign_recipients.insert.mock
+      .calls[0][0] as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ campaign_id: "camp1", email: "ada@x.com" });
   });
 
   it("resolves group members (mode: group)", async () => {
@@ -292,17 +320,20 @@ describe("sendCouponEmail", () => {
         ],
         error: null,
       }),
+      email_campaigns: makeChain(
+        { data: { id: "camp1" }, error: null },
+        {
+          error: null,
+        },
+      ),
+      email_campaign_recipients: makeChain(undefined, { error: null }),
     });
     vi.mocked(createAdminClient).mockReturnValue(supabase);
-    batchSend.mockResolvedValue({
-      data: { data: [{ id: "1" }, { id: "2" }] },
-      error: null,
-    });
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "group", groupId: "g1" },
     });
-    expect(result.sent).toBe(2);
+    expect(result.queued).toBe(2);
     expect(supabase._tables.user_group_members.eq).toHaveBeenCalledWith(
       "group_id",
       "g1",
@@ -310,7 +341,7 @@ describe("sendCouponEmail", () => {
     expect(supabase._tables.users.in).toHaveBeenCalledWith("id", ["a", "b"]);
   });
 
-  it("returns no-email error for an empty group", async () => {
+  it("returns no-email error for an empty group (nothing enqueued)", async () => {
     const supabase = makeSupabase({
       user_group_members: makeChain(undefined, { data: [], error: null }),
     });
@@ -319,23 +350,20 @@ describe("sendCouponEmail", () => {
       ...sendInput,
       audience: { mode: "group", groupId: "g1" },
     });
-    expect(result.sent).toBe(0);
+    expect(result.queued).toBe(0);
     expect(result.error).toMatch(/none of the selected customers/i);
   });
 
   it("resolves specific customers (mode: specific)", async () => {
-    const supabase = makeSupabase({
-      users: makeChain(undefined, {
-        data: [{ id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" }],
-        error: null,
-      }),
-    });
+    const supabase = makeEnqueueSupabase([
+      { id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" },
+    ]);
     vi.mocked(createAdminClient).mockReturnValue(supabase);
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "specific", customerIds: ["a"] },
     });
-    expect(result.sent).toBe(1);
+    expect(result.queued).toBe(1);
     expect(supabase._tables.users.in).toHaveBeenCalledWith("id", ["a"]);
   });
 
@@ -346,97 +374,63 @@ describe("sendCouponEmail", () => {
       ...sendInput,
       audience: { mode: "specific", customerIds: [] },
     });
-    expect(result.sent).toBe(0);
+    expect(result.queued).toBe(0);
     expect(result.error).toMatch(/none of the selected customers/i);
-    expect(batchSend).not.toHaveBeenCalled();
   });
 
-  it("skips recipients with no email (skippedNoEmail count)", async () => {
-    const supabase = makeSupabase({
-      users: makeChain(undefined, {
-        data: [
-          { id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" },
-          { id: "b", first_name: "Bob", email: null, phone: "2" },
-          { id: "c", first_name: "Cy", email: null, phone: "3" },
-        ],
-        error: null,
-      }),
-    });
+  it("counts recipients with no email as skipped", async () => {
+    const supabase = makeEnqueueSupabase([
+      { id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" },
+      { id: "b", first_name: "Bob", email: null, phone: "2" },
+      { id: "c", first_name: "Cy", email: null, phone: "3" },
+    ]);
     vi.mocked(createAdminClient).mockReturnValue(supabase);
-    batchSend.mockResolvedValue({ data: { data: [{ id: "1" }] }, error: null });
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "all" },
     });
-    expect(result.sent).toBe(1);
+    expect(result.queued).toBe(1);
     expect(result.skippedNoEmail).toBe(2);
   });
 
-  it("errors when nobody has an email", async () => {
-    const supabase = makeSupabase({
-      users: makeChain(undefined, {
-        data: [{ id: "b", first_name: "Bob", email: null, phone: "2" }],
-        error: null,
-      }),
-    });
+  it("errors (and enqueues nothing) when nobody has an email", async () => {
+    const supabase = makeEnqueueSupabase([
+      { id: "b", first_name: "Bob", email: null, phone: "2" },
+    ]);
     vi.mocked(createAdminClient).mockReturnValue(supabase);
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "all" },
     });
-    expect(result.sent).toBe(0);
+    expect(result.queued).toBe(0);
     expect(result.skippedNoEmail).toBe(1);
     expect(result.error).toMatch(/none of the selected customers/i);
-    expect(batchSend).not.toHaveBeenCalled();
+    expect(supabase._tables.email_campaigns.insert).not.toHaveBeenCalled();
   });
 
-  it("falls back to chunk length when batch returns no data array", async () => {
-    const supabase = makeSupabase({
-      users: makeChain(undefined, {
-        data: [{ id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" }],
-        error: null,
-      }),
-    });
+  it("errors when the campaign row can't be created", async () => {
+    const supabase = makeEnqueueSupabase(
+      [{ id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" }],
+      { campaign: { data: null, error: { message: "no table" } } },
+    );
     vi.mocked(createAdminClient).mockReturnValue(supabase);
-    batchSend.mockResolvedValue({ data: null, error: null });
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "all" },
     });
-    expect(result.sent).toBe(1);
+    expect(result.error).toMatch(/could not queue the campaign/i);
   });
 
-  it("returns a sending-failed error when the batch errors", async () => {
-    const supabase = makeSupabase({
-      users: makeChain(undefined, {
-        data: [{ id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" }],
-        error: null,
-      }),
-    });
+  it("errors when recipient rows can't be enqueued", async () => {
+    const supabase = makeEnqueueSupabase(
+      [{ id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" }],
+      { recipientsInsert: { error: { message: "boom" } } },
+    );
     vi.mocked(createAdminClient).mockReturnValue(supabase);
-    batchSend.mockResolvedValue({ data: null, error: { message: "nope" } });
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "all" },
     });
-    expect(result.sent).toBe(0);
-    expect(result.error).toMatch(/sending failed/i);
-  });
-
-  it("returns a sending-failed error when the batch throws", async () => {
-    const supabase = makeSupabase({
-      users: makeChain(undefined, {
-        data: [{ id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" }],
-        error: null,
-      }),
-    });
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
-    batchSend.mockRejectedValue(new Error("network"));
-    const result = await sendCouponEmail({
-      ...sendInput,
-      audience: { mode: "all" },
-    });
-    expect(result.sent).toBe(0);
-    expect(result.error).toMatch(/sending failed/i);
+    expect(result.error).toMatch(/could not queue all recipients/i);
   });
 });

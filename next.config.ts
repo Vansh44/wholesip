@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
     "/**": ["./brand/**/*"],
   },
   images: {
+    // Serve modern formats — AVIF (~50% smaller than JPEG) with WebP fallback.
+    // Next negotiates per request via the Accept header.
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       {
         protocol: "https",

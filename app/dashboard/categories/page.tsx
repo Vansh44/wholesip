@@ -22,11 +22,17 @@ export default async function CategoriesPage() {
 
   const supabase = await createClient();
 
-  const { data: categories, error } = await supabase
-    .from("categories")
-    .select("*")
-    .order("sort_order", { ascending: true })
-    .order("name", { ascending: true });
+  // Categories + grouped product counts in parallel. Counts are tallied in
+  // Postgres (product_counts_by_category RPC) instead of pulling every product
+  // row into Node to count by hand.
+  const [{ data: categories, error }, { data: countRows }] = await Promise.all([
+    supabase
+      .from("categories")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
+    supabase.rpc("product_counts_by_category"),
+  ]);
 
   if (error) {
     return (
@@ -42,17 +48,13 @@ export default async function CategoriesPage() {
     );
   }
 
-  // Count products per category (one grouped query).
   const list = (categories ?? []) as Category[];
-  const { data: products } = await supabase
-    .from("products")
-    .select("category_id");
-
   const counts = new Map<string, number>();
-  for (const p of products ?? []) {
-    if (p.category_id) {
-      counts.set(p.category_id, (counts.get(p.category_id) ?? 0) + 1);
-    }
+  for (const row of (countRows ?? []) as {
+    category_id: string;
+    cnt: number;
+  }[]) {
+    if (row.category_id) counts.set(row.category_id, Number(row.cnt));
   }
   for (const c of list) {
     c.product_count = counts.get(c.id) ?? 0;
