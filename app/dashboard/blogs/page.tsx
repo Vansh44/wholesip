@@ -1,6 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSectionAccess } from "../lib/access";
+import {
+  DASHBOARD_PAGE_SIZE,
+  ilikeOr,
+  pickPage,
+  pickParam,
+  sanitizeSearch,
+} from "../lib/list-params";
 import { RealtimeRefresher } from "../components/realtime-refresher";
 import { BlogsManagementView } from "./blogs-management-view";
 
@@ -30,8 +37,13 @@ export interface Blog {
   submitter_name?: string | null;
 }
 
-type FilterTab = "all" | "published" | "drafts" | "featured" | "pending";
-const FILTER_TABS: FilterTab[] = [
+export type BlogFilter =
+  | "all"
+  | "published"
+  | "drafts"
+  | "featured"
+  | "pending";
+const FILTER_TABS: BlogFilter[] = [
   "all",
   "published",
   "drafts",
@@ -39,25 +51,72 @@ const FILTER_TABS: FilterTab[] = [
   "pending",
 ];
 
+export interface BlogCounts {
+  all: number;
+  published: number;
+  drafts: number;
+  featured: number;
+  pending: number;
+}
+
+// Everything except the heavy `content` HTML — the list never renders it, and
+// the editor re-fetches the full post (getBlogForEditor) when opening one.
+const LIST_COLUMNS =
+  "id, title, slug, excerpt, cover_image_url, author, status, tags, categories, featured, seo_title, seo_description, reading_time, created_by, updated_by, published_at, created_at, updated_at, submitted_by, is_customer_submission";
+
 export default async function BlogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const access = await requireSectionAccess("blogs", "view");
   const canManage = access.can("blogs", "manage");
 
-  const { filter } = await searchParams;
-  const initialFilter: FilterTab = FILTER_TABS.includes(filter as FilterTab)
-    ? (filter as FilterTab)
-    : "all";
+  const sp = await searchParams;
+  const page = pickPage(sp.page);
+  const q = pickParam(sp.q);
+  const filterParam = pickParam(sp.filter) as BlogFilter;
+  const filter = FILTER_TABS.includes(filterParam) ? filterParam : "all";
+  const pageSize = DASHBOARD_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
 
   const supabase = await createClient();
 
-  const { data: blogs, error } = await supabase
+  let listQuery = supabase
     .from("blogs")
-    .select("*")
+    .select(LIST_COLUMNS, { count: "exact" })
     .order("created_at", { ascending: false });
+
+  if (filter === "published") listQuery = listQuery.eq("status", "published");
+  else if (filter === "drafts") listQuery = listQuery.eq("status", "draft");
+  else if (filter === "pending")
+    listQuery = listQuery.eq("status", "pending_review");
+  else if (filter === "featured") listQuery = listQuery.eq("featured", true);
+
+  const term = sanitizeSearch(q);
+  if (term)
+    listQuery = listQuery.or(
+      ilikeOr(["title", "slug", "excerpt", "author"], term),
+    );
+
+  const countQuery = () =>
+    supabase.from("blogs").select("id", { count: "exact", head: true });
+
+  const [
+    { data: blogs, error, count },
+    allRes,
+    publishedRes,
+    draftsRes,
+    featuredRes,
+    pendingRes,
+  ] = await Promise.all([
+    listQuery.range(offset, offset + pageSize - 1),
+    countQuery(),
+    countQuery().eq("status", "published"),
+    countQuery().eq("status", "draft"),
+    countQuery().eq("featured", true),
+    countQuery().eq("status", "pending_review"),
+  ]);
 
   if (error) {
     return (
@@ -73,21 +132,32 @@ export default async function BlogsPage({
     );
   }
 
-  // Fetch submitter names for customer submissions
+  const counts: BlogCounts = {
+    all: allRes.count ?? 0,
+    published: publishedRes.count ?? 0,
+    drafts: draftsRes.count ?? 0,
+    featured: featuredRes.count ?? 0,
+    pending: pendingRes.count ?? 0,
+  };
+
+  // Resolve submitter names for the customer submissions ON THIS PAGE only.
   const blogsWithSubmitters = (blogs ?? []) as Blog[];
-  const submitterIds = blogsWithSubmitters
-    .filter((b) => b.submitted_by)
-    .map((b) => b.submitted_by as string);
+  const submitterIds = [
+    ...new Set(
+      blogsWithSubmitters
+        .filter((b) => b.submitted_by)
+        .map((b) => b.submitted_by as string),
+    ),
+  ];
 
   if (submitterIds.length > 0) {
-    const uniqueIds = [...new Set(submitterIds)];
-    // Use the service-role client: `customers` RLS only lets a customer read
-    // their own row, so the admin session can't resolve submitter names.
+    // Use the service-role client: `users` RLS only lets a customer read their
+    // own row, so the admin session can't resolve submitter names.
     const adminClient = createAdminClient();
     const { data: customers } = await adminClient
       .from("users")
       .select("id, first_name, last_name")
-      .in("id", uniqueIds);
+      .in("id", submitterIds);
 
     if (customers) {
       const nameMap = new Map(
@@ -110,7 +180,12 @@ export default async function BlogsPage({
       <BlogsManagementView
         blogs={blogsWithSubmitters}
         canManage={canManage}
-        initialFilter={initialFilter}
+        counts={counts}
+        total={count ?? 0}
+        page={page}
+        pageSize={pageSize}
+        query={q}
+        filter={filter}
       />
     </>
   );

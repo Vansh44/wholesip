@@ -2497,6 +2497,45 @@ a.enquiry-detail-field:hover {
   font-size: 13px;
 }
 
+.dashboard-shell .customers-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--dash-border);
+}
+
+.dashboard-shell .customers-pagination-info {
+  color: var(--dash-text-3);
+  font-size: 13px;
+}
+
+.dashboard-shell .customers-pagination .dash-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Shared list pagination footer (ListPagination component). */
+.dashboard-shell .dash-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--dash-border);
+}
+
+.dashboard-shell .dash-pagination-info {
+  color: var(--dash-text-3);
+  font-size: 13px;
+}
+
+.dashboard-shell .dash-pagination .dash-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media (max-width: 760px) {
   .dashboard-shell .customers-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));

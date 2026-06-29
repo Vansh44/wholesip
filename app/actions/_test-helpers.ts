@@ -25,8 +25,15 @@ export interface ChainMock {
   in: ReturnType<typeof vi.fn>;
   like: ReturnType<typeof vi.fn>;
   ilike: ReturnType<typeof vi.fn>;
+  or: ReturnType<typeof vi.fn>;
+  not: ReturnType<typeof vi.fn>;
+  gt: ReturnType<typeof vi.fn>;
+  gte: ReturnType<typeof vi.fn>;
+  lt: ReturnType<typeof vi.fn>;
+  lte: ReturnType<typeof vi.fn>;
   order: ReturnType<typeof vi.fn>;
   limit: ReturnType<typeof vi.fn>;
+  range: ReturnType<typeof vi.fn>;
   single: ReturnType<typeof vi.fn>;
   maybeSingle: ReturnType<typeof vi.fn>;
   then: (resolve: any) => any;
@@ -52,8 +59,15 @@ export function makeChain(
     in: vi.fn(() => chain),
     like: vi.fn(() => chain),
     ilike: vi.fn(() => chain),
+    or: vi.fn(() => chain),
+    not: vi.fn(() => chain),
+    gt: vi.fn(() => chain),
+    gte: vi.fn(() => chain),
+    lt: vi.fn(() => chain),
+    lte: vi.fn(() => chain),
     order: vi.fn(() => chain),
     limit: vi.fn(() => chain),
+    range: vi.fn(() => chain),
     single: vi.fn().mockResolvedValue(singleResult),
     maybeSingle: vi.fn().mockResolvedValue(singleResult),
     // Awaiting the chain directly (no terminal) — used by list selects,
@@ -97,9 +111,12 @@ export function makeSupabase(
       },
     },
     from,
+    rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
     storage: {
       from: vi.fn().mockReturnValue({
         remove: vi.fn().mockResolvedValue({ error: null }),
+        download: vi.fn().mockResolvedValue({ data: null, error: null }),
+        upload: vi.fn().mockResolvedValue({ data: null, error: null }),
       }),
     },
     _tables: tables,

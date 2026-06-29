@@ -1,7 +1,13 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -57,6 +63,7 @@ export function CouponEmailForm({ coupon, groups }: Props) {
   const [groupId, setGroupId] = useState<string>(groups[0]?.id ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [totalWithEmail, setTotalWithEmail] = useState(0);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
 
   const [subject, setSubject] = useState("");
@@ -68,25 +75,28 @@ export function CouponEmailForm({ coupon, groups }: Props) {
   const [previewSubject, setPreviewSubject] = useState("");
   const [isSending, startSending] = useTransition();
 
-  useEffect(() => {
-    listEmailRecipients().then((res) => {
+  // Recipients are searched server-side (the picker shows at most 50 matches)
+  // so this never pulls the whole customer table into the browser.
+  const runSearch = useCallback((term: string) => {
+    setLoadingCustomers(true);
+    listEmailRecipients(term).then((res) => {
       setLoadingCustomers(false);
       if (res.error) {
         toast.error(res.error);
         return;
       }
       setCustomers(res.customers);
+      setTotalWithEmail(res.total);
     });
   }, []);
 
-  const withEmailCount = useMemo(
-    () => customers.filter((c) => c.email).length,
-    [customers],
-  );
-  const specificWithEmail = useMemo(
-    () => customers.filter((c) => selected.has(c.id) && c.email).length,
-    [customers, selected],
-  );
+  useEffect(() => {
+    runSearch("");
+  }, [runSearch]);
+
+  // Everyone in the picker already has an email (filtered server-side), so the
+  // selected-with-email count is just the selection size.
+  const specificWithEmail = selected.size;
 
   const audience: EmailAudience = useMemo(() => {
     if (mode === "group") return { mode: "group", groupId };
@@ -190,7 +200,9 @@ export function CouponEmailForm({ coupon, groups }: Props) {
         const skipped = res.skippedNoEmail
           ? ` (${res.skippedNoEmail} skipped — no email)`
           : "";
-        toast.success(`Sent to ${res.sent} customer(s)${skipped}`);
+        toast.success(
+          `Queued ${res.queued} email(s) — sending in the background${skipped}`,
+        );
         router.push(LIST_HREF);
       }
     });
@@ -244,7 +256,7 @@ export function CouponEmailForm({ coupon, groups }: Props) {
               {loadingCustomers
                 ? "Loading customers…"
                 : mode === "all"
-                  ? `${withEmailCount} customer(s) with an email will receive this.`
+                  ? `${totalWithEmail} customer(s) with an email will receive this.`
                   : mode === "specific"
                     ? `${specificWithEmail} selected customer(s) with an email.`
                     : "All members of the group with an email will receive this."}
@@ -282,7 +294,8 @@ export function CouponEmailForm({ coupon, groups }: Props) {
                 selected={selected}
                 onToggle={toggle}
                 onSetMany={setMany}
-                emailOnly
+                onSearch={runSearch}
+                loading={loadingCustomers}
                 maxHeightClass="max-h-[220px]"
               />
             </div>
@@ -344,7 +357,7 @@ export function CouponEmailForm({ coupon, groups }: Props) {
             </Button>
             <Button onClick={handleSend} disabled={isSending || generating}>
               <Mail className="mr-2 h-4 w-4" />
-              {isSending ? "Sending…" : "Send email"}
+              {isSending ? "Queuing…" : "Send email"}
             </Button>
           </div>
         </div>

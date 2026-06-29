@@ -10,6 +10,9 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     alias: {
       "@": path.resolve(__dirname, "./"),
+      // `server-only` throws when resolved outside an RSC graph; stub it so
+      // server modules can be imported directly in unit tests.
+      "server-only": path.resolve(__dirname, "./vitest.server-only-stub.ts"),
     },
     coverage: {
       provider: "v8",
@@ -33,6 +36,7 @@ export default defineConfig({
         "lib/phone-labels.ts",
         "lib/blog-reactions.ts",
         "lib/email/coupon-campaign.ts",
+        "lib/email/campaign-worker.ts",
         "lib/homepage/section-types.ts",
         "lib/ai/gemini.ts",
         "lib/use-otp-throttle.ts",

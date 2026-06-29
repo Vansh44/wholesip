@@ -12,6 +12,9 @@ export type Enquiry = {
   created_at: string;
 };
 
+/** Sentinel used by the subject filter dropdown to mean "no subject set". */
+export const NO_SUBJECT = "__none__";
+
 export const STATUS_META: Record<
   EnquiryStatus,
   { label: string; badge: string }

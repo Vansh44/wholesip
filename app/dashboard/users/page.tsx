@@ -1,17 +1,39 @@
 import { requireSectionAccess } from "../lib/access";
-import { getCustomers } from "./data";
+import {
+  getCustomers,
+  getCustomerStats,
+  type CustomerFilter,
+  type CustomerSort,
+} from "./data";
 import { CustomersManagementView } from "./customers-management-view";
 
-export default async function UsersPage() {
+const FILTERS: CustomerFilter[] = ["all", "recent", "reviewers", "with_email"];
+const SORTS: CustomerSort[] = ["newest", "oldest", "name", "active"];
+
+function one(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const access = await requireSectionAccess("users", "view");
   const canManage = access.can("users", "manage");
 
-  const {
-    data: customers,
-    error,
-    recentCount,
-    recentCutoff,
-  } = await getCustomers();
+  const sp = await searchParams;
+  const page = Math.max(1, parseInt(one(sp.page) || "1", 10) || 1);
+  const q = one(sp.q);
+  const filterParam = one(sp.filter) as CustomerFilter;
+  const sortParam = one(sp.sort) as CustomerSort;
+  const filter = FILTERS.includes(filterParam) ? filterParam : "all";
+  const sort = SORTS.includes(sortParam) ? sortParam : "newest";
+
+  const [{ data, error, total, pageSize }, stats] = await Promise.all([
+    getCustomers({ page, q, filter, sort }),
+    getCustomerStats(),
+  ]);
 
   if (error) {
     return (
@@ -20,8 +42,10 @@ export default async function UsersPage() {
           <span>⚠️</span> Failed to load users
         </div>
         <p className="leading-relaxed text-destructive/80">
-          Make sure the <code>customers</code> table exists in your database
-          (apply <code>supabase/customers_table.sql</code>).
+          Make sure the <code>users</code> table and the{" "}
+          <code>customer_admin</code> view exist (apply{" "}
+          <code>supabase/users_table.sql</code> and{" "}
+          <code>supabase/customer_admin_view.sql</code>).
         </p>
       </div>
     );
@@ -29,10 +53,15 @@ export default async function UsersPage() {
 
   return (
     <CustomersManagementView
-      customers={customers}
+      customers={data}
       canManage={canManage}
-      recentCount={recentCount}
-      recentCutoff={recentCutoff}
+      stats={stats}
+      total={total}
+      page={page}
+      pageSize={pageSize}
+      query={q}
+      filter={filter}
+      sort={sort}
     />
   );
 }

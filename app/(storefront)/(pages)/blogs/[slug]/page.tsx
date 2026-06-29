@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import { sanitizeBlogContent } from "@/lib/sanitize";
 import { getOgImageUrl } from "@/lib/og-image";
 import { BlogCard } from "../blog-listing-client";
@@ -65,48 +66,49 @@ const RELATED_BLOG_COLUMNS =
   "id, title, slug, excerpt, cover_image_url, author, published_at, reading_time, tags, categories";
 
 async function getRelatedBlogs(blog: Blog): Promise<Blog[]> {
-  const supabase = await createClient();
+  // Public, published-only reads — use the cookie-free anon client.
+  const supabase = createPublicClient();
 
-  // Try to find related blogs by same category or shared tags
-  let related: Blog[] = [];
-
-  if (blog.categories && blog.categories.length > 0) {
-    const { data: categoryBlogs } = await supabase
+  // Fetch category matches and recent posts in parallel (no waterfall), then
+  // merge: category matches first, topped up with recents, deduped, capped at 3.
+  const hasCategories = !!blog.categories && blog.categories.length > 0;
+  const [categoryRes, recentRes] = await Promise.all([
+    hasCategories
+      ? supabase
+          .from("blogs")
+          .select(RELATED_BLOG_COLUMNS)
+          .eq("status", "published")
+          .neq("id", blog.id)
+          .overlaps("categories", blog.categories!)
+          .order("published_at", { ascending: false })
+          .limit(3)
+      : Promise.resolve({ data: [] as unknown[] }),
+    supabase
       .from("blogs")
       .select(RELATED_BLOG_COLUMNS)
       .eq("status", "published")
       .neq("id", blog.id)
-      .overlaps("categories", blog.categories)
       .order("published_at", { ascending: false })
-      .limit(3);
+      .limit(3),
+  ]);
 
-    if (categoryBlogs) {
-      related = categoryBlogs as unknown as Blog[];
-    }
+  const seen = new Set<string>([blog.id]);
+  const related: Blog[] = [];
+  for (const b of [
+    ...((categoryRes.data ?? []) as unknown as Blog[]),
+    ...((recentRes.data ?? []) as unknown as Blog[]),
+  ]) {
+    if (seen.has(b.id)) continue;
+    seen.add(b.id);
+    related.push(b);
+    if (related.length >= 3) break;
   }
-
-  // If not enough results, supplement with recent blogs
-  if (related.length < 3) {
-    const existingIds = [blog.id, ...related.map((b) => b.id)];
-    const { data: recentBlogs } = await supabase
-      .from("blogs")
-      .select(RELATED_BLOG_COLUMNS)
-      .eq("status", "published")
-      .not("id", "in", `(${existingIds.join(",")})`)
-      .order("published_at", { ascending: false })
-      .limit(3 - related.length);
-
-    if (recentBlogs) {
-      related = [...related, ...(recentBlogs as unknown as Blog[])];
-    }
-  }
-
-  return related.slice(0, 3);
+  return related;
 }
 
 // Public comments for a blog, newest first. Empty if not migrated yet.
 async function getComments(blogId: string): Promise<BlogComment[]> {
-  const supabase = await createClient();
+  const supabase = createPublicClient();
   const { data } = await supabase
     .from("blog_comments")
     .select("id, user_id, author_name, body, created_at")
