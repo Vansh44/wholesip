@@ -4,6 +4,7 @@ import {
   getPublishedProducts,
   getPublishedBlogCards,
 } from "@/lib/storefront/queries";
+import { WHOLESIP_STORE_ID } from "@/lib/store/resolve";
 
 // Regenerate hourly; the underlying product/blog reads are themselves cached
 // and invalidated on dashboard edits.
@@ -51,9 +52,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Dynamic product + blog detail pages. A failed DB read must never break the
   // sitemap, so fall back to just the static set.
+  // SITE_URL is WholeSip's canonical origin, so this sitemap is scoped to the
+  // WholeSip store. Per-store sitemaps (resolved by host) come in a later phase.
   const [products, blogs] = await Promise.all([
-    getPublishedProducts().catch(() => []),
-    getPublishedBlogCards().catch(() => []),
+    getPublishedProducts(WHOLESIP_STORE_ID).catch(() => []),
+    getPublishedBlogCards(WHOLESIP_STORE_ID).catch(() => []),
   ]);
 
   const productEntries: MetadataRoute.Sitemap = (products as { slug: string }[])

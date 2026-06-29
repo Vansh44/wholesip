@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getPublishedBlogCards } from "@/lib/storefront/queries";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 import BlogListingClient from "./blog-listing-client";
 import "./blogs.css";
 
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 
 export default async function BlogsPage() {
   // Cached, trimmed read — card columns only (no full `content` HTML).
-  const publishedBlogs = await getPublishedBlogCards();
+  const publishedBlogs = await getPublishedBlogCards(await getCurrentStoreId());
 
   // Extract unique categories
   const categories = Array.from(

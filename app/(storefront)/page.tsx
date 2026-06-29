@@ -6,6 +6,7 @@ import {
   getActiveCategories,
   getPublishedBlogCards,
 } from "@/lib/storefront/queries";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 import {
   HomepageSectionRenderer,
   type ResolvedData,
@@ -41,9 +42,13 @@ export const metadata = {
 type HomeProduct = ShopCardProduct & { category_id: string | null };
 
 export default async function Home() {
+  const storeId = await getCurrentStoreId();
+
   // Enabled sections in order. If the table is missing (migration not applied
   // yet) we just render the hero.
-  const sections = (await getEnabledHomepageSections()) as HomepageSection[];
+  const sections = (await getEnabledHomepageSections(
+    storeId,
+  )) as HomepageSection[];
 
   if (sections.length === 0) {
     return (
@@ -60,9 +65,9 @@ export default async function Home() {
   const needsBlogs = sections.some((s) => s.type === "latest_blogs");
 
   const [productsRes, categoriesRes, blogsRes] = await Promise.all([
-    needsProducts ? getPublishedProducts() : Promise.resolve([]),
-    needsCategories ? getActiveCategories() : Promise.resolve([]),
-    needsBlogs ? getPublishedBlogCards() : Promise.resolve([]),
+    needsProducts ? getPublishedProducts(storeId) : Promise.resolve([]),
+    needsCategories ? getActiveCategories(storeId) : Promise.resolve([]),
+    needsBlogs ? getPublishedBlogCards(storeId) : Promise.resolve([]),
   ]);
 
   const allProducts = productsRes as unknown as HomeProduct[];
