@@ -134,9 +134,14 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 async function resolveSlug(
   supabase: SupabaseClient,
   base: string,
+  storeId: string,
   excludeId?: string,
 ) {
-  let query = supabase.from("blogs").select("slug").like("slug", `${base}%`);
+  let query = supabase
+    .from("blogs")
+    .select("slug")
+    .eq("store_id", storeId)
+    .like("slug", `${base}%`);
   if (excludeId) {
     query = query.neq("id", excludeId);
   }
@@ -185,7 +190,7 @@ export async function createBlog(
   const storeId = await getActingStoreId();
 
   const base = formData.slug || slugify(formData.title);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base);
+  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -253,10 +258,16 @@ export async function updateBlog(
   const readingTime = formData.content
     ? calculateReadingTime(formData.content)
     : 0;
+  const storeId = await getActingStoreId();
 
   // Check slug uniqueness (exclude current blog)
   const base = formData.slug || slugify(formData.title);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, id);
+  const { slug: firstSlug, bump } = await resolveSlug(
+    supabase,
+    base,
+    storeId,
+    id,
+  );
   let slug = firstSlug;
 
   // Get current blog to check if it was previously unpublished, and whether
@@ -654,7 +665,7 @@ export async function submitCustomerBlog(
   const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
 
   const base = slugify(formData.title);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base);
+  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -769,7 +780,7 @@ export async function saveCustomerBlogDraft(
   const storeId = await getCurrentStoreId();
   const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
   const base = slugify(formData.title);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base);
+  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({

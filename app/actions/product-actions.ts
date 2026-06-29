@@ -79,9 +79,14 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 async function resolveSlug(
   supabase: SupabaseClient,
   base: string,
+  storeId: string,
   excludeId?: string,
 ) {
-  let query = supabase.from("products").select("slug").like("slug", `${base}%`);
+  let query = supabase
+    .from("products")
+    .select("slug")
+    .eq("store_id", storeId)
+    .like("slug", `${base}%`);
   if (excludeId) query = query.neq("id", excludeId);
   const { data } = await query;
 
@@ -245,7 +250,7 @@ export async function createProduct(
     return { error: "SEO title and description are required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base);
+  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -322,7 +327,7 @@ export async function updateProduct(
     return { error: "SEO title and description are required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, id);
+  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId, id);
   let slug = firstSlug;
 
   const { data: current } = await supabase
