@@ -54,6 +54,22 @@ export function isPlatformHost(host: string | null | undefined): boolean {
   return parseHost(host).type === "platform";
 }
 
+// Cookie `Domain` so a Supabase session is shared across ALL *.storiq.in
+// subdomains (platform + every store) — lets an owner who signs up on
+// storiq.in land logged-in on their {slug}.storiq.in dashboard. Returns
+// undefined for localhost, previews, and custom domains (e.g. wholesip.com),
+// which stay host-only and are therefore unaffected.
+export function cookieDomainForHost(
+  host: string | null | undefined,
+): string | undefined {
+  if (!host) return undefined;
+  const hostname = host.split(":")[0].trim().toLowerCase();
+  if (hostname === ROOT_DOMAIN || hostname.endsWith(`.${ROOT_DOMAIN}`)) {
+    return `.${ROOT_DOMAIN}`;
+  }
+  return undefined;
+}
+
 // The `help.{root}` subdomain — the help centre.
 export function isHelpHost(host: string | null | undefined): boolean {
   if (!host) return false;
