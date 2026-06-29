@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getActingStoreId } from "@/app/dashboard/lib/access";
 import {
   DASHBOARD_PAGE_SIZE,
   ilikeOr,
@@ -51,6 +52,7 @@ export async function getNewEnquiriesCount(): Promise<number> {
   const { count, error } = await admin
     .from("enquiries")
     .select("id", { count: "exact", head: true })
+    .eq("store_id", await getActingStoreId())
     .eq("status", "new");
 
   if (error) return 0;
@@ -68,7 +70,10 @@ export async function getEnquiries(
   const sort = query.sort ?? "status";
 
   const admin = createAdminClient();
-  let q = admin.from("enquiry_admin").select(COLUMNS, { count: "exact" });
+  let q = admin
+    .from("enquiry_admin")
+    .select(COLUMNS, { count: "exact" })
+    .eq("store_id", await getActingStoreId());
 
   const term = sanitizeSearch(query.q ?? "");
   if (term) {
@@ -123,8 +128,12 @@ export async function getEnquiries(
 /** Global status counts for the metric cards (count-only, no rows transferred). */
 export async function getEnquiryStats(): Promise<EnquiryStats> {
   const admin = createAdminClient();
+  const storeId = await getActingStoreId();
   const head = () =>
-    admin.from("enquiries").select("id", { count: "exact", head: true });
+    admin
+      .from("enquiries")
+      .select("id", { count: "exact", head: true })
+      .eq("store_id", storeId);
 
   const [allRes, newRes, progRes, resolvedRes, archivedRes] = await Promise.all(
     [
@@ -171,6 +180,7 @@ export async function getEnquiry(id: string): Promise<Enquiry | null> {
     .from("enquiries")
     .select(COLUMNS)
     .eq("id", id)
+    .eq("store_id", await getActingStoreId())
     .single();
   if (error || !data) return null;
   return data as Enquiry;
