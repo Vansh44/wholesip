@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getActingStoreId } from "@/app/dashboard/lib/access";
 import {
   normalizePermissions,
   SUPERADMIN_SLUG,
@@ -98,6 +99,7 @@ export async function createRole(
   const callerId = await requireRolesManager();
   if (!callerId)
     return { error: "You do not have permission to manage roles." };
+  const storeId = await getActingStoreId();
 
   const invalid = validate(form);
   if (invalid) return { error: invalid };
@@ -112,6 +114,7 @@ export async function createRole(
     color: form.color,
     permissions: normalizePermissions(form.permissions),
     is_system: false,
+    store_id: storeId,
   });
 
   if (error) {

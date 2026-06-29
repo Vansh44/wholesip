@@ -5,7 +5,8 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { TAGS } from "@/lib/storefront/tags";
 import { sanitizeBlogContent } from "@/lib/sanitize";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 import {
   deleteStorageUrls,
   extractMediaUrlsFromHtml,
@@ -181,6 +182,7 @@ export async function createBlog(
   const readingTime = formData.content
     ? calculateReadingTime(formData.content)
     : 0;
+  const storeId = await getActingStoreId();
 
   const base = formData.slug || slugify(formData.title);
   const { slug: firstSlug, bump } = await resolveSlug(supabase, base);
@@ -204,6 +206,7 @@ export async function createBlog(
       formData.status === "published" ? new Date().toISOString() : null,
     created_by: userId,
     updated_by: userId,
+    store_id: storeId,
   });
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
@@ -647,6 +650,7 @@ export async function submitCustomerBlog(
   }
 
   const readingTime = calculateReadingTime(formData.content);
+  const storeId = await getCurrentStoreId();
   const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
 
   const base = slugify(formData.title);
@@ -669,6 +673,7 @@ export async function submitCustomerBlog(
     is_customer_submission: true,
     created_by: user.id,
     updated_by: user.id,
+    store_id: storeId,
   });
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
@@ -761,6 +766,7 @@ export async function saveCustomerBlogDraft(
   }
 
   // Create a new draft.
+  const storeId = await getCurrentStoreId();
   const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
   const base = slugify(formData.title);
   const { slug: firstSlug, bump } = await resolveSlug(supabase, base);
@@ -782,6 +788,7 @@ export async function saveCustomerBlogDraft(
     is_customer_submission: true,
     created_by: user.id,
     updated_by: user.id,
+    store_id: storeId,
   });
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {

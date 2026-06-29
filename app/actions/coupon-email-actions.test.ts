@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
 vi.mock("@/lib/ai/gemini", () => ({
   callGemini: vi.fn(),

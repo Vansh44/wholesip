@@ -5,6 +5,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+vi.mock("@/lib/store/resolve", () => ({
+  getCurrentStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
+  WHOLESIP_STORE_ID: "a0000000-0000-4000-8000-000000000001",
+}));
 
 import {
   toggleBlogReaction,

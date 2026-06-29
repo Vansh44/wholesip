@@ -7,6 +7,10 @@ vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+vi.mock("@/lib/store/resolve", () => ({
+  getCurrentStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
+  WHOLESIP_STORE_ID: "a0000000-0000-4000-8000-000000000001",
+}));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn().mockResolvedValue({ allowed: true }),
   clientIp: vi.fn(() => "1.2.3.4"),
@@ -112,6 +116,7 @@ describe("enquiry-actions", () => {
         subject: "Wholesale",
         subject_detail: null,
         message: "I'd like to know about bulk pricing.",
+        store_id: "a0000000-0000-4000-8000-000000000001",
       });
       expect(sendEnquiryAcknowledgementEmail).toHaveBeenCalledWith(
         expect.objectContaining({

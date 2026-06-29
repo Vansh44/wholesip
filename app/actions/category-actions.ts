@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { TAGS } from "@/lib/storefront/tags";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 
 // ---------------------------------------------------------------------------
@@ -104,6 +104,7 @@ export async function createCategory(
   const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   if (!formData.name.trim()) return { error: "Name is required." };
 
@@ -118,6 +119,7 @@ export async function createCategory(
     image_url: formData.image_url || null,
     sort_order: formData.sort_order ?? 0,
     status: formData.status,
+    store_id: storeId,
   });
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {

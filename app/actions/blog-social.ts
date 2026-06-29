@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 import { revalidatePath } from "next/cache";
 import {
   BLOG_REACTIONS,
@@ -63,7 +64,12 @@ export async function toggleBlogReaction(
     const { error } = await admin
       .from("blog_likes")
       .upsert(
-        { blog_id: blogId, visitor_id: visitorId, reaction },
+        {
+          blog_id: blogId,
+          visitor_id: visitorId,
+          reaction,
+          store_id: await getCurrentStoreId(),
+        },
         { onConflict: "blog_id,visitor_id,reaction", ignoreDuplicates: true },
       );
     if (error) {
@@ -134,6 +140,7 @@ export async function submitBlogComment(form: {
     user_id: user.id,
     author_name: authorName || "Anonymous",
     body,
+    store_id: await getCurrentStoreId(),
   });
 
   if (error) {

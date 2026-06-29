@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -118,6 +118,7 @@ async function syncCouponGroups(
   supabase: SupabaseServerClient,
   couponId: string,
   groupIds: string[] | undefined,
+  storeId: string,
 ): Promise<void> {
   const ids = Array.from(new Set((groupIds ?? []).filter(Boolean)));
 
@@ -132,7 +133,11 @@ async function syncCouponGroups(
 
   if (ids.length === 0) return;
 
-  const rows = ids.map((group_id) => ({ coupon_id: couponId, group_id }));
+  const rows = ids.map((group_id) => ({
+    coupon_id: couponId,
+    group_id,
+    store_id: storeId,
+  }));
   const { error: insError } = await supabase
     .from("coupon_user_groups")
     .insert(rows);
@@ -194,13 +199,14 @@ export async function createCoupon(
   const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   const invalid = validateForm(form);
   if (invalid) return { error: invalid };
 
   const { data, error } = await supabase
     .from("coupons")
-    .insert(buildRow(form, userId, true))
+    .insert({ ...buildRow(form, userId, true), store_id: storeId })
     .select()
     .single();
 
@@ -215,6 +221,7 @@ export async function createCoupon(
     supabase,
     (data as { id: string }).id,
     form.restricted_group_ids,
+    storeId,
   );
 
   revalidateCoupons();
@@ -232,6 +239,7 @@ export async function updateCoupon(
   const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   const invalid = validateForm(form);
   if (invalid) return { error: invalid };
@@ -248,7 +256,7 @@ export async function updateCoupon(
     return { error: error.message };
   }
 
-  await syncCouponGroups(supabase, id, form.restricted_group_ids);
+  await syncCouponGroups(supabase, id, form.restricted_group_ids, storeId);
 
   revalidateCoupons();
   return { success: true };
