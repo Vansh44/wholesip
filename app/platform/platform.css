@@ -12,7 +12,12 @@
   color: var(--stq-ink);
   background: var(--stq-bg);
   font-family:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;

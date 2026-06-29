@@ -116,10 +116,13 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse;
   } catch (error: unknown) {
     console.error("Middleware exception:", error);
-    return new NextResponse(JSON.stringify({ error: "Internal Server Error" }), {
-      status: 500,
-      headers: { "content-type": "application/json" },
-    });
+    return new NextResponse(
+      JSON.stringify({ error: "Internal Server Error" }),
+      {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      },
+    );
   }
 }
 

@@ -230,7 +230,9 @@ export default function SignupPage() {
             </h1>
             <p className="sub">
               Enter the 6-digit code sent to{" "}
-              <strong>{step === "email" ? email : normalizePhone(phone)}</strong>
+              <strong>
+                {step === "email" ? email : normalizePhone(phone)}
+              </strong>
               .
             </p>
             <div className="stq-field">

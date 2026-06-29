@@ -33,7 +33,10 @@ export default function HelpCentre() {
           Stor<span>iq</span>
         </a>
         <div className="stq-nav-actions">
-          <a href="https://storiq.in/signup" className="stq-btn stq-btn-primary">
+          <a
+            href="https://storiq.in/signup"
+            className="stq-btn stq-btn-primary"
+          >
             Create your store
           </a>
         </div>

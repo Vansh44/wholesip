@@ -175,7 +175,9 @@ async function replaceVariants(
 
   const { error: insError } = await supabase
     .from("product_variants")
-    .insert(rows.map((r) => ({ ...r, product_id: productId, store_id: storeId })));
+    .insert(
+      rows.map((r) => ({ ...r, product_id: productId, store_id: storeId })),
+    );
   if (insError) return insError.message;
 
   return null;
@@ -327,7 +329,12 @@ export async function updateProduct(
     return { error: "SEO title and description are required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId, id);
+  const { slug: firstSlug, bump } = await resolveSlug(
+    supabase,
+    base,
+    storeId,
+    id,
+  );
   let slug = firstSlug;
 
   const { data: current } = await supabase
