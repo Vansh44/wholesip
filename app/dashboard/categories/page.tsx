@@ -33,7 +33,7 @@ export default async function CategoriesPage() {
       .eq("store_id", storeId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
-    supabase.rpc("product_counts_by_category"),
+    supabase.rpc("product_counts_by_category", { p_store_id: storeId }),
   ]);
 
   if (error) {

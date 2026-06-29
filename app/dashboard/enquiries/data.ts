@@ -160,7 +160,9 @@ export async function getEnquirySubjects(): Promise<{
   hasNone: boolean;
 }> {
   const admin = createAdminClient();
-  const { data, error } = await admin.rpc("distinct_enquiry_subjects");
+  const { data, error } = await admin.rpc("distinct_enquiry_subjects", {
+    p_store_id: await getActingStoreId(),
+  });
   if (error || !data) return { subjects: [], hasNone: false };
 
   const subjects: string[] = [];

@@ -29,7 +29,7 @@ export default async function ColorsPage() {
       .eq("store_id", storeId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
-    supabase.rpc("product_counts_by_color"),
+    supabase.rpc("product_counts_by_color", { p_store_id: storeId }),
   ]);
 
   if (error) {
