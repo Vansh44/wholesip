@@ -1,6 +1,10 @@
 import { headers } from "next/headers";
 import { unstable_cache } from "next/cache";
 import { createPublicClient } from "@/lib/supabase/public";
+import { parseHost } from "@/lib/store/host";
+
+// Re-exported so existing importers (and resolve.test.ts) keep working.
+export { parseHost, type HostKind } from "@/lib/store/host";
 
 // ---------------------------------------------------------------------------
 // Tenant resolution.
@@ -32,56 +36,11 @@ export interface Store {
 // Used as the single-tenant fallback until real subdomains are live.
 export const WHOLESIP_STORE_ID = "a0000000-0000-4000-8000-000000000001";
 
-// The platform's apex domain. Subdomains of it map to stores.
-const ROOT_DOMAIN = (process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storiq.in").toLowerCase();
-
 // Cache tag for store lookups — call `revalidateTag(STORE_TAG)` after a store
 // is created or its settings/domain change.
 export const STORE_TAG = "stores";
 
 const STORE_COLUMNS = "id, slug, name, status, plan, custom_domain, settings";
-
-export type HostKind =
-  | { type: "store-subdomain"; slug: string }
-  | { type: "custom-domain"; domain: string }
-  | { type: "platform" };
-
-// Pure host classification (no I/O) — the unit-tested core of resolution.
-// Strips the port, lowercases, and decides what a given Host header refers to.
-export function parseHost(host: string | null | undefined): HostKind {
-  if (!host) return { type: "platform" };
-  const hostname = host.split(":")[0].trim().toLowerCase();
-  if (!hostname) return { type: "platform" };
-
-  // Local dev + Vercel previews render the platform (→ WholeSip fallback),
-  // except `{slug}.localhost`, which lets us test multi-tenant routing locally.
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return { type: "platform" };
-  }
-  if (hostname.endsWith(".localhost")) {
-    const slug = hostname.slice(0, -".localhost".length);
-    return slug ? { type: "store-subdomain", slug } : { type: "platform" };
-  }
-  if (hostname.endsWith(".vercel.app")) return { type: "platform" };
-
-  // The apex and reserved platform hosts are not stores.
-  if (
-    hostname === ROOT_DOMAIN ||
-    hostname === `www.${ROOT_DOMAIN}` ||
-    hostname === `app.${ROOT_DOMAIN}`
-  ) {
-    return { type: "platform" };
-  }
-
-  // A subdomain of the root domain → store slug (everything before `.root`).
-  if (hostname.endsWith(`.${ROOT_DOMAIN}`)) {
-    const slug = hostname.slice(0, -(ROOT_DOMAIN.length + 1));
-    return slug ? { type: "store-subdomain", slug } : { type: "platform" };
-  }
-
-  // Anything else is a merchant's own (custom) domain.
-  return { type: "custom-domain", domain: hostname };
-}
 
 // Cached store lookup by Host header. Returns null for platform hosts and for
 // hosts that don't map to an active store. Tolerates DB errors (returns null).

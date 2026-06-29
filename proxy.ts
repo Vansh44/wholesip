@@ -1,16 +1,41 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { parseHost, isHelpHost } from "@/lib/store/host";
 
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const host = request.headers.get("host");
+
+  // --- Help centre: help.storiq.in -> /help/* ---
+  if (isHelpHost(host) && !pathname.startsWith("/help")) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/help${pathname === "/" ? "" : pathname}`;
+    return NextResponse.rewrite(url);
+  }
+
+  // --- Platform (storiq.in / app.* / localhost / preview): landing, login,
+  //     signup. Rewrite all paths into the /platform/* route group so the
+  //     storefront `/`, `/shop`, ... routes only ever serve store hosts. ---
+  if (parseHost(host).type === "platform") {
+    if (pathname.startsWith("/platform")) return NextResponse.next();
+    const url = request.nextUrl.clone();
+    url.pathname = `/platform${pathname === "/" ? "" : pathname}`;
+    return NextResponse.rewrite(url);
+  }
+
+  // --- Store hosts ({slug}.storiq.in / custom domains) ---
+  // Only the dashboard + auth routes need the Supabase session gate; the
+  // storefront stays anonymous + cache-friendly (no per-request auth check).
+  if (!pathname.startsWith("/dashboard") && !pathname.startsWith("/auth")) {
+    return NextResponse.next();
+  }
+
   try {
     const { supabase, user, supabaseResponse, claims } =
       await updateSession(request);
-    const pathname = request.nextUrl.pathname;
 
     // Resolve role / force_password_reset from JWT claims when available
-    // (no DB query). Falls back to a profiles lookup when the custom access
-    // token hook isn't enabled or the token is legacy — keeps behaviour
-    // identical during/without migration.
+    // (no DB query), falling back to a profiles lookup otherwise.
     async function getProfileState(): Promise<{
       role: string | null;
       forcePasswordReset: boolean;
@@ -46,8 +71,6 @@ export async function proxy(request: NextRequest) {
 
       const state = await getProfileState();
 
-      // If profile doesn't exist (table missing or no row), let the page handle it
-      // Don't redirect — this prevents loops when profiles table isn't set up yet
       if (state && state.exists) {
         // --- Gate 2: Force password reset ---
         if (state.forcePasswordReset) {
@@ -81,31 +104,26 @@ export async function proxy(request: NextRequest) {
     // --- Redirect authenticated users away from login page ---
     if (pathname === "/auth/login" && user) {
       const state = await getProfileState();
-
-      // Only redirect away from login if we have a profile
-      // If no profile exists, let them stay on login (avoids loop)
       if (state && state.exists) {
         const url = request.nextUrl.clone();
-        if (state.forcePasswordReset) {
-          url.pathname = "/auth/set-password";
-        } else {
-          url.pathname = "/dashboard";
-        }
+        url.pathname = state.forcePasswordReset
+          ? "/auth/set-password"
+          : "/dashboard";
         return NextResponse.redirect(url);
       }
     }
 
     return supabaseResponse;
   } catch (error: unknown) {
-    // Log details server-side only; never leak messages/stack traces to clients.
     console.error("Middleware exception:", error);
-    return new NextResponse(
-      JSON.stringify({ error: "Internal Server Error" }),
-      { status: 500, headers: { "content-type": "application/json" } },
-    );
+    return new NextResponse(JSON.stringify({ error: "Internal Server Error" }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
   }
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/auth/:path*"],
+  // Run on everything except Next internals, static files, and API routes.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/).*)"],
 };
