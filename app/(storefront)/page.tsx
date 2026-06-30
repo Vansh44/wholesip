@@ -7,6 +7,7 @@ import {
   getPublishedBlogCards,
 } from "@/lib/storefront/queries";
 import { getCurrentStoreId } from "@/lib/store/resolve";
+import { getStoreBrand } from "@/lib/store/brand";
 import {
   HomepageSectionRenderer,
   type ResolvedData,
@@ -30,12 +31,15 @@ import "@/app/(storefront)/components/homepage/homepage.css";
 // revalidatePath("/") in the actions.
 export const revalidate = 300;
 
-export const metadata = {
-  title: "WholeSip | The Way Earth Made It",
-  description:
-    "WholeSip — zero preservatives, 100% real ingredients. The way Earth made it.",
-  alternates: { canonical: "/" },
-};
+export async function generateMetadata() {
+  const brand = await getStoreBrand();
+  const title = brand.tagline ? `${brand.name} | ${brand.tagline}` : brand.name;
+  return {
+    title: { absolute: title },
+    description: brand.tagline ?? undefined,
+    alternates: { canonical: "/" },
+  };
+}
 
 // A homepage product row: ShopCard's needs + category_id for category-mode
 // filtering. Matches the shop page's product select shape.

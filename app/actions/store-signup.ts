@@ -1,7 +1,9 @@
 "use server";
 
+import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { STORE_TAG } from "@/lib/store/resolve";
 import { slugify } from "@/lib/slug";
 
 // Subdomains we can never hand out (platform-reserved or operational).
@@ -125,7 +127,13 @@ export async function createStore(rawName: string): Promise<CreateStoreResult> {
   // Create the store.
   const { data: store, error: storeErr } = await admin
     .from("stores")
-    .insert({ slug, name: rawName.trim(), status: "active", plan: "free" })
+    .insert({
+      slug,
+      name: rawName.trim(),
+      status: "active",
+      plan: "free",
+      settings: { brand: { name: rawName.trim() } },
+    })
     .select("id, slug")
     .single();
   if (storeErr || !store) {
@@ -150,5 +158,7 @@ export async function createStore(rawName: string): Promise<CreateStoreResult> {
     return { error: "Could not set up your store account. Please try again." };
   }
 
+  // New store row is now resolvable — bust the cached store lookups.
+  revalidateTag(STORE_TAG);
   return { slug: store.slug as string };
 }

@@ -5,7 +5,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { updateCustomerProfile } from "@/app/actions/customer-profile";
 import { useAuth } from "./AuthProvider";
-import { siteConfig } from "@/config/site";
+import { useBrand } from "@/app/(storefront)/components/brand-provider";
 import styles from "./AuthModal.module.css";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
@@ -20,6 +20,7 @@ const RESEND_COOLDOWN = 30;
 
 export default function AuthModal() {
   const { isAuthModalOpen, closeAuthModal, refreshCustomer } = useAuth();
+  const brand = useBrand();
 
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState<string | undefined>("");
@@ -554,14 +555,18 @@ export default function AuthModal() {
 
         <div className={styles.content}>
           <div className={styles.branding}>
-            <Image
-              src={siteConfig.assets.logoUrl}
-              alt="WholeSip"
-              width={120}
-              height={44}
-              className={styles.brandLogo}
-              priority
-            />
+            {brand.logoUrl ? (
+              <Image
+                src={brand.logoUrl}
+                alt={brand.name}
+                width={120}
+                height={44}
+                className={styles.brandLogo}
+                priority
+              />
+            ) : (
+              <span className={styles.brandLogo}>{brand.name}</span>
+            )}
           </div>
 
           <div className={styles.stepContainer}>

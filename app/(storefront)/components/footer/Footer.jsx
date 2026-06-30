@@ -4,6 +4,7 @@ import Link from "next/link";
 import styles from "./Footer.module.css";
 import Image from "next/image";
 import { siteConfig } from "@/config/site";
+import { useBrand } from "@/app/(storefront)/components/brand-provider";
 import { useRouter, usePathname } from "next/navigation";
 
 const socialLinks = [
@@ -71,6 +72,7 @@ export default function Footer() {
   const currentYear = new Date().getFullYear();
   const router = useRouter();
   const pathname = usePathname();
+  const brand = useBrand();
 
   const handleLogoClick = (e) => {
     e.preventDefault();
@@ -129,14 +131,18 @@ export default function Footer() {
         {/* Brand Column */}
         <div className={styles.brandCol}>
           <Link href="/" className={styles.logo} onClick={handleLogoClick}>
-            <Image
-              src={siteConfig.assets.logoUrl}
-              alt="WholeSip Logo"
-              width={160}
-              height={60}
-              priority
-              style={{ height: "auto" }}
-            />
+            {brand.logoUrl ? (
+              <Image
+                src={brand.logoUrl}
+                alt={`${brand.name} logo`}
+                width={160}
+                height={60}
+                priority
+                style={{ height: "auto" }}
+              />
+            ) : (
+              <span>{brand.name}</span>
+            )}
           </Link>
           <p className={styles.tagline}>
             Real food for real people. Soaked, sprouted &amp; crafted with

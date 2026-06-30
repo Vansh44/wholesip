@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import styles from "./Header.module.css";
 import Image from "next/image";
-import { siteConfig } from "@/config/site";
+import { useBrand } from "@/app/(storefront)/components/brand-provider";
 import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
 import {
@@ -24,6 +24,7 @@ export default function Header() {
   const closeTimerRef = useRef(null);
   const { user, customer, loading, openAuthModal, signOut } = useAuth();
   const { totalItems, hydrated: cartHydrated, openCart } = useCart();
+  const brand = useBrand();
 
   const isLoggedIn = !!user && !!customer;
 
@@ -91,14 +92,18 @@ export default function Header() {
     >
       <div className={styles.headerLeft}>
         <Link href="/" className={styles.logo}>
-          <Image
-            src={siteConfig.assets.logoUrl}
-            alt="WholeSip Logo"
-            width={180}
-            height={60}
-            priority
-            style={{ height: "auto" }}
-          />
+          {brand.logoUrl ? (
+            <Image
+              src={brand.logoUrl}
+              alt={`${brand.name} logo`}
+              width={180}
+              height={60}
+              priority
+              style={{ height: "auto" }}
+            />
+          ) : (
+            <span>{brand.name}</span>
+          )}
         </Link>
 
         <nav className={styles.navLinks}>
@@ -328,7 +333,7 @@ export default function Header() {
             className={styles.logo}
             onClick={() => setIsMenuOpen(false)}
           >
-            wholesip
+            {brand.name}
           </Link>
           <button
             className={styles.closeBtn}
