@@ -28,6 +28,32 @@
   font-size: 14px;
   margin: 0 0 20px;
 }
+.con-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--stq-line);
+  margin: 14px 0 18px;
+}
+.con-tab {
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--stq-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.con-tab.active {
+  color: var(--stq-brand);
+  border-bottom-color: var(--stq-brand);
+}
+.con-select {
+  padding: 10px 13px;
+  border: 1px solid var(--stq-line);
+  border-radius: 10px;
+  font-size: 14px;
+  background: #fff;
+}
 .con-toolbar {
   display: flex;
   gap: 12px;

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setStoreStatus, type PlatformStoreRow } from "@/app/actions/platform";
+import { ConsoleTabs } from "./console-tabs";
 import "./console.css";
 
 function storeUrl(store: PlatformStoreRow, rootDomain: string): string {
@@ -53,6 +54,7 @@ export function StoresConsole({
         <h1>Storemink Admin</h1>
         <span className="con-who">{email}</span>
       </div>
+      <ConsoleTabs />
       <p className="con-lead">
         Every store on the platform. Open a store to manage it, or suspend one to
         take it offline.
