@@ -159,6 +159,6 @@ export async function createStore(rawName: string): Promise<CreateStoreResult> {
   }
 
   // New store row is now resolvable — bust the cached store lookups.
-  revalidateTag(STORE_TAG);
+  revalidateTag(STORE_TAG, "max");
   return { slug: store.slug as string };
 }

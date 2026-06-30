@@ -1,0 +1,95 @@
+.brandingPage {
+  max-width: 760px;
+}
+.brandingPage h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.brandingPage .lead {
+  color: #5b6675;
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+.brandingSection {
+  border: 1px solid #e7e9ee;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 18px;
+}
+.brandingSection h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 14px;
+}
+.brandingGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.brandingField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.brandingField.full {
+  grid-column: 1 / -1;
+}
+.brandingField label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #344;
+}
+.brandingField input,
+.brandingField textarea {
+  border: 1px solid #d8dbe2;
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+  background: #fff;
+}
+.brandingField input:focus,
+.brandingField textarea:focus {
+  outline: none;
+  border-color: #4f39f6;
+  box-shadow: 0 0 0 3px #eceaff;
+}
+.brandingField input[type="color"] {
+  padding: 4px;
+  height: 40px;
+}
+.brandingBar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding: 14px 0;
+}
+.brandingSave {
+  background: #4f39f6;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.brandingSave:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.brandingStatus.ok {
+  color: #0c8a51;
+  font-size: 14px;
+  font-weight: 600;
+}
+.brandingStatus.bad {
+  color: #d33a45;
+  font-size: 14px;
+  font-weight: 600;
+}

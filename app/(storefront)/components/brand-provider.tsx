@@ -12,7 +12,9 @@ export function BrandProvider({
   brand: StoreBrand;
   children: React.ReactNode;
 }) {
-  return <BrandContext.Provider value={brand}>{children}</BrandContext.Provider>;
+  return (
+    <BrandContext.Provider value={brand}>{children}</BrandContext.Provider>
+  );
 }
 
 // The current store's brand. Falls back to a neutral default if used outside
@@ -24,6 +26,14 @@ export function useBrand(): StoreBrand {
       logoUrl: null,
       primaryColor: "#1f7a5a",
       tagline: null,
+      blurb: null,
+      legalName: null,
+      creditLine: null,
+      email: null,
+      phone: null,
+      hours: null,
+      social: { instagram: null, youtube: null, whatsapp: null },
+      badges: [],
     }
   );
 }
