@@ -51,7 +51,10 @@ export default function OperatorLoginPage() {
 
   return (
     <div className="stq-auth-wrap">
-      <form className="stq-auth" onSubmit={step === "email" ? sendCode : verify}>
+      <form
+        className="stq-auth"
+        onSubmit={step === "email" ? sendCode : verify}
+      >
         <Link href="/" className="stq-logo" style={{ fontSize: 20 }}>
           Stor<span>emink</span>
         </Link>

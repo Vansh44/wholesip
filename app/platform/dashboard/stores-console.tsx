@@ -32,7 +32,9 @@ export function StoresConsole({
 
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
-    const params = search.trim() ? `?q=${encodeURIComponent(search.trim())}` : "";
+    const params = search.trim()
+      ? `?q=${encodeURIComponent(search.trim())}`
+      : "";
     router.push(`/dashboard${params}`);
   }
 
@@ -56,8 +58,8 @@ export function StoresConsole({
       </div>
       <ConsoleTabs />
       <p className="con-lead">
-        Every store on the platform. Open a store to manage it, or suspend one to
-        take it offline.
+        Every store on the platform. Open a store to manage it, or suspend one
+        to take it offline.
       </p>
 
       <form className="con-toolbar" onSubmit={submitSearch}>
