@@ -4,7 +4,7 @@ import { wrapBrandedEmail } from "./layout";
 // Public site origin used to build links inside emails. Falls back to the
 // production domain (matches the hardcoded link in invite-user.ts).
 const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL || "https://wholesip.com"
+  process.env.NEXT_PUBLIC_APP_URL || "https://wholesip.com"
 ).replace(/\/$/, "");
 
 const FROM_ADDRESS = "WholeSip <admin@wholesip.com>";
