@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { WHOLESIP_STORE_ID } from "@/lib/store/resolve";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 import {
   can,
   normalizePermissions,
@@ -24,78 +24,112 @@ export interface ViewerContext {
   profile: ViewerProfile | null;
   isSuperadmin: boolean;
   permissions: RolePermissions;
+  /** The store this dashboard is operating on (resolved from the host). */
+  storeId: string;
+  /** True when the viewer is a Storemink platform operator (god access). */
+  isPlatformAdmin: boolean;
 }
 
+// Platform-operator role for the signed-in user (by JWT email), or null.
+// Request-cached so multiple gates don't re-query.
+const getPlatformRole = cache(
+  async (): Promise<"superadmin" | "member" | null> => {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user?.email) return null;
+    const { data } = await supabase
+      .from("platform_admins")
+      .select("role")
+      .ilike("email", user.email)
+      .maybeSingle();
+    return (data?.role as "superadmin" | "member" | undefined) ?? null;
+  },
+);
+
 /**
- * Resolve the signed-in admin, their profile, and their role's permission map
- * in a single place. Wrapped in React's `cache()` so the dashboard layout and
- * the page rendering in the same request share ONE resolution instead of each
- * re-running getUser → profiles → roles (previously ~6 round-trips per nav).
+ * Resolve the signed-in admin for the CURRENT (host) store + their permissions.
+ * Request-cached (React cache) so the layout and page share one resolution.
  *
- * Returns null only when there is no session. A signed-in user with no profile
- * row returns a context with `profile: null` so callers can branch (the layout
- * shows a setup screen; page guards bounce to /dashboard).
+ * Access model:
+ *  • A store admin has an `admins` row for the host store → their role applies.
+ *  • A platform operator (platform_admins) is an implicit superadmin of EVERY
+ *    store, so they get full access even without a store-admin row.
+ *  • Anyone else → profile: null (the layout shows a setup screen).
+ * Returns null only when there is no session.
  */
 export const getViewerContext = cache(
   async (): Promise<ViewerContext | null> => {
     const supabase = await createClient();
-
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const { data: profile, error: profileError } = await supabase
+    const storeId = await getCurrentStoreId();
+    const isPlatformAdmin = (await getPlatformRole()) !== null;
+
+    // The user's admin row for THIS store (if they're store staff here).
+    const { data: profile } = await supabase
       .from("admins")
       .select("email, role, first_name, last_name, store_id")
       .eq("id", user.id)
-      .single();
+      .eq("store_id", storeId)
+      .maybeSingle();
 
-    if (!profile || profileError) {
-      if (profileError) {
-        console.error("Viewer profile fetch error:", profileError);
+    const base = {
+      userId: user.id,
+      userEmail: user.email ?? null,
+      storeId,
+      isPlatformAdmin,
+    };
+
+    if (!profile) {
+      // Platform operator dropping into a store they have no row for → treat as
+      // its superadmin. Everyone else → no profile (setup screen).
+      if (isPlatformAdmin) {
+        return {
+          ...base,
+          profile: {
+            email: user.email ?? "",
+            role: SUPERADMIN_SLUG,
+            first_name: null,
+            last_name: null,
+            store_id: storeId,
+          },
+          isSuperadmin: true,
+          permissions: {},
+        };
       }
-      return {
-        userId: user.id,
-        userEmail: user.email ?? null,
-        profile: null,
-        isSuperadmin: false,
-        permissions: {},
-      };
+      return { ...base, profile: null, isSuperadmin: false, permissions: {} };
     }
 
     const roleSlug: string = profile.role ?? "";
-    const isSuperadmin = roleSlug === SUPERADMIN_SLUG;
+    const isSuperadmin = roleSlug === SUPERADMIN_SLUG || isPlatformAdmin;
 
     let permissions: RolePermissions = {};
     if (!isSuperadmin && roleSlug) {
       const { data: role } = await supabase
         .from("roles")
         .select("permissions")
+        .eq("store_id", storeId)
         .eq("slug", roleSlug)
-        .single();
+        .maybeSingle();
       permissions = normalizePermissions(role?.permissions);
     }
 
-    return {
-      userId: user.id,
-      userEmail: user.email ?? null,
-      profile,
-      isSuperadmin,
-      permissions,
-    };
+    return { ...base, profile, isSuperadmin, permissions };
   },
 );
 
 /**
- * The store the signed-in admin acts on — the source of truth for `store_id`
- * on every dashboard write. Derived from the admin's own row (not the request
- * host), so it can't be spoofed by URL. Falls back to WholeSip during the
- * single-tenant period / when there's no profile row.
+ * The store the dashboard is operating on — resolved from the request host.
+ * For a store admin this is their store; for a platform operator it's whichever
+ * store's dashboard they're currently on. Used as `store_id` on dashboard writes.
  */
 export async function getActingStoreId(): Promise<string> {
-  const ctx = await getViewerContext();
-  return ctx?.profile?.store_id ?? WHOLESIP_STORE_ID;
+  return getCurrentStoreId();
 }
 
 export interface Role {
@@ -120,9 +154,9 @@ export interface ViewerAccess {
 }
 
 /**
- * Resolve the signed-in admin and the permission set their role grants.
- * Redirects to login when there is no session. Returns null when the user
- * is authenticated but has no profile row (the layout renders a setup
+ * Resolve the signed-in admin and the permission set they have on the current
+ * store. Redirects to login when there is no session. Returns null when the
+ * user is authenticated but has no access here (the layout renders a setup
  * screen for that case).
  */
 export async function getViewerAccess(): Promise<ViewerAccess | null> {
@@ -148,11 +182,9 @@ export async function getViewerAccess(): Promise<ViewerAccess | null> {
 }
 
 /**
- * Server-action gate (non-redirecting). Returns the caller's id only if their
- * role grants `manage` on `section`, else null. Superadmins always pass.
- *
- * Backward compatible: if the `roles` table hasn't been created yet, the
- * built-in "member" role keeps full operational management rights.
+ * Server-action gate (non-redirecting). Returns the caller's id only if they
+ * may `manage` `section` on the current store, else null. Platform operators
+ * and store superadmins always pass.
  */
 export async function getManagerUserId(
   section: string,
@@ -163,30 +195,36 @@ export async function getManagerUserId(
   } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // Platform operators manage everything.
+  if ((await getPlatformRole()) !== null) return user.id;
+
+  const storeId = await getCurrentStoreId();
   const { data: profile } = await supabase
     .from("admins")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .eq("store_id", storeId)
+    .maybeSingle();
 
   const slug = profile?.role;
   if (!slug) return null;
   if (slug === SUPERADMIN_SLUG) return user.id;
 
-  const { data: role, error } = await supabase
+  const { data: role } = await supabase
     .from("roles")
     .select("permissions")
+    .eq("store_id", storeId)
     .eq("slug", slug)
-    .single();
+    .maybeSingle();
 
-  // Roles table present & role found: enforce the permission map.
+  // Role found: enforce the permission map.
   if (role) {
     const perms = normalizePermissions(role.permissions);
     return can(perms, section, "manage") ? user.id : null;
   }
 
-  // Legacy fallback before the migration is applied: "member" keeps full rights.
-  if (error && slug === "member") return user.id;
+  // Legacy fallback before the roles table is populated: "member" keeps rights.
+  if (slug === "member") return user.id;
   return null;
 }
 
