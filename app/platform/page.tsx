@@ -48,9 +48,9 @@ export default function StoreminkLanding() {
         <span className="stq-kicker">Built for India 🇮🇳</span>
         <h1>From local business to digital brand.</h1>
         <p>
-          Storemink is the simplest way for Indian businesses to launch, grow, and
-          scale online. Enable anyone to create, manage, and grow a modern D2C
-          brand — in minutes, without technical expertise, agencies, or
+          Storemink is the simplest way for Indian businesses to launch, grow,
+          and scale online. Enable anyone to create, manage, and grow a modern
+          D2C brand — in minutes, without technical expertise, agencies, or
           enterprise budgets.
         </p>
         <div className="stq-hero-cta">
