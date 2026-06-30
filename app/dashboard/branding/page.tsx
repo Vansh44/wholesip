@@ -8,6 +8,9 @@ export default async function BrandingPage() {
   const access = await requireSectionAccess("branding", "view");
   const brand = await getStoreBrandingForEditor();
   return (
-    <BrandingForm initial={brand} canManage={access.can("branding", "manage")} />
+    <BrandingForm
+      initial={brand}
+      canManage={access.can("branding", "manage")}
+    />
   );
 }
