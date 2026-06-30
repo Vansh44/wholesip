@@ -3,7 +3,7 @@ import Link from "next/link";
 const FEATURES = [
   {
     title: "Your own storefront",
-    body: "A fast, modern online store at your-name.storiq.in — or your own domain. Products, inventory, orders, analytics.",
+    body: "A fast, modern online store at your-name.storemink.com — or your own domain. Products, inventory, orders, analytics.",
   },
   {
     title: "Built for India",
@@ -27,12 +27,12 @@ const FEATURES = [
   },
 ];
 
-export default function StoriqLanding() {
+export default function StoreminkLanding() {
   return (
     <>
       <nav className="stq-nav">
         <Link href="/" className="stq-logo">
-          Stor<span>iq</span>
+          Store<span>mink</span>
         </Link>
         <div className="stq-nav-actions">
           <Link href="/login" className="stq-btn stq-btn-ghost">
@@ -48,7 +48,7 @@ export default function StoriqLanding() {
         <span className="stq-kicker">Built for India 🇮🇳</span>
         <h1>From local business to digital brand.</h1>
         <p>
-          Storiq is the simplest way for Indian businesses to launch, grow, and
+          Storemink is the simplest way for Indian businesses to launch, grow, and
           scale online. Enable anyone to create, manage, and grow a modern D2C
           brand — in minutes, without technical expertise, agencies, or
           enterprise budgets.
@@ -79,7 +79,7 @@ export default function StoriqLanding() {
           Launch faster. Sell smarter. Own your customers. Grow independently.
           <br />
           Stuck? Visit the{" "}
-          <a href="https://help.storiq.in">Storiq Help Centre</a>. ·{" "}
+          <a href="https://help.storemink.com">Storemink Help Centre</a>. ·{" "}
           <Link href="/login">Log in</Link> ·{" "}
           <Link href="/signup">Sign up</Link>
         </p>

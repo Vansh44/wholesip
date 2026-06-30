@@ -29,7 +29,9 @@ export interface StoreBrand {
   badges: StoreBadge[];
 }
 
-export const DEFAULT_PRIMARY = "#1f7a5a";
+// Default storefront accent (the existing near-black) — a store keeps the clean
+// default look until it picks its own primary colour in the dashboard.
+export const DEFAULT_PRIMARY = "#17130f";
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;

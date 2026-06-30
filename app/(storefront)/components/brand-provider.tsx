@@ -24,7 +24,7 @@ export function useBrand(): StoreBrand {
     useContext(BrandContext) ?? {
       name: "Store",
       logoUrl: null,
-      primaryColor: "#1f7a5a",
+      primaryColor: "#17130f",
       tagline: null,
       blurb: null,
       legalName: null,

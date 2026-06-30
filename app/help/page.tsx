@@ -17,7 +17,7 @@ const TOPICS = [
   },
   {
     title: "Domains",
-    body: "Use your free your-store.storiq.in address or connect your own domain.",
+    body: "Use your free your-store.storemink.com address or connect your own domain.",
   },
   {
     title: "Orders & shipping",
@@ -29,12 +29,12 @@ export default function HelpCentre() {
   return (
     <>
       <nav className="stq-nav">
-        <a href="https://storiq.in" className="stq-logo">
-          Stor<span>iq</span>
+        <a href="https://storemink.com" className="stq-logo">
+          Store<span>mink</span>
         </a>
         <div className="stq-nav-actions">
           <a
-            href="https://storiq.in/signup"
+            href="https://storemink.com/signup"
             className="stq-btn stq-btn-primary"
           >
             Create your store
@@ -47,7 +47,7 @@ export default function HelpCentre() {
         <h1>How can we help?</h1>
         <p>
           Guides and answers for setting up and growing your D2C store on
-          Storiq. Stuck somewhere? Start with a topic below.
+          Storemink. Stuck somewhere? Start with a topic below.
         </p>
       </header>
 
@@ -65,7 +65,7 @@ export default function HelpCentre() {
       <footer className="stq-footer">
         <p>
           Can&apos;t find what you need? Email{" "}
-          <a href="mailto:support@storiq.in">support@storiq.in</a>.
+          <a href="mailto:support@storemink.com">support@storemink.com</a>.
         </p>
       </footer>
     </>

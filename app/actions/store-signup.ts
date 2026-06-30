@@ -30,6 +30,7 @@ const RESERVED = new Set([
   "store",
   "stores",
   "storiq",
+  "storemink",
   "assets",
   "cdn",
   "static",

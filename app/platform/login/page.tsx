@@ -3,10 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storiq.in";
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storemink.com";
 
-// Turn whatever the user types ("mystore", "mystore.storiq.in",
-// "https://mystore.storiq.in/") into a bare store slug.
+// Turn whatever the user types ("mystore", "mystore.storemink.com",
+// "https://mystore.storemink.com/") into a bare store slug.
 function extractSlug(input: string): string {
   let v = input.trim().toLowerCase();
   v = v.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
@@ -38,7 +38,7 @@ export default function StoreLoginPage() {
     <div className="stq-auth-wrap">
       <form className="stq-auth" onSubmit={go}>
         <Link href="/" className="stq-logo" style={{ fontSize: 20 }}>
-          Stor<span>iq</span>
+          Store<span>mink</span>
         </Link>
         <h1 style={{ marginTop: 18 }}>Log in to your store</h1>
         <p className="sub">Enter your store address to continue.</p>
@@ -62,7 +62,7 @@ export default function StoreLoginPage() {
             <span className="stq-suffix">.{ROOT_DOMAIN}</span>
           </div>
           <div className={`stq-hint ${error ? "bad" : "neutral"}`}>
-            {error || "e.g. your-store.storiq.in"}
+            {error || "e.g. your-store.storemink.com"}
           </div>
         </div>
 
@@ -71,7 +71,7 @@ export default function StoreLoginPage() {
         </button>
 
         <p className="stq-alt">
-          New to Storiq? <Link href="/signup">Sign up</Link>
+          New to Storemink? <Link href="/signup">Sign up</Link>
         </p>
       </form>
     </div>

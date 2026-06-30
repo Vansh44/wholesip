@@ -36,7 +36,7 @@ export default function Footer() {
   ].filter((s) => s.href);
 
   const legalName = brand.legalName || brand.name;
-  const creditLine = brand.creditLine || "Powered by Storiq";
+  const creditLine = brand.creditLine || "Powered by Storemink";
 
   const handleLogoClick = (e) => {
     e.preventDefault();

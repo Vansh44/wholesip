@@ -11,9 +11,9 @@ export { parseHost, type HostKind } from "@/lib/store/host";
 //
 // Every request belongs to exactly one store. We resolve it from the request's
 // Host header:
-//   acme.storiq.in        -> store with slug "acme"
+//   acme.storemink.com        -> store with slug "acme"
 //   shop.acme.com         -> store whose custom_domain = "shop.acme.com"
-//   storiq.in / app.*     -> the platform itself (no store)
+//   storemink.com / app.*     -> the platform itself (no store)
 //   localhost / *.vercel  -> the platform (dev/preview)
 //
 // During the single-tenant period (only WholeSip exists, served at the root /
