@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Sora, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
-import { siteConfig } from "@/config/site";
+import { getStoreBrand } from "@/lib/store/brand";
 import { DashboardTopbar } from "./dashboard-topbar";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { MobileNavProvider } from "./dashboard-mobile-nav";
@@ -27,9 +27,10 @@ const dashMono = JetBrains_Mono({
   variable: "--font-dash-mono",
 });
 
-export const metadata = {
-  title: `${siteConfig.name} — Operations Center`,
-};
+export async function generateMetadata() {
+  const brand = await getStoreBrand();
+  return { title: `${brand.name} — Operations Center` };
+}
 
 export default async function DashboardLayout({
   children,
@@ -103,6 +104,9 @@ export default async function DashboardLayout({
     items: typeof SECTIONS;
   }[];
 
+  // The acting store's brand (logo + name) for the sidebar.
+  const brand = await getStoreBrand();
+
   return (
     <div
       className={`dashboard-shell ${dashFont.variable} ${dashMono.variable} flex`}
@@ -110,7 +114,8 @@ export default async function DashboardLayout({
       <MobileNavProvider>
         <DashboardSidebar
           groups={navGroups}
-          logoUrl={siteConfig.assets.logoUrl}
+          logoUrl={brand.logoUrl}
+          storeName={brand.name}
         />
 
         <div className="dash-main">

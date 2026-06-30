@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/site";
+import { getStoreUrl } from "@/lib/site";
 
-export default function robots(): MetadataRoute.Robots {
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  const siteUrl = await getStoreUrl();
   return {
     rules: {
       userAgent: "*",
@@ -19,7 +20,7 @@ export default function robots(): MetadataRoute.Robots {
         "/blogs/my-submissions",
       ],
     },
-    sitemap: `${SITE_URL}/sitemap.xml`,
-    host: SITE_URL,
+    sitemap: `${siteUrl}/sitemap.xml`,
+    host: siteUrl,
   };
 }

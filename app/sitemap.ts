@@ -1,10 +1,10 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/site";
+import { getStoreUrl } from "@/lib/site";
 import {
   getPublishedProducts,
   getPublishedBlogCards,
 } from "@/lib/storefront/queries";
-import { WHOLESIP_STORE_ID } from "@/lib/store/resolve";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 
 // Regenerate hourly; the underlying product/blog reads are themselves cached
 // and invalidated on dashboard edits.
@@ -43,26 +43,30 @@ const STATIC_PATHS: { path: string; priority: number; freq: ChangeFreq }[] = [
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
+  // Per-host: this sitemap is for the store on the requesting domain.
+  const [siteUrl, storeId] = await Promise.all([
+    getStoreUrl(),
+    getCurrentStoreId(),
+  ]);
+
   const staticEntries: MetadataRoute.Sitemap = STATIC_PATHS.map((p) => ({
-    url: `${SITE_URL}${p.path === "/" ? "" : p.path}`,
+    url: `${siteUrl}${p.path === "/" ? "" : p.path}`,
     lastModified: now,
     changeFrequency: p.freq,
     priority: p.priority,
   }));
 
-  // Dynamic product + blog detail pages. A failed DB read must never break the
-  // sitemap, so fall back to just the static set.
-  // SITE_URL is WholeSip's canonical origin, so this sitemap is scoped to the
-  // WholeSip store. Per-store sitemaps (resolved by host) come in a later phase.
+  // Dynamic product + blog detail pages for THIS store. A failed DB read must
+  // never break the sitemap, so fall back to just the static set.
   const [products, blogs] = await Promise.all([
-    getPublishedProducts(WHOLESIP_STORE_ID).catch(() => []),
-    getPublishedBlogCards(WHOLESIP_STORE_ID).catch(() => []),
+    getPublishedProducts(storeId).catch(() => []),
+    getPublishedBlogCards(storeId).catch(() => []),
   ]);
 
   const productEntries: MetadataRoute.Sitemap = (products as { slug: string }[])
     .filter((p) => p.slug)
     .map((p) => ({
-      url: `${SITE_URL}/shop/${p.slug}`,
+      url: `${siteUrl}/shop/${p.slug}`,
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.8,
@@ -73,7 +77,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   )
     .filter((b) => b.slug)
     .map((b) => ({
-      url: `${SITE_URL}/blogs/${b.slug}`,
+      url: `${siteUrl}/blogs/${b.slug}`,
       lastModified: b.published_at ? new Date(b.published_at) : now,
       changeFrequency: "monthly",
       priority: 0.6,
