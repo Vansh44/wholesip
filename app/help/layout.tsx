@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "../platform/platform.css";
 
 export const metadata: Metadata = {
-  title: "Storiq Help Centre",
+  title: "Storemink Help Centre",
   description:
-    "Guides and answers for setting up and growing your D2C store on Storiq.",
+    "Guides and answers for setting up and growing your D2C store on Storemink.",
 };
 
 export default function HelpLayout({

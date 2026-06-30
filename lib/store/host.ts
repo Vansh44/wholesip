@@ -4,7 +4,7 @@
 
 // The platform's apex domain. Subdomains of it map to stores.
 export const ROOT_DOMAIN = (
-  process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storiq.in"
+  process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storemink.com"
 ).toLowerCase();
 
 export type HostKind =
@@ -13,7 +13,7 @@ export type HostKind =
   | { type: "platform" };
 
 // Map a raw Host header to what it refers to: a store subdomain, a merchant's
-// custom domain, or the Storiq platform itself (apex / app / local dev / preview).
+// custom domain, or the Storemink platform itself (apex / app / local dev / preview).
 export function parseHost(host: string | null | undefined): HostKind {
   if (!host) return { type: "platform" };
   const hostname = host.split(":")[0].trim().toLowerCase();
@@ -49,14 +49,14 @@ export function parseHost(host: string | null | undefined): HostKind {
   return { type: "custom-domain", domain: hostname };
 }
 
-// True when the host is the Storiq platform (landing / login / signup), not a store.
+// True when the host is the Storemink platform (landing / login / signup), not a store.
 export function isPlatformHost(host: string | null | undefined): boolean {
   return parseHost(host).type === "platform";
 }
 
-// Cookie `Domain` so a Supabase session is shared across ALL *.storiq.in
+// Cookie `Domain` so a Supabase session is shared across ALL *.storemink.com
 // subdomains (platform + every store) — lets an owner who signs up on
-// storiq.in land logged-in on their {slug}.storiq.in dashboard. Returns
+// storemink.com land logged-in on their {slug}.storemink.com dashboard. Returns
 // undefined for localhost, previews, and custom domains (e.g. wholesip.com),
 // which stay host-only and are therefore unaffected.
 export function cookieDomainForHost(

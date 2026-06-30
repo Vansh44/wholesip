@@ -10,6 +10,17 @@
   min-height: 100vh;
   background: var(--wholesip-cream);
   color: var(--wholesip-ink);
+
+  /* Per-store theming: the brand's primary colour (injected as --brand-primary
+     from the store's settings) drives the storefront accent / CTA / link
+     colour. Defaults to the near-black accent, so a store with no colour set
+     keeps the clean default look. */
+  --wholesip-accent: var(--brand-primary, #17130f);
+  --wholesip-accent-deep: color-mix(
+    in srgb,
+    var(--brand-primary, #17130f) 86%,
+    #000
+  );
 }
 
 /* Default link colour inside the storefront (Header/Footer override locally) */

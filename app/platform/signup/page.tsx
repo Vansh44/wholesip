@@ -9,7 +9,7 @@ import {
   type SlugCheck,
 } from "@/app/actions/store-signup";
 
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storiq.in";
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storemink.com";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // To E.164 (+countrycode...). Bare 10-digit numbers are assumed Indian (+91).
@@ -160,7 +160,7 @@ export default function SignupPage() {
         }
       >
         <Link href="/" className="stq-logo" style={{ fontSize: 20 }}>
-          Stor<span>iq</span>
+          Store<span>mink</span>
         </Link>
 
         {step === "form" && (
@@ -282,7 +282,7 @@ export default function SignupPage() {
         )}
 
         <p className="stq-alt">
-          Already selling on Storiq? <Link href="/login">Log in</Link>
+          Already selling on Storemink? <Link href="/login">Log in</Link>
         </p>
       </form>
     </div>

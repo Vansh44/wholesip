@@ -1,29 +1,27 @@
-import { SITE_URL, BRAND_NAME, BRAND_ALTERNATE_NAMES } from "@/lib/site";
+import { getStoreBrand } from "@/lib/store/brand";
+import { getStoreUrl } from "@/lib/site";
 
-// Organization + WebSite JSON-LD for the storefront homepage. The Organization
-// `alternateName` list is the key signal that tells search engines "WholeSip" /
-// "whole sip" is a single brand name — not two separate words — so they stop
-// auto-correcting brand queries.
-export default function StructuredData() {
+// Organization + WebSite JSON-LD for the current store's storefront homepage,
+// resolved from that store's brand + canonical origin (not a hardcoded brand).
+export default async function StructuredData() {
+  const [brand, siteUrl] = await Promise.all([getStoreBrand(), getStoreUrl()]);
   const graph = {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "Organization",
-        "@id": `${SITE_URL}/#organization`,
-        name: BRAND_NAME,
-        alternateName: BRAND_ALTERNATE_NAMES,
-        url: SITE_URL,
-        logo: `${SITE_URL}/icon.svg`,
-        description: "Zero preservatives. 100% real ingredients.",
+        "@id": `${siteUrl}/#organization`,
+        name: brand.name,
+        url: siteUrl,
+        logo: brand.logoUrl ?? `${siteUrl}/icon.svg`,
+        ...(brand.tagline ? { description: brand.tagline } : {}),
       },
       {
         "@type": "WebSite",
-        "@id": `${SITE_URL}/#website`,
-        name: BRAND_NAME,
-        alternateName: "wholesip",
-        url: SITE_URL,
-        publisher: { "@id": `${SITE_URL}/#organization` },
+        "@id": `${siteUrl}/#website`,
+        name: brand.name,
+        url: siteUrl,
+        publisher: { "@id": `${siteUrl}/#organization` },
       },
     ],
   };
@@ -31,7 +29,6 @@ export default function StructuredData() {
   return (
     <script
       type="application/ld+json"
-      // Static, no user input — safe to inline.
       dangerouslySetInnerHTML={{ __html: JSON.stringify(graph) }}
     />
   );

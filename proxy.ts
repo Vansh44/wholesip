@@ -6,14 +6,14 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host");
 
-  // --- Help centre: help.storiq.in -> /help/* ---
+  // --- Help centre: help.storemink.com -> /help/* ---
   if (isHelpHost(host) && !pathname.startsWith("/help")) {
     const url = request.nextUrl.clone();
     url.pathname = `/help${pathname === "/" ? "" : pathname}`;
     return NextResponse.rewrite(url);
   }
 
-  // --- Platform (storiq.in / app.* / localhost / preview): landing, login,
+  // --- Platform (storemink.com / app.* / localhost / preview): landing, login,
   //     signup. Rewrite all paths into the /platform/* route group so the
   //     storefront `/`, `/shop`, ... routes only ever serve store hosts. ---
   if (parseHost(host).type === "platform") {
@@ -23,7 +23,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
-  // --- Store hosts ({slug}.storiq.in / custom domains) ---
+  // --- Store hosts ({slug}.storemink.com / custom domains) ---
   // Only the dashboard + auth routes need the Supabase session gate; the
   // storefront stays anonymous + cache-friendly (no per-request auth check).
   if (!pathname.startsWith("/dashboard") && !pathname.startsWith("/auth")) {

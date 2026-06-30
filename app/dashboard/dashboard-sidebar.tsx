@@ -33,9 +33,11 @@ function matches(pathname: string, href: string): boolean {
 export function DashboardSidebar({
   groups,
   logoUrl,
+  storeName,
 }: {
   groups: Group[];
-  logoUrl: string;
+  logoUrl: string | null;
+  storeName: string;
 }) {
   const pathname = usePathname();
   const { open, setOpen } = useMobileNav();
@@ -72,14 +74,20 @@ export function DashboardSidebar({
         <div className="dash-primary">
           <div className="dash-brand-row">
             <Link href="/dashboard" className="dash-brand">
-              <Image
-                src={logoUrl}
-                alt="WholeSip Logo"
-                width={150}
-                height={50}
-                priority
-                style={{ height: "auto", width: "auto", maxHeight: 32 }}
-              />
+              {logoUrl ? (
+                <Image
+                  src={logoUrl}
+                  alt={`${storeName} logo`}
+                  width={150}
+                  height={50}
+                  priority
+                  style={{ height: "auto", width: "auto", maxHeight: 32 }}
+                />
+              ) : (
+                <span style={{ fontWeight: 700, fontSize: 18 }}>
+                  {storeName}
+                </span>
+              )}
             </Link>
             <button
               type="button"

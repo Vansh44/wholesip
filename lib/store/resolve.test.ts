@@ -3,11 +3,11 @@ import { parseHost } from "./resolve";
 
 // parseHost() is the pure core of tenant resolution: it maps a raw Host header
 // to "which store (or the platform) does this request belong to". Default
-// ROOT_DOMAIN is "storiq.in" (NEXT_PUBLIC_ROOT_DOMAIN unset in tests).
+// ROOT_DOMAIN is "storemink.com" (NEXT_PUBLIC_ROOT_DOMAIN unset in tests).
 describe("parseHost", () => {
   // A subdomain of the root domain is a store, identified by its first label.
   it("maps a store subdomain to its slug", () => {
-    expect(parseHost("acme.storiq.in")).toEqual({
+    expect(parseHost("acme.storemink.com")).toEqual({
       type: "store-subdomain",
       slug: "acme",
     });
@@ -15,7 +15,7 @@ describe("parseHost", () => {
 
   // The port must be stripped and the host lowercased before classifying.
   it("strips port and lowercases", () => {
-    expect(parseHost("ACME.storiq.in:3000")).toEqual({
+    expect(parseHost("ACME.storemink.com:3000")).toEqual({
       type: "store-subdomain",
       slug: "acme",
     });
@@ -23,9 +23,9 @@ describe("parseHost", () => {
 
   // The apex, www, and the reserved platform host are NOT stores.
   it("treats apex / www / app as the platform", () => {
-    expect(parseHost("storiq.in").type).toBe("platform");
-    expect(parseHost("www.storiq.in").type).toBe("platform");
-    expect(parseHost("app.storiq.in").type).toBe("platform");
+    expect(parseHost("storemink.com").type).toBe("platform");
+    expect(parseHost("www.storemink.com").type).toBe("platform");
+    expect(parseHost("app.storemink.com").type).toBe("platform");
   });
 
   // A merchant's own domain doesn't end in the root domain → custom domain,

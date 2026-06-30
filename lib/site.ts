@@ -1,8 +1,13 @@
-// Canonical public site origin (no trailing slash) and brand constants, shared
-// by the sitemap, robots, and structured-data so they all agree on one URL.
-// Prefers the configured app URL, then Vercel's deploy URL, then the production
-// domain as a safe default.
-function resolveSiteUrl(): string {
+// Origins for the multi-tenant platform.
+//
+// PLATFORM_URL is the Storemink platform's own origin (the apex) — used as the
+// default/fallback and as the base for the email-worker's internal self-call.
+// getStoreUrl() returns the CURRENT request's store canonical origin (its custom
+// domain if set, else {slug}.storemink.com) — use it for per-store SEO/canonical.
+import { ROOT_DOMAIN } from "@/lib/store/host";
+import { getCurrentStore } from "@/lib/store/resolve";
+
+function resolvePlatformUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_APP_URL;
   const raw = fromEnv
     ? fromEnv.startsWith("http")
@@ -10,14 +15,15 @@ function resolveSiteUrl(): string {
       : `https://${fromEnv}`
     : process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
-      : "https://wholesip.com";
+      : `https://${ROOT_DOMAIN}`;
   return raw.replace(/\/+$/, "");
 }
 
-export const SITE_URL = resolveSiteUrl();
+export const PLATFORM_URL = resolvePlatformUrl();
 
-export const BRAND_NAME = "WholeSip";
-
-// Spelling variants Google might otherwise split into two separate words.
-// Surfaced as schema.org `alternateName` so the brand reads as a proper noun.
-export const BRAND_ALTERNATE_NAMES = ["wholesip", "whole sip", "Whole Sip"];
+// Canonical origin of the current request's store.
+export async function getStoreUrl(): Promise<string> {
+  const store = await getCurrentStore();
+  const host = store.custom_domain ?? `${store.slug}.${ROOT_DOMAIN}`;
+  return `https://${host}`;
+}
