@@ -2,7 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,6 +40,7 @@ export async function createUserGroup(
 ): Promise<ActionResult> {
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   const name = form.name.trim();
   if (!name) return { error: "Group name is required." };
@@ -52,6 +53,7 @@ export async function createUserGroup(
       description: form.description.trim() || null,
       color: form.color || "blue",
       created_by: userId,
+      store_id: storeId,
     })
     .select()
     .single();
@@ -133,6 +135,7 @@ export async function setGroupMembers(
 ): Promise<ActionResult> {
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   const admin = createAdminClient();
 
@@ -153,6 +156,7 @@ export async function setGroupMembers(
       group_id: groupId,
       user_id,
       added_by: userId,
+      store_id: storeId,
     }));
     const { error: insError } = await admin
       .from("user_group_members")

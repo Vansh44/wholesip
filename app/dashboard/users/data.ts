@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getActingStoreId } from "@/app/dashboard/lib/access";
 import type {
   Customer,
   CustomerBlog,
@@ -78,7 +79,10 @@ export async function getCustomers(
   const sort = query.sort ?? "newest";
 
   const admin = createAdminClient();
-  let q = admin.from("customer_admin").select(VIEW_COLUMNS, { count: "exact" });
+  let q = admin
+    .from("customer_admin")
+    .select(VIEW_COLUMNS, { count: "exact" })
+    .eq("store_id", await getActingStoreId());
 
   const term = sanitizeSearch(query.q ?? "");
   if (term) {
@@ -134,20 +138,27 @@ export async function getCustomers(
 export async function getCustomerStats(): Promise<CustomerStats> {
   const admin = createAdminClient();
   const cutoff = recentCutoffIso();
+  const storeId = await getActingStoreId();
 
   const [totalRes, recentRes, emailRes, reviewersRes] = await Promise.all([
-    admin.from("users").select("id", { count: "exact", head: true }),
     admin
       .from("users")
       .select("id", { count: "exact", head: true })
+      .eq("store_id", storeId),
+    admin
+      .from("users")
+      .select("id", { count: "exact", head: true })
+      .eq("store_id", storeId)
       .gte("created_at", cutoff),
     admin
       .from("users")
       .select("id", { count: "exact", head: true })
+      .eq("store_id", storeId)
       .not("email", "is", null),
     admin
       .from("customer_admin")
       .select("id", { count: "exact", head: true })
+      .eq("store_id", storeId)
       .gt("review_count", 0),
   ]);
 
@@ -162,11 +173,13 @@ export async function getCustomerStats(): Promise<CustomerStats> {
 /** A single customer with their reviews and blog submissions, or null. */
 export async function getCustomer(id: string): Promise<CustomerDetail | null> {
   const admin = createAdminClient();
+  const storeId = await getActingStoreId();
 
   const { data, error } = await admin
     .from("users")
     .select(DETAIL_COLUMNS)
     .eq("id", id)
+    .eq("store_id", storeId)
     .single();
 
   if (error || !data) return null;

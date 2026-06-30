@@ -57,13 +57,16 @@ export async function inviteUser(formData: FormData) {
 
   const { data: callerProfile } = await supabase
     .from("admins")
-    .select("role")
+    .select("role, store_id")
     .eq("id", caller.id)
     .single();
 
   if (callerProfile?.role !== "superadmin") {
     return { error: "Unauthorized. Superadmin access required." };
   }
+
+  // The invited admin joins the inviter's store.
+  const storeId = callerProfile.store_id as string;
 
   const tempPassword = generateTempPassword();
   const adminClient = createAdminClient();
@@ -103,6 +106,7 @@ export async function inviteUser(formData: FormData) {
     role,
     force_password_reset: true,
     invited_by: caller.id,
+    store_id: storeId,
   });
 
   if (profileError) {

@@ -17,6 +17,11 @@ import type { HomepageSection } from "@/lib/homepage/section-types";
 //
 // Reads tolerate a missing table / transient error by returning empty (matching
 // the storefront's existing `?? []` behavior) so a cold deploy never crashes.
+//
+// Multi-tenant: every function takes a required `storeId` and filters on it.
+// `unstable_cache` folds the function arguments into the cache key, so each
+// store gets its own cache entry automatically — one store can never serve
+// another's cached rows. Callers resolve the id via getCurrentStore() (host).
 // ---------------------------------------------------------------------------
 
 // 5 minutes. Edits propagate immediately via revalidateTag; this only bounds
@@ -79,11 +84,12 @@ const BLOG_CARD_COLUMNS =
   "id, title, slug, excerpt, cover_image_url, author, published_at, reading_time, tags, categories, featured";
 
 export const getPublishedProducts = unstable_cache(
-  async (): Promise<ProductCardRow[]> => {
+  async (storeId: string): Promise<ProductCardRow[]> => {
     const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("products")
       .select(PRODUCT_CARD_COLUMNS)
+      .eq("store_id", storeId)
       .eq("status", "published")
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: false });
@@ -106,11 +112,12 @@ export const getPublishedProducts = unstable_cache(
 );
 
 export const getActiveCategories = unstable_cache(
-  async (): Promise<CategoryRow[]> => {
+  async (storeId: string): Promise<CategoryRow[]> => {
     const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("categories")
       .select("id, name, slug, image_url, sort_order")
+      .eq("store_id", storeId)
       .eq("status", "active")
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
@@ -125,11 +132,12 @@ export const getActiveCategories = unstable_cache(
 );
 
 export const getPublishedBlogCards = unstable_cache(
-  async (): Promise<BlogCardRow[]> => {
+  async (storeId: string): Promise<BlogCardRow[]> => {
     const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("blogs")
       .select(BLOG_CARD_COLUMNS)
+      .eq("store_id", storeId)
       .eq("status", "published")
       .order("published_at", { ascending: false });
     if (error) {
@@ -143,11 +151,12 @@ export const getPublishedBlogCards = unstable_cache(
 );
 
 export const getEnabledHomepageSections = unstable_cache(
-  async (): Promise<HomepageSection[]> => {
+  async (storeId: string): Promise<HomepageSection[]> => {
     const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("homepage_sections")
       .select("*")
+      .eq("store_id", storeId)
       .eq("enabled", true)
       .order("sort_order", { ascending: true });
     if (error) {

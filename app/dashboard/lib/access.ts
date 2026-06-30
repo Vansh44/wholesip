@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { WHOLESIP_STORE_ID } from "@/lib/store/resolve";
 import {
   can,
   normalizePermissions,
@@ -14,6 +15,7 @@ export interface ViewerProfile {
   role: string | null;
   first_name: string | null;
   last_name: string | null;
+  store_id: string;
 }
 
 export interface ViewerContext {
@@ -45,7 +47,7 @@ export const getViewerContext = cache(
 
     const { data: profile, error: profileError } = await supabase
       .from("admins")
-      .select("email, role, first_name, last_name")
+      .select("email, role, first_name, last_name, store_id")
       .eq("id", user.id)
       .single();
 
@@ -84,6 +86,17 @@ export const getViewerContext = cache(
     };
   },
 );
+
+/**
+ * The store the signed-in admin acts on — the source of truth for `store_id`
+ * on every dashboard write. Derived from the admin's own row (not the request
+ * host), so it can't be spoofed by URL. Falls back to WholeSip during the
+ * single-tenant period / when there's no profile row.
+ */
+export async function getActingStoreId(): Promise<string> {
+  const ctx = await getViewerContext();
+  return ctx?.profile?.store_id ?? WHOLESIP_STORE_ID;
+}
 
 export interface Role {
   id: string;

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireSectionAccess } from "../../lib/access";
+import { requireSectionAccess, getActingStoreId } from "../../lib/access";
 import {
   DASHBOARD_PAGE_SIZE,
   ilikeOr,
@@ -49,10 +49,12 @@ export default async function CouponsPage({
   const from = (page - 1) * pageSize;
 
   const supabase = await createClient();
+  const storeId = await getActingStoreId();
 
   let query = supabase
     .from("coupons")
     .select("*", { count: "exact" })
+    .eq("store_id", storeId)
     .order("created_at", { ascending: false });
 
   const term = sanitizeSearch(q);
@@ -92,6 +94,7 @@ export default async function CouponsPage({
       ? supabase
           .from("coupon_user_groups")
           .select("coupon_id, group_id")
+          .eq("store_id", storeId)
           .in("coupon_id", pageCouponIds)
       : Promise.resolve({
           data: [] as { coupon_id: string; group_id: string }[],

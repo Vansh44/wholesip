@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { TAGS } from "@/lib/storefront/tags";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,6 +63,7 @@ export async function createCardColor(
   const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   if (!formData.name.trim()) return { error: "Name is required." };
   const hex = normalizeHex(formData.hex);
@@ -74,6 +75,7 @@ export async function createCardColor(
       name: formData.name.trim(),
       hex,
       sort_order: formData.sort_order ?? 0,
+      store_id: storeId,
     })
     .select()
     .single();

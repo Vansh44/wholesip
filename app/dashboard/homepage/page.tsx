@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireSectionAccess } from "../lib/access";
+import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import { HomepageManagementView } from "./homepage-management-view";
 import type { HomepageSection } from "@/lib/homepage/section-types";
 
@@ -34,6 +34,7 @@ export default async function HomepagePage() {
   const canManage = access.can("homepage", "manage");
 
   const supabase = await createClient();
+  const storeId = await getActingStoreId();
 
   const [
     { data: sections, error },
@@ -44,20 +45,24 @@ export default async function HomepagePage() {
     supabase
       .from("homepage_sections")
       .select("*")
+      .eq("store_id", storeId)
       .order("sort_order", { ascending: true }),
     supabase
       .from("products")
       .select("id, name, slug, image_url, featured")
+      .eq("store_id", storeId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
     supabase
       .from("categories")
       .select("id, name, slug, image_url")
+      .eq("store_id", storeId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
     supabase
       .from("blogs")
       .select("id, title, slug")
+      .eq("store_id", storeId)
       .eq("status", "published")
       .order("published_at", { ascending: false }),
   ]);

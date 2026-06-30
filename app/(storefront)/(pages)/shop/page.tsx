@@ -3,6 +3,7 @@ import {
   getPublishedProducts,
   getActiveCategories,
 } from "@/lib/storefront/queries";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 import ShopClient, { type ShopProduct, type ShopCategory } from "./shop-client";
 import "./shop.css";
 
@@ -25,10 +26,11 @@ export default async function ShopPage({
   searchParams: Promise<{ category?: string }>;
 }) {
   const { category: initialCategorySlug } = await searchParams;
+  const storeId = await getCurrentStoreId();
 
   const [products, categories] = await Promise.all([
-    getPublishedProducts(),
-    getActiveCategories(),
+    getPublishedProducts(storeId),
+    getActiveCategories(storeId),
   ]);
 
   const shopProducts = products as unknown as ShopProduct[];

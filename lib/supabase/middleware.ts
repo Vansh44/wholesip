@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { cookieDomainForHost } from "@/lib/store/host";
 
 /**
  * Custom claims injected by the `custom_access_token_hook` Postgres function
@@ -53,10 +54,13 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
+  const domain = cookieDomainForHost(request.headers.get("host"));
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      ...(domain ? { cookieOptions: { domain } } : {}),
       cookies: {
         getAll() {
           return request.cookies.getAll();

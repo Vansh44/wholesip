@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireSectionAccess } from "../lib/access";
+import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import {
   DASHBOARD_PAGE_SIZE,
   ilikeOr,
@@ -81,10 +81,12 @@ export default async function BlogsPage({
   const offset = (page - 1) * pageSize;
 
   const supabase = await createClient();
+  const storeId = await getActingStoreId();
 
   let listQuery = supabase
     .from("blogs")
     .select(LIST_COLUMNS, { count: "exact" })
+    .eq("store_id", storeId)
     .order("created_at", { ascending: false });
 
   if (filter === "published") listQuery = listQuery.eq("status", "published");
@@ -100,7 +102,10 @@ export default async function BlogsPage({
     );
 
   const countQuery = () =>
-    supabase.from("blogs").select("id", { count: "exact", head: true });
+    supabase
+      .from("blogs")
+      .select("id", { count: "exact", head: true })
+      .eq("store_id", storeId);
 
   const [
     { data: blogs, error, count },

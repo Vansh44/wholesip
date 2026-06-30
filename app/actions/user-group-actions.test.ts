@@ -6,6 +6,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
 
 import {
@@ -198,8 +199,18 @@ describe("user-group-actions", () => {
       );
       const rows = admin._tables.user_group_members.insert.mock.calls[0][0];
       expect(rows).toEqual([
-        { group_id: "g1", user_id: "c1", added_by: "user-1" },
-        { group_id: "g1", user_id: "c2", added_by: "user-1" },
+        {
+          group_id: "g1",
+          user_id: "c1",
+          added_by: "user-1",
+          store_id: "a0000000-0000-4000-8000-000000000001",
+        },
+        {
+          group_id: "g1",
+          user_id: "c2",
+          added_by: "user-1",
+          store_id: "a0000000-0000-4000-8000-000000000001",
+        },
       ]);
     });
 
@@ -216,8 +227,18 @@ describe("user-group-actions", () => {
       await setGroupMembers("g1", ["c1", "c1", "", "c2"]);
       const rows = admin._tables.user_group_members.insert.mock.calls[0][0];
       expect(rows).toEqual([
-        { group_id: "g1", user_id: "c1", added_by: "user-1" },
-        { group_id: "g1", user_id: "c2", added_by: "user-1" },
+        {
+          group_id: "g1",
+          user_id: "c1",
+          added_by: "user-1",
+          store_id: "a0000000-0000-4000-8000-000000000001",
+        },
+        {
+          group_id: "g1",
+          user_id: "c2",
+          added_by: "user-1",
+          store_id: "a0000000-0000-4000-8000-000000000001",
+        },
       ]);
     });
 

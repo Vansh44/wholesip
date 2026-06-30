@@ -201,6 +201,14 @@ export const SECTIONS: DashboardSection[] = [
     actions: ["view"],
   },
   {
+    key: "branding",
+    label: "Branding",
+    href: "/dashboard/branding",
+    icon: "colors",
+    group: "Administration",
+    actions: ["view", "manage"],
+  },
+  {
     key: "settings",
     label: "Settings",
     href: "/dashboard/settings",

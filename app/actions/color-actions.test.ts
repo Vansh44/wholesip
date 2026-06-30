@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
 
 import {

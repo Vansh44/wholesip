@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { readFile } from "fs/promises";
 import path from "path";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import { TAGS } from "@/lib/storefront/tags";
 import { callGemini, brandSystemText, loadBrandSoul } from "@/lib/ai/gemini";
@@ -79,9 +79,14 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 async function resolveSlug(
   supabase: SupabaseClient,
   base: string,
+  storeId: string,
   excludeId?: string,
 ) {
-  let query = supabase.from("products").select("slug").like("slug", `${base}%`);
+  let query = supabase
+    .from("products")
+    .select("slug")
+    .eq("store_id", storeId)
+    .like("slug", `${base}%`);
   if (excludeId) query = query.neq("id", excludeId);
   const { data } = await query;
 
@@ -157,6 +162,7 @@ async function replaceVariants(
   supabase: SupabaseClient,
   productId: string,
   variants: VariantFormData[],
+  storeId: string,
 ): Promise<string | null> {
   const { error: delError } = await supabase
     .from("product_variants")
@@ -169,7 +175,9 @@ async function replaceVariants(
 
   const { error: insError } = await supabase
     .from("product_variants")
-    .insert(rows.map((r) => ({ ...r, product_id: productId })));
+    .insert(
+      rows.map((r) => ({ ...r, product_id: productId, store_id: storeId })),
+    );
   if (insError) return insError.message;
 
   return null;
@@ -234,6 +242,7 @@ export async function createProduct(
   const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   if (!formData.name.trim()) return { error: "Name is required." };
   if (!formData.category_id) return { error: "Category is required." };
@@ -243,7 +252,7 @@ export async function createProduct(
     return { error: "SEO title and description are required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base);
+  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -264,6 +273,7 @@ export async function createProduct(
       formData.status === "published" ? new Date().toISOString() : null,
     created_by: userId,
     updated_by: userId,
+    store_id: storeId,
   });
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
@@ -278,6 +288,7 @@ export async function createProduct(
         supabase,
         data.id,
         formData.variants,
+        storeId,
       );
       if (variantError) {
         console.error("createProduct variants error:", variantError);
@@ -308,6 +319,7 @@ export async function updateProduct(
   const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   if (!formData.name.trim()) return { error: "Name is required." };
   if (!formData.category_id) return { error: "Category is required." };
@@ -317,7 +329,12 @@ export async function updateProduct(
     return { error: "SEO title and description are required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, id);
+  const { slug: firstSlug, bump } = await resolveSlug(
+    supabase,
+    base,
+    storeId,
+    id,
+  );
   let slug = firstSlug;
 
   const { data: current } = await supabase
@@ -364,6 +381,7 @@ export async function updateProduct(
         supabase,
         id,
         formData.variants,
+        storeId,
       );
       if (variantError) {
         console.error("updateProduct variants error:", variantError);

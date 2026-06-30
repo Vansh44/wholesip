@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 import { sendEnquiryAcknowledgementEmail } from "@/lib/email/enquiry-notifications";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
@@ -78,6 +79,7 @@ export async function submitEnquiry(
     subject,
     subject_detail: subjectDetail,
     message,
+    store_id: await getCurrentStoreId(),
   });
 
   if (error) {

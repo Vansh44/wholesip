@@ -3,7 +3,7 @@
 import { after } from "next/server";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { callGemini, brandSystemText, loadBrandSoul } from "@/lib/ai/gemini";
 import { triggerEmailWorker } from "@/lib/email/trigger-worker";
 import {
@@ -299,6 +299,7 @@ export async function sendCouponEmail(
 ): Promise<SendEmailResult> {
   const userId = await getManagerUserId("marketing");
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   if (!input.subject.trim() || !input.body.trim())
     return { error: "Add a subject and body before sending." };
@@ -335,6 +336,7 @@ export async function sendCouponEmail(
       total: withEmail.length,
       skipped_no_email: skippedNoEmail,
       created_by: userId,
+      store_id: storeId,
     })
     .select("id")
     .single();
@@ -352,6 +354,7 @@ export async function sendCouponEmail(
     campaign_id: campaign.id as string,
     email: r.email as string,
     first_name: r.first_name?.trim() || "",
+    store_id: storeId,
   }));
 
   for (let i = 0; i < rows.length; i += RECIPIENT_INSERT_CHUNK) {

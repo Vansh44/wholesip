@@ -2,6 +2,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 import { getOgImageUrl } from "@/lib/og-image";
 import ProductDetailClient, {
   type DetailProduct,
@@ -22,13 +23,14 @@ type PageProps = {
 // Wrapped in React.cache so the page body and generateMetadata share ONE query
 // per render instead of fetching the same product row twice.
 const getProduct = cache(
-  async (slug: string): Promise<DetailProduct | null> => {
+  async (slug: string, storeId: string): Promise<DetailProduct | null> => {
     const supabase = createPublicClient();
     const { data } = await supabase
       .from("products")
       .select(
         "id, name, slug, description, category_id, base_price, selling_price, image_url, images, status, seo_title, seo_description, category:categories(id, name, slug, status), variants:product_variants(*)",
       )
+      .eq("store_id", storeId)
       .eq("slug", slug)
       .eq("status", "published")
       .single();
@@ -43,25 +45,15 @@ const getProduct = cache(
   },
 );
 
-// Pre-render the published catalog at build; unknown/new slugs still render
-// on-demand (dynamicParams defaults to true) and are then ISR-cached.
-export async function generateStaticParams() {
-  try {
-    const supabase = createPublicClient();
-    const { data } = await supabase
-      .from("products")
-      .select("slug")
-      .eq("status", "published");
-    return (data ?? []).map((p: { slug: string }) => ({ slug: p.slug }));
-  } catch {
-    return [];
-  }
-}
+// This page resolves the store from the request host (getCurrentStoreId), so it
+// renders per-store/per-request — no generateStaticParams (a slug can exist in
+// more than one store). The underlying reads stay cheap via the data cache.
 
 // Other published products in the same category (excluding the current one).
 async function getRelated(
   categoryId: string | null,
   excludeId: string,
+  storeId: string,
 ): Promise<RelatedProduct[]> {
   if (!categoryId) return [];
   const supabase = createPublicClient();
@@ -70,6 +62,7 @@ async function getRelated(
     .select(
       "id, name, slug, base_price, selling_price, image_url, featured, variants:product_variants(base_price, selling_price, special_price, sort_order)",
     )
+    .eq("store_id", storeId)
     .eq("status", "published")
     .eq("category_id", categoryId)
     .neq("id", excludeId)
@@ -80,11 +73,15 @@ async function getRelated(
 }
 
 // Public reviews for a product, newest first.
-async function getReviews(productId: string): Promise<ProductReview[]> {
+async function getReviews(
+  productId: string,
+  storeId: string,
+): Promise<ProductReview[]> {
   const supabase = createPublicClient();
   const { data } = await supabase
     .from("product_reviews")
     .select("id, user_id, author_name, rating, comment, created_at")
+    .eq("store_id", storeId)
     .eq("product_id", productId)
     .order("created_at", { ascending: false });
 
@@ -95,7 +92,7 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const product = await getProduct(slug);
+  const product = await getProduct(slug, await getCurrentStoreId());
   if (!product) return { title: "Product not found | WholeSip" };
 
   const title = product.seo_title || `${product.name} | WholeSip`;
@@ -136,15 +133,16 @@ export async function generateMetadata({
 
 export default async function ProductDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const product = await getProduct(slug);
+  const storeId = await getCurrentStoreId();
+  const product = await getProduct(slug, storeId);
 
   if (!product) {
     notFound();
   }
 
   const [related, reviews] = await Promise.all([
-    getRelated(product.category_id, product.id),
-    getReviews(product.id),
+    getRelated(product.category_id, product.id, storeId),
+    getReviews(product.id, storeId),
   ]);
 
   return (

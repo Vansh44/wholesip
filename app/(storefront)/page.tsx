@@ -6,6 +6,8 @@ import {
   getActiveCategories,
   getPublishedBlogCards,
 } from "@/lib/storefront/queries";
+import { getCurrentStoreId } from "@/lib/store/resolve";
+import { getStoreBrand } from "@/lib/store/brand";
 import {
   HomepageSectionRenderer,
   type ResolvedData,
@@ -29,21 +31,28 @@ import "@/app/(storefront)/components/homepage/homepage.css";
 // revalidatePath("/") in the actions.
 export const revalidate = 300;
 
-export const metadata = {
-  title: "WholeSip | The Way Earth Made It",
-  description:
-    "WholeSip — zero preservatives, 100% real ingredients. The way Earth made it.",
-  alternates: { canonical: "/" },
-};
+export async function generateMetadata() {
+  const brand = await getStoreBrand();
+  const title = brand.tagline ? `${brand.name} | ${brand.tagline}` : brand.name;
+  return {
+    title: { absolute: title },
+    description: brand.tagline ?? undefined,
+    alternates: { canonical: "/" },
+  };
+}
 
 // A homepage product row: ShopCard's needs + category_id for category-mode
 // filtering. Matches the shop page's product select shape.
 type HomeProduct = ShopCardProduct & { category_id: string | null };
 
 export default async function Home() {
+  const storeId = await getCurrentStoreId();
+
   // Enabled sections in order. If the table is missing (migration not applied
   // yet) we just render the hero.
-  const sections = (await getEnabledHomepageSections()) as HomepageSection[];
+  const sections = (await getEnabledHomepageSections(
+    storeId,
+  )) as HomepageSection[];
 
   if (sections.length === 0) {
     return (
@@ -60,9 +69,9 @@ export default async function Home() {
   const needsBlogs = sections.some((s) => s.type === "latest_blogs");
 
   const [productsRes, categoriesRes, blogsRes] = await Promise.all([
-    needsProducts ? getPublishedProducts() : Promise.resolve([]),
-    needsCategories ? getActiveCategories() : Promise.resolve([]),
-    needsBlogs ? getPublishedBlogCards() : Promise.resolve([]),
+    needsProducts ? getPublishedProducts(storeId) : Promise.resolve([]),
+    needsCategories ? getActiveCategories(storeId) : Promise.resolve([]),
+    needsBlogs ? getPublishedBlogCards(storeId) : Promise.resolve([]),
   ]);
 
   const allProducts = productsRes as unknown as HomeProduct[];

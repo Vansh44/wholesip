@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 import { revalidatePath } from "next/cache";
 
 export interface ReviewFormData {
@@ -59,6 +60,7 @@ export async function submitReview(
       rating,
       comment: form.comment.trim() || null,
       updated_at: new Date().toISOString(),
+      store_id: await getCurrentStoreId(),
     },
     { onConflict: "product_id,user_id" },
   );

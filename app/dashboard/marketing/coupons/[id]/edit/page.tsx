@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireSectionAccess } from "../../../../lib/access";
+import { requireSectionAccess, getActingStoreId } from "../../../../lib/access";
 import { CouponForm } from "../../coupon-form";
 import type { Coupon, CouponGroup } from "../../page";
 
@@ -13,9 +13,15 @@ export default async function EditCouponPage({
   const { id } = await params;
 
   const supabase = await createClient();
+  const storeId = await getActingStoreId();
   const [{ data: coupon, error }, { data: groups }, { data: links }] =
     await Promise.all([
-      supabase.from("coupons").select("*").eq("id", id).maybeSingle(),
+      supabase
+        .from("coupons")
+        .select("*")
+        .eq("id", id)
+        .eq("store_id", storeId)
+        .maybeSingle(),
       supabase
         .from("user_groups")
         .select("id, name, color")
@@ -23,6 +29,7 @@ export default async function EditCouponPage({
       supabase
         .from("coupon_user_groups")
         .select("group_id")
+        .eq("store_id", storeId)
         .eq("coupon_id", id),
     ]);
 

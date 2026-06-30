@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { TAGS } from "@/lib/storefront/tags";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import {
   validateConfig,
@@ -53,6 +53,7 @@ export async function createSection(
   const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   const result = validateConfig(type, rawConfig);
   if ("error" in result) return { error: result.error };
@@ -73,6 +74,7 @@ export async function createSection(
       config: result.config,
       sort_order: nextOrder,
       enabled: true,
+      store_id: storeId,
     })
     .select()
     .single();

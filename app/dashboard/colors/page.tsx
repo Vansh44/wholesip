@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireSectionAccess } from "../lib/access";
+import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import { ColorsManagementView } from "./colors-management-view";
 
 export interface CardColor {
@@ -18,6 +18,7 @@ export default async function ColorsPage() {
   const canManage = access.can("colors", "manage");
 
   const supabase = await createClient();
+  const storeId = await getActingStoreId();
 
   // Colours + grouped product counts in parallel. Counts come from a Postgres
   // GROUP BY (product_counts_by_color RPC) rather than scanning every product.
@@ -25,9 +26,10 @@ export default async function ColorsPage() {
     supabase
       .from("card_colors")
       .select("*")
+      .eq("store_id", storeId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
-    supabase.rpc("product_counts_by_color"),
+    supabase.rpc("product_counts_by_color", { p_store_id: storeId }),
   ]);
 
   if (error) {

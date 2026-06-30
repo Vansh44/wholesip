@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { TAGS } from "@/lib/storefront/tags";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 
 // ---------------------------------------------------------------------------
@@ -55,11 +55,13 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 async function resolveSlug(
   supabase: SupabaseClient,
   base: string,
+  storeId: string,
   excludeId?: string,
 ) {
   let query = supabase
     .from("categories")
     .select("slug")
+    .eq("store_id", storeId)
     .like("slug", `${base}%`);
   if (excludeId) query = query.neq("id", excludeId);
   const { data } = await query;
@@ -104,11 +106,12 @@ export async function createCategory(
   const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   if (!formData.name.trim()) return { error: "Name is required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base);
+  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -118,6 +121,7 @@ export async function createCategory(
     image_url: formData.image_url || null,
     sort_order: formData.sort_order ?? 0,
     status: formData.status,
+    store_id: storeId,
   });
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
@@ -152,11 +156,17 @@ export async function updateCategory(
   const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   if (!formData.name.trim()) return { error: "Name is required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, id);
+  const { slug: firstSlug, bump } = await resolveSlug(
+    supabase,
+    base,
+    storeId,
+    id,
+  );
   let slug = firstSlug;
 
   const row = (s: string) => ({

@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { createPublicClient } from "@/lib/supabase/public";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 import { sanitizeBlogContent } from "@/lib/sanitize";
 import { getOgImageUrl } from "@/lib/og-image";
 import { BlogCard } from "../blog-listing-client";
@@ -46,26 +47,29 @@ type Props = {
 
 // React.cache dedupes the two calls per request (generateMetadata + the page
 // body) so the full-content row is fetched once instead of twice.
-const getBlog = cache(async (slug: string): Promise<Blog | null> => {
-  const supabase = await createClient();
-  // No status filter — RLS decides visibility. Anonymous visitors can only read
-  // published blogs (so unpublished slugs 404 for them), while admins and a
-  // blog's own submitter are allowed to read drafts / pending submissions. This
-  // lets the dashboard "Preview" action work for blogs awaiting review.
-  const { data } = await supabase
-    .from("blogs")
-    .select("*")
-    .eq("slug", slug)
-    .maybeSingle();
-  return data;
-});
+const getBlog = cache(
+  async (slug: string, storeId: string): Promise<Blog | null> => {
+    const supabase = await createClient();
+    // No status filter — RLS decides visibility. Anonymous visitors can only read
+    // published blogs (so unpublished slugs 404 for them), while admins and a
+    // blog's own submitter are allowed to read drafts / pending submissions. This
+    // lets the dashboard "Preview" action work for blogs awaiting review.
+    const { data } = await supabase
+      .from("blogs")
+      .select("*")
+      .eq("store_id", storeId)
+      .eq("slug", slug)
+      .maybeSingle();
+    return data;
+  },
+);
 
 // Related posts render as cards only — never the article body, so don't pull
 // the heavy `content` column the way `select("*")` did.
 const RELATED_BLOG_COLUMNS =
   "id, title, slug, excerpt, cover_image_url, author, published_at, reading_time, tags, categories";
 
-async function getRelatedBlogs(blog: Blog): Promise<Blog[]> {
+async function getRelatedBlogs(blog: Blog, storeId: string): Promise<Blog[]> {
   // Public, published-only reads — use the cookie-free anon client.
   const supabase = createPublicClient();
 
@@ -77,6 +81,7 @@ async function getRelatedBlogs(blog: Blog): Promise<Blog[]> {
       ? supabase
           .from("blogs")
           .select(RELATED_BLOG_COLUMNS)
+          .eq("store_id", storeId)
           .eq("status", "published")
           .neq("id", blog.id)
           .overlaps("categories", blog.categories!)
@@ -86,6 +91,7 @@ async function getRelatedBlogs(blog: Blog): Promise<Blog[]> {
     supabase
       .from("blogs")
       .select(RELATED_BLOG_COLUMNS)
+      .eq("store_id", storeId)
       .eq("status", "published")
       .neq("id", blog.id)
       .order("published_at", { ascending: false })
@@ -107,11 +113,15 @@ async function getRelatedBlogs(blog: Blog): Promise<Blog[]> {
 }
 
 // Public comments for a blog, newest first. Empty if not migrated yet.
-async function getComments(blogId: string): Promise<BlogComment[]> {
+async function getComments(
+  blogId: string,
+  storeId: string,
+): Promise<BlogComment[]> {
   const supabase = createPublicClient();
   const { data } = await supabase
     .from("blog_comments")
     .select("id, user_id, author_name, body, created_at")
+    .eq("store_id", storeId)
     .eq("blog_id", blogId)
     .order("created_at", { ascending: false });
   return (data ?? []) as BlogComment[];
@@ -119,7 +129,7 @@ async function getComments(blogId: string): Promise<BlogComment[]> {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const blog = await getBlog(slug);
+  const blog = await getBlog(slug, await getCurrentStoreId());
 
   if (!blog) {
     return {
@@ -198,16 +208,17 @@ function BackLink() {
 
 export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
-  const blog = await getBlog(slug);
+  const storeId = await getCurrentStoreId();
+  const blog = await getBlog(slug, storeId);
 
   if (!blog) {
     notFound();
   }
 
   const [relatedBlogs, reactionCounts, comments] = await Promise.all([
-    getRelatedBlogs(blog),
+    getRelatedBlogs(blog, storeId),
     getBlogReactionCounts(blog.id),
-    getComments(blog.id),
+    getComments(blog.id, storeId),
   ]);
   // Never trust stored HTML at the render boundary — sanitize even though the
   // write path also sanitizes (defense in depth).

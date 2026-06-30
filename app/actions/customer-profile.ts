@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 
 export async function updateCustomerProfile(formData: FormData) {
   const firstName = formData.get("firstName") as string;
@@ -44,6 +45,7 @@ export async function updateCustomerProfile(formData: FormData) {
     first_name: firstName.trim(),
     last_name: lastName?.trim() || null,
     email: email?.trim() || null,
+    store_id: await getCurrentStoreId(),
   };
   if (user.phone) {
     profilePayload.phone = user.phone;
