@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -49,23 +49,23 @@ export default function SignupPage() {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const seq = useRef(0);
 
-  // Debounced live store-name availability check.
-  useEffect(() => {
+  // Debounced live store-name availability check. Driven from the input's
+  // onChange (an event handler) rather than an effect, so we never call
+  // setState synchronously inside an effect body.
+  function onNameChange(value: string) {
+    setName(value);
     if (timer.current) clearTimeout(timer.current);
-    if (!name.trim()) {
+    if (!value.trim()) {
       setCheck({ status: "idle" });
       return;
     }
     setCheck({ status: "checking" });
     const mySeq = ++seq.current;
     timer.current = setTimeout(async () => {
-      const result = await checkStoreSlugAvailability(name);
+      const result = await checkStoreSlugAvailability(value);
       if (mySeq === seq.current) setCheck({ status: "done", result });
     }, 400);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, [name]);
+  }
 
   const available = check.status === "done" && check.result.available;
   const phoneDigits = phone.replace(/\D/g, "");
@@ -206,7 +206,7 @@ export default function SignupPage() {
                   className="stq-input"
                   placeholder="Your Store"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => onNameChange(e.target.value)}
                 />
                 <span className="stq-suffix">.{ROOT_DOMAIN}</span>
               </div>
