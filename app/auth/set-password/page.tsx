@@ -62,8 +62,11 @@ export default function SetPasswordPage() {
         if (profile) {
           setFirstName(profile.first_name || "");
           setLastName(profile.last_name || "");
-          // If phone exists we could technically pre-fill it, but let's assume they have to verify a new one
-          // or we can just leave it blank if they haven't verified.
+        }
+        if (user.phone) {
+          // If the user already has a phone attached, they verified it during signup.
+          setPhone(user.phone.startsWith("+") ? user.phone : `+${user.phone}`);
+          setIsPhoneVerified(true);
         }
       }
     }

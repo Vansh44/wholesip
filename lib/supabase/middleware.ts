@@ -54,7 +54,9 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
-  const domain = cookieDomainForHost(request.headers.get("host"));
+  const host =
+    request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const domain = cookieDomainForHost(host);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
