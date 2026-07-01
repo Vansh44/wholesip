@@ -105,8 +105,10 @@ export async function updateCustomDomain(
       if (data) {
         newResendId = data.id;
       }
-    } catch (e: any) {
-      return { error: e.message || "Failed to create domain on Resend." };
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error ? e.message : "Failed to create domain on Resend.";
+      return { error: msg };
     }
   } else if (cleanDomain && !resend) {
     return { error: "Resend API key is not configured." };
@@ -151,8 +153,10 @@ export async function getResendDomainStatus(
     if (!data) return { error: "Domain not found on Resend." };
 
     return { status: data as DomainStatus };
-  } catch (e: any) {
-    return { error: e.message || "Failed to fetch domain status." };
+  } catch (e: unknown) {
+    const msg =
+      e instanceof Error ? e.message : "Failed to fetch domain status.";
+    return { error: msg };
   }
 }
 
@@ -170,7 +174,8 @@ export async function verifyResendDomain(
     if (error) return { error: error.message };
 
     return { success: true };
-  } catch (e: any) {
-    return { error: e.message || "Failed to verify domain." };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Failed to verify domain.";
+    return { error: msg };
   }
 }

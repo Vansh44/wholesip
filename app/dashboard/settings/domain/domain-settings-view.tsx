@@ -181,8 +181,8 @@ export function DomainSettingsView({
                       <div className="mt-2 text-sm text-amber-700">
                         <p>
                           Please add the following DNS records to your domain
-                          registrar's settings. It can take up to 72 hours for
-                          DNS changes to propagate.
+                          registrar&apos;s settings. It can take up to 72 hours
+                          for DNS changes to propagate.
                         </p>
                       </div>
                     </div>

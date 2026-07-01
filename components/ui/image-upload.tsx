@@ -1,9 +1,9 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useRef } from "react";
 import { uploadImage } from "@/lib/supabase/storage";
 import { UploadCloud, Loader2, X, Check } from "lucide-react";
-import Image from "next/image";
 import { Button } from "./button";
 
 interface ImageUploadProps {

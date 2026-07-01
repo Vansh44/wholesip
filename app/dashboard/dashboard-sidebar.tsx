@@ -1,8 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ArrowLeft, X } from "lucide-react";
 import { SidebarNavLink, navIcons, type NavIconKey } from "./sidebar-nav-link";
