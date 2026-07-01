@@ -8,8 +8,6 @@ import {
   removePlatformAdmin,
   type PlatformAdminRow,
 } from "@/app/actions/platform";
-import { ConsoleTabs } from "./console-tabs";
-import "./console.css";
 
 export function OperatorsConsole({
   admins,
@@ -58,89 +56,101 @@ export function OperatorsConsole({
   }
 
   return (
-    <div className="con-wrap">
-      <div className="con-head">
-        <h1>Storemink Admin</h1>
-        <span className="con-who">{myEmail}</span>
-      </div>
-      <ConsoleTabs />
+    <div className="w-full max-w-6xl space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Operators</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Platform operators can manage every store. Superadmins can also add and remove operators.
+          </p>
+        </div>
 
-      <p className="con-lead">
-        Platform operators can manage every store. Superadmins can also add and
-        remove operators.
-      </p>
-
-      {canManage && (
-        <form className="con-toolbar" onSubmit={invite}>
-          <input
-            className="con-search"
-            type="email"
-            placeholder="operator@email.com"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              setMsg(null);
-            }}
-          />
-          <select
-            className="con-select"
-            value={role}
-            onChange={(e) => setRole(e.target.value as "member" | "superadmin")}
-          >
-            <option value="member">Member</option>
-            <option value="superadmin">Superadmin</option>
-          </select>
-          <button className="con-btn" type="submit" disabled={busy}>
-            {busy ? "Adding…" : "Add operator"}
-          </button>
-          {msg && (
-            <span
-              className={`stq-hint ${msg.ok ? "ok" : "bad"}`}
-              style={{ margin: 0 }}
+        {canManage && (
+          <form className="flex w-full sm:w-auto items-center gap-3" onSubmit={invite}>
+            <input
+              className="flex h-10 w-[240px] rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-4 focus:ring-gray-100 transition-all shadow-sm"
+              type="email"
+              placeholder="operator@email.com"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setMsg(null);
+              }}
+              required
+            />
+            <select
+              className="flex h-10 w-[140px] rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-gray-300 focus:ring-4 focus:ring-gray-100 transition-all shadow-sm"
+              value={role}
+              onChange={(e) => setRole(e.target.value as "member" | "superadmin")}
             >
-              {msg.text}
-            </span>
-          )}
-        </form>
-      )}
+              <option value="member">Member</option>
+              <option value="superadmin">Superadmin</option>
+            </select>
+            <button
+              className="flex h-10 items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-gray-800 transition-colors disabled:opacity-50"
+              type="submit"
+              disabled={busy}
+            >
+              {busy ? "Adding…" : "Add operator"}
+            </button>
+            {msg && (
+              <span className={`text-sm font-medium ml-2 ${msg.ok ? "text-green-600" : "text-red-600"}`}>
+                {msg.text}
+              </span>
+            )}
+          </form>
+        )}
+      </div>
 
-      <div className="con-table-scroll">
-        <table className="con-table">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Added</th>
-              {canManage && <th style={{ textAlign: "right" }}>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
+      <div className="border border-gray-200 bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 font-medium text-gray-500">Email</th>
+                <th className="px-6 py-3 font-medium text-gray-500">Role</th>
+                <th className="px-6 py-3 font-medium text-gray-500">Added</th>
+                {canManage && <th className="px-6 py-3 font-medium text-gray-500 text-right">Actions</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
             {admins.map((a) => (
-              <tr key={a.id}>
-                <td className="con-store-name">
-                  {a.email}
+              <tr key={a.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4">
+                  <span className="font-semibold text-gray-900">{a.email}</span>
                   {a.email.toLowerCase() === myEmail.toLowerCase() && (
-                    <span className="con-store-addr"> (you)</span>
+                    <span className="text-gray-500 ml-2">(you)</span>
                   )}
                 </td>
-                <td>
+                <td className="px-6 py-4">
                   <span
-                    className={`con-badge ${a.role === "superadmin" ? "active" : "pending"}`}
+                    className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium capitalize ${
+                      a.role === "superadmin"
+                        ? "bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-600/20"
+                        : "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20"
+                    }`}
                   >
                     {a.role}
                   </span>
                 </td>
-                <td>{new Date(a.created_at).toLocaleDateString()}</td>
+                  <td className="px-6 py-4 text-gray-600">
+                  {new Date(a.created_at).toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </td>
                 {canManage && (
-                  <td>
-                    <div className="con-actions">
-                      <button className="con-btn" onClick={() => changeRole(a)}>
-                        {a.role === "superadmin"
-                          ? "Make member"
-                          : "Make superadmin"}
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      <button
+                        className="px-3 py-1.5 rounded-md text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                        onClick={() => changeRole(a)}
+                      >
+                        {a.role === "superadmin" ? "Make member" : "Make superadmin"}
                       </button>
                       <button
-                        className="con-btn danger"
+                        className="px-3 py-1.5 rounded-md text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
                         onClick={() => remove(a)}
                       >
                         Remove
@@ -152,6 +162,7 @@ export function OperatorsConsole({
             ))}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );
