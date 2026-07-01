@@ -1,7 +1,6 @@
 import { Resend } from "resend";
 import { wrapBrandedEmail } from "./layout";
-
-const FROM_ADDRESS = "WholeSip <admin@wholesip.com>";
+import type { StoreBrand } from "@/lib/store/brand";
 
 /** Escape user-supplied values before interpolating into email HTML. */
 function escapeHtml(value: string): string {
@@ -22,12 +21,12 @@ function getResend(): Resend | null {
 }
 
 /** Wraps body content in the shared branded layout + sign-off. */
-function emailShell(bodyHtml: string): string {
+function emailShell(bodyHtml: string, brand: StoreBrand): string {
   return wrapBrandedEmail(`${bodyHtml}
     <p style="margin-top:32px;">
       Warm regards,<br />
-      <strong>Team WholeSip</strong>
-    </p>`);
+      <strong>Team ${escapeHtml(brand.name)}</strong>
+    </p>`, brand);
 }
 
 /**
@@ -40,6 +39,7 @@ export async function sendEnquiryAcknowledgementEmail(opts: {
   name: string;
   subject: string | null;
   message: string;
+  brand: StoreBrand;
 }): Promise<void> {
   const resend = getResend();
   if (!resend) {
@@ -55,15 +55,16 @@ export async function sendEnquiryAcknowledgementEmail(opts: {
     : "We received your enquiry";
 
   try {
+    const fromAddress = `${opts.brand.name} <admin@${opts.brand.domain}>`;
     const { data, error } = await resend.emails.send({
-      from: FROM_ADDRESS,
+      from: fromAddress,
       to: opts.to,
       subject: subjectLine,
       html: emailShell(`
         <h2 style="margin-top: 0;">Thanks for reaching out!</h2>
         <p>Hi ${escapeHtml(opts.name)},</p>
         <p>
-          We've received your enquiry and a member of the WholeSip team will get
+          We've received your enquiry and a member of the ${escapeHtml(opts.brand.name)} team will get
           back to you as soon as possible, usually within 1–2 business days.
         </p>
         <p style="margin: 24px 0 6px;">
@@ -81,7 +82,7 @@ export async function sendEnquiryAcknowledgementEmail(opts: {
             </td>
           </tr>
         </table>
-      `),
+      `, opts.brand),
     });
     // Resend returns errors in the response body rather than throwing.
     if (error) {

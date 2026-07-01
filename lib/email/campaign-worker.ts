@@ -3,8 +3,8 @@ import "server-only";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mergeTokens, renderCouponEmail } from "@/lib/email/coupon-campaign";
+import { getStoreBrandById } from "@/lib/store/brand";
 
-const FROM_ADDRESS = "WholeSip <admin@wholesip.com>";
 const RESEND_BATCH = 100; // Resend batch.send() hard limit
 const MAX_PER_RUN = 2000; // emails per worker invocation (stays within timeout)
 
@@ -22,6 +22,7 @@ interface CampaignRow {
   code: string;
   discount_label: string;
   valid_until_label: string | null;
+  store_id: string;
 }
 
 export interface WorkerResult {
@@ -80,19 +81,28 @@ export async function processEmailQueue(
     const campaignIds = [...new Set(batch.map((r) => r.campaign_id))];
     const { data: campaignRows } = await admin
       .from("email_campaigns")
-      .select("id, subject, body, code, discount_label, valid_until_label")
+      .select("id, subject, body, code, discount_label, valid_until_label, store_id")
       .in("id", campaignIds);
     const campaigns = new Map<string, CampaignRow>(
       (campaignRows ?? []).map((c) => [c.id as string, c as CampaignRow]),
     );
 
+    const storeIds = [...new Set((campaignRows ?? []).map((c) => c.store_id as string))].filter(Boolean);
+    const brandsMap = new Map();
+    for (const sid of storeIds) {
+      brandsMap.set(sid, await getStoreBrandById(sid));
+    }
+
     const messages = batch
       .map((r) => {
         const c = campaigns.get(r.campaign_id);
         if (!c) return null;
+        const brand = brandsMap.get(c.store_id);
+        if (!brand) return null;
+
         const firstName = r.first_name?.trim() || "there";
         return {
-          from: FROM_ADDRESS,
+          from: `${brand.name} <admin@${brand.domain}>`,
           to: r.email,
           subject: mergeTokens(c.subject, firstName),
           html: renderCouponEmail({
@@ -101,6 +111,7 @@ export async function processEmailQueue(
             code: c.code,
             discountLabel: c.discount_label,
             validUntilLabel: c.valid_until_label,
+            brand,
           }),
         };
       })

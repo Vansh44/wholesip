@@ -1,4 +1,5 @@
 import { wrapBrandedEmail } from "./layout";
+import type { StoreBrand } from "@/lib/store/brand";
 
 /** Escape user / AI supplied values before interpolating into email HTML. */
 export function escapeHtml(value: string): string {
@@ -25,6 +26,7 @@ export type CouponEmailContent = {
   code: string;
   discountLabel: string;
   validUntilLabel?: string | null;
+  brand: StoreBrand;
 };
 
 // Turn the body into safe HTML: escape first (so merged names / copy can't
@@ -78,11 +80,11 @@ export function renderCouponEmailBody(content: CouponEmailContent): string {
 ${couponBox(content.code, content.discountLabel, content.validUntilLabel)}
 <p style="margin-top:28px;">
   Warm regards,<br />
-  <strong>Team WholeSip</strong>
+  <strong>Team ${escapeHtml(content.brand.name)}</strong>
 </p>`;
 }
 
 /** Full, send-ready HTML document for one recipient. */
 export function renderCouponEmail(content: CouponEmailContent): string {
-  return wrapBrandedEmail(renderCouponEmailBody(content));
+  return wrapBrandedEmail(renderCouponEmailBody(content), content.brand);
 }

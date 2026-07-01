@@ -18,12 +18,14 @@ export async function getStoreBrandingForEditor(): Promise<StoreBrand> {
   const admin = createAdminClient();
   const { data } = await admin
     .from("stores")
-    .select("name, settings")
+    .select("name, settings, slug, custom_domain")
     .eq("id", storeId)
     .single();
+  const domain = data?.custom_domain || `${data?.slug || "store"}.storemink.com`;
   return brandFromSettings(
     (data?.settings as Record<string, unknown>) ?? {},
     (data?.name as string) ?? "Store",
+    domain
   );
 }
 
@@ -82,6 +84,6 @@ export async function saveStoreBranding(
     return { error: "Could not save branding. Please try again." };
   }
 
-  revalidateTag(STORE_TAG, "max");
+  revalidateTag(STORE_TAG);
   return { success: true };
 }

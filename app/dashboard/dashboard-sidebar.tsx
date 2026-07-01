@@ -73,21 +73,17 @@ export function DashboardSidebar({
             replaced by a "Back" link + that section's sub-pages. */}
         <div className="dash-primary">
           <div className="dash-brand-row">
-            <Link href="/dashboard" className="dash-brand">
-              {logoUrl ? (
-                <Image
+            <Link href="/dashboard" className="dash-brand" style={{ display: "flex", alignItems: "center", gap: "8px", textDecoration: "none" }}>
+              {logoUrl && (
+                <img
                   src={logoUrl}
                   alt={`${storeName} logo`}
-                  width={150}
-                  height={50}
-                  priority
-                  style={{ height: "auto", width: "auto", maxHeight: 32 }}
+                  style={{ height: "24px", width: "auto", maxWidth: "120px", objectFit: "contain" }}
                 />
-              ) : (
-                <span style={{ fontWeight: 700, fontSize: 18 }}>
-                  {storeName}
-                </span>
               )}
+              <span style={{ fontWeight: 800, fontSize: 18, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
+                {storeName}
+              </span>
             </Link>
             <button
               type="button"

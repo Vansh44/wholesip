@@ -15,6 +15,7 @@ const ALLOWED_IMAGE_TYPES = [
   "image/webp",
   "image/gif",
   "image/avif",
+  "image/svg+xml",
 ];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB (input cap)
 
@@ -24,7 +25,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB (input cap)
 // through untouched (re-encoding a GIF would drop the animation).
 const MAX_WIDTH = 1600;
 const WEBP_QUALITY = 80;
-const PASS_THROUGH_TYPES = ["image/gif", "image/avif"];
+const PASS_THROUGH_TYPES = ["image/gif", "image/avif", "image/svg+xml"];
 
 export async function POST(request: Request) {
   const supabase = await createClient();

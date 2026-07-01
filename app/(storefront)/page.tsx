@@ -6,7 +6,7 @@ import {
   getActiveCategories,
   getPublishedBlogCards,
 } from "@/lib/storefront/queries";
-import { getCurrentStoreId } from "@/lib/store/resolve";
+import { getCurrentStoreId, WHOLESIP_STORE_ID } from "@/lib/store/resolve";
 import { getStoreBrand } from "@/lib/store/brand";
 import {
   HomepageSectionRenderer,
@@ -58,7 +58,7 @@ export default async function Home() {
     return (
       <main>
         <StructuredData />
-        <Hero />
+        {storeId === WHOLESIP_STORE_ID && <Hero />}
       </main>
     );
   }
@@ -143,7 +143,7 @@ export default async function Home() {
   return (
     <main>
       <StructuredData />
-      <Hero />
+      {storeId === WHOLESIP_STORE_ID && <Hero />}
       <div className="home-sections">
         {sections.map((s) => (
           <HomepageSectionRenderer key={s.id} section={s} resolved={resolved} />

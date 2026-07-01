@@ -1,19 +1,16 @@
-import Image, { ImageProps } from "next/image";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface LoaderProps extends Omit<ImageProps, "src" | "alt"> {
+interface LoaderProps {
   className?: string;
+  size?: number;
 }
 
-export function Loader({ className, ...props }: LoaderProps) {
+export function Loader({ className, size = 32 }: LoaderProps) {
   return (
-    <Image
-      src="/loader.svg"
-      alt="Loading..."
-      width={200}
-      height={60}
-      className={cn("w-32 h-auto", className)}
-      {...props}
+    <Loader2 
+      size={size}
+      className={cn("animate-spin text-gray-400", className)} 
     />
   );
 }

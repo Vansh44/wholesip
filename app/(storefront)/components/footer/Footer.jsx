@@ -94,18 +94,14 @@ export default function Footer() {
         {/* Brand Column */}
         <div className={styles.brandCol}>
           <Link href="/" className={styles.logo} onClick={handleLogoClick}>
-            {brand.logoUrl ? (
-              <Image
+            {brand.logoUrl && (
+              <img
                 src={brand.logoUrl}
                 alt={`${brand.name} logo`}
-                width={160}
-                height={60}
-                priority
-                style={{ height: "auto" }}
+                style={{ height: "32px", width: "auto", maxWidth: "160px", objectFit: "contain" }}
               />
-            ) : (
-              <span>{brand.name}</span>
             )}
+            <span className={styles.brandNameText}>{brand.name}</span>
           </Link>
           {brand.blurb && <p className={styles.tagline}>{brand.blurb}</p>}
 

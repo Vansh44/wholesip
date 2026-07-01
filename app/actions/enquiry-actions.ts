@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { getCurrentStoreId } from "@/lib/store/resolve";
+import { getStoreBrand } from "@/lib/store/brand";
 import { sendEnquiryAcknowledgementEmail } from "@/lib/email/enquiry-notifications";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
@@ -95,11 +96,13 @@ export async function submitEnquiry(
     subject === "Other" && subjectDetail ? subjectDetail : subject;
 
   // Best-effort acknowledgement — failure is logged inside, never thrown.
+  const brand = await getStoreBrand();
   await sendEnquiryAcknowledgementEmail({
     to: email,
     name,
     subject: emailSubject,
     message,
+    brand,
   });
 
   revalidatePath("/dashboard/enquiries");

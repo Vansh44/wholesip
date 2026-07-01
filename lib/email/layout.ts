@@ -1,7 +1,7 @@
-import { siteConfig } from "@/config/site";
+import type { StoreBrand } from "@/lib/store/brand";
 
 /**
- * Wraps email body content in the shared WholeSip branded layout.
+ * Wraps email body content in the shared branded layout.
  *
  * Returns a full HTML document that forces a light color scheme: the
  * `color-scheme` / `supported-color-schemes` meta + CSS tell clients the email
@@ -12,7 +12,11 @@ import { siteConfig } from "@/config/site";
  *
  * `bodyHtml` is dropped into the white content cell — include your own sign-off.
  */
-export function wrapBrandedEmail(bodyHtml: string): string {
+export function wrapBrandedEmail(bodyHtml: string, brand: StoreBrand): string {
+  const logoHtml = brand.logoUrl
+    ? `<img src="${brand.logoUrl}" alt="${brand.name}" width="140" style="display:block; width:140px; max-width:55%; height:auto;" />`
+    : `<h2 style="margin:0; font-family:Arial, sans-serif; color:${brand.primaryColor}; font-size:24px;">${brand.name}</h2>`;
+
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -39,12 +43,7 @@ export function wrapBrandedEmail(bodyHtml: string): string {
           <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:100%; max-width:600px; background-color:#ffffff; border:1px solid #e5e5e5; border-radius:12px; overflow:hidden;">
             <tr>
               <td align="center" bgcolor="#ffffff" style="background-color:#ffffff; padding:28px 24px; border-bottom:1px solid #f0f0f0;">
-                <img
-                  src="${siteConfig.assets.logoUrl}"
-                  alt="WholeSip"
-                  width="140"
-                  style="display:block; width:140px; max-width:55%; height:auto;"
-                />
+                ${logoHtml}
               </td>
             </tr>
             <tr>

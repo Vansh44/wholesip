@@ -92,18 +92,14 @@ export default function Header() {
     >
       <div className={styles.headerLeft}>
         <Link href="/" className={styles.logo}>
-          {brand.logoUrl ? (
-            <Image
+          {brand.logoUrl && (
+            <img
               src={brand.logoUrl}
               alt={`${brand.name} logo`}
-              width={180}
-              height={60}
-              priority
-              style={{ height: "auto" }}
+              style={{ height: "32px", width: "auto", maxWidth: "160px", objectFit: "contain" }}
             />
-          ) : (
-            <span>{brand.name}</span>
           )}
+          <span className={styles.brandNameText}>{brand.name}</span>
         </Link>
 
         <nav className={styles.navLinks}>
@@ -333,7 +329,16 @@ export default function Header() {
             className={styles.logo}
             onClick={() => setIsMenuOpen(false)}
           >
-            {brand.name}
+            {brand.logoUrl && (
+              <Image
+                src={brand.logoUrl}
+                alt={`${brand.name} logo`}
+                width={120}
+                height={40}
+                style={{ height: "auto", maxWidth: "100px", maxHeight: "30px" }}
+              />
+            )}
+            <span className={styles.brandNameText}>{brand.name}</span>
           </Link>
           <button
             className={styles.closeBtn}

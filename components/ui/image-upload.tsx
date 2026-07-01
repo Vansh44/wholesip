@@ -91,12 +91,10 @@ export function ImageUpload({
     return (
       <div className={`w-full ${className}`}>
         <div className="relative w-full h-48 rounded-lg border border-border overflow-hidden bg-muted/30">
-          <Image
+          <img
             src={pendingPreview}
             alt="Preview"
-            fill
-            className="object-contain"
-            unoptimized
+            className="absolute inset-0 w-full h-full object-contain"
           />
           <div className="absolute bottom-0 inset-x-0 bg-background/90 border-t border-border px-3 py-2 flex items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground truncate">
@@ -141,12 +139,10 @@ export function ImageUpload({
     return (
       <div className={`w-full ${className}`}>
         <div className="relative w-full h-48 rounded-lg border border-border/50 overflow-hidden bg-muted/30">
-          <Image
+          <img
             src={previewUrl}
             alt="Uploaded"
-            fill
-            className="object-contain"
-            unoptimized
+            className="absolute inset-0 w-full h-full object-contain"
           />
           <button
             onClick={handleRemoveUploaded}
@@ -167,7 +163,7 @@ export function ImageUpload({
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept="image/png, image/jpeg, image/webp"
+        accept="image/png, image/jpeg, image/webp, image/svg+xml"
         className="hidden"
       />
       <div
@@ -181,7 +177,7 @@ export function ImageUpload({
             <span className="text-primary">Click to upload</span> or drag and
             drop
           </p>
-          <p className="text-xs">PNG, JPG, WEBP (MAX. 5MB)</p>
+          <p className="text-xs">PNG, JPG, WEBP, SVG (MAX. 5MB)</p>
         </div>
       </div>
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
