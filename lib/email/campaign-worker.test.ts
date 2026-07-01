@@ -5,6 +5,12 @@ vi.mock("@/lib/email/coupon-campaign", () => ({
   mergeTokens: (t: string) => t,
   renderCouponEmail: () => "<html>",
 }));
+vi.mock("@/lib/store/brand", () => ({
+  getStoreBrandById: vi.fn(async () => ({
+    name: "WholeSip",
+    domain: "wholesip.com",
+  })),
+}));
 
 const { batchSend } = vi.hoisted(() => ({ batchSend: vi.fn() }));
 vi.mock("resend", () => {
@@ -26,6 +32,7 @@ const campaign = {
   code: "C",
   discount_label: "10% off",
   valid_until_label: null,
+  store_id: "store-1",
 };
 
 // Wire claim_email_batch to hand back `batch` once, then empty (so the drain

@@ -15,6 +15,7 @@ import {
   sendBlogApprovedEmail,
   sendBlogRejectedEmail,
 } from "@/lib/email/blog-notifications";
+import { getStoreBrand } from "@/lib/store/brand";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -322,11 +323,13 @@ export async function updateBlog(
           currentBlog!.submitted_by as string,
         );
         if (contact?.email) {
+          const brand = await getStoreBrand();
           await sendBlogApprovedEmail({
             to: contact.email,
             firstName: contact.firstName,
             title: formData.title,
             slug,
+            brand,
           });
         }
       }
@@ -1055,11 +1058,13 @@ export async function approveCustomerBlog(id: string): Promise<ActionResult> {
   if (approved?.submitted_by) {
     const contact = await getCustomerContact(approved.submitted_by);
     if (contact?.email) {
+      const brand = await getStoreBrand();
       await sendBlogApprovedEmail({
         to: contact.email,
         firstName: contact.firstName,
         title: approved.title,
         slug: approved.slug,
+        brand,
       });
     }
   }
@@ -1105,10 +1110,12 @@ export async function rejectCustomerBlog(id: string): Promise<ActionResult> {
   if (target?.submitted_by) {
     const contact = await getCustomerContact(target.submitted_by);
     if (contact?.email) {
+      const brand = await getStoreBrand();
       await sendBlogRejectedEmail({
         to: contact.email,
         firstName: contact.firstName,
         title: target.title,
+        brand,
       });
     }
   }

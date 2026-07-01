@@ -4,7 +4,8 @@ import { parseHost, isHelpHost } from "@/lib/store/host";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const host = request.headers.get("host");
+  const host =
+    request.headers.get("x-forwarded-host") || request.headers.get("host");
 
   // --- Help centre: help.storemink.com -> /help/* ---
   if (isHelpHost(host) && !pathname.startsWith("/help")) {

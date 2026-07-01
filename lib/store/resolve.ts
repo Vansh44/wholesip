@@ -72,7 +72,7 @@ const lookupStoreByHost = unstable_cache(
 );
 
 // Cached store lookup by id — used for the WholeSip fallback.
-const lookupStoreById = unstable_cache(
+export const lookupStoreById = unstable_cache(
   async (id: string): Promise<Store | null> => {
     const supabase = createPublicClient();
     const { data, error } = await supabase
@@ -94,7 +94,8 @@ const lookupStoreById = unstable_cache(
 // unknown hosts fall back to WholeSip so the site keeps rendering during the
 // single-tenant period.
 export async function getCurrentStore(): Promise<Store> {
-  const host = (await headers()).get("host");
+  const headersList = await headers();
+  const host = headersList.get("x-forwarded-host") || headersList.get("host");
   const resolved = await lookupStoreByHost(host ?? "");
   if (resolved) return resolved;
 

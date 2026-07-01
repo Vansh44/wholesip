@@ -20,6 +20,23 @@ vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("@/lib/email/trigger-worker", () => ({
   triggerEmailWorker: vi.fn(),
 }));
+vi.mock("@/lib/store/brand", () => ({
+  getStoreBrand: vi.fn(async () => ({
+    name: "WholeSip",
+    logoUrl: null,
+    primaryColor: "#000000",
+    tagline: null,
+    blurb: null,
+    legalName: null,
+    creditLine: null,
+    email: null,
+    phone: null,
+    hours: null,
+    social: { instagram: null, youtube: null, whatsapp: null },
+    badges: [],
+    domain: "wholesip.com",
+  })),
+}));
 
 // getResend() still constructs a Resend client to verify config is present.
 const { batchSend } = vi.hoisted(() => ({ batchSend: vi.fn() }));

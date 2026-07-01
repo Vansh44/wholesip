@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Resend } from "resend";
 import { wrapBrandedEmail } from "@/lib/email/layout";
+import { getStoreBrandById } from "@/lib/store/brand";
 import { randomInt } from "crypto";
 
 function generateTempPassword(): string {
@@ -122,18 +123,24 @@ export async function inviteUser(formData: FormData) {
 
   if (isResendAvailable) {
     try {
+      const brand = await getStoreBrandById(storeId);
+      const appUrl = (
+        process.env.NEXT_PUBLIC_APP_URL || "https://storiq.in"
+      ).replace(/\/$/, "");
+
       const resend = new Resend(resendApiKey);
       await resend.emails.send({
-        from: "WholeSip Dashboard <admin@wholesip.com>",
+        from: `${escapeHtml(brand.name)} Dashboard <admin@${brand.domain}>`,
         to: email,
-        subject: "Welcome to WholeSip Dashboard",
-        html: wrapBrandedEmail(`
+        subject: `Welcome to ${escapeHtml(brand.name)} Dashboard`,
+        html: wrapBrandedEmail(
+          `
         <h2 style="margin-top: 0;">You've Been Invited 🎉</h2>
 
         <p>Hello ${escapeHtml(firstName)}${lastName ? " " + escapeHtml(lastName) : ""},</p>
 
         <p>
-          You have been invited to join the <strong>WholeSip Admin Dashboard</strong>
+          You have been invited to join the <strong>${escapeHtml(brand.name)} Admin Dashboard</strong>
           as a <strong>${escapeHtml(role)}</strong>.
         </p>
 
@@ -170,7 +177,7 @@ export async function inviteUser(formData: FormData) {
 
         <div style="text-align: center; margin: 32px 0;">
           <a
-            href="https://wholesip.com/dashboard"
+            href="${appUrl}/dashboard"
             style="
               display: inline-block;
               background: #000;
@@ -191,9 +198,11 @@ export async function inviteUser(formData: FormData) {
 
         <p>
           Regards,<br />
-          <strong>Team WholeSip</strong>
+          <strong>Team ${escapeHtml(brand.name)}</strong>
         </p>
-      `),
+      `,
+          brand,
+        ),
       });
     } catch (e) {
       console.error("Failed to send invite email via Resend:", e);

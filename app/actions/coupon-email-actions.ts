@@ -11,6 +11,7 @@ import {
   renderCouponEmail,
   type CouponEmailContent,
 } from "@/lib/email/coupon-campaign";
+import { getStoreBrand } from "@/lib/store/brand";
 
 const RECIPIENT_PAGE_SIZE = 50;
 
@@ -226,12 +227,14 @@ export async function renderCouponEmailPreview(input: {
   if (!userId) return { error: "Not authenticated" };
 
   const firstName = input.sampleName?.trim() || "there";
+  const brand = await getStoreBrand();
   const content: CouponEmailContent = {
     body: input.body,
     firstName,
     code: input.code,
     discountLabel: input.discountLabel,
     validUntilLabel: input.validUntilLabel,
+    brand,
   };
 
   return {

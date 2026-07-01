@@ -1,4 +1,4 @@
-import { getCurrentStore } from "@/lib/store/resolve";
+import { getCurrentStore, lookupStoreById } from "@/lib/store/resolve";
 
 // A store's public brand + footer identity. Stored under stores.settings.brand
 // (jsonb) and edited from the dashboard (/dashboard/branding). Everything falls
@@ -27,6 +27,7 @@ export interface StoreBrand {
   hours: string | null;
   social: StoreSocial;
   badges: StoreBadge[];
+  domain: string; // The email sender / primary domain for this store
 }
 
 // Default storefront accent (the existing near-black) — a store keeps the clean
@@ -60,6 +61,7 @@ function badgesFromSettings(v: unknown): StoreBadge[] {
 export function brandFromSettings(
   settings: Record<string, unknown> | null | undefined,
   fallbackName: string,
+  domain: string,
 ): StoreBrand {
   const b = ((settings?.brand as Record<string, unknown>) ?? {}) as Record<
     string,
@@ -78,11 +80,21 @@ export function brandFromSettings(
     hours: str(b.hours),
     social: socialFromSettings(b.social),
     badges: badgesFromSettings(b.badges),
+    domain,
   };
 }
 
 // The brand for the CURRENT request's store (resolved from host).
 export async function getStoreBrand(): Promise<StoreBrand> {
   const store = await getCurrentStore();
-  return brandFromSettings(store.settings, store.name);
+  const domain = store.custom_domain || `${store.slug}.storemink.com`;
+  return brandFromSettings(store.settings, store.name, domain);
+}
+
+// The brand for a specific store by ID.
+export async function getStoreBrandById(id: string): Promise<StoreBrand> {
+  const store = await lookupStoreById(id);
+  const domain =
+    store?.custom_domain || `${store?.slug || "store"}.storemink.com`;
+  return brandFromSettings(store?.settings, store?.name || "Store", domain);
 }

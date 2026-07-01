@@ -34,12 +34,7 @@ export default function RootLayout({
       className={`${outfit.variable} ${roboto.variable} ${stickNoBills.variable}`}
     >
       <body className="antialiased">
-        <NextTopLoader
-          color="transparent"
-          height={0}
-          showSpinner={true}
-          template='<div class="custom-spinner" role="spinner"><img src="/loader.svg" alt="Loading..." class="w-32 h-auto" /></div><div role="bar" style="display: none;"><div class="peg"></div></div>'
-        />
+        <NextTopLoader color="#1a1a1a" showSpinner={false} />
         {children}
       </body>
     </html>
