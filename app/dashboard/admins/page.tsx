@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireSectionAccess } from "../lib/access";
+import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import { UsersManagementView } from "./users-management-view";
 
 export interface RoleOption {
@@ -23,6 +23,7 @@ export interface Profile {
 export default async function UsersPage() {
   const access = await requireSectionAccess("admins", "view");
   const canManage = access.can("admins", "manage");
+  const storeId = await getActingStoreId();
 
   const supabase = await createClient();
 
@@ -35,6 +36,7 @@ export default async function UsersPage() {
   const { data: profiles, error } = await admin
     .from("admins")
     .select("*")
+    .eq("store_id", storeId)
     .order("created_at", { ascending: false });
 
   const { data: rolesData } = await supabase

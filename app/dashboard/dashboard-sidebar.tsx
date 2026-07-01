@@ -4,7 +4,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { SidebarNavLink, navIcons, type NavIconKey } from "./sidebar-nav-link";
 import { useMobileNav } from "./dashboard-mobile-nav";
 
@@ -72,48 +72,56 @@ export function DashboardSidebar({
             nav. Inside a section that has sub-(pages), the top-level nav is
             replaced by a "Back" link + that section's sub-pages. */}
         <div className="dash-primary">
-          <div className="dash-brand-row">
+          <div className="dash-brand-row" style={{ justifyContent: "center" }}>
             <Link
               href="/dashboard"
               className="dash-brand"
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: "10px",
                 textDecoration: "none",
+                padding: "2px 0",
               }}
             >
               {logoUrl && (
-                <img
-                  src={logoUrl}
-                  alt={`${storeName} logo`}
+                <div
                   style={{
-                    height: "24px",
-                    width: "auto",
-                    maxWidth: "120px",
-                    objectFit: "contain",
+                    height: "32px",
+                    width: "32px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "6px",
+                    overflow: "hidden",
+                    flexShrink: 0,
                   }}
-                />
+                >
+                  <img
+                    src={logoUrl}
+                    alt={`${storeName} logo`}
+                    style={{
+                      height: "100%",
+                      width: "100%",
+                      objectFit: "contain",
+                    }}
+                  />
+                </div>
               )}
               <span
+                className="truncate"
                 style={{
-                  fontWeight: 800,
-                  fontSize: 18,
-                  color: "#1a1a1a",
-                  letterSpacing: "-0.02em",
+                  fontWeight: 700,
+                  fontSize: 20,
+                  color: "#0f172a",
+                  letterSpacing: "-0.01em",
+                  lineHeight: "1.3",
+                  paddingBottom: "2px",
                 }}
               >
                 {storeName}
               </span>
             </Link>
-            <button
-              type="button"
-              className="dash-drawer-close md:hidden"
-              aria-label="Close navigation menu"
-              onClick={() => setOpen(false)}
-            >
-              <X className="h-5 w-5" />
-            </button>
           </div>
 
           {showPanel ? (

@@ -31,7 +31,7 @@ export async function generateMetadata() {
   const brand = await getStoreBrand();
   return {
     title: `${brand.name} — Operations Center`,
-    icons: brand.logoUrl ? { icon: brand.logoUrl } : undefined,
+    icons: brand.logoUrl ? { icon: brand.logoUrl } : { icon: "/icon.svg" },
   };
 }
 
