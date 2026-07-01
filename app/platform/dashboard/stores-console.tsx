@@ -14,7 +14,6 @@ function storeUrl(store: PlatformStoreRow, rootDomain: string): string {
 export function StoresConsole({
   stores,
   canManage,
-  email,
   q,
   rootDomain,
 }: {
@@ -53,9 +52,12 @@ export function StoresConsole({
     <div className="w-full max-w-6xl space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Stores</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            Stores
+          </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Every store on the platform. Open a store to manage it, or suspend one to take it offline.
+            Every store on the platform. Open a store to manage it, or suspend
+            one to take it offline.
           </p>
         </div>
 
@@ -79,23 +81,30 @@ export function StoresConsole({
                 <th className="px-6 py-3 font-medium text-gray-500">Status</th>
                 <th className="px-6 py-3 font-medium text-gray-500">Plan</th>
                 <th className="px-6 py-3 font-medium text-gray-500">Created</th>
-                <th className="px-6 py-3 font-medium text-gray-500 text-right">Actions</th>
+                <th className="px-6 py-3 font-medium text-gray-500 text-right">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {stores.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                  No stores found.
-                </td>
-              </tr>
-            )}
+                  <td
+                    colSpan={5}
+                    className="px-6 py-12 text-center text-gray-500"
+                  >
+                    No stores found.
+                  </td>
+                </tr>
+              )}
               {stores.map((s) => {
                 const addr = s.custom_domain ?? `${s.slug}.${rootDomain}`;
                 return (
                   <tr key={s.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-semibold text-gray-900">{s.name}</div>
+                      <div className="font-semibold text-gray-900">
+                        {s.name}
+                      </div>
                       <div className="text-gray-500 mt-0.5">{addr}</div>
                     </td>
                     <td className="px-6 py-4">
@@ -109,7 +118,9 @@ export function StoresConsole({
                         {s.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-600 capitalize">{s.plan}</td>
+                    <td className="px-6 py-4 text-gray-600 capitalize">
+                      {s.plan}
+                    </td>
                     <td className="px-6 py-4 text-gray-600">
                       {new Date(s.created_at).toLocaleDateString("en-GB", {
                         day: "2-digit",
@@ -149,9 +160,9 @@ export function StoresConsole({
                   </tr>
                 );
               })}
-          </tbody>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

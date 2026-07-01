@@ -21,7 +21,7 @@ const dashMono = JetBrains_Mono({
 });
 
 export async function generateMetadata() {
-  return { 
+  return {
     title: `Storemink Admin`,
   };
 }
@@ -47,7 +47,11 @@ export default async function PlatformDashboardLayout({
     {
       group: "ADMINISTRATION" as SectionGroup,
       items: [
-        { href: "/dashboard/operators", label: "Operators", icon: "users" as const },
+        {
+          href: "/dashboard/operators",
+          label: "Operators",
+          icon: "users" as const,
+        },
       ],
     },
   ];

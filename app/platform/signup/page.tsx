@@ -8,7 +8,14 @@ import {
   createStore,
   type SlugCheck,
 } from "@/app/actions/store-signup";
-import { CheckCircle2, ChevronRight, ChevronLeft, Lock, Loader2, Check, Globe } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronRight,
+  ChevronLeft,
+  Lock,
+  Loader2,
+  Check,
+} from "lucide-react";
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storemink.com";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -105,7 +112,12 @@ export default function SignupPage() {
   }
 
   const isNameAvailable = check.status === "done" && check.result.available;
-  const currentSlug = check.status === "done" ? check.result.slug : (name.trim() ? name.trim().toLowerCase().replace(/\s+/g, '-') : "your-store");
+  const currentSlug =
+    check.status === "done"
+      ? check.result.slug
+      : name.trim()
+        ? name.trim().toLowerCase().replace(/\s+/g, "-")
+        : "your-store";
 
   function hint() {
     if (check.status === "idle")
@@ -118,7 +130,8 @@ export default function SignupPage() {
       : { cls: "bad", text: r.reason ?? "Not available" };
   }
   const h = hint();
-  const selectedThemeInfo = TEMPLATES.find(t => t.id === template) || TEMPLATES[0];
+  const selectedThemeInfo =
+    TEMPLATES.find((t) => t.id === template) || TEMPLATES[0];
 
   // Step 3 Logic
   async function handleSendEmailOtp() {
@@ -143,7 +156,7 @@ export default function SignupPage() {
   async function handleVerifyEmailOtp() {
     setBusy(true);
     setError("");
-    let { error: vErr } = await supabase.auth.verifyOtp({
+    const { error: vErr } = await supabase.auth.verifyOtp({
       email: email.trim(),
       token: emailCode.trim(),
       type: "signup",
@@ -221,28 +234,39 @@ export default function SignupPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="font-bold text-xl text-gray-900 tracking-tight flex items-center">
+        <Link
+          href="/"
+          className="font-bold text-xl text-gray-900 tracking-tight flex items-center"
+        >
           Store<span className="text-primary">mink</span>
         </Link>
         <p className="text-sm text-gray-500 font-medium">
-          Already selling? <Link href="/platform/login" className="text-primary hover:underline">Log in</Link>
+          Already selling?{" "}
+          <Link href="/platform/login" className="text-primary hover:underline">
+            Log in
+          </Link>
         </p>
       </header>
 
       <main className="flex-1 flex flex-col items-center pt-10 pb-20 px-4">
         {(step === "name" || step === "theme") && (
           <div className="w-full max-w-7xl mx-auto flex flex-col lg:flex-row gap-12 items-start mt-10">
-            
             {/* Left side: Dynamic Content */}
             <div className="w-full lg:w-[600px] flex flex-col pt-4">
-              
               {step === "name" && (
                 <div className="animate-in fade-in slide-in-from-left-4 duration-500">
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">Store details</h1>
-                  <p className="text-gray-500 mb-10 text-lg">Give your store a name.</p>
-                  
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                    Store details
+                  </h1>
+                  <p className="text-gray-500 mb-10 text-lg">
+                    Give your store a name.
+                  </p>
+
                   <div className="stq-field mb-8 relative">
-                    <label className="stq-label text-sm font-semibold text-gray-700" htmlFor="store">
+                    <label
+                      className="stq-label text-sm font-semibold text-gray-700"
+                      htmlFor="store"
+                    >
                       Store name
                     </label>
                     <div className="stq-input-row mt-2">
@@ -259,15 +283,21 @@ export default function SignupPage() {
                       </span>
                     </div>
                     <div className="flex flex-col mt-2">
-                      <div className={`stq-hint !mt-0 ${h.cls} mb-4`}>{h.text}</div>
-                      
+                      <div className={`stq-hint !mt-0 ${h.cls} mb-4`}>
+                        {h.text}
+                      </div>
+
                       <div className="mt-2 flex items-center gap-3 bg-indigo-50/80 border border-indigo-200 rounded-xl p-3 shadow-sm w-full">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm border border-indigo-100 text-xl">
                           🎉
                         </div>
                         <div>
-                          <h4 className="text-sm font-bold text-indigo-900">Free Lifetime Domain!</h4>
-                          <p className="text-xs font-medium text-indigo-700 mt-0.5">Avail a custom .storemink.com address forever.</p>
+                          <h4 className="text-sm font-bold text-indigo-900">
+                            Free Lifetime Domain!
+                          </h4>
+                          <p className="text-xs font-medium text-indigo-700 mt-0.5">
+                            Avail a custom .storemink.com address forever.
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -287,9 +317,14 @@ export default function SignupPage() {
 
               {step === "theme" && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">Choose a store theme</h1>
-                  <p className="text-gray-500 mb-8 text-lg">Select a beautiful layout for {name.trim() ? name : "your store"}.</p>
-                  
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                    Choose a store theme
+                  </h1>
+                  <p className="text-gray-500 mb-8 text-lg">
+                    Select a beautiful layout for{" "}
+                    {name.trim() ? name : "your store"}.
+                  </p>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
                     {TEMPLATES.map((t) => {
                       const selected = template === t.id;
@@ -298,12 +333,18 @@ export default function SignupPage() {
                           key={t.id}
                           onClick={() => setTemplate(t.id)}
                           className={`group relative rounded-xl border-2 transition-all cursor-pointer overflow-hidden bg-white shadow-sm ${
-                            selected ? "border-primary ring-2 ring-primary ring-offset-2" : "border-gray-200 hover:border-primary/50 hover:shadow-md"
+                            selected
+                              ? "border-primary ring-2 ring-primary ring-offset-2"
+                              : "border-gray-200 hover:border-primary/50 hover:shadow-md"
                           }`}
                         >
                           <div className="aspect-[4/3] w-full overflow-hidden bg-gray-100 border-b relative">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={t.img} alt={t.name} className="w-full h-full object-cover" />
+                            <img
+                              src={t.img}
+                              alt={t.name}
+                              className="w-full h-full object-cover"
+                            />
                             {selected && (
                               <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
                                 <div className="bg-white rounded-full p-1 shadow-md">
@@ -313,8 +354,12 @@ export default function SignupPage() {
                             )}
                           </div>
                           <div className="p-4">
-                            <h3 className="text-lg font-bold text-gray-900 mb-1">{t.name}</h3>
-                            <p className="text-xs text-gray-500 mb-3 h-8 line-clamp-2">{t.description}</p>
+                            <h3 className="text-lg font-bold text-gray-900 mb-1">
+                              {t.name}
+                            </h3>
+                            <p className="text-xs text-gray-500 mb-3 h-8 line-clamp-2">
+                              {t.description}
+                            </p>
                           </div>
                         </div>
                       );
@@ -342,7 +387,6 @@ export default function SignupPage() {
             {/* Right side: Browser Mockup (Sticky) */}
             <div className="hidden lg:flex w-full lg:flex-1 p-8 rounded-2xl bg-gradient-to-br from-green-100 via-emerald-50 to-blue-100 items-center justify-center min-h-[500px] sticky top-10 shadow-inner border border-gray-200/50">
               <div className="w-full max-w-3xl bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200 flex flex-col">
-                
                 {/* Browser Toolbar */}
                 <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center gap-4">
                   <div className="flex gap-1.5">
@@ -360,7 +404,9 @@ export default function SignupPage() {
 
                 {/* Mockup Content */}
                 <div className="p-6 bg-white min-h-[350px] transition-all duration-300">
-                  <div className={`flex items-center justify-between mb-8 ${template === 'fresko' ? 'flex-col gap-4' : ''}`}>
+                  <div
+                    className={`flex items-center justify-between mb-8 ${template === "fresko" ? "flex-col gap-4" : ""}`}
+                  >
                     <div className="font-bold text-xl text-gray-800">
                       {name.trim() ? name : "Your Store"}
                     </div>
@@ -369,22 +415,25 @@ export default function SignupPage() {
                       <div className="h-4 w-12 bg-gray-200 rounded-full"></div>
                     </div>
                   </div>
-                  
+
                   {/* Dynamic Layout based on theme */}
-                  <div className={`w-full h-48 rounded-xl mb-6 transition-colors duration-500 ${selectedThemeInfo.color} opacity-90`}></div>
-                  
-                  <div className={`grid gap-6 ${template === 'emporio' ? 'grid-cols-2' : template === 'fresko' ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                  <div
+                    className={`w-full h-48 rounded-xl mb-6 transition-colors duration-500 ${selectedThemeInfo.color} opacity-90`}
+                  ></div>
+
+                  <div
+                    className={`grid gap-6 ${template === "emporio" ? "grid-cols-2" : template === "fresko" ? "grid-cols-4" : "grid-cols-3"}`}
+                  >
                     <div className="h-32 bg-gray-100 rounded-xl"></div>
                     <div className="h-32 bg-gray-100 rounded-xl"></div>
-                    {(template === 'arcade' || template === 'fresko') && (
+                    {(template === "arcade" || template === "fresko") && (
                       <div className="h-32 bg-gray-100 rounded-xl"></div>
                     )}
-                    {template === 'fresko' && (
+                    {template === "fresko" && (
                       <div className="h-32 bg-gray-100 rounded-xl"></div>
                     )}
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
@@ -392,9 +441,13 @@ export default function SignupPage() {
 
         {step === "details" && (
           <div className="w-full max-w-md mx-auto mt-10">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 mb-2">Your Details</h1>
-            <p className="text-gray-500 mb-8">Secure your superadmin account for <strong>{name}</strong>.</p>
-            
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900 mb-2">
+              Your Details
+            </h1>
+            <p className="text-gray-500 mb-8">
+              Secure your superadmin account for <strong>{name}</strong>.
+            </p>
+
             {error && (
               <div className="mb-6 p-3 rounded-md bg-red-50 text-red-600 text-sm font-medium border border-red-100">
                 {error}
@@ -402,10 +455,11 @@ export default function SignupPage() {
             )}
 
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 flex flex-col gap-6">
-              
               {/* Email Section */}
               <div className="flex flex-col gap-3">
-                <label className="text-sm font-semibold text-gray-700">Email Address</label>
+                <label className="text-sm font-semibold text-gray-700">
+                  Email Address
+                </label>
                 <div className="flex gap-2">
                   <input
                     type="email"
@@ -416,7 +470,7 @@ export default function SignupPage() {
                     disabled={emailVerified || emailSent}
                   />
                   {!emailVerified && (
-                    <button 
+                    <button
                       type="button"
                       onClick={handleSendEmailOtp}
                       disabled={busy || emailSent || !email}
@@ -431,7 +485,7 @@ export default function SignupPage() {
                     </div>
                   )}
                 </div>
-                
+
                 {emailSent && !emailVerified && (
                   <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
                     <input
@@ -440,9 +494,11 @@ export default function SignupPage() {
                       placeholder="6-digit code"
                       maxLength={6}
                       value={emailCode}
-                      onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) =>
+                        setEmailCode(e.target.value.replace(/\D/g, ""))
+                      }
                     />
-                    <button 
+                    <button
                       type="button"
                       onClick={handleVerifyEmailOtp}
                       disabled={busy || emailCode.length < 6}
@@ -457,8 +513,12 @@ export default function SignupPage() {
               {/* Password Section (Need it early to signUp with email) */}
               {!emailVerified && (
                 <div className="flex flex-col gap-3">
-                  <label className="text-sm font-semibold text-gray-700">Set Password</label>
-                  <p className="text-xs text-gray-500 -mt-2">Required before sending email OTP</p>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Set Password
+                  </label>
+                  <p className="text-xs text-gray-500 -mt-2">
+                    Required before sending email OTP
+                  </p>
                   <input
                     type="password"
                     className="stq-input"
@@ -473,7 +533,9 @@ export default function SignupPage() {
               {/* Phone Section (Requires Email Verified First) */}
               {emailVerified && (
                 <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
-                  <label className="text-sm font-semibold text-gray-700">Phone Number</label>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Phone Number
+                  </label>
                   <div className="flex gap-2">
                     <input
                       type="tel"
@@ -484,7 +546,7 @@ export default function SignupPage() {
                       disabled={phoneVerified || phoneSent}
                     />
                     {!phoneVerified && (
-                      <button 
+                      <button
                         type="button"
                         onClick={handleSendPhoneOtp}
                         disabled={busy || phoneSent || !phone}
@@ -508,9 +570,11 @@ export default function SignupPage() {
                         placeholder="6-digit code"
                         maxLength={6}
                         value={phoneCode}
-                        onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ""))}
+                        onChange={(e) =>
+                          setPhoneCode(e.target.value.replace(/\D/g, ""))
+                        }
                       />
-                      <button 
+                      <button
                         type="button"
                         onClick={handleVerifyPhoneOtp}
                         disabled={busy || phoneCode.length < 6}
@@ -527,7 +591,9 @@ export default function SignupPage() {
               {emailVerified && (
                 <div className="flex flex-col gap-4 pt-4 border-t border-gray-100">
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-semibold text-gray-700">Password</label>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Password
+                    </label>
                     <input
                       type="password"
                       className="stq-input bg-gray-50 text-gray-500"
@@ -536,7 +602,9 @@ export default function SignupPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-semibold text-gray-700">Retype Password</label>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Retype Password
+                    </label>
                     <input
                       type="password"
                       className="stq-input"
@@ -547,7 +615,6 @@ export default function SignupPage() {
                   </div>
                 </div>
               )}
-
             </div>
 
             <div className="mt-8 flex items-center justify-between">
@@ -559,7 +626,13 @@ export default function SignupPage() {
               </button>
               <button
                 onClick={handleCreateStore}
-                disabled={busy || !emailVerified || !phoneVerified || !repassword || password !== repassword}
+                disabled={
+                  busy ||
+                  !emailVerified ||
+                  !phoneVerified ||
+                  !repassword ||
+                  password !== repassword
+                }
                 className="stq-btn stq-btn-primary px-8"
               >
                 Create Store
@@ -571,11 +644,15 @@ export default function SignupPage() {
         {step === "creating" && (
           <div className="w-full max-w-md mx-auto mt-20 flex flex-col items-center text-center">
             <Loader2 className="w-12 h-12 text-primary animate-spin mb-6" />
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 mb-2">Creating {name}…</h1>
-            <p className="text-gray-500">Applying your chosen theme and setting up your dashboard. Hang tight!</p>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900 mb-2">
+              Creating {name}…
+            </h1>
+            <p className="text-gray-500">
+              Applying your chosen theme and setting up your dashboard. Hang
+              tight!
+            </p>
           </div>
         )}
-
       </main>
     </div>
   );
