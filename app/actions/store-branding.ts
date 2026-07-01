@@ -85,6 +85,6 @@ export async function saveStoreBranding(
     return { error: "Could not save branding. Please try again." };
   }
 
-  revalidateTag(STORE_TAG);
+  revalidateTag(STORE_TAG, "max");
   return { success: true };
 }
