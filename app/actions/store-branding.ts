@@ -21,11 +21,12 @@ export async function getStoreBrandingForEditor(): Promise<StoreBrand> {
     .select("name, settings, slug, custom_domain")
     .eq("id", storeId)
     .single();
-  const domain = data?.custom_domain || `${data?.slug || "store"}.storemink.com`;
+  const domain =
+    data?.custom_domain || `${data?.slug || "store"}.storemink.com`;
   return brandFromSettings(
     (data?.settings as Record<string, unknown>) ?? {},
     (data?.name as string) ?? "Store",
-    domain
+    domain,
   );
 }
 

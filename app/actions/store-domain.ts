@@ -69,7 +69,7 @@ export async function updateCustomDomain(
   const storeId = await getActingStoreId();
   const admin = createAdminClient();
   const cleanDomain = clean(domainName);
-  
+
   // 1. Get existing info
   const { data: store } = await admin
     .from("stores")
@@ -77,10 +77,8 @@ export async function updateCustomDomain(
     .eq("id", storeId)
     .single();
 
-  const settings = ((store?.settings as Record<string, unknown>) ?? {}) as Record<
-    string,
-    unknown
-  >;
+  const settings = ((store?.settings as Record<string, unknown>) ??
+    {}) as Record<string, unknown>;
   const oldResendId = settings.resend_domain_id as string | undefined;
 
   const resend = getResend();
@@ -98,7 +96,9 @@ export async function updateCustomDomain(
   let newResendId: string | null = null;
   if (cleanDomain && resend) {
     try {
-      const { data, error } = await resend.domains.create({ name: cleanDomain });
+      const { data, error } = await resend.domains.create({
+        name: cleanDomain,
+      });
       if (error) {
         return { error: `Resend error: ${error.message}` };
       }
@@ -109,7 +109,7 @@ export async function updateCustomDomain(
       return { error: e.message || "Failed to create domain on Resend." };
     }
   } else if (cleanDomain && !resend) {
-      return { error: "Resend API key is not configured." }
+    return { error: "Resend API key is not configured." };
   }
 
   // 4. Update the DB

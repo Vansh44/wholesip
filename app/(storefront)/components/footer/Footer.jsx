@@ -98,7 +98,12 @@ export default function Footer() {
               <img
                 src={brand.logoUrl}
                 alt={`${brand.name} logo`}
-                style={{ height: "32px", width: "auto", maxWidth: "160px", objectFit: "contain" }}
+                style={{
+                  height: "32px",
+                  width: "auto",
+                  maxWidth: "160px",
+                  objectFit: "contain",
+                }}
               />
             )}
             <span className={styles.brandNameText}>{brand.name}</span>

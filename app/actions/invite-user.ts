@@ -124,14 +124,17 @@ export async function inviteUser(formData: FormData) {
   if (isResendAvailable) {
     try {
       const brand = await getStoreBrandById(storeId);
-      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://storiq.in").replace(/\/$/, "");
+      const appUrl = (
+        process.env.NEXT_PUBLIC_APP_URL || "https://storiq.in"
+      ).replace(/\/$/, "");
 
       const resend = new Resend(resendApiKey);
       await resend.emails.send({
         from: `${escapeHtml(brand.name)} Dashboard <admin@${brand.domain}>`,
         to: email,
         subject: `Welcome to ${escapeHtml(brand.name)} Dashboard`,
-        html: wrapBrandedEmail(`
+        html: wrapBrandedEmail(
+          `
         <h2 style="margin-top: 0;">You've Been Invited 🎉</h2>
 
         <p>Hello ${escapeHtml(firstName)}${lastName ? " " + escapeHtml(lastName) : ""},</p>
@@ -197,7 +200,9 @@ export async function inviteUser(formData: FormData) {
           Regards,<br />
           <strong>Team ${escapeHtml(brand.name)}</strong>
         </p>
-      `, brand),
+      `,
+          brand,
+        ),
       });
     } catch (e) {
       console.error("Failed to send invite email via Resend:", e);

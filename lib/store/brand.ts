@@ -94,6 +94,7 @@ export async function getStoreBrand(): Promise<StoreBrand> {
 // The brand for a specific store by ID.
 export async function getStoreBrandById(id: string): Promise<StoreBrand> {
   const store = await lookupStoreById(id);
-  const domain = store?.custom_domain || `${store?.slug || "store"}.storemink.com`;
+  const domain =
+    store?.custom_domain || `${store?.slug || "store"}.storemink.com`;
   return brandFromSettings(store?.settings, store?.name || "Store", domain);
 }

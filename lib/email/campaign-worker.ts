@@ -81,13 +81,17 @@ export async function processEmailQueue(
     const campaignIds = [...new Set(batch.map((r) => r.campaign_id))];
     const { data: campaignRows } = await admin
       .from("email_campaigns")
-      .select("id, subject, body, code, discount_label, valid_until_label, store_id")
+      .select(
+        "id, subject, body, code, discount_label, valid_until_label, store_id",
+      )
       .in("id", campaignIds);
     const campaigns = new Map<string, CampaignRow>(
       (campaignRows ?? []).map((c) => [c.id as string, c as CampaignRow]),
     );
 
-    const storeIds = [...new Set((campaignRows ?? []).map((c) => c.store_id as string))].filter(Boolean);
+    const storeIds = [
+      ...new Set((campaignRows ?? []).map((c) => c.store_id as string)),
+    ].filter(Boolean);
     const brandsMap = new Map();
     for (const sid of storeIds) {
       brandsMap.set(sid, await getStoreBrandById(sid));

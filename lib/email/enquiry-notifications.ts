@@ -22,11 +22,14 @@ function getResend(): Resend | null {
 
 /** Wraps body content in the shared branded layout + sign-off. */
 function emailShell(bodyHtml: string, brand: StoreBrand): string {
-  return wrapBrandedEmail(`${bodyHtml}
+  return wrapBrandedEmail(
+    `${bodyHtml}
     <p style="margin-top:32px;">
       Warm regards,<br />
       <strong>Team ${escapeHtml(brand.name)}</strong>
-    </p>`, brand);
+    </p>`,
+    brand,
+  );
 }
 
 /**
@@ -60,7 +63,8 @@ export async function sendEnquiryAcknowledgementEmail(opts: {
       from: fromAddress,
       to: opts.to,
       subject: subjectLine,
-      html: emailShell(`
+      html: emailShell(
+        `
         <h2 style="margin-top: 0;">Thanks for reaching out!</h2>
         <p>Hi ${escapeHtml(opts.name)},</p>
         <p>
@@ -82,7 +86,9 @@ export async function sendEnquiryAcknowledgementEmail(opts: {
             </td>
           </tr>
         </table>
-      `, opts.brand),
+      `,
+        opts.brand,
+      ),
     });
     // Resend returns errors in the response body rather than throwing.
     if (error) {

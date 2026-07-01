@@ -19,7 +19,10 @@ vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
 }));
 vi.mock("@/lib/store/brand", () => ({
-  getStoreBrand: vi.fn(async () => ({ name: "WholeSip", domain: "wholesip.com" })),
+  getStoreBrand: vi.fn(async () => ({
+    name: "WholeSip",
+    domain: "wholesip.com",
+  })),
 }));
 vi.mock("@/lib/email/enquiry-notifications", () => ({
   sendEnquiryAcknowledgementEmail: vi.fn().mockResolvedValue(undefined),

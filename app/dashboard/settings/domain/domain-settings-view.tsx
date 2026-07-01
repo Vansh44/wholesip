@@ -28,7 +28,7 @@ export function DomainSettingsView({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    
+
     // Check if domain is just empty string and change to null
     const valToSave = domain.trim() === "" ? null : domain.trim();
 
@@ -76,7 +76,8 @@ export function DomainSettingsView({
       <div>
         <h1 className="text-2xl font-bold text-[#111827]">Domain Settings</h1>
         <p className="mt-1 text-sm text-[#5b6472]">
-          Connect a custom domain to your store for branded emails and storefront access.
+          Connect a custom domain to your store for branded emails and
+          storefront access.
         </p>
       </div>
 
@@ -226,7 +227,10 @@ export function DomainSettingsView({
                               {record.name}
                             </td>
                             <td className="px-6 py-4 font-mono text-[#5b6472]">
-                              <div className="max-w-[300px] truncate" title={record.value}>
+                              <div
+                                className="max-w-[300px] truncate"
+                                title={record.value}
+                              >
                                 {record.value}
                               </div>
                             </td>

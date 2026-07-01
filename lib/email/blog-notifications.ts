@@ -28,11 +28,14 @@ function getResend(): Resend | null {
 
 /** Wraps blog email body content in the shared branded layout + sign-off. */
 function emailShell(bodyHtml: string, brand: StoreBrand): string {
-  return wrapBrandedEmail(`${bodyHtml}
+  return wrapBrandedEmail(
+    `${bodyHtml}
     <p style="margin-top:32px;">
       Warm regards,<br />
       <strong>Team ${escapeHtml(brand.name)}</strong>
-    </p>`, brand);
+    </p>`,
+    brand,
+  );
 }
 
 function greeting(firstName: string | null): string {
@@ -67,7 +70,8 @@ export async function sendBlogApprovedEmail(opts: {
       from: fromAddress,
       to: opts.to,
       subject: `🎉 Your blog "${opts.title}" is now live on ${escapeHtml(opts.brand.name)}!`,
-      html: emailShell(`
+      html: emailShell(
+        `
         <h2 style="margin-top: 0;">Congratulations! 🎉</h2>
         <p>${greeting(opts.firstName)}</p>
         <p>
@@ -88,7 +92,9 @@ export async function sendBlogApprovedEmail(opts: {
           Thank you for sharing your story with the ${escapeHtml(opts.brand.name)} community. We can't
           wait to see what you write next!
         </p>
-      `, opts.brand),
+      `,
+        opts.brand,
+      ),
     });
     // Resend returns errors in the response body rather than throwing, so a
     // bad request / rejected recipient would otherwise fail silently.
@@ -128,7 +134,8 @@ export async function sendBlogRejectedEmail(opts: {
       from: fromAddress,
       to: opts.to,
       subject: `Update on your ${escapeHtml(opts.brand.name)} blog submission`,
-      html: emailShell(`
+      html: emailShell(
+        `
         <h2 style="margin-top: 0;">About your blog submission</h2>
         <p>${greeting(opts.firstName)}</p>
         <p>
@@ -149,7 +156,9 @@ export async function sendBlogRejectedEmail(opts: {
             Write Another Blog
           </a>
         </div>
-      `, opts.brand),
+      `,
+        opts.brand,
+      ),
     });
     if (error) {
       console.error("Resend rejected blog-rejected email:", error);

@@ -8,9 +8,9 @@ interface LoaderProps {
 
 export function Loader({ className, size = 32 }: LoaderProps) {
   return (
-    <Loader2 
+    <Loader2
       size={size}
-      className={cn("animate-spin text-gray-400", className)} 
+      className={cn("animate-spin text-gray-400", className)}
     />
   );
 }

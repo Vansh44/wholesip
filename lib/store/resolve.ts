@@ -95,8 +95,7 @@ export const lookupStoreById = unstable_cache(
 // single-tenant period.
 export async function getCurrentStore(): Promise<Store> {
   const headersList = await headers();
-  const host =
-    headersList.get("x-forwarded-host") || headersList.get("host");
+  const host = headersList.get("x-forwarded-host") || headersList.get("host");
   const resolved = await lookupStoreByHost(host ?? "");
   if (resolved) return resolved;
 

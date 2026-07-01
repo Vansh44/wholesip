@@ -6,7 +6,10 @@ vi.mock("@/lib/email/coupon-campaign", () => ({
   renderCouponEmail: () => "<html>",
 }));
 vi.mock("@/lib/store/brand", () => ({
-  getStoreBrandById: vi.fn(async () => ({ name: "WholeSip", domain: "wholesip.com" })),
+  getStoreBrandById: vi.fn(async () => ({
+    name: "WholeSip",
+    domain: "wholesip.com",
+  })),
 }));
 
 const { batchSend } = vi.hoisted(() => ({ batchSend: vi.fn() }));
