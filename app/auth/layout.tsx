@@ -6,6 +6,7 @@ export async function generateMetadata() {
   const brand = await getStoreBrand();
   return {
     title: `${brand.name} — Sign In`,
+    icons: brand.logoUrl ? { icon: brand.logoUrl } : undefined,
   };
 }
 

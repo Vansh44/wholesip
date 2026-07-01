@@ -97,7 +97,7 @@ export interface CreateStoreResult {
  * and returns the slug. Runs the writes via the service role because a brand-new
  * owner isn't yet a superadmin of any store (so RLS would block them).
  */
-export async function createStore(rawName: string): Promise<CreateStoreResult> {
+export async function createStore(rawName: string, template: string = "arcade"): Promise<CreateStoreResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -133,7 +133,7 @@ export async function createStore(rawName: string): Promise<CreateStoreResult> {
       name: rawName.trim(),
       status: "active",
       plan: "free",
-      settings: { brand: { name: rawName.trim() } },
+      settings: { template, brand: { name: rawName.trim() } },
     })
     .select("id, slug")
     .single();

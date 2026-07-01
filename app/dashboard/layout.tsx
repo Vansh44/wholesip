@@ -29,7 +29,10 @@ const dashMono = JetBrains_Mono({
 
 export async function generateMetadata() {
   const brand = await getStoreBrand();
-  return { title: `${brand.name} — Operations Center` };
+  return { 
+    title: `${brand.name} — Operations Center`,
+    icons: brand.logoUrl ? { icon: brand.logoUrl } : undefined,
+  };
 }
 
 export default async function DashboardLayout({
