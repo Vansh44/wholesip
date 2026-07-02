@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { createPublicClient } from "@/lib/supabase/public";
 import { TAGS } from "@/lib/storefront/tags";
 import type { HomepageSection } from "@/lib/homepage/section-types";
+import type { PageSectionItem } from "@/lib/sections/registry";
 
 // ---------------------------------------------------------------------------
 // Cached PUBLIC storefront reads.
@@ -197,4 +198,55 @@ export const getEnabledHomepageSections = unstable_cache(
   },
   ["storefront-homepage-sections"],
   { tags: [TAGS.homepage], revalidate: REVALIDATE },
+);
+
+// A published store_pages row for the storefront. Selects NAMED columns only
+// (the anon role can't read the draft `sections` column — see store_pages.sql)
+// and returns the live `published_sections`. `null` (incl. cached nulls, so a
+// 404 storm on junk URLs stays cheap) means "no such published page".
+export interface PublishedPage {
+  id: string;
+  slug: string;
+  title: string;
+  seo_title: string;
+  seo_description: string;
+  seo_noindex: boolean;
+  published_sections: PageSectionItem[];
+}
+
+export const getPublishedPage = unstable_cache(
+  async (storeId: string, slug: string): Promise<PublishedPage | null> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("store_pages")
+      .select(
+        "id, slug, title, seo_title, seo_description, seo_noindex, published_sections",
+      )
+      .eq("store_id", storeId)
+      .eq("slug", slug)
+      .eq("status", "published")
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as unknown as PublishedPage;
+  },
+  ["storefront-store-page"],
+  { tags: [TAGS.pages], revalidate: REVALIDATE },
+);
+
+// Published page slugs for the current store — used by the sitemap.
+export const getPublishedPageSlugs = unstable_cache(
+  async (storeId: string): Promise<{ slug: string; updated_at: string }[]> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("store_pages")
+      .select("slug, updated_at")
+      .eq("store_id", storeId)
+      .eq("status", "published");
+    if (error) return [];
+    // The homepage sentinel (slug '') is served by `/`, not as a custom page.
+    const rows = (data ?? []) as { slug: string; updated_at: string }[];
+    return rows.filter((r) => !!r.slug);
+  },
+  ["storefront-store-page-slugs"],
+  { tags: [TAGS.pages], revalidate: REVALIDATE },
 );

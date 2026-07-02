@@ -24,6 +24,8 @@ import {
   LayoutTemplate,
   MessageSquare,
   Globe,
+  Type,
+  Code2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -49,6 +51,8 @@ export const navIcons = {
   activity: History,
   settings: Settings,
   globe: Globe,
+  rich_text: Type,
+  custom_code: Code2,
 } satisfies Record<string, LucideIcon>;
 
 export type NavIconKey = keyof typeof navIcons;
@@ -59,21 +63,30 @@ export function SidebarNavLink({
   icon,
   badge,
   badgeTone = "accent",
+  openInNewTab = false,
 }: {
   href: string;
   label: string;
   icon: NavIconKey;
   badge?: string;
   badgeTone?: "accent" | "amber";
+  openInNewTab?: boolean;
 }) {
   const pathname = usePathname();
   const isActive =
-    pathname === href ||
-    (href !== "/dashboard" && pathname.startsWith(`${href}/`));
+    !openInNewTab &&
+    (pathname === href ||
+      (href !== "/dashboard" && pathname.startsWith(`${href}/`)));
   const Icon = navIcons[icon];
 
   return (
-    <Link href={href} className={`dash-nav-item ${isActive ? "active" : ""}`}>
+    <Link
+      href={href}
+      className={`dash-nav-item ${isActive ? "active" : ""}`}
+      {...(openInNewTab
+        ? { target: "_blank", rel: "noopener noreferrer" }
+        : {})}
+    >
       <span className="dash-nav-icon" aria-hidden>
         <Icon className="h-[17px] w-[17px]" strokeWidth={2} />
       </span>

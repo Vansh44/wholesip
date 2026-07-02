@@ -14,6 +14,9 @@ vi.mock("@/app/dashboard/lib/access", () => ({
 vi.mock("@/lib/supabase/storage-cleanup", () => ({
   deleteStorageUrls: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock("@/lib/settings/resolve", () => ({
+  getStoreSetting: vi.fn(async () => true),
+}));
 
 import {
   createSection,
@@ -26,6 +29,7 @@ import { validateConfig } from "@/lib/homepage/section-types";
 import { createClient } from "@/lib/supabase/server";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
+import { getStoreSetting } from "@/lib/settings/resolve";
 import { makeChain, makeSupabase } from "./_test-helpers";
 
 // homepage-actions.ts powers the composable homepage builder. The pure
@@ -247,6 +251,30 @@ describe("homepage CRUD actions", () => {
       await createSection("promo_banner", { heading: "Hi" });
       const insert = supabase._tables.homepage_sections.insert.mock.calls[0][0];
       expect(insert.sort_order).toBe(0);
+    });
+
+    // rich_text HTML is sanitized server-side before storage (scripts stripped).
+    it("sanitizes rich_text html on save", async () => {
+      supabase._tables.homepage_sections = makeChain({
+        data: null,
+        error: null,
+      });
+      await createSection("rich_text", {
+        html: "<p>Hi</p><script>alert(1)</script>",
+      });
+      const insert = supabase._tables.homepage_sections.insert.mock.calls[0][0];
+      expect(insert.config.html).toContain("<p>Hi</p>");
+      expect(insert.config.html).not.toContain("<script");
+    });
+
+    // custom_code is refused when the store setting is off (server-side gate).
+    it("refuses custom_code when pages.customCode is disabled", async () => {
+      vi.mocked(getStoreSetting).mockResolvedValueOnce(false);
+      const result = await createSection("custom_code", {
+        html: "<div>x</div>",
+      });
+      expect(result.error).toMatch(/custom code is disabled/i);
+      expect(supabase._tables.homepage_sections.insert).not.toHaveBeenCalled();
     });
   });
 

@@ -32,6 +32,8 @@ export interface DashboardSection {
   badgeTone?: "accent" | "amber";
   /** Optional nested links (e.g. Marketing → Coupons). */
   children?: DashboardSectionChild[];
+  /** Open the link in a new tab (e.g. the full-screen Website Builder). */
+  openInNewTab?: boolean;
 }
 
 // Order here drives the order roles are displayed in the editor and the nav.
@@ -127,6 +129,16 @@ export const SECTIONS: DashboardSection[] = [
   },
 
   // Content
+  {
+    key: "builder",
+    label: "Website Builder",
+    href: "/dashboard/builder",
+    icon: "homepage",
+    group: "Content",
+    actions: ["view", "manage"],
+    // Opens the full-screen builder in a new tab.
+    openInNewTab: true,
+  },
   {
     key: "homepage",
     label: "Homepage",

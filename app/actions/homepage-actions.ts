@@ -7,8 +7,12 @@ import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import {
   validateConfig,
+  type AnySectionConfig,
   type HomepageSectionType,
+  type RichTextConfig,
 } from "@/lib/homepage/section-types";
+import { getStoreSetting } from "@/lib/settings/resolve";
+import { sanitizeBlogContent } from "@/lib/sanitize";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,6 +46,34 @@ function bannerImage(type: string, config: unknown): string | null {
   return typeof url === "string" && url ? url : null;
 }
 
+/**
+ * Validate a section config, then apply cross-cutting server-side rules that
+ * validateConfig (a pure module) can't: enforce the `pages.customCode` store
+ * setting, and sanitize rich_text HTML so stored markup is always safe.
+ * Shared by createSection + updateSection.
+ */
+async function guardAndProcessConfig(
+  type: HomepageSectionType,
+  rawConfig: unknown,
+): Promise<{ config: AnySectionConfig } | { error: string }> {
+  const result = validateConfig(type, rawConfig);
+  if ("error" in result) return result;
+
+  if (type === "custom_code") {
+    const allowed = await getStoreSetting("pages.customCode");
+    if (!allowed) {
+      return { error: "Custom code is disabled for this store." };
+    }
+  }
+
+  if (type === "rich_text") {
+    const c = result.config as RichTextConfig;
+    return { config: { ...c, html: sanitizeBlogContent(c.html) } };
+  }
+
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Create
 // ---------------------------------------------------------------------------
@@ -55,7 +87,7 @@ export async function createSection(
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
 
-  const result = validateConfig(type, rawConfig);
+  const result = await guardAndProcessConfig(type, rawConfig);
   if ("error" in result) return { error: result.error };
 
   // Append at the end.
@@ -107,7 +139,7 @@ export async function updateSection(
   if (!existing) return { error: "Section not found." };
 
   const type = existing.type as HomepageSectionType;
-  const result = validateConfig(type, rawConfig);
+  const result = await guardAndProcessConfig(type, rawConfig);
   if ("error" in result) return { error: result.error };
 
   const { error } = await supabase

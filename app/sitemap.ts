@@ -3,6 +3,7 @@ import { getStoreUrl } from "@/lib/site";
 import {
   getPublishedProducts,
   getPublishedBlogCards,
+  getPublishedPageSlugs,
 } from "@/lib/storefront/queries";
 import { getCurrentStoreId } from "@/lib/store/resolve";
 
@@ -56,11 +57,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: p.priority,
   }));
 
-  // Dynamic product + blog detail pages for THIS store. A failed DB read must
-  // never break the sitemap, so fall back to just the static set.
-  const [products, blogs] = await Promise.all([
+  // Dynamic product + blog detail pages, plus merchant-built custom pages, for
+  // THIS store. A failed DB read must never break the sitemap, so each falls
+  // back to empty.
+  const [products, blogs, customPages] = await Promise.all([
     getPublishedProducts(storeId).catch(() => []),
     getPublishedBlogCards(storeId).catch(() => []),
+    getPublishedPageSlugs(storeId).catch(() => []),
   ]);
 
   const productEntries: MetadataRoute.Sitemap = (products as { slug: string }[])
@@ -83,5 +86,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     }));
 
-  return [...staticEntries, ...productEntries, ...blogEntries];
+  const pageEntries: MetadataRoute.Sitemap = customPages
+    .filter((p) => p.slug)
+    .map((p) => ({
+      url: `${siteUrl}/${p.slug}`,
+      lastModified: p.updated_at ? new Date(p.updated_at) : now,
+      changeFrequency: "monthly",
+      priority: 0.6,
+    }));
+
+  return [...staticEntries, ...productEntries, ...blogEntries, ...pageEntries];
 }

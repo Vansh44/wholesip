@@ -18,13 +18,17 @@ export type HomepageSectionType =
   | "featured_products"
   | "shop_by_category"
   | "promo_banner"
-  | "latest_blogs";
+  | "latest_blogs"
+  | "rich_text"
+  | "custom_code";
 
 export const HOMEPAGE_SECTION_TYPES: HomepageSectionType[] = [
   "featured_products",
   "shop_by_category",
   "promo_banner",
   "latest_blogs",
+  "rich_text",
+  "custom_code",
 ];
 
 // --- Per-type config shapes ------------------------------------------------
@@ -85,18 +89,51 @@ export interface LatestBlogsConfig {
   layout: "grid" | "scroll";
 }
 
+/**
+ * Free-form rich text (TipTap-style HTML). SEO-friendly: rendered INLINE in
+ * the page, so the HTML must be sanitized server-side at save time (see
+ * lib/sanitize.ts — same trust model as blog content) and again at render.
+ * The registry only validates shape/size; it stays pure (no sanitizer import,
+ * which would bloat client bundles).
+ */
+export interface RichTextConfig {
+  html: string;
+  /** Constrain content width like the rest of the storefront, or full-bleed. */
+  width: "contained" | "full";
+}
+
+/**
+ * Merchant-authored HTML/CSS/JS. SECURITY: rendered ONLY inside a sandboxed
+ * iframe (sandbox="allow-scripts allow-popups", srcDoc, never
+ * allow-same-origin) — Supabase auth cookies are httpOnly:false and scoped to
+ * .storemink.com, so inline merchant JS could hijack sessions valid on every
+ * store and the platform. See custom-code-frame.tsx.
+ */
+export interface CustomCodeConfig {
+  html: string;
+  css: string;
+  js: string;
+  /** "auto" = iframe reports its height via postMessage; "fixed" = fixed_height px. */
+  height_mode: "auto" | "fixed";
+  fixed_height: number;
+}
+
 export type AnySectionConfig =
   | FeaturedProductsConfig
   | ShopByCategoryConfig
   | PromoBannerConfig
-  | LatestBlogsConfig;
+  | LatestBlogsConfig
+  | RichTextConfig
+  | CustomCodeConfig;
 
 // Discriminated union pairing a type with its config (handy for renderers).
 export type HomepageSectionConfig =
   | { type: "featured_products"; config: FeaturedProductsConfig }
   | { type: "shop_by_category"; config: ShopByCategoryConfig }
   | { type: "promo_banner"; config: PromoBannerConfig }
-  | { type: "latest_blogs"; config: LatestBlogsConfig };
+  | { type: "latest_blogs"; config: LatestBlogsConfig }
+  | { type: "rich_text"; config: RichTextConfig }
+  | { type: "custom_code"; config: CustomCodeConfig };
 
 // The DB row shape (table: homepage_sections).
 export interface HomepageSection {
@@ -116,6 +153,8 @@ export const EMPTY_CONFIG: {
   shop_by_category: ShopByCategoryConfig;
   promo_banner: PromoBannerConfig;
   latest_blogs: LatestBlogsConfig;
+  rich_text: RichTextConfig;
+  custom_code: CustomCodeConfig;
 } = {
   featured_products: {
     heading: "Bestsellers",
@@ -148,6 +187,17 @@ export const EMPTY_CONFIG: {
     blog_ids: [],
     limit: 3,
     layout: "grid",
+  },
+  rich_text: {
+    html: "",
+    width: "contained",
+  },
+  custom_code: {
+    html: "",
+    css: "",
+    js: "",
+    height_mode: "auto",
+    fixed_height: 320,
   },
 };
 
@@ -182,10 +232,36 @@ export const SECTION_TYPE_META: Record<HomepageSectionType, SectionTypeMeta> = {
     description: "Latest or hand-picked blog posts.",
     icon: "blogs",
   },
+  rich_text: {
+    label: "Rich Text",
+    description: "Free-form formatted text — headings, paragraphs, images.",
+    icon: "rich_text",
+  },
+  custom_code: {
+    label: "Custom Code",
+    description:
+      "Your own HTML, CSS and JavaScript, rendered in a safe sandbox.",
+    icon: "custom_code",
+  },
 };
 
 export const LIMIT_MIN = 1;
 export const LIMIT_MAX = 12;
+
+// Size caps for merchant-authored content (per field, in characters).
+export const CODE_MAX_CHARS = 64 * 1024; // custom_code html/css/js each
+export const RICH_TEXT_MAX_CHARS = 128 * 1024;
+
+// custom_code fixed-height bounds (px) — also the clamp for auto-height
+// postMessage values in custom-code-frame.tsx.
+export const CODE_HEIGHT_MIN = 40;
+export const CODE_HEIGHT_MAX = 4000;
+
+/** Clamp a custom_code fixed height into the allowed range. */
+export function clampCodeHeight(n: number): number {
+  if (!Number.isFinite(n)) return EMPTY_CONFIG.custom_code.fixed_height;
+  return Math.min(CODE_HEIGHT_MAX, Math.max(CODE_HEIGHT_MIN, Math.trunc(n)));
+}
 
 /** Clamp a featured-products limit into the allowed range. */
 export function clampLimit(n: number): number {
@@ -280,6 +356,49 @@ export function validateConfig(
     return { config };
   }
 
+  if (type === "rich_text") {
+    // Raw string only — sanitized server-side at save (actions) and at render.
+    const html = typeof input.html === "string" ? input.html : "";
+    if (!html.trim()) {
+      return { error: "Add some content first." };
+    }
+    if (html.length > RICH_TEXT_MAX_CHARS) {
+      return { error: "Content is too large (128 KB max)." };
+    }
+    const config: RichTextConfig = {
+      html,
+      width: input.width === "full" ? "full" : "contained",
+    };
+    return { config };
+  }
+
+  if (type === "custom_code") {
+    const code = (v: unknown): string => (typeof v === "string" ? v : "");
+    const html = code(input.html);
+    const css = code(input.css);
+    const js = code(input.js);
+    if (!html.trim() && !css.trim() && !js.trim()) {
+      return { error: "Add some HTML, CSS or JavaScript first." };
+    }
+    for (const [field, value] of [
+      ["HTML", html],
+      ["CSS", css],
+      ["JavaScript", js],
+    ] as const) {
+      if (value.length > CODE_MAX_CHARS) {
+        return { error: `${field} is too large (64 KB max).` };
+      }
+    }
+    const config: CustomCodeConfig = {
+      html,
+      css,
+      js,
+      height_mode: input.height_mode === "fixed" ? "fixed" : "auto",
+      fixed_height: clampCodeHeight(Number(input.fixed_height)),
+    };
+    return { config };
+  }
+
   // promo_banner
   if (!str(input.image_url) && !str(input.heading)) {
     return { error: "Add an image or a heading for the banner." };
@@ -336,6 +455,24 @@ export function summarizeSection(section: {
       if (b.source === "featured")
         return `${head} · featured · up to ${b.limit}`;
       return `${head} · latest · up to ${b.limit}`;
+    }
+    case "rich_text": {
+      const r = c as RichTextConfig;
+      // First few words of the text content, tags stripped.
+      const text = r.html
+        .replace(/<[^>]*>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      return `Rich text · ${text ? text.slice(0, 40) + (text.length > 40 ? "…" : "") : "(empty)"}`;
+    }
+    case "custom_code": {
+      const cc = c as CustomCodeConfig;
+      const parts = [
+        cc.html.trim() && "HTML",
+        cc.css.trim() && "CSS",
+        cc.js.trim() && "JS",
+      ].filter(Boolean);
+      return `Custom code · ${parts.join(" + ") || "(empty)"}`;
     }
     default:
       return section.type;

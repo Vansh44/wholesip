@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -64,12 +65,12 @@ export function LoginForm({ storeName }: { storeName: string }) {
             <Label htmlFor="password" className="font-medium">
               Password
             </Label>
-            <a
+            <Link
               href="/auth/forgot-password"
               className="text-sm font-medium text-accent hover:underline"
             >
               Forgot password?
-            </a>
+            </Link>
           </div>
           <Input
             id="password"

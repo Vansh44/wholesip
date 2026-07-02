@@ -6,16 +6,30 @@ import {
 } from "./shop-by-category-section";
 import { PromoBannerSection } from "./promo-banner-section";
 import { LatestBlogsSection, type BlogCardData } from "./latest-blogs-section";
+import { RichTextSection } from "../sections/rich-text-section";
+import { CustomCodeSection } from "../sections/custom-code-section";
 import type {
+  AnySectionConfig,
+  CustomCodeConfig,
   FeaturedProductsConfig,
-  HomepageSection,
+  HomepageSectionType,
   LatestBlogsConfig,
   PromoBannerConfig,
+  RichTextConfig,
   ShopByCategoryConfig,
 } from "@/lib/homepage/section-types";
 
-// Resolved data the renderer needs, keyed by section id. Built once in the
-// homepage server component from batched queries (no per-section fetching).
+// The minimal shape the renderer needs — satisfied by both homepage_sections
+// rows (HomepageSection) and store_pages section items (PageSectionItem).
+export interface RenderableSection {
+  id: string;
+  type: HomepageSectionType;
+  config: AnySectionConfig;
+}
+
+// Resolved data the renderer needs, keyed by section id. Built once per page
+// via lib/sections/resolve-data.ts from batched queries (no per-section
+// fetching).
 export interface ResolvedData {
   productsBySection: Map<string, ShopCardProduct[]>;
   categoriesBySection: Map<string, CategoryTile[]>;
@@ -26,7 +40,7 @@ export function HomepageSectionRenderer({
   section,
   resolved,
 }: {
-  section: HomepageSection;
+  section: RenderableSection;
   resolved: ResolvedData;
 }) {
   switch (section.type) {
@@ -55,6 +69,10 @@ export function HomepageSectionRenderer({
           blogs={resolved.blogsBySection.get(section.id) ?? []}
         />
       );
+    case "rich_text":
+      return <RichTextSection config={section.config as RichTextConfig} />;
+    case "custom_code":
+      return <CustomCodeSection config={section.config as CustomCodeConfig} />;
     default:
       return null;
   }

@@ -20,15 +20,15 @@ so some naming (repo name `wholesip`, `config/site.ts`, `brand/`) is legacy.
 
 ## 2. Tech stack
 
-| Layer     | Tech                                                                                                                                               |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework | Next.js 16 (App Router, `--turbopack` dev) — **breaking-changes version; read `node_modules/next/dist/docs/` before writing code** (see AGENTS.md) |
-| UI        | React 19, Tailwind CSS v4, shadcn/ui (`components/ui/`), Base UI, lucide-react, sonner (toasts), recharts (charts), TipTap (rich-text editor)      |
-| Backend   | Supabase (Postgres + Auth + Storage + RLS), server actions in `app/actions/`                                                                       |
-| Email     | Resend + nodemailer (`lib/email/`), Vercel cron `/api/cron/send-emails` (daily, `vercel.json`)                                                     |
-| AI        | Gemini (`lib/ai/gemini.ts`) for AI copy actions; brand voice files in `brand/`                                                                     |
-| Testing   | Vitest + Testing Library + jsdom, coverage via v8 (`coverage/` is generated output — never edit)                                                   |
-| Deploy    | Vercel; CI on GitHub Actions (`.github/workflows/ci.yml`: lint → typecheck → test → prettier → build)                                              |
+| Layer     | Tech                                                                                                                                                                                                                             |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework | Next.js 16 (App Router, `--turbopack` dev) — **breaking-changes version; read `node_modules/next/dist/docs/` before writing code** (see AGENTS.md)                                                                               |
+| UI        | React 19, Tailwind CSS v4, shadcn/ui (`components/ui/`), Base UI, lucide-react, sonner (toasts), recharts (charts), TipTap (rich-text editor), CodeMirror 6 (`@uiw/react-codemirror` — website-builder code editor, lazy-loaded) |
+| Backend   | Supabase (Postgres + Auth + Storage + RLS), server actions in `app/actions/`                                                                                                                                                     |
+| Email     | Resend + nodemailer (`lib/email/`), Vercel cron `/api/cron/send-emails` (daily, `vercel.json`)                                                                                                                                   |
+| AI        | Gemini (`lib/ai/gemini.ts`) for AI copy actions; brand voice files in `brand/`                                                                                                                                                   |
+| Testing   | Vitest + Testing Library + jsdom, coverage via v8 (`coverage/` is generated output — never edit)                                                                                                                                 |
+| Deploy    | Vercel; CI on GitHub Actions (`.github/workflows/ci.yml`: lint → typecheck → test → prettier → build)                                                                                                                            |
 
 ## 3. Multi-tenancy architecture (the core concept)
 
@@ -85,15 +85,23 @@ wholesip/
 │   │   │   │                  #   write/ (TipTap customer blog editor), my-submissions/
 │   │   │   ├── enquiries/     #   enquiry form (tested)
 │   │   │   ├── profile/       #   customer profile
+│   │   │   ├── [pageSlug]/    #   ★ merchant-built custom pages from store_pages (see §11):
+│   │   │   │                  #   published path (cached) + ?preview=1 draft path
+│   │   │   │                  #   (uncached, admin-session-gated) + preview-bridge.tsx
 │   │   │   └── …static pages: our-story, faqs, contact, careers, find-us, gift-packs,
 │   │   │       ingredients, process, sustainability, wholesale, track-order, returns,
 │   │   │       shipping, terms, privacy-policy, cookie-policy, refund-policy
+│   │   │       (App Router serves these static siblings before [pageSlug]; all their
+│   │   │        slugs are RESERVED — see lib/sections/registry.ts + drift test)
 │   │   └── components/
 │   │       ├── auth/          # AuthModal + AuthProvider (customer auth context)
 │   │       ├── cart/          # CartProvider, CartDrawer, CouponField
 │   │       ├── header/ footer/ hero/
 │   │       ├── homepage/      # Section renderer + section components (featured products,
 │   │       │                  # blog carousel, promo banner, shop-by-category…)
+│   │       ├── sections/      # ★ Generalized section renderer shared by homepage + pages:
+│   │       │                  # page-section-renderer, custom-code-frame (sandboxed iframe),
+│   │       │                  # custom-code-section, rich-text-section (see §11)
 │   │       ├── brand-provider.tsx   # Injects per-store branding CSS vars
 │   │       ├── shop-card.tsx / share-buttons.tsx / structured-data.tsx
 │   │
@@ -107,6 +115,10 @@ wholesip/
 │   │   ├── products/          # CRUD + @modal intercepted route for quick edit
 │   │   ├── categories/ colors/ blogs/ media/ homepage/   # content management
 │   │   │   └── blogs/settings/  # blog feature toggles + per-store categories/tags manager
+│   │   ├── builder/           # ★ Website Builder full-tab experience (see §11): pages list
+│   │   │                      # + live preview iframe + per-section editing. builder-client,
+│   │   │                      # pages-panel, sections-panel, section-form (shared editor forms),
+│   │   │                      # code-editor(+-lazy) (CodeMirror), builder.css
 │   │   ├── marketing/coupons/ # coupon CRUD + coupon email campaigns
 │   │   ├── enquiries/         # enquiry inbox + @modal detail
 │   │   ├── users/             # customers + user_groups/ (segments)  [superadmin only]
@@ -137,6 +149,9 @@ wholesip/
 │   │   ├── store-settings.ts  # Read/save per-store feature settings (see lib/settings)
 │   │   ├── blog-taxonomy-actions.ts  # Per-store blog categories/tags CRUD (+ propagation into blogs)
 │   │   ├── store-domain.ts    # Custom domain connect + DNS verification (Resend)
+│   │   ├── page-actions.ts    # ★ Custom-page CRUD + draft/publish (see §11): createPage/
+│   │   │                      # updatePageMeta/savePageDraft/publishPage/unpublishPage/
+│   │   │                      # deletePage, gated getManagerUserId("builder"), service-role
 │   │   ├── platform.ts        # Platform-admin actions
 │   │   └── _test-helpers.ts   # Shared mocks for action tests (co-located *.test.ts)
 │   │
@@ -157,10 +172,20 @@ wholesip/
 │   │   ├── public.ts          #   Anonymous client (cacheable, no cookies)
 │   │   ├── middleware.ts      #   updateSession() used by proxy.ts (JWT claims fast-path)
 │   │   ├── storage.ts / storage-cleanup.ts
-│   ├── storefront/            # queries.ts (cached storefront reads), tags.ts (cache tags)
+│   ├── storefront/            # queries.ts (cached storefront reads — getPublishedPage/
+│   │                          # getPublishedPageSlugs, named columns only), tags.ts
+│   │                          # (cache tags incl. TAGS.pages)
+│   ├── sections/              # ★ Page-section registry (see §11): re-exports homepage
+│   │                          # section-types + adds page helpers (PageSectionItem,
+│   │                          # validateSections, RESERVED_PAGE_SLUGS, validatePageSlug),
+│   │                          # resolve-data.ts (batched product/category/blog resolution
+│   │                          # shared by homepage / [pageSlug] / preview). Tested (drift test).
+│   ├── pages/                 # ★ preview.ts — uncached, cookie-authenticated draft loader
+│   │                          # for the builder preview (getManagerUserId("builder") gate)
 │   ├── email/                 # sender, layout, campaign-worker, coupon-campaign,
 │   │                          # trigger-worker, blog/enquiry notifications
-│   ├── homepage/section-types.ts  # Homepage section schema (typed, tested)
+│   ├── homepage/section-types.ts  # Section schema (typed, tested) — shared by homepage AND
+│   │                          # custom pages; types incl. rich_text + custom_code (see §11)
 │   ├── ai/gemini.ts           # Gemini client for AI copy
 │   ├── pricing.ts / slug.ts / sanitize.ts / rate-limit.ts / og-image.ts
 │   ├── blog-taxonomy.ts   # fetchBlogTaxonomy(): per-store blog categories/tags reader
@@ -182,6 +207,9 @@ wholesip/
 │   │                          # product_reviews, homepage_sections, email_campaigns,
 │   │                          # rate_limits, card_colors, blog_comments/likes…
 │   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
+│   ├── store_pages.sql        # ★ merchant custom pages (draft + published_sections jsonb;
+│   │                          # RLS via is_store_admin; anon SELECT REVOKED then GRANTed on
+│   │                          # named cols WITHOUT draft `sections` — see §11) (+ rollback)
 │   ├── custom_access_token_hook.sql     # JWT claims (role, force_password_reset)
 │   └── perf_*.sql             # index / RLS performance migrations
 │
@@ -235,6 +263,51 @@ wholesip/
     the store's lists. Editors read them via `fetchBlogTaxonomy`
     (dashboard) / `getBlogTaxonomyNames` (cached storefront,
     tag `TAGS.blogTaxonomy`).
+11. **Website Builder — pages & custom code are per-store, dashboard-editable.**
+    The storefront itself is a per-store artifact, not hardcoded: - **Section registry**: `lib/homepage/section-types.ts` is the single typed
+    section schema (config types, `EMPTY_CONFIG`, `META`, `validateConfig`),
+    shared by the homepage AND custom pages. `rich_text` (inline sanitized
+    HTML, SEO-friendly) and `custom_code` (merchant HTML/CSS/JS) are section
+    types alongside the product/blog/banner ones. `lib/sections/registry.ts`
+    re-exports it and adds page-level helpers: `PageSectionItem`,
+    `validateSections`, `RESERVED_PAGE_SLUGS`, `validatePageSlug`. - **Custom pages** live in `store_pages` (draft `sections` jsonb +
+    `published_sections` snapshot; **publish = copy draft → published**). Served
+    by `(pages)/[pageSlug]`; App Router matches static sibling dirs first, and
+    every static (pages) dir slug is in `RESERVED_PAGE_SLUGS` (a drift unit test
+    `fs.readdir`s the dir and asserts coverage). Published reads are cached
+    (`getPublishedPage`, tag `TAGS.pages`, cached nulls for cheap 404s). - **Draft column is sealed from PostgREST**: anon `SELECT` is REVOKEd then
+    GRANTed only on named columns WITHOUT `sections`, so drafts can never leak
+    via the API — cached storefront queries therefore select named columns,
+    never `*`. The builder + preview read drafts with the **service-role
+    client** after an app-layer `getManagerUserId("builder")` check. - **Preview**: `?preview=1` + the admin's existing session cookie (dashboard
+    and storefront share the host) → uncached `lib/pages/preview.ts` loader;
+    unauthorized silently falls back to published. Preview renders `noindex` +
+    a `PreviewBridge` client comp that `router.refresh()`es on postMessage from
+    the builder. Two disjoint code paths (published cached / draft uncached) ⇒
+    no cache poisoning. - **Sandboxed custom code**: merchant JS runs ONLY inside
+    `custom-code-frame.tsx` — an iframe with `sandbox="allow-scripts
+allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
+    cookies are `httpOnly:false`, `Domain=.storemink.com`; same-origin inline
+    JS could steal any visitor's session). Auto-height via ResizeObserver →
+    `postMessage`, parent clamps 40–4000px. `</script`/`</style` escaped in
+    merchant strings; each string capped 64 KB. `rich_text` is the inline/SEO
+    counterpart: sanitized at save AND render via `lib/sanitize.ts` (blog trust
+    model). Custom-code availability is gated by the `pages.customCode` setting
+    (registry, section `builder`), enforced **server-side** in BOTH
+    `page-actions.ts` and `homepage-actions.ts`. - **Builder UI** at `/dashboard/builder` (permission section `builder`, group
+    Content; sidebar link opens a new tab). A `fixed inset-0` overlay over the
+    dashboard shell — kept at `z-index:40`, BELOW the shared `z-50` dialog layer,
+    so the builder's own dialogs (new page, type chooser, section editor with its
+    code editors) render above it with a working backdrop (the shell has no
+    z-index, so the overlay still fully covers it). Pages panel + sections panel + center preview iframe
+    (`/{slug}?preview=1`). Draft edits are local client state; **Save draft**
+    writes the jsonb once (with `expectedUpdatedAt` stale-tab guard);
+    **Publish** copies draft → published + `updateTag(TAGS.pages)` +
+    `revalidatePath`. Code editing uses CodeMirror 6 lazy-loaded
+    (`code-editor-lazy.tsx`, ssr:false, the TipTap `write-blog-editor-lazy`
+    pattern) with a live `CustomCodeFrame` pane. - **Phase 4 (not built yet, by design)**: migrate the homepage into
+    `store_pages` as slug `""`, seed the 17 hardcoded WholeSip static pages as
+    rows, retire hardcoded pages, add a nav/footer menu builder.
 
 ## 6. Commands
 
@@ -277,6 +350,12 @@ Legacy WholeSip fallback remains until all traffic moves to real store hosts.
   (`lib/settings/`, rendered on each feature's own settings page — blogs →
   `/dashboard/blogs/settings`; see convention #9), and blogs is the first
   consumer.
+- **The website is dashboard-editable** (convention #11): the homepage and
+  merchant-built custom pages are per-store data (sections + custom HTML/CSS/JS),
+  edited in the Website Builder (`/dashboard/builder`) with live preview and a
+  draft → publish workflow. Merchant JS is sandbox-isolated. This is the
+  settings-based philosophy applied to the storefront itself; Phase 4 will fold
+  the homepage + the remaining hardcoded static pages into this system.
 - **Templates**: at signup the merchant picks a storefront template (filter by
   business category + free/paid, preview, plan-gated — e.g. "For STARTER and
   above"). Multiple visual templates are a planned core feature; today there is

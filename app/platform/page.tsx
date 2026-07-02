@@ -11,7 +11,6 @@ import {
   Megaphone,
   PenLine,
   Rocket,
-  ShieldCheck,
   Star,
   Users,
   X,

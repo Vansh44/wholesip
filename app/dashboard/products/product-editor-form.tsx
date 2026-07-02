@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   X,
@@ -542,9 +543,9 @@ export function ProductEditorForm({
           </div>
           <p className="mt-1.5 text-xs text-[#9ca3af]">
             Shades come from{" "}
-            <a href="/dashboard/colors" className="underline">
+            <Link href="/dashboard/colors" className="underline">
               Colours
-            </a>
+            </Link>
             . Name &amp; price stay near-black for contrast; blank uses the
             storefront default.
           </p>
