@@ -6,6 +6,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { createPublicClient } from "@/lib/supabase/public";
 import { getCurrentStoreId } from "@/lib/store/resolve";
+import { getStoreSetting } from "@/lib/settings/resolve";
 import { sanitizeBlogContent } from "@/lib/sanitize";
 import { getOgImageUrl } from "@/lib/og-image";
 import { BlogCard } from "../blog-listing-client";
@@ -215,11 +216,13 @@ export default async function BlogDetailPage({ params }: Props) {
     notFound();
   }
 
-  const [relatedBlogs, reactionCounts, comments] = await Promise.all([
-    getRelatedBlogs(blog, storeId),
-    getBlogReactionCounts(blog.id),
-    getComments(blog.id, storeId),
-  ]);
+  const [relatedBlogs, reactionCounts, comments, allowSubmissions] =
+    await Promise.all([
+      getRelatedBlogs(blog, storeId),
+      getBlogReactionCounts(blog.id),
+      getComments(blog.id, storeId),
+      getStoreSetting("blogs.customerSubmissions"),
+    ]);
   // Never trust stored HTML at the render boundary — sanitize even though the
   // write path also sanitizes (defense in depth).
   const sanitizedContent = sanitizeBlogContent(blog.content);
@@ -268,28 +271,30 @@ export default async function BlogDetailPage({ params }: Props) {
               }}
             >
               <ShareButtons title={blog.title} />
-              <Link
-                href="/blogs/write"
-                className="blog-publish-cta-btn"
-                id="blog-detail-post-cta"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                  width={18}
-                  height={18}
+              {allowSubmissions && (
+                <Link
+                  href="/blogs/write"
+                  className="blog-publish-cta-btn"
+                  id="blog-detail-post-cta"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
-                  />
-                </svg>
-                Post your own blog
-              </Link>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    width={18}
+                    height={18}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 4.5v15m7.5-7.5h-15"
+                    />
+                  </svg>
+                  Post your own blog
+                </Link>
+              )}
             </div>
           </div>
 

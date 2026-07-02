@@ -112,6 +112,7 @@ wholesip/
 │   │   ├── admins/ roles/     # staff invites + role management
 │   │   ├── branding/          # per-store branding editor (logo, colors)
 │   │   └── settings/          # account/ + domain/ (custom-domain connect + verify)
+│   │       └── features/      # feature-settings editor (toggles from lib/settings registry)
 │   │
 │   ├── platform/              # ★ STOREMINK PLATFORM (served on storemink.com via rewrite)
 │   │   ├── page.tsx           # Marketing landing page
@@ -131,6 +132,7 @@ wholesip/
 │   │   │                      # user-group/role actions
 │   │   ├── store-signup.ts    # Creates a new store (tenant onboarding)
 │   │   ├── store-branding.ts  # Per-store branding updates
+│   │   ├── store-settings.ts  # Read/save per-store feature settings (see lib/settings)
 │   │   ├── store-domain.ts    # Custom domain connect + DNS verification (Resend)
 │   │   ├── platform.ts        # Platform-admin actions
 │   │   └── _test-helpers.ts   # Shared mocks for action tests (co-located *.test.ts)
@@ -142,6 +144,9 @@ wholesip/
 │
 ├── lib/
 │   ├── store/                 # ★ Tenancy (see §3): host.ts, resolve.ts, brand.ts
+│   ├── settings/              # ★ Feature-settings framework (see convention #9):
+│   │   ├── registry.ts        #   catalog: every per-store toggle (key, default, plan gate)
+│   │   └── resolve.ts         #   getStoreSettings()/getStoreSetting() for the host store
 │   ├── supabase/              # Client factories — pick the right one:
 │   │   ├── server.ts          #   RSC/server-action client (cookie-based session)
 │   │   ├── client.ts          #   Browser client
@@ -202,6 +207,18 @@ wholesip/
    `node_modules/next/dist/docs/` before using unfamiliar APIs (AGENTS.md rule).
 8. **Tests**: `npm run test` (vitest, coverage). CI also runs `lint`, `typecheck`,
    `prettier --check`, `build` — all must pass.
+9. **Features are settings-based** (see §9): configurable behavior goes through
+   `lib/settings/registry.ts` — add the setting there (key, label, default,
+   optional `minPlan`/`dependsOn`), read it via `getStoreSettings()` /
+   `getStoreSetting()` from `lib/settings/resolve.ts`, and it automatically
+   appears in the `/dashboard/settings/features` editor. Values live in
+   `stores.settings.features` (jsonb); `saveStoreSettings` validates against the
+   registry and busts `STORE_TAG`. Enforce settings **server-side** (in the
+   action), not just in the UI. If RLS blocks a setting-dependent write (e.g.
+   customers may only insert `pending_review` blogs), do the privileged step
+   with the service-role client AFTER checking the setting — see direct-publish
+   in `blog-actions.ts`. First consumers: `blogs.customerSubmissions`,
+   `blogs.requireApproval`.
 
 ## 6. Commands
 
@@ -228,3 +245,28 @@ npm run format      # prettier --write
 Phases 1–3c complete: schema + RLS + store resolution + signup journey +
 per-store branding + platform admin console are live on branch `multi-tenant`.
 Legacy WholeSip fallback remains until all traffic moves to real store hosts.
+
+## 9. Product direction (owner's vision — keep in mind for every design decision)
+
+- **storemink.com is the soul.** `storemink.com/dashboard` (platform operator
+  console) sees _everything_: all features plus platform-only controls — Stores
+  management (suspend/unsuspend, plan upgrade/downgrade), operators, etc.
+  `{slug}.storemink.com/dashboard` sees only that store's own features/settings.
+- **Everything must be settings-based.** Feature behavior is configured per
+  store, not hardcoded. Canonical example — blogs: a store can toggle (a) whether
+  customers may submit blogs at all, and (b) whether submissions need admin
+  approval or publish directly. Every feature should be built with this kind of
+  per-store configurability from the start. **The framework for this now exists**
+  (`lib/settings/` + `/dashboard/settings/features` — see convention #9), and
+  blogs is the first consumer.
+- **Templates**: at signup the merchant picks a storefront template (filter by
+  business category + free/paid, preview, plan-gated — e.g. "For STARTER and
+  above"). Multiple visual templates are a planned core feature; today there is
+  one storefront with per-store branding.
+- **Deliberately later phases** (not built yet, by choice): orders + checkout +
+  payments (BYO gateway — merchant connects own Razorpay/Cashfree), merchant
+  subscription billing for StoreMink plans.
+- **WholeSip cleanup is ongoing**: the product started as the WholeSip site and
+  was converted into StoreMink; remaining WholeSip traces (`config/site.ts`,
+  `brand/`, hardcoded storefront static pages, repo name) are being removed
+  gradually as features become per-store/settings-based.

@@ -226,6 +226,11 @@ export const SECTIONS: DashboardSection[] = [
         href: "/dashboard/settings/domain",
         icon: "globe",
       },
+      {
+        label: "Features",
+        href: "/dashboard/settings/features",
+        icon: "roles",
+      },
     ],
   },
 ];

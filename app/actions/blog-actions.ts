@@ -16,6 +16,7 @@ import {
   sendBlogRejectedEmail,
 } from "@/lib/email/blog-notifications";
 import { getStoreBrand } from "@/lib/store/brand";
+import { getStoreSettings } from "@/lib/settings/resolve";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -634,6 +635,14 @@ export async function submitCustomerBlog(
     return { error: "Not authenticated. Please sign in to submit a blog." };
   }
 
+  // Store feature settings gate this whole flow: submissions can be switched
+  // off entirely, and the approval queue can be bypassed (direct publish).
+  const settings = await getStoreSettings();
+  if (!settings["blogs.customerSubmissions"]) {
+    return { error: "Blog submissions are currently disabled on this store." };
+  }
+  const requireApproval = settings["blogs.requireApproval"];
+
   // Verify user is a customer
   const { data: customer } = await supabase
     .from("users")
@@ -698,6 +707,28 @@ export async function submitCustomerBlog(
       .single();
 
     if (!error) {
+      // Direct publish (store setting): RLS only lets a customer insert
+      // pending_review rows, so after the trusted setting check above the
+      // promotion runs with the service-role client. A promotion failure
+      // leaves the post safely in the review queue.
+      if (!requireApproval && data?.id) {
+        const admin = createAdminClient();
+        const { error: promoteError } = await admin
+          .from("blogs")
+          .update({
+            status: "published",
+            published_at: new Date().toISOString(),
+          })
+          .eq("id", data.id as string)
+          .eq("status", "pending_review");
+        if (promoteError) {
+          console.error("submitCustomerBlog promote error:", promoteError);
+        } else {
+          revalidatePath("/blogs");
+          revalidateTag(TAGS.blogs, "max");
+        }
+      }
+
       revalidatePath("/dashboard/blogs");
       return { success: true, data: data as Record<string, unknown> };
     }
@@ -731,6 +762,11 @@ export async function saveCustomerBlogDraft(
 
   if (!user) {
     return { error: "Not authenticated. Please sign in to save a draft." };
+  }
+
+  const settings = await getStoreSettings();
+  if (!settings["blogs.customerSubmissions"]) {
+    return { error: "Blog submissions are currently disabled on this store." };
   }
 
   const { data: customer } = await supabase
@@ -844,6 +880,12 @@ export async function updateCustomerBlog(
     return { error: "Not authenticated." };
   }
 
+  const settings = await getStoreSettings();
+  if (!settings["blogs.customerSubmissions"]) {
+    return { error: "Blog submissions are currently disabled on this store." };
+  }
+  const requireApproval = settings["blogs.requireApproval"];
+
   if (!formData.title.trim()) {
     return { error: "Title is required." };
   }
@@ -892,6 +934,24 @@ export async function updateCustomerBlog(
   if (error) {
     console.error("updateCustomerBlog error:", error);
     return { error: error.message };
+  }
+
+  // Direct publish (store setting): same service-role promotion as
+  // submitCustomerBlog — RLS caps a customer's own writes at pending_review.
+  if (!requireApproval) {
+    const admin = createAdminClient();
+    const { error: promoteError } = await admin
+      .from("blogs")
+      .update({ status: "published", published_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("submitted_by", user.id)
+      .eq("status", "pending_review");
+    if (promoteError) {
+      console.error("updateCustomerBlog promote error:", promoteError);
+    } else {
+      revalidatePath("/blogs");
+      revalidateTag(TAGS.blogs, "max");
+    }
   }
 
   const oldRefs = [

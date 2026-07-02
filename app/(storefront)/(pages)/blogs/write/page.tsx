@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { getStoreSetting } from "@/lib/settings/resolve";
 import WriteBlogEditor from "./write-blog-editor-lazy";
 import "./write-blog.css";
 
-// Static shell: this page does no server work — it just renders the (client-only,
-// lazily loaded) editor. No reason to force per-request dynamic rendering.
-
 export const metadata: Metadata = {
-  title: "Write a Blog | WholeSip",
+  title: "Write a Blog",
   description:
-    "Share your story with the WholeSip community. Write and submit your blog post for review.",
+    "Share your story with the community. Write and submit your blog post.",
 };
 
-export default function WriteBlogPage() {
+export default async function WriteBlogPage() {
+  // Store feature setting — stores can switch customer submissions off.
+  if (!(await getStoreSetting("blogs.customerSubmissions"))) {
+    redirect("/blogs");
+  }
   return <WriteBlogEditor />;
 }

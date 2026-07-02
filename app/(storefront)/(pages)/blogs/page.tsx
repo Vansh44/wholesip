@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getPublishedBlogCards } from "@/lib/storefront/queries";
 import { getCurrentStoreId } from "@/lib/store/resolve";
+import { getStoreSetting } from "@/lib/settings/resolve";
 import BlogListingClient from "./blog-listing-client";
 import "./blogs.css";
 
@@ -22,6 +23,10 @@ export const metadata: Metadata = {
 export default async function BlogsPage() {
   // Cached, trimmed read — card columns only (no full `content` HTML).
   const publishedBlogs = await getPublishedBlogCards(await getCurrentStoreId());
+
+  // Store feature setting: hides the "Post your own blog" / "My Submissions"
+  // CTAs when this store has customer submissions switched off.
+  const allowSubmissions = await getStoreSetting("blogs.customerSubmissions");
 
   // Extract unique categories
   const categories = Array.from(
@@ -52,6 +57,7 @@ export default async function BlogsPage() {
         blogs={publishedBlogs}
         categories={categories}
         allTags={allTags}
+        allowSubmissions={allowSubmissions}
       />
     </main>
   );
