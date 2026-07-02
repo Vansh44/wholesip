@@ -23,6 +23,7 @@ import {
   Settings,
   LayoutTemplate,
   MessageSquare,
+  Globe,
   type LucideIcon,
 } from "lucide-react";
 
@@ -47,6 +48,7 @@ export const navIcons = {
   roles: KeyRound,
   activity: History,
   settings: Settings,
+  globe: Globe,
 } satisfies Record<string, LucideIcon>;
 
 export type NavIconKey = keyof typeof navIcons;

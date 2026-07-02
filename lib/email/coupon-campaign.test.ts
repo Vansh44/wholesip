@@ -101,6 +101,21 @@ const base: CouponEmailContent = {
   code: "SAVE20",
   discountLabel: "20% OFF",
   validUntilLabel: "31 Dec 2026",
+  brand: {
+    name: "WholeSip",
+    logoUrl: null,
+    primaryColor: "#000000",
+    tagline: null,
+    blurb: null,
+    legalName: null,
+    creditLine: null,
+    email: null,
+    phone: null,
+    hours: null,
+    social: { instagram: null, youtube: null, whatsapp: null },
+    badges: [],
+    domain: "wholesip.com",
+  },
 };
 
 // renderCouponEmailBody() builds the inner HTML: escaped + merged paragraphs,

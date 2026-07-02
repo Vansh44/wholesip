@@ -12,6 +12,12 @@ vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
+vi.mock("@/lib/store/brand", () => ({
+  getStoreBrand: vi.fn(async () => ({
+    name: "WholeSip",
+    domain: "wholesip.com",
+  })),
+}));
 vi.mock("@/lib/store/resolve", () => ({
   getCurrentStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
   WHOLESIP_STORE_ID: "a0000000-0000-4000-8000-000000000001",
@@ -23,6 +29,12 @@ vi.mock("@/lib/supabase/storage-cleanup", () => ({
 vi.mock("@/lib/email/blog-notifications", () => ({
   sendBlogApprovedEmail: vi.fn().mockResolvedValue(undefined),
   sendBlogRejectedEmail: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@/lib/settings/resolve", () => ({
+  getStoreSettings: vi.fn(async () => ({
+    "blogs.customerSubmissions": true,
+    "blogs.requireApproval": true,
+  })),
 }));
 
 import {
@@ -43,6 +55,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getStoreSettings } from "@/lib/settings/resolve";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import {
   sendBlogApprovedEmail,
@@ -353,6 +366,40 @@ describe("blog-actions", () => {
       expect(inserted.submitted_by).toBe("user-1");
       // Author name is composed from the customer's first + last name.
       expect(inserted.author).toBe("Ada Lovelace");
+      // Approval flow ON (default): no service-role promotion happens.
+      expect(admin._tables.blogs?.update ?? vi.fn()).not.toHaveBeenCalled();
+    });
+
+    // Store setting: submissions switched off → the action refuses outright.
+    it("rejects when the store has customer submissions disabled", async () => {
+      vi.mocked(getStoreSettings).mockResolvedValueOnce({
+        "blogs.customerSubmissions": false,
+        "blogs.requireApproval": true,
+      });
+      const result = await submitCustomerBlog(customerForm);
+      expect(result.error).toMatch(/disabled/i);
+      expect(supabase._tables.blogs.insert).not.toHaveBeenCalled();
+    });
+
+    // Store setting: approval flow off → the pending insert is promoted to
+    // published via the service-role client (RLS blocks customers from
+    // inserting published rows directly).
+    it("publishes immediately when the store does not require approval", async () => {
+      vi.mocked(getStoreSettings).mockResolvedValueOnce({
+        "blogs.customerSubmissions": true,
+        "blogs.requireApproval": false,
+      });
+      const result = await submitCustomerBlog(customerForm);
+      expect(result.success).toBe(true);
+
+      // Insert still goes in as pending_review (RLS-compatible)…
+      const inserted = supabase._tables.blogs.insert.mock.calls[0][0];
+      expect(inserted.status).toBe("pending_review");
+
+      // …then the admin client flips it live.
+      const promote = admin._tables.blogs.update.mock.calls[0][0];
+      expect(promote.status).toBe("published");
+      expect(promote.published_at).toBeTruthy();
     });
   });
 

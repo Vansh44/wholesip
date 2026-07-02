@@ -65,14 +65,27 @@ const lookupStoreByHost = unstable_cache(
       console.error("lookupStoreByHost:", error.message);
       return null;
     }
-    return (data as Store | null) ?? null;
+    const store = (data as Store | null) ?? null;
+
+    // A custom domain must be proven-owned before we serve on it — otherwise a
+    // store could pre-claim a domain it doesn't control. Ownership is confirmed
+    // via the Resend DNS-verification flow, which flips settings.custom_domain_verified.
+    // (Store subdomains are inherently ours, so they need no such check.)
+    if (
+      store &&
+      kind.type === "custom-domain" &&
+      store.settings?.custom_domain_verified !== true
+    ) {
+      return null;
+    }
+    return store;
   },
   ["store-by-host"],
   { tags: [STORE_TAG], revalidate: 300 },
 );
 
 // Cached store lookup by id — used for the WholeSip fallback.
-const lookupStoreById = unstable_cache(
+export const lookupStoreById = unstable_cache(
   async (id: string): Promise<Store | null> => {
     const supabase = createPublicClient();
     const { data, error } = await supabase
@@ -94,7 +107,8 @@ const lookupStoreById = unstable_cache(
 // unknown hosts fall back to WholeSip so the site keeps rendering during the
 // single-tenant period.
 export async function getCurrentStore(): Promise<Store> {
-  const host = (await headers()).get("host");
+  const headersList = await headers();
+  const host = headersList.get("x-forwarded-host") || headersList.get("host");
   const resolved = await lookupStoreByHost(host ?? "");
   if (resolved) return resolved;
 

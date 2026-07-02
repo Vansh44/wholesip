@@ -1,8 +1,14 @@
 import React from "react";
 
-export const metadata = {
-  title: "WholeSip — Sign In",
-};
+import { getStoreBrand } from "@/lib/store/brand";
+
+export async function generateMetadata() {
+  const brand = await getStoreBrand();
+  return {
+    title: `${brand.name} — Sign In`,
+    icons: brand.logoUrl ? { icon: brand.logoUrl } : undefined,
+  };
+}
 
 export default function AuthLayout({
   children,

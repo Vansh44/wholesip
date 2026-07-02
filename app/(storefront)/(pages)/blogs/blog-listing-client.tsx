@@ -32,6 +32,8 @@ interface BlogListingClientProps {
   blogs: Blog[];
   categories: string[];
   allTags: string[];
+  /** Store feature setting — when false the write/submissions CTAs are hidden. */
+  allowSubmissions: boolean;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -125,6 +127,7 @@ export default function BlogListingClient({
   blogs,
   categories,
   allTags,
+  allowSubmissions,
 }: BlogListingClientProps) {
   const { user, customer, isAuthModalOpen, openAuthModal } = useAuth();
   const router = useRouter();
@@ -285,53 +288,55 @@ export default function BlogListingClient({
             )}
           </div>
 
-          <div className="blog-toolbar-actions">
-            <button
-              className="blog-publish-cta-btn"
-              onClick={handlePublishClick}
-              id="blog-publish-cta"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                width={18}
-                height={18}
+          {allowSubmissions && (
+            <div className="blog-toolbar-actions">
+              <button
+                className="blog-publish-cta-btn"
+                onClick={handlePublishClick}
+                id="blog-publish-cta"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 4.5v15m7.5-7.5h-15"
-                />
-              </svg>
-              Post your own blog
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  width={18}
+                  height={18}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
+                Post your own blog
+              </button>
 
-            <button
-              className="blog-publish-cta-btn blog-publish-cta-btn--ghost"
-              onClick={() => router.push("/blogs/my-submissions")}
-              id="blog-my-submissions-cta"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                width={18}
-                height={18}
+              <button
+                className="blog-publish-cta-btn blog-publish-cta-btn--ghost"
+                onClick={() => router.push("/blogs/my-submissions")}
+                id="blog-my-submissions-cta"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-                />
-              </svg>
-              My Submissions
-            </button>
-          </div>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  width={18}
+                  height={18}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+                  />
+                </svg>
+                My Submissions
+              </button>
+            </div>
+          )}
         </div>
       </section>
 

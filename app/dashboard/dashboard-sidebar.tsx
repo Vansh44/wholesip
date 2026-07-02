@@ -1,10 +1,10 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { SidebarNavLink, navIcons, type NavIconKey } from "./sidebar-nav-link";
 import { useMobileNav } from "./dashboard-mobile-nav";
 
@@ -72,31 +72,56 @@ export function DashboardSidebar({
             nav. Inside a section that has sub-(pages), the top-level nav is
             replaced by a "Back" link + that section's sub-pages. */}
         <div className="dash-primary">
-          <div className="dash-brand-row">
-            <Link href="/dashboard" className="dash-brand">
-              {logoUrl ? (
-                <Image
-                  src={logoUrl}
-                  alt={`${storeName} logo`}
-                  width={150}
-                  height={50}
-                  priority
-                  style={{ height: "auto", width: "auto", maxHeight: 32 }}
-                />
-              ) : (
-                <span style={{ fontWeight: 700, fontSize: 18 }}>
-                  {storeName}
-                </span>
-              )}
-            </Link>
-            <button
-              type="button"
-              className="dash-drawer-close md:hidden"
-              aria-label="Close navigation menu"
-              onClick={() => setOpen(false)}
+          <div className="dash-brand-row" style={{ justifyContent: "center" }}>
+            <Link
+              href="/dashboard"
+              className="dash-brand"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                textDecoration: "none",
+                padding: "2px 0",
+              }}
             >
-              <X className="h-5 w-5" />
-            </button>
+              {logoUrl && (
+                <div
+                  style={{
+                    height: "32px",
+                    width: "32px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "6px",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                  }}
+                >
+                  <img
+                    src={logoUrl}
+                    alt={`${storeName} logo`}
+                    style={{
+                      height: "100%",
+                      width: "100%",
+                      objectFit: "contain",
+                    }}
+                  />
+                </div>
+              )}
+              <span
+                className="truncate"
+                style={{
+                  fontWeight: 700,
+                  fontSize: 20,
+                  color: "#0f172a",
+                  letterSpacing: "-0.01em",
+                  lineHeight: "1.3",
+                  paddingBottom: "2px",
+                }}
+              >
+                {storeName}
+              </span>
+            </Link>
           </div>
 
           {showPanel ? (

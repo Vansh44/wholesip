@@ -15,6 +15,7 @@ const ALLOWED_IMAGE_TYPES = [
   "image/webp",
   "image/gif",
   "image/avif",
+  "image/svg+xml",
 ];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB (input cap)
 
@@ -24,6 +25,9 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB (input cap)
 // through untouched (re-encoding a GIF would drop the animation).
 const MAX_WIDTH = 1600;
 const WEBP_QUALITY = 80;
+// SVG is deliberately NOT passed through: a crafted SVG can carry <script> that
+// executes when the file is opened directly on the storage origin. We instead
+// rasterize it to WebP via sharp (below), and refuse to store the raw bytes.
 const PASS_THROUGH_TYPES = ["image/gif", "image/avif"];
 
 export async function POST(request: Request) {
@@ -109,7 +113,17 @@ export async function POST(request: Request) {
       contentType = "image/webp";
       ext = "webp";
     } catch (e) {
-      console.error("Image optimization failed, storing original:", e);
+      console.error("Image optimization failed:", e);
+      // Storing the original is only safe for already-inert raster formats. An
+      // SVG that sharp couldn't rasterize must never be persisted raw — that's
+      // exactly the payload we're guarding against — so reject it instead.
+      if (file.type === "image/svg+xml") {
+        return NextResponse.json(
+          { error: "Could not process this SVG. Please upload a PNG or JPG." },
+          { status: 400 },
+        );
+      }
+      console.error("Storing original bytes for", file.type);
     }
   }
 

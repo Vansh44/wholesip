@@ -7,6 +7,12 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/email/layout", () => ({
   wrapBrandedEmail: vi.fn((s: string) => s),
 }));
+vi.mock("@/lib/store/brand", () => ({
+  getStoreBrandById: vi.fn(async () => ({
+    name: "WholeSip",
+    domain: "wholesip.com",
+  })),
+}));
 // vi.hoisted ensures `resendSend` exists at the moment the `vi.mock("resend")`
 // factory runs (mocks are hoisted above imports). The factory must return a
 // real constructor (class), because invite-user.ts uses `new Resend(...)`.

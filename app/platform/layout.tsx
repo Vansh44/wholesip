@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./platform.css";
 
 export const metadata: Metadata = {
-  title: "Storemink — From local business to digital brand",
+  title: "StoreMink — Launch your store in a day. Keep 100% of every sale.",
   description:
-    "Storemink is the simplest way for Indian businesses to launch, grow, and scale a direct-to-consumer brand online. Built for India: UPI, COD, GST, WhatsApp.",
+    "The India-first store builder with everything included — storefront, blogs, reviews, coupons and email campaigns. D2C + B2B from ₹399/month. No apps to buy, no transaction fees.",
 };
 
 export default function PlatformLayout({

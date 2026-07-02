@@ -97,13 +97,28 @@ export interface CreateStoreResult {
  * and returns the slug. Runs the writes via the service role because a brand-new
  * owner isn't yet a superadmin of any store (so RLS would block them).
  */
-export async function createStore(rawName: string): Promise<CreateStoreResult> {
+export async function createStore(
+  rawName: string,
+  template: string = "arcade",
+): Promise<CreateStoreResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
     return { error: "Please verify your email before creating a store." };
+  }
+  // The client wizard tracks verification in React state, which a caller can
+  // bypass by invoking this action directly. Re-check the authoritative flags
+  // on the auth user so a store can't be provisioned without a confirmed
+  // email AND phone.
+  if (!user.email_confirmed_at) {
+    return { error: "Please verify your email before creating a store." };
+  }
+  if (!user.phone_confirmed_at) {
+    return {
+      error: "Please verify your phone number before creating a store.",
+    };
   }
 
   // Authoritative re-check (the client check is just for live feedback).
@@ -133,7 +148,7 @@ export async function createStore(rawName: string): Promise<CreateStoreResult> {
       name: rawName.trim(),
       status: "active",
       plan: "free",
-      settings: { brand: { name: rawName.trim() } },
+      settings: { template, brand: { name: rawName.trim() } },
     })
     .select("id, slug")
     .single();
@@ -144,6 +159,23 @@ export async function createStore(rawName: string): Promise<CreateStoreResult> {
     console.error("createStore (store insert):", storeErr?.message);
     return { error: "Could not create your store. Please try again." };
   }
+
+  // Seed a default promo banner so the new store's homepage isn't totally empty.
+  await admin.from("homepage_sections").insert({
+    store_id: store.id,
+    type: "promo_banner",
+    sort_order: 10,
+    enabled: true,
+    config: {
+      image_url: "",
+      heading: `Welcome to ${rawName.trim()}`,
+      subtext: "We're getting things ready. Check back soon!",
+      cta_label: "Shop Now",
+      cta_href: "/shop",
+      alignment: "center",
+      theme: "light",
+    },
+  });
 
   // Make the owner the store's superadmin.
   const { error: adminErr } = await admin.from("admins").insert({

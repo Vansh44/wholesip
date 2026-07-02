@@ -34,6 +34,7 @@ export function useBrand(): StoreBrand {
       hours: null,
       social: { instagram: null, youtube: null, whatsapp: null },
       badges: [],
+      domain: "storemink.com",
     }
   );
 }

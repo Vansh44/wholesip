@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { saveStoreBranding } from "@/app/actions/store-branding";
 import type { StoreBrand } from "@/lib/store/brand";
+import { ImageUpload } from "@/components/ui/image-upload";
 import "./branding.css";
 
 export function BrandingForm({
@@ -13,6 +14,7 @@ export function BrandingForm({
   canManage: boolean;
 }) {
   const [saving, setSaving] = useState(false);
+  const [logoUrl, setLogoUrl] = useState(initial.logoUrl || "");
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(
     null,
   );
@@ -65,10 +67,15 @@ export function BrandingForm({
           {field("tagline", "Tagline", initial.tagline, {
             placeholder: "Short line shown in the browser tab",
           })}
-          {field("logoUrl", "Logo URL", initial.logoUrl, {
-            placeholder: "https://…/logo.png",
-            full: true,
-          })}
+          <div className="brandingField full">
+            <label>Logo</label>
+            <input type="hidden" name="logoUrl" value={logoUrl} />
+            <ImageUpload
+              defaultImage={logoUrl}
+              onUploadSuccess={setLogoUrl}
+              folder="dashboard-uploads"
+            />
+          </div>
           <div className="brandingField">
             <label htmlFor="primaryColor">Primary colour</label>
             <input

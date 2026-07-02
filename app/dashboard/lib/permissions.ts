@@ -215,6 +215,23 @@ export const SECTIONS: DashboardSection[] = [
     icon: "settings",
     group: "Administration",
     actions: ["view", "manage"],
+    children: [
+      {
+        label: "Account",
+        href: "/dashboard/settings/account",
+        icon: "settings",
+      },
+      {
+        label: "Domain",
+        href: "/dashboard/settings/domain",
+        icon: "globe",
+      },
+      {
+        label: "Features",
+        href: "/dashboard/settings/features",
+        icon: "roles",
+      },
+    ],
   },
 ];
 

@@ -177,7 +177,17 @@
 .logo {
   display: flex;
   align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+  text-decoration: none;
+}
+
+.brandNameText {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  color: #1a1a1a;
+  letter-spacing: -0.02em;
 }
 
 .logo:hover {
