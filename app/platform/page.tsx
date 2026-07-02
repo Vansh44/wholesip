@@ -500,7 +500,7 @@ export default function StoreminkLanding() {
       </section>
 
       {/* --------------------------- founder proof -------------------------- */}
-      <section className="stq-section-lg" style={{ paddingTop: 0 }}>
+      {/* <section className="stq-section-lg" style={{ paddingTop: 0 }}>
         <div className="stq-founder">
           <span className="stq-kicker">
             <ShieldCheck size={13} style={{ verticalAlign: "-2px" }} /> We use
@@ -511,9 +511,9 @@ export default function StoreminkLanding() {
             WholeSip — our own D2C brand. Every store here runs on the exact
             platform we depend on ourselves, every single day.”
           </blockquote>
-          <cite>
-            {/* <b>Vansh Gupta</b> — Founder, StoreMink &amp; WholeSip */}
-          </cite>
+          <cite> */}
+      {/* <b>Vansh Gupta</b> — Founder, StoreMink &amp; WholeSip */}
+      {/* </cite>
           <br />
           <a
             href="https://wholesip.com"
@@ -524,7 +524,7 @@ export default function StoreminkLanding() {
             See WholeSip live on StoreMink <ArrowRight size={15} />
           </a>
         </div>
-      </section>
+      </section> */}
 
       {/* ----------------------------- pricing ----------------------------- */}
       <section
