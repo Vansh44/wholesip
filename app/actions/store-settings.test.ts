@@ -70,23 +70,65 @@ describe("store-settings actions", () => {
       expect(settings).toEqual([]);
     });
 
-    it("returns an empty catalog without settings view permission", async () => {
+    // Each setting is gated by ITS OWN section — no permissions, no catalog.
+    it("returns an empty catalog without view permission on any section", async () => {
       vi.mocked(getViewerContext).mockResolvedValue({
         profile: { email: "a@b.c", role: "editor" },
         isSuperadmin: false,
-        permissions: { blogs: ["view"] }, // no settings access
+        permissions: { products: ["view"] }, // no blogs access
         storeId: "store-1",
       } as any);
       const { settings } = await getStoreSettingsForEditor();
       expect(settings).toEqual([]);
     });
+
+    // Blog settings live with the blogs feature: blogs.view is enough.
+    it("shows a group's settings to viewers of its owning section", async () => {
+      vi.mocked(getViewerContext).mockResolvedValue({
+        profile: { email: "a@b.c", role: "editor" },
+        isSuperadmin: false,
+        permissions: { blogs: ["view"] },
+        storeId: "store-1",
+      } as any);
+      const { settings } = await getStoreSettingsForEditor("Blogs");
+      expect(settings.map((s) => s.key)).toContain("blogs.customerSubmissions");
+    });
+
+    it("filters to the requested group", async () => {
+      const { settings } = await getStoreSettingsForEditor("Nope");
+      expect(settings).toEqual([]);
+    });
   });
 
   describe("saveStoreSettings", () => {
-    it("rejects callers without settings.manage", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+    it("rejects unauthenticated callers", async () => {
+      vi.mocked(getViewerContext).mockResolvedValue(null as any);
       const r = await saveStoreSettings({ "blogs.customerSubmissions": false });
       expect(r.error).toMatch(/not authenticated/i);
+    });
+
+    // Saving a setting requires manage on ITS owning section (blogs here).
+    it("rejects callers without manage on the owning section", async () => {
+      vi.mocked(getViewerContext).mockResolvedValue({
+        profile: { email: "a@b.c", role: "editor" },
+        isSuperadmin: false,
+        permissions: { blogs: ["view"] }, // view only
+        storeId: "store-1",
+      } as any);
+      const r = await saveStoreSettings({ "blogs.customerSubmissions": false });
+      expect(r.error).toMatch(/permission/i);
+      expect(admin._tables.stores.update).not.toHaveBeenCalled();
+    });
+
+    it("allows blogs managers to save blog settings", async () => {
+      vi.mocked(getViewerContext).mockResolvedValue({
+        profile: { email: "a@b.c", role: "editor" },
+        isSuperadmin: false,
+        permissions: { blogs: ["view", "manage"] },
+        storeId: "store-1",
+      } as any);
+      const r = await saveStoreSettings({ "blogs.customerSubmissions": false });
+      expect(r.success).toBe(true);
     });
 
     it("writes registry keys into settings.features and busts the store cache", async () => {

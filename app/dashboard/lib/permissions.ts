@@ -142,6 +142,18 @@ export const SECTIONS: DashboardSection[] = [
     icon: "blogs",
     group: "Content",
     actions: ["view", "manage"],
+    children: [
+      {
+        label: "All Blogs",
+        href: "/dashboard/blogs",
+        icon: "blogs",
+      },
+      {
+        label: "Blog Settings",
+        href: "/dashboard/blogs/settings",
+        icon: "settings",
+      },
+    ],
   },
   {
     key: "marketing",
@@ -225,11 +237,6 @@ export const SECTIONS: DashboardSection[] = [
         label: "Domain",
         href: "/dashboard/settings/domain",
         icon: "globe",
-      },
-      {
-        label: "Features",
-        href: "/dashboard/settings/features",
-        icon: "roles",
       },
     ],
   },

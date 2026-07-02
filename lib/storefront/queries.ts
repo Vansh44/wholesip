@@ -150,6 +150,36 @@ export const getPublishedBlogCards = unstable_cache(
   { tags: [TAGS.blogs], revalidate: REVALIDATE },
 );
 
+// Category/tag OPTIONS offered by the customer write editor (names only — the
+// storefront never needs row ids). Managed per store in /dashboard/blogs/settings.
+export const getBlogTaxonomyNames = unstable_cache(
+  async (
+    storeId: string,
+  ): Promise<{ categories: string[]; tags: string[] }> => {
+    const supabase = createPublicClient();
+    const [cats, tags] = await Promise.all([
+      supabase
+        .from("blog_categories")
+        .select("name")
+        .eq("store_id", storeId)
+        .order("name", { ascending: true }),
+      supabase
+        .from("blog_tags")
+        .select("name")
+        .eq("store_id", storeId)
+        .order("name", { ascending: true }),
+    ]);
+    if (cats.error) console.error("getBlogTaxonomyNames:", cats.error.message);
+    if (tags.error) console.error("getBlogTaxonomyNames:", tags.error.message);
+    return {
+      categories: ((cats.data ?? []) as { name: string }[]).map((r) => r.name),
+      tags: ((tags.data ?? []) as { name: string }[]).map((r) => r.name),
+    };
+  },
+  ["storefront-blog-taxonomy"],
+  { tags: [TAGS.blogTaxonomy], revalidate: REVALIDATE },
+);
+
 export const getEnabledHomepageSections = unstable_cache(
   async (storeId: string): Promise<HomepageSection[]> => {
     const supabase = createPublicClient();

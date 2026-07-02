@@ -17,6 +17,7 @@ import {
 } from "@/lib/email/blog-notifications";
 import { getStoreBrand } from "@/lib/store/brand";
 import { getStoreSettings } from "@/lib/settings/resolve";
+import { fetchBlogTaxonomy } from "@/lib/blog-taxonomy";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -116,6 +117,39 @@ async function getCustomerContact(
     console.error("getCustomerContact error:", e);
     return null;
   }
+}
+
+/**
+ * Validate a customer submission's categories/tags against the STORE'S OWN
+ * taxonomy (blog_categories / blog_tags — managed in /dashboard/blogs/settings).
+ * Client input is untrusted, so unknown names are dropped server-side. When the
+ * store has defined options, at least one valid pick is required; a store with
+ * no options defined doesn't block submissions on the missing pickers.
+ */
+async function validateCustomerTaxonomy(
+  supabase: SupabaseClient,
+  storeId: string,
+  formData: Pick<CustomerBlogFormData, "categories" | "tags">,
+): Promise<
+  | { error: string }
+  | { error?: undefined; categories: string[]; tags: string[] }
+> {
+  const available = await fetchBlogTaxonomy(supabase, storeId);
+  const validCategories = new Set(available.categories.map((c) => c.name));
+  const validTags = new Set(available.tags.map((t) => t.name));
+
+  const categories = (formData.categories ?? []).filter((c) =>
+    validCategories.has(c),
+  );
+  const tags = (formData.tags ?? []).filter((t) => validTags.has(t));
+
+  if (validCategories.size > 0 && categories.length === 0) {
+    return { error: "Please select at least one category." };
+  }
+  if (validTags.size > 0 && tags.length === 0) {
+    return { error: "Please select at least one tag." };
+  }
+  return { categories, tags };
 }
 
 // Postgres unique_violation — raised when the blogs.slug UNIQUE constraint is hit.
@@ -664,16 +698,11 @@ export async function submitCustomerBlog(
     return { error: "Blog content is required." };
   }
 
-  if (!formData.categories || formData.categories.length === 0) {
-    return { error: "Please select at least one category." };
-  }
-
-  if (!formData.tags || formData.tags.length === 0) {
-    return { error: "Please select at least one tag." };
-  }
+  const storeId = await getCurrentStoreId();
+  const taxonomy = await validateCustomerTaxonomy(supabase, storeId, formData);
+  if (taxonomy.error !== undefined) return { error: taxonomy.error };
 
   const readingTime = calculateReadingTime(formData.content);
-  const storeId = await getCurrentStoreId();
   const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
 
   const base = slugify(formData.title);
@@ -687,8 +716,8 @@ export async function submitCustomerBlog(
     content: sanitizeBlogContent(formData.content),
     cover_image_url: formData.cover_image_url || null,
     author: authorName,
-    categories: formData.categories.length > 0 ? formData.categories : [],
-    tags: formData.tags.length > 0 ? formData.tags : [],
+    categories: taxonomy.categories,
+    tags: taxonomy.tags,
     status: "pending_review",
     featured: false,
     reading_time: readingTime,
@@ -894,13 +923,9 @@ export async function updateCustomerBlog(
     return { error: "Blog content is required." };
   }
 
-  if (!formData.categories || formData.categories.length === 0) {
-    return { error: "Please select at least one category." };
-  }
-
-  if (!formData.tags || formData.tags.length === 0) {
-    return { error: "Please select at least one tag." };
-  }
+  const storeId = await getCurrentStoreId();
+  const taxonomy = await validateCustomerTaxonomy(supabase, storeId, formData);
+  if (taxonomy.error !== undefined) return { error: taxonomy.error };
 
   const readingTime = calculateReadingTime(formData.content);
 
@@ -920,8 +945,8 @@ export async function updateCustomerBlog(
       excerpt: formData.excerpt.trim() || null,
       content: sanitizeBlogContent(formData.content),
       cover_image_url: formData.cover_image_url || null,
-      categories: formData.categories.length > 0 ? formData.categories : [],
-      tags: formData.tags.length > 0 ? formData.tags : [],
+      categories: taxonomy.categories,
+      tags: taxonomy.tags,
       reading_time: readingTime,
       updated_by: user.id,
       // Drafts are promoted to the review queue; already-pending rows stay put.

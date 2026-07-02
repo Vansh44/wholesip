@@ -102,6 +102,16 @@ describe("blog-actions", () => {
         data: { id: "user-1", first_name: "Ada", last_name: "Lovelace" },
         error: null,
       }),
+      // The store's blog taxonomy — customer submissions are validated
+      // against these per-store lists (blog_taxonomy.sql).
+      blog_categories: makeChain(
+        { data: null, error: null },
+        { data: [{ id: "c1", name: "Recipes" }], error: null },
+      ),
+      blog_tags: makeChain(
+        { data: null, error: null },
+        { data: [{ id: "t1", name: "Indian Food" }], error: null },
+      ),
     });
     vi.mocked(createClient).mockResolvedValue(supabase);
     admin = makeSupabase({
@@ -344,7 +354,7 @@ describe("blog-actions", () => {
       expect(result.error).toMatch(/content/i);
     });
 
-    it("requires at least one category", async () => {
+    it("requires at least one category when the store has categories", async () => {
       const result = await submitCustomerBlog({
         ...customerForm,
         categories: [],
@@ -352,9 +362,53 @@ describe("blog-actions", () => {
       expect(result.error).toMatch(/category/i);
     });
 
-    it("requires at least one tag", async () => {
+    it("requires at least one tag when the store has tags", async () => {
       const result = await submitCustomerBlog({ ...customerForm, tags: [] });
       expect(result.error).toMatch(/tag/i);
+    });
+
+    // Client input is untrusted — names outside the store's taxonomy are
+    // dropped, and if nothing valid remains the submission is rejected.
+    it("rejects when every submitted category is unknown to the store", async () => {
+      const result = await submitCustomerBlog({
+        ...customerForm,
+        categories: ["Made Up"],
+      });
+      expect(result.error).toMatch(/category/i);
+      expect(supabase._tables.blogs.insert).not.toHaveBeenCalled();
+    });
+
+    it("drops unknown names but keeps valid ones", async () => {
+      await submitCustomerBlog({
+        ...customerForm,
+        categories: ["Recipes", "Made Up"],
+        tags: ["Indian Food", "Nope"],
+      });
+      const inserted = supabase._tables.blogs.insert.mock.calls[0][0];
+      expect(inserted.categories).toEqual(["Recipes"]);
+      expect(inserted.tags).toEqual(["Indian Food"]);
+    });
+
+    // A store that has not defined any taxonomy doesn't block submissions on
+    // the (hidden) pickers.
+    it("allows empty categories/tags when the store defines none", async () => {
+      supabase._tables.blog_categories = makeChain(
+        { data: null, error: null },
+        { data: [], error: null },
+      );
+      supabase._tables.blog_tags = makeChain(
+        { data: null, error: null },
+        { data: [], error: null },
+      );
+      const result = await submitCustomerBlog({
+        ...customerForm,
+        categories: [],
+        tags: [],
+      });
+      expect(result.success).toBe(true);
+      const inserted = supabase._tables.blogs.insert.mock.calls[0][0];
+      expect(inserted.categories).toEqual([]);
+      expect(inserted.tags).toEqual([]);
     });
 
     // Happy path — inserts as pending_review with the user as submitter.
