@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { getViewerContext } from "@/app/dashboard/lib/access";
+import { requireSectionAccess } from "@/app/dashboard/lib/access";
 import {
   getCustomDomainDetails,
   getResendDomainStatus,
@@ -7,8 +6,7 @@ import {
 import { DomainSettingsView } from "./domain-settings-view";
 
 export default async function DomainSettingsPage() {
-  const ctx = await getViewerContext();
-  if (!ctx) redirect("/auth/login");
+  await requireSectionAccess("settings", "view");
 
   const { domain, resendDomainId } = await getCustomDomainDetails();
 

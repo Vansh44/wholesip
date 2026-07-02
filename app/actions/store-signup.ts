@@ -108,6 +108,18 @@ export async function createStore(
   if (!user) {
     return { error: "Please verify your email before creating a store." };
   }
+  // The client wizard tracks verification in React state, which a caller can
+  // bypass by invoking this action directly. Re-check the authoritative flags
+  // on the auth user so a store can't be provisioned without a confirmed
+  // email AND phone.
+  if (!user.email_confirmed_at) {
+    return { error: "Please verify your email before creating a store." };
+  }
+  if (!user.phone_confirmed_at) {
+    return {
+      error: "Please verify your phone number before creating a store.",
+    };
+  }
 
   // Authoritative re-check (the client check is just for live feedback).
   const check = await checkStoreSlugAvailability(rawName);

@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mergeTokens, renderCouponEmail } from "@/lib/email/coupon-campaign";
 import { getStoreBrandById } from "@/lib/store/brand";
+import { fromAddress } from "@/lib/email/sender";
 
 const RESEND_BATCH = 100; // Resend batch.send() hard limit
 const MAX_PER_RUN = 2000; // emails per worker invocation (stays within timeout)
@@ -97,16 +98,19 @@ export async function processEmailQueue(
       brandsMap.set(sid, await getStoreBrandById(sid));
     }
 
-    const messages = batch
-      .map((r) => {
-        const c = campaigns.get(r.campaign_id);
-        if (!c) return null;
-        const brand = brandsMap.get(c.store_id);
-        if (!brand) return null;
+    // Pair each recipient id with its message so we mark ONLY the rows we
+    // actually attempt to send. Recipients whose campaign/brand couldn't be
+    // resolved are "skipped" — they must never be recorded as sent.
+    const prepared = batch.map((r) => {
+      const c = campaigns.get(r.campaign_id);
+      const brand = c ? brandsMap.get(c.store_id) : undefined;
+      if (!c || !brand) return { id: r.id, message: null };
 
-        const firstName = r.first_name?.trim() || "there";
-        return {
-          from: `${brand.name} <admin@${brand.domain}>`,
+      const firstName = r.first_name?.trim() || "there";
+      return {
+        id: r.id,
+        message: {
+          from: fromAddress(brand),
           to: r.email,
           subject: mergeTokens(c.subject, firstName),
           html: renderCouponEmail({
@@ -117,28 +121,54 @@ export async function processEmailQueue(
             validUntilLabel: c.valid_until_label,
             brand,
           }),
-        };
-      })
-      .filter((m): m is NonNullable<typeof m> => m !== null);
+        },
+      };
+    });
+
+    const sendable = prepared.filter(
+      (p): p is { id: string; message: NonNullable<typeof p.message> } =>
+        p.message !== null,
+    );
+    const sentIds = sendable.map((p) => p.id);
+    const skippedIds = prepared
+      .filter((p) => p.message === null)
+      .map((p) => p.id);
 
     let ok = false;
-    try {
-      const { error: sendErr } = await resend.batch.send(messages);
-      ok = !sendErr;
-      if (sendErr) console.error("resend batch error:", sendErr);
-    } catch (e) {
-      console.error("resend batch threw:", e);
+    if (sendable.length > 0) {
+      try {
+        const { error: sendErr } = await resend.batch.send(
+          sendable.map((p) => p.message),
+        );
+        ok = !sendErr;
+        if (sendErr) console.error("resend batch error:", sendErr);
+      } catch (e) {
+        console.error("resend batch threw:", e);
+      }
     }
 
-    const ids = batch.map((r) => r.id);
-    await admin
-      .from("email_campaign_recipients")
-      .update({ status: ok ? "sent" : "failed" })
-      .in("id", ids);
+    // Attempted rows follow the send outcome; skipped rows are always failures
+    // (no campaign/brand to send them) so they aren't silently lost as "sent".
+    if (sentIds.length) {
+      await admin
+        .from("email_campaign_recipients")
+        .update({ status: ok ? "sent" : "failed" })
+        .in("id", sentIds);
+    }
+    if (skippedIds.length) {
+      await admin
+        .from("email_campaign_recipients")
+        .update({ status: "failed" })
+        .in("id", skippedIds);
+    }
 
     processed += batch.length;
-    if (ok) sent += batch.length;
-    else failed += batch.length;
+    if (ok) {
+      sent += sentIds.length;
+      failed += skippedIds.length;
+    } else {
+      failed += sentIds.length + skippedIds.length;
+    }
   }
 
   await finalizeCampaigns(admin);

@@ -169,7 +169,7 @@ export default function SignupPage() {
       });
       if (vErr2) {
         setBusy(false);
-        return setError(vErr.message);
+        return setError(vErr2.message);
       }
     }
     setEmailVerified(true);

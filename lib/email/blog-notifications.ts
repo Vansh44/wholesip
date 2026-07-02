@@ -1,12 +1,12 @@
 import { Resend } from "resend";
 import { wrapBrandedEmail } from "./layout";
+import { PLATFORM_URL } from "@/lib/site";
 import type { StoreBrand } from "@/lib/store/brand";
 
-// Public site origin used to build links inside emails. Falls back to the
-// production domain (matches the hardcoded link in invite-user.ts).
-const SITE_URL = (
-  process.env.NEXT_PUBLIC_APP_URL || "https://storiq.in"
-).replace(/\/$/, "");
+// Public site origin used to build links inside emails. PLATFORM_URL resolves
+// from NEXT_PUBLIC_APP_URL / VERCEL_URL / the platform apex — never the dead
+// storiq.in domain.
+const SITE_URL = PLATFORM_URL;
 
 /** Escape user-supplied values before interpolating into email HTML. */
 function escapeHtml(value: string): string {

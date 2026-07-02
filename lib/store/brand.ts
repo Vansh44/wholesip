@@ -1,4 +1,5 @@
 import { getCurrentStore, lookupStoreById } from "@/lib/store/resolve";
+import { PLATFORM_EMAIL_DOMAIN, senderDomainFor } from "@/lib/email/sender";
 
 // A store's public brand + footer identity. Stored under stores.settings.brand
 // (jsonb) and edited from the dashboard (/dashboard/branding). Everything falls
@@ -27,7 +28,7 @@ export interface StoreBrand {
   hours: string | null;
   social: StoreSocial;
   badges: StoreBadge[];
-  domain: string; // The email sender / primary domain for this store
+  domain: string; // Resend-verified domain to send this store's email FROM
 }
 
 // Default storefront accent (the existing near-black) — a store keeps the clean
@@ -87,14 +88,16 @@ export function brandFromSettings(
 // The brand for the CURRENT request's store (resolved from host).
 export async function getStoreBrand(): Promise<StoreBrand> {
   const store = await getCurrentStore();
-  const domain = store.custom_domain || `${store.slug}.storemink.com`;
-  return brandFromSettings(store.settings, store.name, domain);
+  // `domain` feeds the email From address, so it MUST be a Resend-verified
+  // sending domain. A plain {slug}.storemink.com subdomain is never verified in
+  // Resend, so senderDomainFor() falls back to the shared platform domain until
+  // the store verifies its own custom domain — otherwise every send is rejected.
+  return brandFromSettings(store.settings, store.name, senderDomainFor(store));
 }
 
 // The brand for a specific store by ID.
 export async function getStoreBrandById(id: string): Promise<StoreBrand> {
   const store = await lookupStoreById(id);
-  const domain =
-    store?.custom_domain || `${store?.slug || "store"}.storemink.com`;
+  const domain = store ? senderDomainFor(store) : PLATFORM_EMAIL_DOMAIN;
   return brandFromSettings(store?.settings, store?.name || "Store", domain);
 }

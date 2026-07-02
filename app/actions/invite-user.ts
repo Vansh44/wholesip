@@ -5,6 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Resend } from "resend";
 import { wrapBrandedEmail } from "@/lib/email/layout";
 import { getStoreBrandById } from "@/lib/store/brand";
+import { fromAddress } from "@/lib/email/sender";
+import { PLATFORM_URL } from "@/lib/site";
 import { randomInt } from "crypto";
 
 function generateTempPassword(): string {
@@ -124,15 +126,15 @@ export async function inviteUser(formData: FormData) {
   if (isResendAvailable) {
     try {
       const brand = await getStoreBrandById(storeId);
-      const appUrl = (
-        process.env.NEXT_PUBLIC_APP_URL || "https://storiq.in"
-      ).replace(/\/$/, "");
+      const appUrl = PLATFORM_URL;
 
       const resend = new Resend(resendApiKey);
       await resend.emails.send({
-        from: `${escapeHtml(brand.name)} Dashboard <admin@${brand.domain}>`,
+        // From/Subject are mail headers, NOT HTML — build the From with the
+        // RFC-5322-safe helper and leave the brand name unescaped in both.
+        from: fromAddress(brand, { suffix: "Dashboard" }),
         to: email,
-        subject: `Welcome to ${escapeHtml(brand.name)} Dashboard`,
+        subject: `Welcome to ${brand.name} Dashboard`,
         html: wrapBrandedEmail(
           `
         <h2 style="margin-top: 0;">You've Been Invited 🎉</h2>

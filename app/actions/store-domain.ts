@@ -3,8 +3,17 @@
 import { revalidateTag } from "next/cache";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getActingStoreId } from "@/app/dashboard/lib/access";
+import {
+  getActingStoreId,
+  getManagerUserId,
+  getViewerAccess,
+} from "@/app/dashboard/lib/access";
 import { STORE_TAG } from "@/lib/store/resolve";
+
+// Domain config is a Settings surface: reads require `view`, mutations `manage`.
+// Every write here uses the service-role client (RLS-bypassing), so the gate is
+// the ONLY thing standing between a low-priv store member and the store's domain.
+const DOMAIN_SECTION = "settings";
 
 export interface DomainResult {
   success?: boolean;
@@ -44,6 +53,11 @@ export async function getCustomDomainDetails(): Promise<{
   domain: string | null;
   resendDomainId: string | null;
 }> {
+  const access = await getViewerAccess();
+  if (!access?.can(DOMAIN_SECTION, "view")) {
+    return { domain: null, resendDomainId: null };
+  }
+
   const storeId = await getActingStoreId();
   const admin = createAdminClient();
 
@@ -66,6 +80,10 @@ export async function getCustomDomainDetails(): Promise<{
 export async function updateCustomDomain(
   domainName: string | null,
 ): Promise<DomainResult> {
+  if (!(await getManagerUserId(DOMAIN_SECTION))) {
+    return { error: "You don't have permission to manage domain settings." };
+  }
+
   const storeId = await getActingStoreId();
   const admin = createAdminClient();
   const cleanDomain = clean(domainName);
@@ -121,6 +139,11 @@ export async function updateCustomDomain(
   } else {
     delete newSettings.resend_domain_id;
   }
+  // A freshly set/changed domain is unproven until Resend re-verifies its DNS,
+  // so clear both verification flags — they gate storefront routing (custom_domain_verified)
+  // and email sending (resend_domain_verified) and must not carry over.
+  delete newSettings.custom_domain_verified;
+  delete newSettings.resend_domain_verified;
 
   const { error } = await admin
     .from("stores")
@@ -144,6 +167,11 @@ export async function updateCustomDomain(
 export async function getResendDomainStatus(
   resendDomainId: string,
 ): Promise<{ status?: DomainStatus; error?: string }> {
+  const access = await getViewerAccess();
+  if (!access?.can(DOMAIN_SECTION, "view")) {
+    return { error: "Unauthorized." };
+  }
+
   const resend = getResend();
   if (!resend) return { error: "Resend API key not configured." };
 
@@ -161,17 +189,66 @@ export async function getResendDomainStatus(
 }
 
 /**
+ * Persist whether the current store's custom domain is verified. Flips the
+ * routing gate (custom_domain_verified) and the email-sender gate
+ * (resend_domain_verified) together, and only writes when the value changed.
+ */
+async function syncDomainVerified(isVerified: boolean): Promise<void> {
+  const storeId = await getActingStoreId();
+  const admin = createAdminClient();
+
+  const { data: store } = await admin
+    .from("stores")
+    .select("custom_domain, settings")
+    .eq("id", storeId)
+    .single();
+
+  // Only meaningful for a store that actually has a custom domain set.
+  if (!store?.custom_domain) return;
+
+  const settings = ((store.settings as Record<string, unknown>) ??
+    {}) as Record<string, unknown>;
+  if (settings.custom_domain_verified === isVerified) return;
+
+  await admin
+    .from("stores")
+    .update({
+      settings: {
+        ...settings,
+        custom_domain_verified: isVerified,
+        resend_domain_verified: isVerified,
+      },
+    })
+    .eq("id", storeId);
+
+  revalidateTag(STORE_TAG, "max");
+}
+
+/**
  * Triggers a DNS verification check on Resend.
  */
 export async function verifyResendDomain(
   resendDomainId: string,
 ): Promise<DomainResult> {
+  if (!(await getManagerUserId(DOMAIN_SECTION))) {
+    return { error: "You don't have permission to manage domain settings." };
+  }
+
   const resend = getResend();
   if (!resend) return { error: "Resend API key not configured." };
 
   try {
     const { error } = await resend.domains.verify(resendDomainId);
     if (error) return { error: error.message };
+
+    // Re-read the domain's status now that verification was triggered and mirror
+    // it into the store settings. This runs in an action (not during render), so
+    // revalidating the routing cache here is safe. If DNS isn't propagated yet
+    // the status stays "pending" and the routing gate correctly stays closed.
+    const { data } = await resend.domains.get(resendDomainId);
+    if (data) {
+      await syncDomainVerified((data as DomainStatus).status === "verified");
+    }
 
     return { success: true };
   } catch (e: unknown) {
