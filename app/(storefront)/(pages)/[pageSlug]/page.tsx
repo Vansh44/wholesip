@@ -6,7 +6,10 @@ import { getPublishedPage } from "@/lib/storefront/queries";
 import { getDraftPageForPreview } from "@/lib/pages/preview";
 import { resolveSectionData } from "@/lib/sections/resolve-data";
 import { PageSectionRenderer } from "@/app/(storefront)/components/sections/page-section-renderer";
-import { PreviewBridge, PreviewBadge } from "./preview-bridge";
+import {
+  PreviewBridge,
+  PreviewBadge,
+} from "@/app/(storefront)/components/sections/preview-bridge";
 import type { PageSectionItem } from "@/lib/sections/registry";
 import "@/app/(storefront)/(pages)/shop/shop.css"; // .shop-card styles for product sections
 import "@/app/(storefront)/components/homepage/homepage.css";

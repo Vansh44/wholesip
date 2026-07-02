@@ -3,9 +3,10 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-// Mounted only in builder preview mode. Listens for a refresh ping from the
-// builder (same-origin parent window) and re-runs the server component so the
-// iframe reflects the just-saved draft — no full reload, scroll preserved.
+// Mounted only in builder preview mode (homepage `/?preview=1` and custom
+// pages `/[slug]?preview=1`). Listens for a refresh ping from the builder
+// (same-origin parent window) and re-runs the server component so the iframe
+// reflects the just-saved draft — no full reload, scroll preserved.
 export function PreviewBridge() {
   const router = useRouter();
   useEffect(() => {

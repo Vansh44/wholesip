@@ -7,6 +7,5 @@ export const TAGS = {
   categories: "storefront:categories",
   blogs: "storefront:blogs",
   blogTaxonomy: "storefront:blog-taxonomy",
-  homepage: "storefront:homepage",
   pages: "storefront:pages",
 } as const;

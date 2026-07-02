@@ -160,21 +160,35 @@ export async function createStore(
     return { error: "Could not create your store. Please try again." };
   }
 
-  // Seed a default promo banner so the new store's homepage isn't totally empty.
-  await admin.from("homepage_sections").insert({
-    store_id: store.id,
-    type: "promo_banner",
-    sort_order: 10,
-    enabled: true,
-    config: {
-      image_url: "",
-      heading: `Welcome to ${rawName.trim()}`,
-      subtext: "We're getting things ready. Check back soon!",
-      cta_label: "Shop Now",
-      cta_href: "/shop",
-      alignment: "center",
-      theme: "light",
+  // Seed the homepage as a store_pages row (slug "" — the homepage sentinel,
+  // edited in /dashboard/builder like any page) with a default promo banner so
+  // the new store's homepage isn't totally empty. Published immediately.
+  const welcomeBanner = [
+    {
+      id: crypto.randomUUID(),
+      type: "promo_banner",
+      enabled: true,
+      config: {
+        image_url: "",
+        heading: `Welcome to ${rawName.trim()}`,
+        subtext: "We're getting things ready. Check back soon!",
+        cta_label: "Shop Now",
+        cta_href: "/shop",
+        alignment: "center",
+        theme: "light",
+      },
     },
+  ];
+  await admin.from("store_pages").insert({
+    store_id: store.id,
+    slug: "",
+    title: "Home",
+    status: "published",
+    sections: welcomeBanner,
+    published_sections: welcomeBanner,
+    published_at: new Date().toISOString(),
+    created_by: user.id,
+    updated_by: user.id,
   });
 
   // Make the owner the store's superadmin.

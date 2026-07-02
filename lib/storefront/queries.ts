@@ -1,7 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { createPublicClient } from "@/lib/supabase/public";
 import { TAGS } from "@/lib/storefront/tags";
-import type { HomepageSection } from "@/lib/homepage/section-types";
 import type { PageSectionItem } from "@/lib/sections/registry";
 
 // ---------------------------------------------------------------------------
@@ -179,25 +178,6 @@ export const getBlogTaxonomyNames = unstable_cache(
   },
   ["storefront-blog-taxonomy"],
   { tags: [TAGS.blogTaxonomy], revalidate: REVALIDATE },
-);
-
-export const getEnabledHomepageSections = unstable_cache(
-  async (storeId: string): Promise<HomepageSection[]> => {
-    const supabase = createPublicClient();
-    const { data, error } = await supabase
-      .from("homepage_sections")
-      .select("*")
-      .eq("store_id", storeId)
-      .eq("enabled", true)
-      .order("sort_order", { ascending: true });
-    if (error) {
-      // Table may not exist yet (migration not applied) — render just the hero.
-      return [];
-    }
-    return (data ?? []) as unknown as HomepageSection[];
-  },
-  ["storefront-homepage-sections"],
-  { tags: [TAGS.homepage], revalidate: REVALIDATE },
 );
 
 // A published store_pages row for the storefront. Selects NAMED columns only

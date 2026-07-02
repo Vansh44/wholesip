@@ -11,6 +11,7 @@ import {
   EyeOff,
   ExternalLink,
   FileText,
+  Home,
   Loader2,
   Pencil,
   Plus,
@@ -308,30 +309,37 @@ export function BuilderClient({
             </button>
           </div>
           <div className="sm-builder-pagelist">
-            {pages.length === 0 && (
-              <p className="sm-builder-empty">
-                No pages yet. Create your first one.
-              </p>
-            )}
-            {pages.map((p) => (
-              <button
-                key={p.id}
-                className={`sm-builder-pageitem ${selectedId === p.id ? "active" : ""}`}
-                onClick={() => loadDraft(p.id)}
-              >
-                <FileText className="h-4 w-4 shrink-0 opacity-60" />
-                <span className="sm-builder-pageitem-main">
-                  <span className="sm-builder-pageitem-title">
-                    {p.title || p.slug}
-                  </span>
-                  <span className="sm-builder-pageitem-slug">/{p.slug}</span>
-                </span>
-                <span
-                  className={`sm-builder-dot ${p.status === "published" ? "is-live" : ""}`}
-                  title={p.status}
-                />
-              </button>
-            ))}
+            {/* Homepage sentinel (slug "") is always pinned first. */}
+            {[...pages]
+              .sort((a, b) => (a.slug === "" ? -1 : b.slug === "" ? 1 : 0))
+              .map((p) => {
+                const isHome = p.slug === "";
+                return (
+                  <button
+                    key={p.id}
+                    className={`sm-builder-pageitem ${selectedId === p.id ? "active" : ""}`}
+                    onClick={() => loadDraft(p.id)}
+                  >
+                    {isHome ? (
+                      <Home className="h-4 w-4 shrink-0 opacity-60" />
+                    ) : (
+                      <FileText className="h-4 w-4 shrink-0 opacity-60" />
+                    )}
+                    <span className="sm-builder-pageitem-main">
+                      <span className="sm-builder-pageitem-title">
+                        {isHome ? "Home" : p.title || p.slug}
+                      </span>
+                      <span className="sm-builder-pageitem-slug">
+                        {isHome ? "Homepage" : `/${p.slug}`}
+                      </span>
+                    </span>
+                    <span
+                      className={`sm-builder-dot ${p.status === "published" ? "is-live" : ""}`}
+                      title={p.status}
+                    />
+                  </button>
+                );
+              })}
           </div>
         </aside>
 

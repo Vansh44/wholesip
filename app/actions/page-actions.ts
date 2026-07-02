@@ -58,7 +58,7 @@ function revalidatePage(slug: string) {
  * Validate + process a draft sections array for saving: shape/size via the
  * registry, then the cross-cutting server rules — reject custom_code when the
  * store setting is off, and sanitize rich_text HTML. Returns clean items or an
- * error. Shared shape with homepage-actions' single-section guard.
+ * error.
  */
 async function processSections(
   raw: unknown,
@@ -99,6 +99,48 @@ export async function listPages(): Promise<PageListItem[]> {
     return [];
   }
   return (data ?? []) as PageListItem[];
+}
+
+/**
+ * The homepage is the store_pages row with the empty slug ("") — the "homepage
+ * sentinel". It's edited in the builder like any page, but it's hidden from
+ * listPages() and must always exist. This returns it, creating an empty draft
+ * row on demand for stores that predate the homepage migration (or new stores
+ * that skipped the seed). Never deletable/renamable (guarded in delete/meta).
+ */
+export async function ensureHomepage(): Promise<PageListItem | null> {
+  const userId = await getManagerUserId("builder");
+  if (!userId) return null;
+  const storeId = await getActingStoreId();
+  const admin = createAdminClient();
+
+  const { data: existing } = await admin
+    .from("store_pages")
+    .select("id, slug, title, status, updated_at, published_at")
+    .eq("store_id", storeId)
+    .eq("slug", "")
+    .maybeSingle();
+  if (existing) return existing as PageListItem;
+
+  const { data: created, error } = await admin
+    .from("store_pages")
+    .insert({
+      store_id: storeId,
+      slug: "",
+      title: "Home",
+      status: "draft",
+      sections: [],
+      published_sections: [],
+      created_by: userId,
+      updated_by: userId,
+    })
+    .select("id, slug, title, status, updated_at, published_at")
+    .single();
+  if (error) {
+    console.error("ensureHomepage error:", error.message);
+    return null;
+  }
+  return created as PageListItem;
 }
 
 export async function getPageDraft(id: string): Promise<PageDraft | null> {

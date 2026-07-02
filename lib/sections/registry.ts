@@ -94,29 +94,18 @@ export function validateSections(
  * added without reserving it here (see registry.test.ts).
  */
 export const RESERVED_PAGE_SLUGS: ReadonlySet<string> = new Set([
-  // app/(storefront)/(pages)/* static routes
+  // app/(storefront)/(pages)/* INTERACTIVE static routes (forms / data / client
+  // state — stay in code, so a merchant page can never shadow them). The former
+  // content-only static pages (our-story, faqs, contact, careers, find-us,
+  // gift-packs, ingredients, process, sustainability, wholesale, track-order,
+  // returns, shipping, terms, privacy-policy, cookie-policy, refund-policy) were
+  // retired in Phase 4b and are now merchant-editable store_pages, so they are
+  // intentionally NOT reserved.
   "blogs",
-  "careers",
   "cart",
-  "contact",
-  "cookie-policy",
   "enquiries",
-  "faqs",
-  "find-us",
-  "gift-packs",
-  "ingredients",
-  "our-story",
-  "privacy-policy",
-  "process",
   "profile",
-  "refund-policy",
-  "returns",
-  "shipping",
   "shop",
-  "sustainability",
-  "terms",
-  "track-order",
-  "wholesale",
   // top-level app routes (never storefront pages, but never claimable either)
   "dashboard",
   "auth",

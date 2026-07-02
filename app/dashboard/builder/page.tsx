@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireSectionAccess, getActingStoreId } from "../lib/access";
-import { listPages } from "@/app/actions/page-actions";
+import { listPages, ensureHomepage } from "@/app/actions/page-actions";
 import { getStoreBrand } from "@/lib/store/brand";
 import { BuilderClient } from "./builder-client";
 import type { BlogOption, CategoryOption, ProductOption } from "./section-form";
@@ -15,12 +15,14 @@ export default async function BuilderPage() {
   const storeId = await getActingStoreId();
 
   const [
+    homepage,
     pages,
     { data: products },
     { data: categories },
     { data: blogs },
     brand,
   ] = await Promise.all([
+    ensureHomepage(),
     listPages(),
     supabase
       .from("products")
@@ -51,9 +53,13 @@ export default async function BuilderPage() {
     }),
   );
 
+  // The homepage sentinel (slug "") is pinned first in the builder; listPages
+  // excludes it, so prepend it explicitly.
+  const initialPages = homepage ? [homepage, ...pages] : pages;
+
   return (
     <BuilderClient
-      initialPages={pages}
+      initialPages={initialPages}
       products={(products ?? []) as ProductOption[]}
       categories={(categories ?? []) as CategoryOption[]}
       blogs={blogOptions}

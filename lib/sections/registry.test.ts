@@ -165,7 +165,7 @@ describe("validatePageSlug", () => {
   });
 
   it("rejects reserved slugs", () => {
-    for (const reserved of ["shop", "our-story", "dashboard", "api"]) {
+    for (const reserved of ["shop", "blogs", "dashboard", "api"]) {
       const r = validatePageSlug(reserved);
       expect("error" in r && r.error, reserved).toMatch(/reserved/i);
     }
