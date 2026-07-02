@@ -6,6 +6,7 @@ import Link from "next/link";
 import styles from "./Header.module.css";
 import Image from "next/image";
 import { useBrand } from "@/app/(storefront)/components/brand-provider";
+import { useMenus } from "@/app/(storefront)/components/menu-provider";
 import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
 import {
@@ -26,6 +27,7 @@ export default function Header() {
   const { user, customer, loading, openAuthModal, signOut } = useAuth();
   const { totalItems, hydrated: cartHydrated, openCart } = useCart();
   const brand = useBrand();
+  const { header: navLinks } = useMenus();
 
   const isLoggedIn = !!user && !!customer;
 
@@ -109,11 +111,11 @@ export default function Header() {
         </Link>
 
         <nav className={styles.navLinks}>
-          <Link href="/shop">Shop</Link>
-          <Link href="/track-order">Track Order</Link>
-          <Link href="/find-us">Find Us</Link>
-          <Link href="/enquiries">Enquiries</Link>
-          <Link href="/blogs">Blogs</Link>
+          {navLinks.map((link) => (
+            <Link key={`${link.href}|${link.label}`} href={link.href}>
+              {link.label}
+            </Link>
+          ))}
         </nav>
       </div>
 
@@ -393,21 +395,15 @@ export default function Header() {
         </div>
 
         <nav className={styles.drawerNav}>
-          <Link href="/shop" onClick={() => setIsMenuOpen(false)}>
-            Shop
-          </Link>
-          <Link href="/track-order" onClick={() => setIsMenuOpen(false)}>
-            Track Order
-          </Link>
-          <Link href="/find-us" onClick={() => setIsMenuOpen(false)}>
-            Find Us
-          </Link>
-          <Link href="/enquiries" onClick={() => setIsMenuOpen(false)}>
-            Enquiries
-          </Link>
-          <Link href="/blogs" onClick={() => setIsMenuOpen(false)}>
-            Blogs
-          </Link>
+          {navLinks.map((link) => (
+            <Link
+              key={`${link.href}|${link.label}`}
+              href={link.href}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              {link.label}
+            </Link>
+          ))}
         </nav>
 
         {/* Mobile auth section in drawer */}

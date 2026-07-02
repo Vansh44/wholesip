@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { createPublicClient } from "@/lib/supabase/public";
 import { TAGS } from "@/lib/storefront/tags";
 import type { PageSectionItem } from "@/lib/sections/registry";
+import { normalizeMenus, type StoreMenus } from "@/lib/menus";
 
 // ---------------------------------------------------------------------------
 // Cached PUBLIC storefront reads.
@@ -211,6 +212,24 @@ export const getPublishedPage = unstable_cache(
   },
   ["storefront-store-page"],
   { tags: [TAGS.pages], revalidate: REVALIDATE },
+);
+
+// Per-store navigation (header + footer). Returns normalized menus, falling
+// back to DEFAULT_MENUS for any store without a row (or empty fields). Consumed
+// by the storefront layout → MenuProvider → Header/Footer.
+export const getStoreMenus = unstable_cache(
+  async (storeId: string): Promise<StoreMenus> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("store_menus")
+      .select("header, footer_groups, footer_legal")
+      .eq("store_id", storeId)
+      .maybeSingle();
+    if (error || !data) return normalizeMenus(null);
+    return normalizeMenus(data);
+  },
+  ["storefront-store-menus"],
+  { tags: [TAGS.menus], revalidate: REVALIDATE },
 );
 
 // Published page slugs for the current store — used by the sitemap.

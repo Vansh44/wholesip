@@ -7,7 +7,10 @@ import CartProvider from "@/app/(storefront)/components/cart/CartProvider";
 import CartDrawer from "@/app/(storefront)/components/cart/CartDrawer";
 import AuthModal from "@/app/(storefront)/components/auth/AuthModal";
 import { BrandProvider } from "@/app/(storefront)/components/brand-provider";
+import { MenuProvider } from "@/app/(storefront)/components/menu-provider";
 import { getStoreBrand } from "@/lib/store/brand";
+import { getStoreMenus } from "@/lib/storefront/queries";
+import { getCurrentStoreId } from "@/lib/store/resolve";
 import { getStoreUrl } from "@/lib/site";
 import { Toaster } from "@/components/ui/sonner";
 import "./storefront-theme.css";
@@ -30,20 +33,26 @@ export default async function StorefrontLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const brand = await getStoreBrand();
+  const storeId = await getCurrentStoreId();
+  const [brand, menus] = await Promise.all([
+    getStoreBrand(),
+    getStoreMenus(storeId),
+  ]);
 
   return (
     <AuthProvider>
       <CartProvider>
         <BrandProvider brand={brand}>
-          <div
-            className="storefront-root"
-            style={{ "--brand-primary": brand.primaryColor } as CSSProperties}
-          >
-            <Header />
-            {children}
-            <Footer />
-          </div>
+          <MenuProvider menus={menus}>
+            <div
+              className="storefront-root"
+              style={{ "--brand-primary": brand.primaryColor } as CSSProperties}
+            >
+              <Header />
+              {children}
+              <Footer />
+            </div>
+          </MenuProvider>
         </BrandProvider>
         <AuthModal />
         <CartDrawer />

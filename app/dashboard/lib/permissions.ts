@@ -140,6 +140,14 @@ export const SECTIONS: DashboardSection[] = [
     openInNewTab: true,
   },
   {
+    key: "navigation",
+    label: "Navigation",
+    href: "/dashboard/navigation",
+    icon: "globe",
+    group: "Content",
+    actions: ["view", "manage"],
+  },
+  {
     key: "blogs",
     label: "Blogs",
     href: "/dashboard/blogs",

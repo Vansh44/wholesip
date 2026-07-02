@@ -76,33 +76,34 @@ wholesip/
 │   │
 │   ├── (storefront)/          # ★ THE STORE WEBSITE (served on store hosts)
 │   │   ├── layout.tsx         # Storefront shell: Header/Footer, BrandProvider, Auth+Cart providers
-│   │   ├── page.tsx           # Store homepage (dynamic sections, see lib/homepage/)
+│   │   ├── page.tsx           # Store homepage = store_pages row with slug "" (the
+│   │   │                      # "homepage sentinel"); reads published/preview sections
+│   │   │                      # just like [pageSlug]. Edited in /dashboard/builder (§11)
 │   │   ├── storefront-theme.css
-│   │   ├── (pages)/           # All customer-facing pages:
+│   │   ├── (pages)/           # Customer-facing pages:
 │   │   │   ├── shop/          #   product listing + [slug] product detail (reviews, related)
 │   │   │   ├── cart/          #   cart page (CartProvider-driven)
 │   │   │   ├── blogs/         #   blog listing, [slug] detail (comments/reactions),
 │   │   │   │                  #   write/ (TipTap customer blog editor), my-submissions/
 │   │   │   ├── enquiries/     #   enquiry form (tested)
 │   │   │   ├── profile/       #   customer profile
-│   │   │   ├── [pageSlug]/    #   ★ merchant-built custom pages from store_pages (see §11):
-│   │   │   │                  #   published path (cached) + ?preview=1 draft path
-│   │   │   │                  #   (uncached, admin-session-gated) + preview-bridge.tsx
-│   │   │   └── …static pages: our-story, faqs, contact, careers, find-us, gift-packs,
-│   │   │       ingredients, process, sustainability, wholesale, track-order, returns,
-│   │   │       shipping, terms, privacy-policy, cookie-policy, refund-policy
-│   │   │       (App Router serves these static siblings before [pageSlug]; all their
-│   │   │        slugs are RESERVED — see lib/sections/registry.ts + drift test)
+│   │   │   └── [pageSlug]/    #   ★ ALL content pages from store_pages (see §11): merchant
+│   │   │                      #   custom pages AND the former hardcoded static pages
+│   │   │                      #   (our-story, faqs, …) — retired in Phase 4b, now editable
+│   │   │                      #   rows. Published path (cached) + ?preview=1 draft path
+│   │   │                      #   (uncached, admin-gated). Only INTERACTIVE routes above
+│   │   │                      #   stay in code + RESERVED (registry.ts + drift test).
 │   │   └── components/
 │   │       ├── auth/          # AuthModal + AuthProvider (customer auth context)
 │   │       ├── cart/          # CartProvider, CartDrawer, CouponField
-│   │       ├── header/ footer/ hero/
-│   │       ├── homepage/      # Section renderer + section components (featured products,
+│   │       ├── header/ footer/  # nav from store_menus via MenuProvider (§11 menu builder)
+│   │       ├── homepage/      # Shared per-section renderer (featured products,
 │   │       │                  # blog carousel, promo banner, shop-by-category…)
 │   │       ├── sections/      # ★ Generalized section renderer shared by homepage + pages:
 │   │       │                  # page-section-renderer, custom-code-frame (sandboxed iframe),
-│   │       │                  # custom-code-section, rich-text-section (see §11)
+│   │       │                  # custom-code-section, rich-text-section, preview-bridge (§11)
 │   │       ├── brand-provider.tsx   # Injects per-store branding CSS vars
+│   │       ├── menu-provider.tsx    # Supplies per-store header/footer nav (store_menus)
 │   │       ├── shop-card.tsx / share-buttons.tsx / structured-data.tsx
 │   │
 │   ├── dashboard/             # ★ STORE ADMIN DASHBOARD (per-store, auth-gated)
@@ -113,10 +114,13 @@ wholesip/
 │   │   ├── lib/               # access.ts, permissions.ts (role → allowed nav/actions),
 │   │   │                      # list-params.ts, use-row-selection.ts
 │   │   ├── products/          # CRUD + @modal intercepted route for quick edit
-│   │   ├── categories/ colors/ blogs/ media/ homepage/   # content management
+│   │   ├── categories/ colors/ blogs/ media/   # content management
 │   │   │   └── blogs/settings/  # blog feature toggles + per-store categories/tags manager
+│   │   │   (homepage editor RETIRED in Phase 4a — the homepage is now edited in builder/)
+│   │   ├── navigation/        # ★ Menu builder (§11): edit header + footer nav (store_menus)
 │   │   ├── builder/           # ★ Website Builder full-tab experience (see §11): pages list
-│   │   │                      # + live preview iframe + per-section editing. builder-client,
+│   │   │                      # (incl. the pinned Home = slug "") + live preview iframe +
+│   │   │                      # per-section editing. builder-client,
 │   │   │                      # pages-panel, sections-panel, section-form (shared editor forms),
 │   │   │                      # code-editor(+-lazy) (CodeMirror), builder.css
 │   │   ├── marketing/coupons/ # coupon CRUD + coupon email campaigns
@@ -141,9 +145,9 @@ wholesip/
 │   │
 │   ├── actions/               # ★ ALL SERVER ACTIONS ("use server") — one file per domain:
 │   │   │                      # product/category/color/coupon/coupon-email/blog/blog-social/
-│   │   │                      # review/enquiry/homepage/customer/customer-profile/
+│   │   │                      # review/enquiry/customer/customer-profile/
 │   │   │                      # account-settings/set-password/invite-user/user-management/
-│   │   │                      # user-group/role actions
+│   │   │                      # user-group/role actions  (homepage-actions RETIRED — §11)
 │   │   ├── store-signup.ts    # Creates a new store (tenant onboarding)
 │   │   ├── store-branding.ts  # Per-store branding updates
 │   │   ├── store-settings.ts  # Read/save per-store feature settings (see lib/settings)
@@ -151,7 +155,8 @@ wholesip/
 │   │   ├── store-domain.ts    # Custom domain connect + DNS verification (Resend)
 │   │   ├── page-actions.ts    # ★ Custom-page CRUD + draft/publish (see §11): createPage/
 │   │   │                      # updatePageMeta/savePageDraft/publishPage/unpublishPage/
-│   │   │                      # deletePage, gated getManagerUserId("builder"), service-role
+│   │   │                      # deletePage/ensureHomepage, gated builder, service-role
+│   │   ├── menu-actions.ts    # ★ Per-store nav read/save (see §11 menu builder, store_menus)
 │   │   ├── platform.ts        # Platform-admin actions
 │   │   └── _test-helpers.ts   # Shared mocks for action tests (co-located *.test.ts)
 │   │
@@ -186,6 +191,8 @@ wholesip/
 │   │                          # trigger-worker, blog/enquiry notifications
 │   ├── homepage/section-types.ts  # Section schema (typed, tested) — shared by homepage AND
 │   │                          # custom pages; types incl. rich_text + custom_code (see §11)
+│   ├── menus.ts               # ★ Per-store nav (§11): StoreMenus types, DEFAULT_MENUS,
+│   │                          # normalize/sanitize. Read cached via getStoreMenus.
 │   ├── ai/gemini.ts           # Gemini client for AI copy
 │   ├── pricing.ts / slug.ts / sanitize.ts / rate-limit.ts / og-image.ts
 │   ├── blog-taxonomy.ts   # fetchBlogTaxonomy(): per-store blog categories/tags reader
@@ -204,9 +211,11 @@ wholesip/
 │   ├── multitenant_04_admin_views.sql / _05_count_rpcs.sql / _06_drop_store_defaults.sql
 │   ├── multitenant_07_platform_admins.sql  # platform_admins table (+ rollback)
 │   ├── *_table.sql            # blogs, coupons, enquiries, roles, users, user_groups,
-│   │                          # product_reviews, homepage_sections, email_campaigns,
-│   │                          # rate_limits, card_colors, blog_comments/likes…
+│   │                          # product_reviews, email_campaigns, rate_limits, card_colors,
+│   │                          # blog_comments/likes… (homepage_sections DEPRECATED — Phase 4a)
 │   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
+│   ├── store_menus.sql        # ★ per-store header/footer nav (+ RLS + WholeSip seed) — §11
+│   ├── homepage_to_store_pages.sql  # Phase 4a data migration: homepage_sections → slug ""
 │   ├── store_pages.sql        # ★ merchant custom pages (draft + published_sections jsonb;
 │   │                          # RLS via is_store_admin; anon SELECT REVOKED then GRANTed on
 │   │                          # named cols WITHOUT draft `sections` — see §11) (+ rollback)
@@ -293,8 +302,8 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     merchant strings; each string capped 64 KB. `rich_text` is the inline/SEO
     counterpart: sanitized at save AND render via `lib/sanitize.ts` (blog trust
     model). Custom-code availability is gated by the `pages.customCode` setting
-    (registry, section `builder`), enforced **server-side** in BOTH
-    `page-actions.ts` and `homepage-actions.ts`. - **Builder UI** at `/dashboard/builder` (permission section `builder`, group
+    (registry, section `builder`), enforced **server-side** in `page-actions.ts`
+    (all sections — homepage + custom pages — now save through it). - **Builder UI** at `/dashboard/builder` (permission section `builder`, group
     Content; sidebar link opens a new tab). A `fixed inset-0` overlay over the
     dashboard shell — kept at `z-index:40`, BELOW the shared `z-50` dialog layer,
     so the builder's own dialogs (new page, type chooser, section editor with its
@@ -305,9 +314,25 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     **Publish** copies draft → published + `updateTag(TAGS.pages)` +
     `revalidatePath`. Code editing uses CodeMirror 6 lazy-loaded
     (`code-editor-lazy.tsx`, ssr:false, the TipTap `write-blog-editor-lazy`
-    pattern) with a live `CustomCodeFrame` pane. - **Phase 4 (not built yet, by design)**: migrate the homepage into
-    `store_pages` as slug `""`, seed the 17 hardcoded WholeSip static pages as
-    rows, retire hardcoded pages, add a nav/footer menu builder.
+    pattern) with a live `CustomCodeFrame` pane. - **Homepage (Phase 4a, done)**: the storefront homepage is the `store_pages`
+    row with slug `""` (the "homepage sentinel"). `app/(storefront)/page.tsx`
+    reads it (published + `?preview=1` draft) exactly like `[pageSlug]`. It's
+    pinned first in the builder as "Home" (`ensureHomepage` creates it on demand;
+    `listPages` hides it; slug immutable, not deletable). The old WholeSip hero
+    is now a `custom_code` section. Retired: `homepage_sections` reads,
+    `homepage-actions.ts`, `/dashboard/homepage`, `Hero.jsx` (the
+    `homepage_sections` table is kept, deprecated, as migration rollback). - **Static pages (Phase 4b, done)**: the 17 former hardcoded content pages
+    (our-story, faqs, …) are seeded as `store_pages` rows and their route dirs
+    deleted, so `[pageSlug]` serves them; `RESERVED_PAGE_SLUGS` now reserves only
+    the INTERACTIVE routes that stay in code (blogs, cart, enquiries, profile,
+    shop) + system routes. - **Menu builder (Phase 4c, done)**: header + footer nav is per-store in
+    `store_menus` (jsonb: `header`, `footer_groups`, `footer_legal`; RLS public
+    read / admin write). Read cached via `getStoreMenus` (tag `TAGS.menus`) →
+    `MenuProvider` → `Header`/`Footer`. Edited at `/dashboard/navigation`
+    (permission section `navigation`) via `menu-actions.ts`; shape + defaults in
+    `lib/menus.ts` (`DEFAULT_MENUS` fallback). - **Phase 4d (not built, by design)**: nothing pending — homepage, static
+    pages, and menus are all migrated. Remaining WholeSip cleanup (config/site.ts,
+    brand/) continues opportunistically.
 
 ## 6. Commands
 
@@ -350,12 +375,13 @@ Legacy WholeSip fallback remains until all traffic moves to real store hosts.
   (`lib/settings/`, rendered on each feature's own settings page — blogs →
   `/dashboard/blogs/settings`; see convention #9), and blogs is the first
   consumer.
-- **The website is dashboard-editable** (convention #11): the homepage and
-  merchant-built custom pages are per-store data (sections + custom HTML/CSS/JS),
-  edited in the Website Builder (`/dashboard/builder`) with live preview and a
-  draft → publish workflow. Merchant JS is sandbox-isolated. This is the
-  settings-based philosophy applied to the storefront itself; Phase 4 will fold
-  the homepage + the remaining hardcoded static pages into this system.
+- **The website is dashboard-editable** (convention #11): the homepage, the
+  former hardcoded static pages, and merchant-built custom pages are ALL per-store
+  data (sections + custom HTML/CSS/JS) edited in the Website Builder
+  (`/dashboard/builder`) with live preview and a draft → publish workflow;
+  header/footer nav is per-store too (`/dashboard/navigation`). Merchant JS is
+  sandbox-isolated. Phase 4 completed this fold-in — only genuinely interactive
+  routes (shop, cart, blogs, enquiries, profile) remain in code.
 - **Templates**: at signup the merchant picks a storefront template (filter by
   business category + free/paid, preview, plan-gated — e.g. "For STARTER and
   above"). Multiple visual templates are a planned core feature; today there is
@@ -365,5 +391,6 @@ Legacy WholeSip fallback remains until all traffic moves to real store hosts.
   subscription billing for StoreMink plans.
 - **WholeSip cleanup is ongoing**: the product started as the WholeSip site and
   was converted into StoreMink; remaining WholeSip traces (`config/site.ts`,
-  `brand/`, hardcoded storefront static pages, repo name) are being removed
-  gradually as features become per-store/settings-based.
+  `brand/`, repo name) are being removed gradually as features become
+  per-store/settings-based. (The hardcoded homepage/hero and static pages are
+  now migrated — Phase 4.)

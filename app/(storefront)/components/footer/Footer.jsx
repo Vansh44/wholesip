@@ -6,6 +6,7 @@ import styles from "./Footer.module.css";
 import Image from "next/image";
 import { siteConfig } from "@/config/site";
 import { useBrand } from "@/app/(storefront)/components/brand-provider";
+import { useMenus } from "@/app/(storefront)/components/menu-provider";
 import { useRouter, usePathname } from "next/navigation";
 
 // Generic SVG mail/phone/clock icons live below; the social icon images are
@@ -16,6 +17,7 @@ export default function Footer() {
   const router = useRouter();
   const pathname = usePathname();
   const brand = useBrand();
+  const { footerGroups, footerLegal } = useMenus();
 
   // Social links: render only the platforms this store has configured.
   const socialLinks = [
@@ -204,35 +206,19 @@ export default function Footer() {
           )}
         </div>
 
-        {/* Shop Column */}
-        <div className={styles.linkCol}>
-          <h4 className={styles.columnTitle}>Shop</h4>
-          <nav className={styles.linkList}>
-            <Link href="/shop">All Products</Link>
-            <Link href="/gift-packs">Gift Packs</Link>
-          </nav>
-        </div>
-
-        {/* Company Column */}
-        <div className={styles.linkCol}>
-          <h4 className={styles.columnTitle}>Company</h4>
-          <nav className={styles.linkList}>
-            <Link href="/our-story">Our Story</Link>
-            <Link href="/blogs">Blog</Link>
-            <Link href="/contact">Contact Us</Link>
-          </nav>
-        </div>
-
-        {/* Support Column */}
-        <div className={styles.linkCol}>
-          <h4 className={styles.columnTitle}>Support</h4>
-          <nav className={styles.linkList}>
-            <Link href="/faqs">FAQs</Link>
-            <Link href="/track-order">Track My Order</Link>
-            <Link href="/returns">Returns &amp; Refunds</Link>
-            <Link href="/shipping">Shipping Info</Link>
-          </nav>
-        </div>
+        {/* Link columns (per-store, from the navigation menu builder) */}
+        {footerGroups.map((group, gi) => (
+          <div key={`${group.title}|${gi}`} className={styles.linkCol}>
+            <h4 className={styles.columnTitle}>{group.title}</h4>
+            <nav className={styles.linkList}>
+              {group.links.map((link) => (
+                <Link key={`${link.href}|${link.label}`} href={link.href}>
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        ))}
       </div>
 
       {/* Bottom Row */}
@@ -242,13 +228,12 @@ export default function Footer() {
             &copy; {currentYear} {legalName}. All rights reserved.
           </p>
           <div className={styles.legalLinks}>
-            <Link href="/privacy-policy">Privacy Policy</Link>
-            <span className={styles.legalDivider}>·</span>
-            <Link href="/terms">Terms of Use</Link>
-            <span className={styles.legalDivider}>·</span>
-            <Link href="/refund-policy">Refund Policy</Link>
-            <span className={styles.legalDivider}>·</span>
-            <Link href="/cookie-policy">Cookie Policy</Link>
+            {footerLegal.map((link, i) => (
+              <span key={`${link.href}|${link.label}`}>
+                {i > 0 && <span className={styles.legalDivider}>·</span>}
+                <Link href={link.href}>{link.label}</Link>
+              </span>
+            ))}
           </div>
         </div>
       </div>
