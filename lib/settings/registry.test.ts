@@ -8,6 +8,7 @@ import {
   planAllows,
   resolveStoreSettings,
 } from "./registry";
+import { getSection } from "@/app/dashboard/lib/permissions";
 
 describe("settings registry", () => {
   it("catalog and key list stay in sync", () => {
@@ -19,6 +20,13 @@ describe("settings registry", () => {
       if (def.dependsOn) {
         expect(getSettingDef(def.dependsOn)).toBeDefined();
       }
+    }
+  });
+
+  // Settings are permission-gated by their owning feature's dashboard section.
+  it("every section points at a real dashboard section", () => {
+    for (const def of SETTINGS) {
+      expect(getSection(def.section), def.key).toBeDefined();
     }
   });
 

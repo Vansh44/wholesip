@@ -106,13 +106,15 @@ wholesip/
 │   │   │                      # list-params.ts, use-row-selection.ts
 │   │   ├── products/          # CRUD + @modal intercepted route for quick edit
 │   │   ├── categories/ colors/ blogs/ media/ homepage/   # content management
+│   │   │   └── blogs/settings/  # blog feature toggles + per-store categories/tags manager
 │   │   ├── marketing/coupons/ # coupon CRUD + coupon email campaigns
 │   │   ├── enquiries/         # enquiry inbox + @modal detail
 │   │   ├── users/             # customers + user_groups/ (segments)  [superadmin only]
 │   │   ├── admins/ roles/     # staff invites + role management
 │   │   ├── branding/          # per-store branding editor (logo, colors)
-│   │   └── settings/          # account/ + domain/ (custom-domain connect + verify)
-│   │       └── features/      # feature-settings editor (toggles from lib/settings registry)
+│   │   └── settings/          # account/ + domain/ (custom-domain connect + verify);
+│   │                          # feature toggles live on their feature's own page
+│   │                          # (e.g. blogs → blogs/settings — see convention #9)
 │   │
 │   ├── platform/              # ★ STOREMINK PLATFORM (served on storemink.com via rewrite)
 │   │   ├── page.tsx           # Marketing landing page
@@ -133,6 +135,7 @@ wholesip/
 │   │   ├── store-signup.ts    # Creates a new store (tenant onboarding)
 │   │   ├── store-branding.ts  # Per-store branding updates
 │   │   ├── store-settings.ts  # Read/save per-store feature settings (see lib/settings)
+│   │   ├── blog-taxonomy-actions.ts  # Per-store blog categories/tags CRUD (+ propagation into blogs)
 │   │   ├── store-domain.ts    # Custom domain connect + DNS verification (Resend)
 │   │   ├── platform.ts        # Platform-admin actions
 │   │   └── _test-helpers.ts   # Shared mocks for action tests (co-located *.test.ts)
@@ -160,7 +163,8 @@ wholesip/
 │   ├── homepage/section-types.ts  # Homepage section schema (typed, tested)
 │   ├── ai/gemini.ts           # Gemini client for AI copy
 │   ├── pricing.ts / slug.ts / sanitize.ts / rate-limit.ts / og-image.ts
-│   ├── blog-config.ts / blog-reactions.ts / phone-labels.ts / use-otp-throttle.ts
+│   ├── blog-taxonomy.ts   # fetchBlogTaxonomy(): per-store blog categories/tags reader
+│   ├── blog-reactions.ts / phone-labels.ts / use-otp-throttle.ts
 │   ├── site.ts / utils.ts     # cn() etc.
 │
 ├── components/
@@ -177,6 +181,7 @@ wholesip/
 │   ├── *_table.sql            # blogs, coupons, enquiries, roles, users, user_groups,
 │   │                          # product_reviews, homepage_sections, email_campaigns,
 │   │                          # rate_limits, card_colors, blog_comments/likes…
+│   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
 │   ├── custom_access_token_hook.sql     # JWT claims (role, force_password_reset)
 │   └── perf_*.sql             # index / RLS performance migrations
 │
@@ -209,16 +214,27 @@ wholesip/
    `prettier --check`, `build` — all must pass.
 9. **Features are settings-based** (see §9): configurable behavior goes through
    `lib/settings/registry.ts` — add the setting there (key, label, default,
-   optional `minPlan`/`dependsOn`), read it via `getStoreSettings()` /
-   `getStoreSetting()` from `lib/settings/resolve.ts`, and it automatically
-   appears in the `/dashboard/settings/features` editor. Values live in
-   `stores.settings.features` (jsonb); `saveStoreSettings` validates against the
-   registry and busts `STORE_TAG`. Enforce settings **server-side** (in the
-   action), not just in the UI. If RLS blocks a setting-dependent write (e.g.
-   customers may only insert `pending_review` blogs), do the privileged step
-   with the service-role client AFTER checking the setting — see direct-publish
-   in `blog-actions.ts`. First consumers: `blogs.customerSubmissions`,
-   `blogs.requireApproval`.
+   `section` = the dashboard permission section that owns it, optional
+   `minPlan`/`dependsOn`), read it via `getStoreSettings()` /
+   `getStoreSetting()` from `lib/settings/resolve.ts`. Settings render on their
+   OWNING FEATURE's settings page (blogs → `/dashboard/blogs/settings`) via
+   `getStoreSettingsForEditor(group)` + `saveStoreSettings`, both gated per
+   setting by `can(def.section, …)` — there is no central features page. Values
+   live in `stores.settings.features` (jsonb); `saveStoreSettings` validates
+   against the registry and busts `STORE_TAG`. Enforce settings **server-side**
+   (in the action), not just in the UI. If RLS blocks a setting-dependent write
+   (e.g. customers may only insert `pending_review` blogs), do the privileged
+   step with the service-role client AFTER checking the setting — see
+   direct-publish in `blog-actions.ts`. First consumers:
+   `blogs.customerSubmissions`, `blogs.requireApproval`.
+10. **Blog categories & tags are per-store data**, not code: `blog_categories` /
+    `blog_tags` tables (`supabase/blog_taxonomy.sql`), managed in
+    `/dashboard/blogs/settings` via `blog-taxonomy-actions.ts`. Blogs store
+    plain names in their `text[]` columns, so rename/delete propagates into
+    affected blog rows; customer submissions are validated server-side against
+    the store's lists. Editors read them via `fetchBlogTaxonomy`
+    (dashboard) / `getBlogTaxonomyNames` (cached storefront,
+    tag `TAGS.blogTaxonomy`).
 
 ## 6. Commands
 
@@ -255,10 +271,12 @@ Legacy WholeSip fallback remains until all traffic moves to real store hosts.
 - **Everything must be settings-based.** Feature behavior is configured per
   store, not hardcoded. Canonical example — blogs: a store can toggle (a) whether
   customers may submit blogs at all, and (b) whether submissions need admin
-  approval or publish directly. Every feature should be built with this kind of
-  per-store configurability from the start. **The framework for this now exists**
-  (`lib/settings/` + `/dashboard/settings/features` — see convention #9), and
-  blogs is the first consumer.
+  approval or publish directly, and it owns its blog categories/tags outright
+  (convention #10). Every feature should be built with this kind of per-store
+  configurability from the start. **The framework for this now exists**
+  (`lib/settings/`, rendered on each feature's own settings page — blogs →
+  `/dashboard/blogs/settings`; see convention #9), and blogs is the first
+  consumer.
 - **Templates**: at signup the merchant picks a storefront template (filter by
   business category + free/paid, preview, plan-gated — e.g. "For STARTER and
   above"). Multiple visual templates are a planned core feature; today there is

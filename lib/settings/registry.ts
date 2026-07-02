@@ -4,8 +4,10 @@
 //
 // StoreMink is settings-based by design: features ship with per-store toggles
 // instead of hardcoded behavior. Add a new setting by appending to SETTING_KEYS
-// and SETTINGS below — the dashboard editor (/dashboard/settings/features),
-// validation in the save action, and plan gating all derive from this catalog.
+// and SETTINGS below — validation in the save action and plan gating derive
+// from this catalog. Settings render on their OWNING FEATURE's settings page
+// (e.g. the Blogs group lives at /dashboard/blogs/settings), gated by that
+// feature's dashboard `section` permission.
 //
 // Values are stored per store under stores.settings.features (jsonb), e.g.
 //   { "blogs.customerSubmissions": false }
@@ -54,6 +56,9 @@ export interface SettingDef {
   description: string;
   /** Display group in the settings editor (e.g. "Blogs"). */
   group: string;
+  /** Dashboard permission section that governs this setting (permissions.ts).
+   *  Viewing/saving it requires view/manage on this section. */
+  section: string;
   type: "boolean";
   defaultValue: boolean;
   /** Minimum plan required to change this setting (locked to default below). */
@@ -70,6 +75,7 @@ export const SETTINGS: readonly SettingDef[] = [
     description:
       "Let signed-in customers write and submit their own blog posts on your storefront.",
     group: "Blogs",
+    section: "blogs",
     type: "boolean",
     defaultValue: true,
   },
@@ -79,6 +85,7 @@ export const SETTINGS: readonly SettingDef[] = [
     description:
       "Customer submissions wait in a review queue until an admin approves them. Turn off to let customer blogs go live immediately.",
     group: "Blogs",
+    section: "blogs",
     type: "boolean",
     defaultValue: true,
     dependsOn: "blogs.customerSubmissions",

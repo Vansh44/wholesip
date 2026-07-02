@@ -2,11 +2,7 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  getActingStoreId,
-  getManagerUserId,
-  getViewerContext,
-} from "@/app/dashboard/lib/access";
+import { getViewerContext } from "@/app/dashboard/lib/access";
 import { can } from "@/app/dashboard/lib/permissions";
 import { STORE_TAG } from "@/lib/store/resolve";
 import {
@@ -36,18 +32,23 @@ export interface EditorSetting {
   dependsOn?: string;
 }
 
-// Feature settings for the acting store, shaped for /dashboard/settings/features.
-export async function getStoreSettingsForEditor(): Promise<{
+// Feature settings for the acting store, shaped for the dashboard editors.
+// Each setting is gated by ITS OWN dashboard section (def.section) — e.g. the
+// Blogs group needs blogs.view — so feature settings live with their feature
+// (blogs → /dashboard/blogs/settings). Pass `group` to fetch one group only.
+export async function getStoreSettingsForEditor(group?: string): Promise<{
   plan: string;
   settings: EditorSetting[];
 }> {
   const ctx = await getViewerContext();
-  if (
-    !ctx?.profile ||
-    !can(ctx.permissions, "settings", "view", ctx.isSuperadmin)
-  ) {
-    return { plan: "free", settings: [] };
-  }
+  if (!ctx?.profile) return { plan: "free", settings: [] };
+
+  const visible = SETTINGS.filter(
+    (def) =>
+      (!group || def.group === group) &&
+      can(ctx.permissions, def.section, "view", ctx.isSuperadmin),
+  );
+  if (visible.length === 0) return { plan: "free", settings: [] };
 
   const admin = createAdminClient();
   const { data: store } = await admin
@@ -64,7 +65,7 @@ export async function getStoreSettingsForEditor(): Promise<{
 
   return {
     plan,
-    settings: SETTINGS.map((def) => ({
+    settings: visible.map((def) => ({
       key: def.key,
       label: def.label,
       description: def.description,
@@ -78,19 +79,31 @@ export async function getStoreSettingsForEditor(): Promise<{
 }
 
 /**
- * Persist feature settings from the dashboard editor. Only keys in the
- * registry are accepted, non-boolean values are dropped, and plan-locked
- * settings can't be changed. Merges into stores.settings.features (preserving
+ * Persist feature settings from the dashboard editors. Only keys in the
+ * registry are accepted, non-boolean values are dropped, plan-locked settings
+ * can't be changed, and each key requires `manage` on ITS owning dashboard
+ * section (def.section). Merges into stores.settings.features (preserving
  * brand and everything else in settings), then busts the store-lookup cache so
  * the storefront and all setting reads update at once.
  */
 export async function saveStoreSettings(
   values: Record<string, boolean>,
 ): Promise<ActionResult> {
-  const userId = await getManagerUserId("settings");
-  if (!userId) return { error: "Not authenticated" };
+  const ctx = await getViewerContext();
+  if (!ctx?.profile) return { error: "Not authenticated" };
 
-  const storeId = await getActingStoreId();
+  // Registry keys actually submitted vs. the subset this caller may change.
+  const requested = SETTINGS.filter(
+    (def) => typeof values[def.key] === "boolean",
+  );
+  const permitted = requested.filter((def) =>
+    can(ctx.permissions, def.section, "manage", ctx.isSuperadmin),
+  );
+  if (requested.length > 0 && permitted.length === 0) {
+    return { error: "You don't have permission to change these settings." };
+  }
+
+  const storeId = ctx.storeId;
   const admin = createAdminClient();
 
   const { data: store, error: readError } = await admin
@@ -110,11 +123,9 @@ export async function saveStoreSettings(
     ...((settings[FEATURES_KEY] as Record<string, unknown>) ?? {}),
   };
 
-  for (const def of SETTINGS) {
-    const v = values[def.key];
-    if (typeof v !== "boolean") continue; // key not submitted / junk
+  for (const def of permitted) {
     if (!planAllows(plan, def.minPlan)) continue; // locked on this plan
-    features[def.key] = v;
+    features[def.key] = values[def.key];
   }
 
   const { error } = await admin

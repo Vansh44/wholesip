@@ -31,7 +31,6 @@ export default defineConfig({
         "lib/slug.ts",
         "lib/pricing.ts",
         "lib/sanitize.ts",
-        "lib/blog-config.ts",
         "lib/og-image.ts",
         "lib/phone-labels.ts",
         "lib/blog-reactions.ts",

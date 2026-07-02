@@ -46,7 +46,6 @@ import {
 } from "@/app/actions/blog-actions";
 import type { BlogFormData } from "@/app/actions/blog-actions";
 import type { Blog } from "./page";
-import { PREDEFINED_CATEGORIES, PREDEFINED_TAGS } from "@/lib/blog-config";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -75,6 +74,9 @@ type Props = {
   blog: Blog | null;
   onClose: () => void;
   onSaved: () => void;
+  /** This store's blog categories/tags (managed in /dashboard/blogs/settings). */
+  categoryOptions: string[];
+  tagOptions: string[];
 };
 
 // ── Component ─────────────────────────────────────────────────
@@ -118,7 +120,14 @@ const ToolbarButton = ({
   </button>
 );
 
-export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
+export function BlogEditorDialog({
+  open,
+  blog,
+  onClose,
+  onSaved,
+  categoryOptions,
+  tagOptions,
+}: Props) {
   const isEditing = !!blog;
   const [isPending, startTransition] = useTransition();
   const [hasUnsaved, setHasUnsaved] = useState(false);
@@ -809,6 +818,12 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
               </FieldGroup>
 
               <FieldGroup label="Categories">
+                {categoryOptions.length === 0 && categories.length === 0 && (
+                  <p style={{ fontSize: 12, color: "#8b93a3", marginTop: 4 }}>
+                    No categories yet — add them in{" "}
+                    <a href="/dashboard/blogs/settings">Blog settings</a>.
+                  </p>
+                )}
                 <div
                   style={{
                     display: "flex",
@@ -817,40 +832,44 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                     marginTop: 4,
                   }}
                 >
-                  {PREDEFINED_CATEGORIES.map((cat) => {
-                    const isSelected = categories.includes(cat);
-                    return (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => {
-                          setCategories((prev) =>
-                            isSelected
-                              ? prev.filter((c) => c !== cat)
-                              : [...prev, cat],
-                          );
-                          setHasUnsaved(true);
-                        }}
-                        style={{
-                          padding: "4px 10px",
-                          borderRadius: 100,
-                          fontSize: 12,
-                          fontWeight: isSelected ? 600 : 500,
-                          border: isSelected
-                            ? "1px solid transparent"
-                            : "1px solid rgba(0,0,0,0.15)",
-                          background: isSelected
-                            ? "rgba(0,0,0,0.12)"
-                            : "transparent",
-                          color: isSelected ? "#000000" : "rgba(0,0,0,0.7)",
-                          cursor: "pointer",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {cat}
-                      </button>
-                    );
-                  })}
+                  {/* Store options + any names already on this post (so legacy
+                      values stay visible and deselectable after a rename/delete). */}
+                  {Array.from(new Set([...categoryOptions, ...categories])).map(
+                    (cat) => {
+                      const isSelected = categories.includes(cat);
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setCategories((prev) =>
+                              isSelected
+                                ? prev.filter((c) => c !== cat)
+                                : [...prev, cat],
+                            );
+                            setHasUnsaved(true);
+                          }}
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: 100,
+                            fontSize: 12,
+                            fontWeight: isSelected ? 600 : 500,
+                            border: isSelected
+                              ? "1px solid transparent"
+                              : "1px solid rgba(0,0,0,0.15)",
+                            background: isSelected
+                              ? "rgba(0,0,0,0.12)"
+                              : "transparent",
+                            color: isSelected ? "#000000" : "rgba(0,0,0,0.7)",
+                            cursor: "pointer",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {cat}
+                        </button>
+                      );
+                    },
+                  )}
                 </div>
               </FieldGroup>
 
@@ -1042,6 +1061,12 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
               {/* Tags */}
               <div style={{ margin: "20px 0 0" }}>
                 <SectionTitle>Tags</SectionTitle>
+                {tagOptions.length === 0 && tags.length === 0 && (
+                  <p style={{ fontSize: 12, color: "#8b93a3", marginTop: 4 }}>
+                    No tags yet — add them in{" "}
+                    <a href="/dashboard/blogs/settings">Blog settings</a>.
+                  </p>
+                )}
                 <div
                   style={{
                     display: "flex",
@@ -1050,7 +1075,8 @@ export function BlogEditorDialog({ open, blog, onClose, onSaved }: Props) {
                     marginTop: 4,
                   }}
                 >
-                  {PREDEFINED_TAGS.map((tag) => {
+                  {/* Store options + any names already on this post. */}
+                  {Array.from(new Set([...tagOptions, ...tags])).map((tag) => {
                     const isSelected = tags.includes(tag);
                     return (
                       <button

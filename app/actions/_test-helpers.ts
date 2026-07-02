@@ -23,6 +23,7 @@ export interface ChainMock {
   eq: ReturnType<typeof vi.fn>;
   neq: ReturnType<typeof vi.fn>;
   in: ReturnType<typeof vi.fn>;
+  contains: ReturnType<typeof vi.fn>;
   like: ReturnType<typeof vi.fn>;
   ilike: ReturnType<typeof vi.fn>;
   or: ReturnType<typeof vi.fn>;
@@ -57,6 +58,7 @@ export function makeChain(
     eq: vi.fn(() => chain),
     neq: vi.fn(() => chain),
     in: vi.fn(() => chain),
+    contains: vi.fn(() => chain),
     like: vi.fn(() => chain),
     ilike: vi.fn(() => chain),
     or: vi.fn(() => chain),

@@ -125,38 +125,51 @@ export function DashboardSidebar({
           </div>
 
           {showPanel ? (
-            <div className="dash-nav-scroll">
-              <Link
-                href="/dashboard"
-                className="dash-nav-item dash-subnav-back"
-              >
-                <span className="dash-nav-icon" aria-hidden>
-                  <ArrowLeft className="h-[17px] w-[17px]" strokeWidth={2} />
-                </span>
-                <span className="truncate">Back</span>
-              </Link>
-              <div className="pt-1">
-                <div className="dash-nav-label">{activeSection.label}</div>
-                <nav>
-                  {activeSection.children!.map((c) => {
-                    const Icon = navIcons[c.icon ?? activeSection.icon];
-                    const active = matches(pathname, c.href);
-                    return (
-                      <Link
-                        key={c.href}
-                        href={c.href}
-                        className={`dash-nav-item ${active ? "active" : ""}`}
-                      >
-                        <span className="dash-nav-icon" aria-hidden>
-                          <Icon className="h-[17px] w-[17px]" strokeWidth={2} />
-                        </span>
-                        <span className="truncate">{c.label}</span>
-                      </Link>
-                    );
-                  })}
-                </nav>
-              </div>
-            </div>
+            (() => {
+              const activeChildHref = activeSection
+                .children!.filter((c) => matches(pathname, c.href))
+                .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+              return (
+                <div className="dash-nav-scroll">
+                  <Link
+                    href="/dashboard"
+                    className="dash-nav-item dash-subnav-back"
+                  >
+                    <span className="dash-nav-icon" aria-hidden>
+                      <ArrowLeft
+                        className="h-[17px] w-[17px]"
+                        strokeWidth={2}
+                      />
+                    </span>
+                    <span className="truncate">Back</span>
+                  </Link>
+                  <div className="pt-1">
+                    <div className="dash-nav-label">{activeSection.label}</div>
+                    <nav>
+                      {activeSection.children!.map((c) => {
+                        const Icon = navIcons[c.icon ?? activeSection.icon];
+                        const active = c.href === activeChildHref;
+                        return (
+                          <Link
+                            key={c.href}
+                            href={c.href}
+                            className={`dash-nav-item ${active ? "active" : ""}`}
+                          >
+                            <span className="dash-nav-icon" aria-hidden>
+                              <Icon
+                                className="h-[17px] w-[17px]"
+                                strokeWidth={2}
+                              />
+                            </span>
+                            <span className="truncate">{c.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </nav>
+                  </div>
+                </div>
+              );
+            })()
           ) : (
             <div className="dash-nav-scroll">
               {groups.map((g) => (

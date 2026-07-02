@@ -15,7 +15,6 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Placeholder from "@tiptap/extension-placeholder";
 import { SlashCommand } from "./slash-command";
-import { PREDEFINED_CATEGORIES, PREDEFINED_TAGS } from "@/lib/blog-config";
 import {
   uploadImage,
   deleteImage,
@@ -80,8 +79,13 @@ interface Submission {
 
 export default function WriteBlogEditor({
   initialMode = "write",
+  categoryOptions = [],
+  tagOptions = [],
 }: {
   initialMode?: Mode;
+  /** This store's blog categories/tags (managed by the store admin). */
+  categoryOptions?: string[];
+  tagOptions?: string[];
 } = {}) {
   const {
     user,
@@ -364,12 +368,14 @@ export default function WriteBlogEditor({
       return;
     }
 
-    if (selectedCategories.length === 0) {
+    // Only required when the store has defined options (a store with no
+    // taxonomy yet doesn't block submissions on the hidden pickers).
+    if (categoryOptions.length > 0 && selectedCategories.length === 0) {
       toast.error("Please select at least one category");
       return;
     }
 
-    if (selectedTags.length === 0) {
+    if (tagOptions.length > 0 && selectedTags.length === 0) {
       toast.error("Please select at least one tag");
       return;
     }
@@ -1079,44 +1085,64 @@ export default function WriteBlogEditor({
           </div>
         </section>
 
-        {/* Categories & Tags */}
-        <div className="write-blog-meta-grid">
-          <section className="wb-section">
-            <span className="wb-label">
-              Categories <span className="wb-required">*</span>
-            </span>
-            <div className="write-blog-pills">
-              {PREDEFINED_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  className={`write-blog-pill ${selectedCategories.includes(cat) ? "active" : ""}`}
-                  onClick={() => toggleCategory(cat)}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </section>
+        {/* Categories & Tags — this store's own lists; sections with no
+            options (and nothing selected on the post) are hidden. */}
+        {(categoryOptions.length > 0 ||
+          selectedCategories.length > 0 ||
+          tagOptions.length > 0 ||
+          selectedTags.length > 0) && (
+          <div className="write-blog-meta-grid">
+            {(categoryOptions.length > 0 || selectedCategories.length > 0) && (
+              <section className="wb-section">
+                <span className="wb-label">
+                  Categories{" "}
+                  {categoryOptions.length > 0 && (
+                    <span className="wb-required">*</span>
+                  )}
+                </span>
+                <div className="write-blog-pills">
+                  {Array.from(
+                    new Set([...categoryOptions, ...selectedCategories]),
+                  ).map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`write-blog-pill ${selectedCategories.includes(cat) ? "active" : ""}`}
+                      onClick={() => toggleCategory(cat)}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
 
-          <section className="wb-section">
-            <span className="wb-label">
-              Tags <span className="wb-required">*</span>
-            </span>
-            <div className="write-blog-pills">
-              {PREDEFINED_TAGS.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  className={`write-blog-pill ${selectedTags.includes(tag) ? "active" : ""}`}
-                  onClick={() => toggleTag(tag)}
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
-          </section>
-        </div>
+            {(tagOptions.length > 0 || selectedTags.length > 0) && (
+              <section className="wb-section">
+                <span className="wb-label">
+                  Tags{" "}
+                  {tagOptions.length > 0 && (
+                    <span className="wb-required">*</span>
+                  )}
+                </span>
+                <div className="write-blog-pills">
+                  {Array.from(new Set([...tagOptions, ...selectedTags])).map(
+                    (tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        className={`write-blog-pill ${selectedTags.includes(tag) ? "active" : ""}`}
+                        onClick={() => toggleTag(tag)}
+                      >
+                        {tag}
+                      </button>
+                    ),
+                  )}
+                </div>
+              </section>
+            )}
+          </div>
+        )}
 
         {/* Reading time */}
         <div className="write-blog-reading-time">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Check,
   Eye,
@@ -14,6 +15,7 @@ import {
   Plus,
   Search,
   Send,
+  Settings,
   Star,
   Trash2,
   Undo2,
@@ -74,6 +76,9 @@ type Props = {
   pageSize: number;
   query: string;
   filter: BlogFilter;
+  /** This store's blog categories/tags (managed in /dashboard/blogs/settings). */
+  categoryOptions: string[];
+  tagOptions: string[];
 };
 
 export function BlogsManagementView({
@@ -85,6 +90,8 @@ export function BlogsManagementView({
   pageSize,
   query,
   filter,
+  categoryOptions,
+  tagOptions,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -280,16 +287,25 @@ export function BlogsManagementView({
           <h1>Blogs</h1>
           <p>Create, edit, and manage your blog posts</p>
         </div>
-        {canManage && (
-          <button
-            className="dash-btn dash-btn-primary shrink-0"
-            disabled={openingEditor}
-            onClick={() => openEditor()}
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/dashboard/blogs/settings"
+            className="dash-btn dash-btn-ghost"
           >
-            <Plus className="h-4 w-4" />
-            New blog
-          </button>
-        )}
+            <Settings className="h-4 w-4" />
+            Settings
+          </Link>
+          {canManage && (
+            <button
+              className="dash-btn dash-btn-primary shrink-0"
+              disabled={openingEditor}
+              onClick={() => openEditor()}
+            >
+              <Plus className="h-4 w-4" />
+              New blog
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Toolbar: Tabs + Search */}
@@ -806,6 +822,8 @@ export function BlogsManagementView({
           blog={editingBlog}
           onClose={closeEditor}
           onSaved={handleEditorSaved}
+          categoryOptions={categoryOptions}
+          tagOptions={tagOptions}
         />
       )}
     </div>

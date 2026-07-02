@@ -9,6 +9,7 @@ import {
   sanitizeSearch,
 } from "../lib/list-params";
 import { RealtimeRefresher } from "../components/realtime-refresher";
+import { fetchBlogTaxonomy } from "@/lib/blog-taxonomy";
 import { BlogsManagementView } from "./blogs-management-view";
 
 export interface Blog {
@@ -114,6 +115,7 @@ export default async function BlogsPage({
     draftsRes,
     featuredRes,
     pendingRes,
+    taxonomy,
   ] = await Promise.all([
     listQuery.range(offset, offset + pageSize - 1),
     countQuery(),
@@ -121,6 +123,8 @@ export default async function BlogsPage({
     countQuery().eq("status", "draft"),
     countQuery().eq("featured", true),
     countQuery().eq("status", "pending_review"),
+    // This store's category/tag options for the editor dialog.
+    fetchBlogTaxonomy(supabase, storeId),
   ]);
 
   if (error) {
@@ -191,6 +195,8 @@ export default async function BlogsPage({
         pageSize={pageSize}
         query={q}
         filter={filter}
+        categoryOptions={taxonomy.categories.map((c) => c.name)}
+        tagOptions={taxonomy.tags.map((t) => t.name)}
       />
     </>
   );
