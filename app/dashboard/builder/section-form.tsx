@@ -659,7 +659,7 @@ function CustomCodeFields({
           value={config.html}
           onChange={(v) => set("html", v)}
           placeholder="<div class='my-carousel'>…</div>"
-          minHeight="120px"
+          minHeight="280px"
         />
       </div>
 
@@ -670,7 +670,7 @@ function CustomCodeFields({
           value={config.css}
           onChange={(v) => set("css", v)}
           placeholder=".my-carousel { … }"
-          minHeight="100px"
+          minHeight="240px"
         />
       </div>
 
@@ -681,7 +681,7 @@ function CustomCodeFields({
           value={config.js}
           onChange={(v) => set("js", v)}
           placeholder="// runs when the section loads"
-          minHeight="100px"
+          minHeight="240px"
         />
       </div>
 

@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { slugify } from "@/lib/slug";
 import { navIcons } from "../sidebar-nav-link";
 import {
   createPage,
@@ -457,7 +458,13 @@ export function BuilderClient({
 
       {/* Section editor dialog */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[560px]">
+        <DialogContent
+          className={`max-h-[92vh] overflow-y-auto ${
+            editing?.item.type === "custom_code"
+              ? "sm:max-w-[900px]"
+              : "sm:max-w-[560px]"
+          }`}
+        >
           {editing && (
             <SectionEditorBody
               item={editing.item}
@@ -569,12 +576,15 @@ function NewPageDialog({
 }) {
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
+  // Once the user edits the slug by hand, stop auto-deriving it from the title.
+  const slugEdited = useRef(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (open) {
       setTitle("");
       setSlug("");
+      slugEdited.current = false;
     }
   }, [open]);
 
@@ -613,7 +623,11 @@ function NewPageDialog({
             <input
               className={fieldClass}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setTitle(next);
+                if (!slugEdited.current) setSlug(slugify(next));
+              }}
               placeholder="About Us"
               autoFocus
             />
@@ -625,7 +639,10 @@ function NewPageDialog({
               <input
                 className={fieldClass}
                 value={slug}
-                onChange={(e) => setSlug(e.target.value)}
+                onChange={(e) => {
+                  slugEdited.current = true;
+                  setSlug(e.target.value);
+                }}
                 placeholder="about-us"
               />
             </div>

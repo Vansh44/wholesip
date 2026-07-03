@@ -24,6 +24,12 @@
   padding-inline: 0;
 }
 
+/* A leading custom-code section (e.g. a full-bleed hero) sits flush under the
+   header: cancel the top gutter that .home-sections adds above the first row. */
+.home-sections > .home-custom-code:first-child {
+  margin-top: calc(-1 * clamp(40px, 6vw, 72px));
+}
+
 /* ---- Rich text ---- */
 .home-rich-text-content {
   max-width: 760px;

@@ -216,6 +216,9 @@ wholesip/
 │   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
 │   ├── store_menus.sql        # ★ per-store header/footer nav (+ RLS + WholeSip seed) — §11
 │   ├── homepage_to_store_pages.sql  # Phase 4a data migration: homepage_sections → slug ""
+│   ├── homepage_hero_seed.sql  # ★ WholeSip hero carousel as a leading custom_code section
+│   │                          # on the homepage row (the "one-time hero seed" — §11). Idempotent,
+│   │                          # keyed on a fixed section id. Regen: homepage_hero_seed.gen.py
 │   ├── store_pages.sql        # ★ merchant custom pages (draft + published_sections jsonb;
 │   │                          # RLS via is_store_admin; anon SELECT REVOKED then GRANTed on
 │   │                          # named cols WITHOUT draft `sections` — see §11) (+ rollback)
