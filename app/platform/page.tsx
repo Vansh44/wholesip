@@ -196,10 +196,22 @@ export default function StoreminkLanding() {
         "@type": "Organization",
         "@id": `${PLATFORM_URL}/#organization`,
         name: "StoreMink",
+        // The one-word spelling people actually type. Declaring it as an
+        // alternate name tells Google "storemink" IS the brand — a direct signal
+        // against the "did you mean storelink?" spell-correction on a new brand.
+        alternateName: "Storemink",
         url: PLATFORM_URL,
         logo: `${PLATFORM_URL}/icon.svg`,
         description:
           "India-first no-code store builder — storefront, blogs, reviews, coupons and email campaigns included. D2C + B2B, no transaction fees.",
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${PLATFORM_URL}/#website`,
+        name: "StoreMink",
+        alternateName: "Storemink",
+        url: PLATFORM_URL,
+        publisher: { "@id": `${PLATFORM_URL}/#organization` },
       },
       {
         "@type": "SoftwareApplication",
