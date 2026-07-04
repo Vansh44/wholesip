@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PLATFORM_URL } from "@/lib/site";
 import {
   ArrowRight,
   Building2,
@@ -186,8 +187,45 @@ const FAQS = [
 ];
 
 export default function StoreminkLanding() {
+  // Organization + SoftwareApplication JSON-LD so search engines understand
+  // what StoreMink is and its price range (₹0–₹2,499 across the plans).
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${PLATFORM_URL}/#organization`,
+        name: "StoreMink",
+        url: PLATFORM_URL,
+        logo: `${PLATFORM_URL}/icon.svg`,
+        description:
+          "India-first no-code store builder — storefront, blogs, reviews, coupons and email campaigns included. D2C + B2B, no transaction fees.",
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": `${PLATFORM_URL}/#software`,
+        name: "StoreMink",
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        url: PLATFORM_URL,
+        publisher: { "@id": `${PLATFORM_URL}/#organization` },
+        offers: {
+          "@type": "AggregateOffer",
+          priceCurrency: "INR",
+          lowPrice: 0,
+          highPrice: 2499,
+          offerCount: PLANS.length,
+        },
+      },
+    ],
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <div className="stq-navbar">
         <nav className="stq-nav">
           <Link href="/" className="stq-logo">

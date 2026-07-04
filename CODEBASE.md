@@ -171,7 +171,10 @@ wholesip/
 │   │
 │   └── api/
 │       ├── cron/send-emails/  # Daily email campaign worker (Vercel cron)
-│       ├── og-image/          # Dynamic OG image generation
+│       ├── og-image/          # OG image proxy (compresses Supabase images only)
+│       ├── og/                # Dynamic branded OG card (ImageResponse; ?d=JSON
+│       │                      # {title,subtitle,color}) — default share image for
+│       │                      # homepage/custom pages/platform (lib/seo/og-card.ts)
 │       └── upload/            # File upload → Supabase Storage
 │
 ├── lib/
@@ -199,6 +202,8 @@ wholesip/
 │   ├── seo/                   # ★ schema.ts — pure JSON-LD builders (productSchema/
 │   │                          # articleSchema/breadcrumbSchema), tested. Rendered via the
 │   │                          # (storefront) <JsonLd> component on product/blog pages.
+│   │                          # og-card.ts — brandOgImageUrl() builds the /api/og URL
+│   │                          # (single `d` param) for the branded default share card.
 │   ├── email/                 # sender, layout, campaign-worker, coupon-campaign,
 │   │                          # trigger-worker, blog/enquiry notifications
 │   ├── homepage/section-types.ts  # Section schema (typed, tested) — shared by homepage AND
