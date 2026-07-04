@@ -20,18 +20,33 @@
   --shop-text-faint: var(--wholesip-ink-faint); /* struck-through base price */
 
   --shop-border: var(--wholesip-border);
-  --shop-border-soft: rgba(23, 19, 15, 0.08); /* derived from --wholesip-ink */
-  --shop-shadow: rgba(23, 19, 15, 0.18); /* derived from --wholesip-ink */
+  --shop-border-soft: rgba(
+    var(--wholesip-shadow-rgb),
+    0.08
+  ); /* derived from --wholesip-ink */
+  --shop-shadow: rgba(
+    var(--wholesip-shadow-rgb),
+    0.18
+  ); /* derived from --wholesip-ink */
 
   --shop-accent: var(--wholesip-accent); /* near-black ink / primary CTA */
   --shop-accent-hover: var(--wholesip-accent-deep);
-  --shop-accent-soft: rgba(23, 19, 15, 0.08); /* faint ink wash (CTA hover) */
-  --shop-on-accent: #ffffff; /* text on near-black */
+  --shop-accent-soft: rgba(
+    var(--wholesip-shadow-rgb),
+    0.08
+  ); /* faint ink wash (CTA hover) */
+  --shop-on-accent: var(--wholesip-on-accent); /* text on near-black */
 
   --shop-sale: var(--wholesip-accent); /* discount badge text */
-  --shop-sale-bg: rgba(23, 19, 15, 0.06); /* faint ink wash behind badge */
+  --shop-sale-bg: rgba(
+    var(--wholesip-shadow-rgb),
+    0.06
+  ); /* faint ink wash behind badge */
 
-  --shop-overlay: rgba(23, 19, 15, 0.92); /* lightbox backdrop */
+  --shop-overlay: rgba(
+    var(--wholesip-shadow-rgb),
+    0.92
+  ); /* lightbox backdrop */
 }
 
 .shop-main {
@@ -128,7 +143,7 @@
   flex-direction: column;
   background: var(--shop-surface);
   border: 1px solid var(--shop-border-soft);
-  border-radius: 16px;
+  border-radius: var(--wholesip-radius-card);
   overflow: hidden;
   text-decoration: none;
   color: inherit;
@@ -189,8 +204,8 @@
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: #1f1408;
-  border: 1px solid #1f1408;
+  color: var(--shop-text);
+  border: 1px solid var(--shop-text);
   border-radius: 999px;
   margin: 0 0 -2px;
 } */
@@ -205,14 +220,14 @@
   letter-spacing: 0.07em;
   text-transform: uppercase;
 
-  color: #1f1408;
-  border: 1px solid #1f1408;
+  color: var(--shop-text);
+  border: 1px solid var(--shop-text);
   border-radius: 999px;
 
   margin-bottom: 12px;
   width: fit-content;
   display: inline-block;
-  background: #f5f5f5;
+  background: var(--shop-surface-alt);
 }
 
 .shop-card-name {
@@ -358,7 +373,7 @@
   font-weight: 500;
   letter-spacing: 0.2em; /* wide editorial tracking, uppercase */
   text-transform: uppercase;
-  color: #e8ddcf; /* warm muted cream on the ink band */
+  color: var(--wholesip-on-ink); /* warm muted cream on the ink band */
   padding: 0 18px;
 }
 
@@ -457,9 +472,9 @@
   color: var(--wholesip-cream);
   background: var(--wholesip-ink);
   padding: 16px 22px;
-  border-radius: 14px;
+  border-radius: var(--wholesip-radius-control);
   transform: rotate(-2.5deg);
-  box-shadow: 0 10px 24px rgba(23, 19, 15, 0.18);
+  box-shadow: 0 10px 24px rgba(var(--wholesip-shadow-rgb), 0.18);
 }
 
 /* Filters — white pills, near-black active */
@@ -527,14 +542,14 @@
 .shop-listing .shop-card {
   background: var(--card-bg, var(--wholesip-tile, #f4dfe0));
   border: none;
-  border-radius: 20px;
+  border-radius: var(--wholesip-radius-card);
   padding: 10px;
-  box-shadow: 0 1px 2px rgba(23, 19, 15, 0.04);
+  box-shadow: 0 1px 2px rgba(var(--wholesip-shadow-rgb), 0.04);
 }
 
 .shop-listing .shop-card:hover {
   transform: translateY(-6px);
-  box-shadow: 0 22px 44px rgba(23, 19, 15, 0.14);
+  box-shadow: 0 22px 44px rgba(var(--wholesip-shadow-rgb), 0.14);
 }
 
 .shop-listing .shop-card-img {
@@ -543,7 +558,7 @@
   height: clamp(165px, 18vw, 230px);
   aspect-ratio: auto;
   background: transparent;
-  border-radius: 14px;
+  border-radius: var(--wholesip-radius-control);
 }
 
 .shop-listing .shop-card-img-el {
@@ -560,7 +575,7 @@
   right: 14px;
   top: 14px;
   background: var(--wholesip-ink);
-  color: #fff;
+  color: var(--shop-on-accent);
   font-size: 13px;
   padding: 6px 14px;
   text-transform: none;
@@ -645,7 +660,7 @@
   aspect-ratio: 2 / 3;
   background: var(--shop-surface-alt);
   border: none;
-  border-radius: 20px;
+  border-radius: var(--wholesip-radius-card);
   overflow: hidden;
   padding: 0;
   cursor: zoom-in;
@@ -695,7 +710,7 @@
   position: relative;
   width: 72px;
   height: 72px;
-  border-radius: 12px;
+  border-radius: var(--wholesip-radius-control);
   overflow: hidden;
   border: 2px solid transparent;
   background: var(--shop-surface-alt);
@@ -805,121 +820,149 @@
 .pdp-variant-options {
   display: flex;
   flex-wrap: wrap;
-  /* Extra row gap so the price tag above a chip has room to hang without
-     overlapping the row above. */
-  row-gap: 48px;
-  column-gap: 10px;
+  gap: 10px;
+  /* Cards stretch to a common height so a card carrying the "Best value"
+     badge lines up with the plainer ones next to it. */
+  align-items: stretch;
 }
 
-/* Slot wraps each chip so the optional "best value" tag can hang above it
-   without affecting the chip's layout/click target. */
-.pdp-variant-slot {
+/* Each variant is a selectable price card: name + its own price, with an
+   inline "Best value" badge on the discounted one. This is how storefronts
+   present pack/size options — the price lives on the option, no floating tag. */
+.pdp-variant {
   position: relative;
-}
-
-/* Yellow "best value" tag — flag-shaped badge floating above its chip when
-   the variant has a special_price set. Built with clip-path for the notched
-   bottom corners, a dashed inset for the ticket border, and a tiny pointer
-   line + dot connecting it to the chip below. */
-.pdp-variant-tag {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 6px 14px 10px;
-  min-width: 96px;
-  background: #f5c542;
-  color: #1f1408;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.2;
-  text-align: center;
-  border-radius: 8px;
-  /* Notched bottom corners — gives the badge its "tag" silhouette. */
-  clip-path: polygon(
-    0 0,
-    100% 0,
-    100% calc(100% - 6px),
-    calc(50% + 6px) calc(100% - 6px),
-    50% 100%,
-    calc(50% - 6px) calc(100% - 6px),
-    0 calc(100% - 6px)
-  );
-  pointer-events: none;
-  white-space: nowrap;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-}
-
-/* Dashed inner border to mimic a paper ticket. */
-.pdp-variant-tag::before {
-  content: "";
-  position: absolute;
-  inset: 3px 3px 9px 3px;
-  border: 1px dashed rgba(255, 255, 255, 0.7);
-  border-radius: 5px;
-  pointer-events: none;
-}
-
-/* Pointer dot + line connecting the tag to the chip. */
-.pdp-variant-tag::after {
-  content: "";
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 50%;
-  width: 1px;
-  height: 8px;
-  background: #1f1408;
-  border-radius: 0;
-}
-
-.pdp-variant-tag-price {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
-.pdp-variant-tag-sub {
-  font-size: 10px;
-  font-weight: 500;
-  opacity: 0.85;
-}
-
-.pdp-variant {
-  border: 1px solid var(--shop-border);
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 132px;
+  padding: 12px 16px;
+  border: 1.5px solid var(--shop-border);
+  border-radius: var(--wholesip-radius-control);
   background: var(--shop-surface);
   color: var(--shop-text);
-  padding: 10px 18px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 500;
+  text-align: left;
   cursor: pointer;
   transition:
     border-color 0.15s ease,
-    background 0.15s ease;
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .pdp-variant:hover:not(.disabled) {
   border-color: var(--shop-accent);
 }
 
+/* Selected: accent ring + faint accent wash. Text stays dark so the price
+   remains legible (unlike a full accent fill). */
 .pdp-variant.active {
   border-color: var(--shop-accent);
-  background: var(--shop-accent);
-  color: var(--shop-on-accent);
+  box-shadow: 0 0 0 1px var(--shop-accent) inset;
+  background: color-mix(in srgb, var(--shop-accent) 7%, var(--shop-surface));
 }
 
 .pdp-variant.disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: not-allowed;
+}
+
+.pdp-variant-name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.pdp-variant-price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.pdp-variant-was {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--shop-text-faint);
   text-decoration: line-through;
+}
+
+/* Flashy "Best value" badge — gold gradient, glow, and a slow shine sweep so
+   it catches the eye and sells the deal. */
+.pdp-variant-badge {
+  position: relative;
+  overflow: hidden;
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 6px;
+  color: var(--wholesip-on-accent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--wholesip-highlight) 72%, #fff) 0%,
+    var(--wholesip-highlight) 55%,
+    color-mix(in srgb, var(--wholesip-highlight) 82%, #000) 100%
+  );
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--wholesip-highlight) 45%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+/* Diagonal light sweep that periodically glints across the badge. */
+.pdp-variant-badge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.85) 50%,
+    transparent 75%
+  );
+  transform: translateX(-130%);
+  animation: pdp-badge-shine 3s ease-in-out infinite;
+}
+@keyframes pdp-badge-shine {
+  0%,
+  55% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(130%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pdp-variant-badge::after {
+    animation: none;
+  }
+}
+
+/* Draw the eye to the whole best-value card (until it's the selected one). */
+.pdp-variant.has-sale:not(.active) {
+  border-color: color-mix(
+    in srgb,
+    var(--wholesip-highlight) 45%,
+    var(--shop-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--wholesip-highlight) 6%,
+    var(--shop-surface)
+  );
 }
 
 .pdp-variant-oos {
   font-size: 11px;
-  opacity: 0.8;
+  font-weight: 600;
+  color: var(--shop-text-muted);
+}
+
+.pdp-variant.disabled .pdp-variant-name,
+.pdp-variant.disabled .pdp-variant-price {
+  text-decoration: line-through;
 }
 
 /* Quantity stepper */
@@ -941,7 +984,7 @@
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--shop-border);
-  border-radius: 10px;
+  border-radius: var(--wholesip-radius-sm);
   overflow: hidden;
   background: var(--shop-surface);
 }
@@ -995,7 +1038,7 @@
 
 .pdp-btn {
   flex: 1 1 160px;
-  border-radius: 12px;
+  border-radius: var(--wholesip-radius-control);
   padding: 15px 24px;
   font-size: 1rem;
   font-weight: 600;
@@ -1178,15 +1221,15 @@
 }
 
 .pdp-star.filled {
-  color: #f5a623;
-  fill: #f5a623;
+  color: var(--wholesip-star);
+  fill: var(--wholesip-star);
 }
 
 /* Write/edit form */
 .pdp-review-form {
   background: var(--shop-surface);
   border: 1px solid var(--shop-border);
-  border-radius: 14px;
+  border-radius: var(--wholesip-radius-control);
   padding: 18px 20px;
   margin-bottom: 24px;
 }
@@ -1222,7 +1265,7 @@
 .pdp-review-textarea {
   width: 100%;
   border: 1px solid var(--shop-border);
-  border-radius: 10px;
+  border-radius: var(--wholesip-radius-sm);
   background: var(--shop-bg);
   color: var(--shop-text);
   padding: 10px 12px;
@@ -1266,7 +1309,7 @@
 .pdp-review-signin {
   background: var(--shop-surface);
   border: 1px dashed var(--shop-border);
-  border-radius: 14px;
+  border-radius: var(--wholesip-radius-control);
   padding: 22px 20px;
   text-align: center;
   margin-bottom: 24px;
@@ -1345,4 +1388,356 @@
   line-height: 1.6;
   color: var(--shop-text-muted);
   white-space: pre-wrap;
+}
+
+/* ============================================================
+   GROCERY product-detail  (theme layout.storefront = "grocery")
+   Gated by the sm-storefront-grocery root class; entirely separate
+   `gpdp-*` markup from the classic .pdp-* styles, so the WholeSip
+   storefront is untouched. The doubled root class
+   (.sm-storefront-grocery.storefront-root) lifts specificity over
+   the per-grid base card rules.
+   ============================================================ */
+.sm-storefront-grocery .gpdp-main {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.sm-storefront-grocery .gpdp-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--wholesip-ink-faint);
+  margin-bottom: 24px;
+}
+.sm-storefront-grocery .gpdp-breadcrumb a {
+  color: var(--wholesip-ink-soft);
+  text-decoration: none;
+}
+.sm-storefront-grocery .gpdp-breadcrumb a:hover {
+  color: var(--wholesip-ink);
+}
+.sm-storefront-grocery .gpdp-breadcrumb-current {
+  color: var(--wholesip-ink);
+  font-weight: 600;
+}
+
+.sm-storefront-grocery .gpdp-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+}
+@media (min-width: 860px) {
+  .sm-storefront-grocery .gpdp-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* Gallery */
+.sm-storefront-grocery .gpdp-main-img {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: none;
+  border-radius: 24px;
+  overflow: hidden;
+  background: var(--wholesip-cream-deep);
+  cursor: zoom-in;
+  padding: 0;
+}
+.sm-storefront-grocery .gpdp-main-img-el {
+  object-fit: cover;
+}
+.sm-storefront-grocery .gpdp-img-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--wholesip-ink-faint);
+}
+.sm-storefront-grocery .gpdp-thumbs {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.sm-storefront-grocery .gpdp-thumb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: var(--wholesip-cream-deep);
+  cursor: pointer;
+  padding: 0;
+}
+.sm-storefront-grocery .gpdp-thumb.active {
+  border-color: var(--wholesip-ink);
+}
+.sm-storefront-grocery .gpdp-thumb-el {
+  object-fit: cover;
+}
+
+/* Info column */
+.sm-storefront-grocery .gpdp-info {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sm-storefront-grocery .gpdp-category {
+  align-self: flex-start;
+  border: 1px solid var(--wholesip-ink);
+  border-radius: var(--wholesip-radius-pill, 999px);
+  padding: 5px 16px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wholesip-ink);
+}
+.sm-storefront-grocery .gpdp-name {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--wholesip-ink);
+  margin: 0;
+}
+.sm-storefront-grocery .gpdp-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: var(--wholesip-ink-soft);
+  text-decoration: none;
+}
+.sm-storefront-grocery .gpdp-rating strong {
+  color: var(--wholesip-ink);
+}
+
+/* Purchase card */
+.sm-storefront-grocery .gpdp-buybox {
+  background: var(--wholesip-butter);
+  border-radius: 22px;
+  padding: clamp(20px, 3vw, 28px);
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sm-storefront-grocery .gpdp-price {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.sm-storefront-grocery .gpdp-price-sell {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+  font-weight: 800;
+  color: var(--wholesip-ink);
+}
+.sm-storefront-grocery .gpdp-price-base {
+  font-size: 1.05rem;
+  color: var(--wholesip-ink-faint);
+  text-decoration: line-through;
+}
+.sm-storefront-grocery .gpdp-price-off {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--wholesip-accent, var(--brand-primary));
+}
+.sm-storefront-grocery .gpdp-price-note {
+  font-size: 0.85rem;
+  color: var(--wholesip-ink-soft);
+  margin: -6px 0 0;
+}
+
+/* Variant chips */
+.sm-storefront-grocery .gpdp-variants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.sm-storefront-grocery .gpdp-variant {
+  position: relative;
+  border: 1.5px solid var(--wholesip-border);
+  background: var(--wholesip-surface);
+  border-radius: var(--wholesip-radius-pill, 999px);
+  padding: 9px 18px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--wholesip-ink);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.sm-storefront-grocery .gpdp-variant.active {
+  border-color: var(--wholesip-ink);
+  background: var(--wholesip-ink);
+  color: var(--wholesip-on-ink);
+}
+.sm-storefront-grocery .gpdp-variant.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+.sm-storefront-grocery .gpdp-variant-tag {
+  margin-left: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--wholesip-accent, var(--brand-primary));
+}
+.sm-storefront-grocery .gpdp-variant.active .gpdp-variant-tag {
+  color: var(--wholesip-on-ink);
+}
+
+/* Actions */
+.sm-storefront-grocery .gpdp-actions {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+.sm-storefront-grocery .gpdp-stepper {
+  display: inline-flex;
+  align-items: center;
+  background: var(--wholesip-surface);
+  border-radius: var(--wholesip-radius-pill, 999px);
+  padding: 4px;
+  flex: 0 0 auto;
+}
+.sm-storefront-grocery .gpdp-stepper button {
+  width: 42px;
+  height: 42px;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--wholesip-ink);
+  cursor: pointer;
+}
+.sm-storefront-grocery .gpdp-stepper button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.sm-storefront-grocery .gpdp-stepper span {
+  min-width: 40px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1rem;
+}
+.sm-storefront-grocery .gpdp-btn {
+  border: none;
+  border-radius: var(--wholesip-radius-pill, 999px);
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
+}
+.sm-storefront-grocery .gpdp-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sm-storefront-grocery .gpdp-btn-cart {
+  flex: 1 1 auto;
+  background: var(--wholesip-ink);
+  color: var(--wholesip-on-ink);
+  padding: 14px 24px;
+}
+.sm-storefront-grocery .gpdp-btn-buy {
+  width: 100%;
+  background: var(--wholesip-accent, var(--brand-primary));
+  color: var(--wholesip-on-accent);
+  padding: 15px 24px;
+}
+.sm-storefront-grocery .gpdp-btn-cart:hover:not(:disabled),
+.sm-storefront-grocery .gpdp-btn-buy:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(0.95);
+}
+
+/* Trust row */
+.sm-storefront-grocery .gpdp-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(var(--wholesip-shadow-rgb), 0.08);
+}
+.sm-storefront-grocery .gpdp-trust span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--wholesip-ink-soft);
+}
+.sm-storefront-grocery .gpdp-trust svg {
+  color: var(--wholesip-accent, var(--brand-primary));
+}
+
+/* Description accordion */
+.sm-storefront-grocery .gpdp-desc {
+  border-top: 1px solid var(--wholesip-border);
+  padding-top: 8px;
+  margin-top: 6px;
+}
+.sm-storefront-grocery .gpdp-desc-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: none;
+  padding: 12px 2px;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--wholesip-ink);
+  cursor: pointer;
+}
+.sm-storefront-grocery .gpdp-desc:not(.open) .gpdp-desc-icon {
+  transform: rotate(90deg);
+}
+.sm-storefront-grocery .gpdp-desc-body {
+  margin: 0 0 12px;
+  color: var(--wholesip-ink-soft);
+  line-height: 1.7;
+}
+
+@media (max-width: 600px) {
+  .sm-storefront-grocery .gpdp-actions {
+    flex-wrap: wrap;
+  }
+  .sm-storefront-grocery .gpdp-btn-cart {
+    flex-basis: 100%;
+  }
+}
+
+/* Grocery shop header (replaces the WholeSip lowercase hero on grocery). */
+.shop-hero-grocery {
+  padding: 8px 0 4px;
+}
+.shop-title-grocery {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: clamp(1.9rem, 4vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--wholesip-ink);
+  margin: 0;
+}
+.shop-sub-grocery {
+  margin: 8px 0 0;
+  color: var(--wholesip-ink-soft);
+  font-size: 1rem;
 }

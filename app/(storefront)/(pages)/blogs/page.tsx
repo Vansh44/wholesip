@@ -1,28 +1,38 @@
 import type { Metadata } from "next";
 import { getPublishedBlogCards } from "@/lib/storefront/queries";
-import { getCurrentStoreId } from "@/lib/store/resolve";
+import { requireStorefrontStoreId } from "@/lib/store/resolve";
+import { getStoreBrand } from "@/lib/store/brand";
 import { getStoreSetting } from "@/lib/settings/resolve";
 import BlogListingClient from "./blog-listing-client";
 import "./blogs.css";
 
 export const revalidate = 300;
 
-export const metadata: Metadata = {
-  title: "Blog | WholeSip",
-  description:
-    "Stories, insights and updates from the WholeSip team. Discover wellness tips, recipes, and the latest from our kitchen.",
-  openGraph: {
-    title: "Blog | WholeSip",
-    description:
-      "Stories, insights and updates from the WholeSip team. Discover wellness tips, recipes, and the latest from our kitchen.",
-    url: "/blogs",
-    type: "website",
-  },
-};
+// Per-store metadata — the blog belongs to whichever store is on this host,
+// so the title/description use that store's brand, never a hardcoded name.
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getStoreBrand();
+  const description = `Stories, insights and updates from the ${brand.name} team.`;
+  return {
+    // Layout templates as "%s | {brand}", so just "Blog".
+    title: "Blog",
+    description,
+    alternates: { canonical: "/blogs" },
+    openGraph: {
+      title: `Blog | ${brand.name}`,
+      description,
+      url: "/blogs",
+      type: "website",
+    },
+  };
+}
 
 export default async function BlogsPage() {
+  const brand = await getStoreBrand();
   // Cached, trimmed read — card columns only (no full `content` HTML).
-  const publishedBlogs = await getPublishedBlogCards(await getCurrentStoreId());
+  const publishedBlogs = await getPublishedBlogCards(
+    await requireStorefrontStoreId(),
+  );
 
   // Store feature setting: hides the "Post your own blog" / "My Submissions"
   // CTAs when this store has customer submissions switched off.
@@ -43,7 +53,7 @@ export default async function BlogsPage() {
       {/* Hero Section */}
       <section className="blog-hero">
         <div className="blog-hero-content blog-animate-in">
-          <span className="blog-hero-kicker">The WholeSip Journal</span>
+          <span className="blog-hero-kicker">The {brand.name} Journal</span>
           {/* <h1 className="blog-hero-title">Our Blog</h1> */}
           <p className="blog-hero-subtitle">
             Stories, insights and updates from our team

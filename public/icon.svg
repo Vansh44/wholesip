@@ -1,46 +1,39 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="StoreMink">
   <defs>
-    <linearGradient id="g" x1="0%" y1="100%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#7C3AED"/>
-      <stop offset="50%" stop-color="#3B82F6"/>
-      <stop offset="100%" stop-color="#1E1B8F"/>
+    <linearGradient id="bag" x1="150" y1="96" x2="372" y2="468" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3E6BF6"/>
+      <stop offset=".52" stop-color="#5A46EC"/>
+      <stop offset="1" stop-color="#7A2FDD"/>
     </linearGradient>
+    <linearGradient id="bars" x1="0" y1="270" x2="0" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#93B2FF"/>
+      <stop offset="1" stop-color="#A97DFF"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="120" y1="120" x2="300" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".20"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#160A45" flood-opacity=".35"/>
+    </filter>
   </defs>
 
-  <!-- Bag -->
-  <path fill="url(#g)"
-        d="M300 280
-           C300 180 380 120 512 120
-           C644 120 724 180 724 280
-           L724 320
-           C724 338 710 352 692 352
-           C674 352 660 338 660 320
-           L660 284
-           C660 224 606 184 512 184
-           C418 184 364 224 364 284
-           L364 320
-           C364 338 350 352 332 352
-           C314 352 300 338 300 320
-           Z"/>
+  <!-- handle (behind bag) -->
+  <path d="M176 168 V118 C176 80 206 56 256 56 C306 56 336 80 336 118 V168"
+        fill="none" stroke="url(#bag)" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
 
-  <path fill="url(#g)"
-        d="M220 330
-           C220 295 248 268 284 268
-           H740
-           C776 268 804 295 804 330
-           V760
-           C804 838 748 904 670 904
-           H354
-           C276 904 220 838 220 760
-           Z"/>
+  <!-- bag body -->
+  <rect x="96" y="150" width="320" height="320" rx="56" fill="url(#bag)"/>
+  <rect x="96" y="150" width="320" height="320" rx="56" fill="url(#sheen)"/>
 
-  <!-- Negative-space roof -->
-  <path fill="#FFFFFF"
-        d="M405 540 L690 450 L690 520 L495 580 L495 740 L405 740 Z"/>
+  <!-- ascending growth bars -->
+  <g filter="url(#soft)">
+    <rect x="284" y="344" width="30" height="74"  rx="15" fill="url(#bars)"/>
+    <rect x="330" y="308" width="30" height="110" rx="15" fill="url(#bars)"/>
+    <rect x="376" y="270" width="30" height="148" rx="15" fill="url(#bars)"/>
+  </g>
 
-  <!-- Growth bars -->
-  <rect x="525" y="640" width="42" height="120" rx="21" fill="url(#g)"/>
-  <rect x="595" y="590" width="42" height="170" rx="21" fill="url(#g)"/>
-  <rect x="665" y="520" width="42" height="240" rx="21" fill="url(#g)"/>
+  <!-- white M / rising roofline -->
+  <path d="M150 402 V300 L272 238" fill="none" stroke="#ffffff"
+        stroke-width="56" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="6"/>
 </svg>

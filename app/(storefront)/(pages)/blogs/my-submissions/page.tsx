@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getStoreSetting } from "@/lib/settings/resolve";
-import { getCurrentStore } from "@/lib/store/resolve";
+import { requireStorefrontStore } from "@/lib/store/resolve";
 import { getBlogTaxonomyNames } from "@/lib/storefront/queries";
 import WriteBlogEditor from "../write/write-blog-editor-lazy";
 import "../write/write-blog.css";
@@ -17,7 +17,7 @@ export default async function MySubmissionsPage() {
     redirect("/blogs");
   }
   // This store's own categories/tags — the editor opens from here too.
-  const store = await getCurrentStore();
+  const store = await requireStorefrontStore();
   const { categories, tags } = await getBlogTaxonomyNames(store.id);
   return (
     <WriteBlogEditor

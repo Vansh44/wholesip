@@ -4,6 +4,8 @@ import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STORE_TAG } from "@/lib/store/resolve";
+import { getThemeDefinition } from "@/lib/themes";
+import { applyTheme } from "@/lib/themes/apply";
 
 // A Storemink platform operator (from platform_admins, by JWT email).
 export interface PlatformViewer {
@@ -205,4 +207,78 @@ export async function removePlatformAdmin(id: string): Promise<ActionResult> {
   const { error } = await admin.from("platform_admins").delete().eq("id", id);
   if (error) return { error: "Could not remove the operator." };
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Theme demo stores — one real store per theme (slug demo-{themeId}, marked
+// settings.demo) that the signup picker's Preview button opens. Re-seedable:
+// applyTheme with reset:true wipes the demo's catalog/pages/menus and applies
+// the theme fresh, so demos always show the theme's pristine state. No admins
+// row is created — nobody logs into a demo store.
+// ---------------------------------------------------------------------------
+
+export interface SeedDemoResult {
+  success?: boolean;
+  error?: string;
+  slug?: string;
+  warnings?: string[];
+}
+
+export async function seedDemoStore(themeId: string): Promise<SeedDemoResult> {
+  if (!(await requireSuperadmin())) {
+    return { error: "Only a platform superadmin can seed demo stores." };
+  }
+  const theme = getThemeDefinition(themeId);
+  if (theme.id !== themeId) {
+    return { error: `Unknown theme "${themeId}".` };
+  }
+
+  const admin = createAdminClient();
+  const slug = theme.demoSlug;
+
+  // Create the store row if missing.
+  const { data: existing } = await admin
+    .from("stores")
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  let storeId = existing?.id as string | undefined;
+  if (!storeId) {
+    const { data: created, error } = await admin
+      .from("stores")
+      .insert({
+        slug,
+        name: `${theme.name} Demo`,
+        status: "active",
+        plan: "free",
+        settings: {
+          demo: true,
+          template: theme.id,
+          brand: { name: `${theme.name} Demo` },
+        },
+      })
+      .select("id")
+      .single();
+    if (error || !created) {
+      console.error("seedDemoStore (insert):", error?.message);
+      return { error: "Could not create the demo store." };
+    }
+    storeId = created.id as string;
+  }
+
+  const result = await applyTheme(storeId, theme.id, {
+    publish: true,
+    reset: true,
+  });
+
+  revalidateTag(STORE_TAG, "max");
+  if (!result.success) {
+    return {
+      success: true,
+      slug,
+      warnings: result.errors,
+    };
+  }
+  return { success: true, slug };
 }

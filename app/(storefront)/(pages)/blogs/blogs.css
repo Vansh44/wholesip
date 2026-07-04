@@ -20,7 +20,11 @@
   --blog-accent: var(--wholesip-accent); /* cocoa */
   --blog-accent-deep: var(--wholesip-accent-deep);
   --blog-accent-soft: var(--wholesip-sand); /* chips / badges */
-  --blog-accent-light: #d8c4a8;
+  --blog-accent-light: color-mix(
+    in srgb,
+    var(--wholesip-accent-warm) 50%,
+    var(--wholesip-cream)
+  );
   --blog-surface: var(--wholesip-cream-deep);
   --blog-tag-bg: var(--wholesip-sand);
   --blog-tag-hover: var(--wholesip-cream-deep);
@@ -49,12 +53,12 @@
   background:
     radial-gradient(
       ellipse at 30% 20%,
-      rgba(138, 106, 82, 0.07) 0%,
+      rgba(var(--wholesip-shadow-rgb), 0.07) 0%,
       transparent 55%
     ),
     radial-gradient(
       ellipse at 70% 80%,
-      rgba(231, 222, 200, 0.8) 0%,
+      color-mix(in srgb, var(--wholesip-sand) 80%, transparent) 0%,
       transparent 55%
     );
   pointer-events: none;
@@ -128,7 +132,7 @@
   background: linear-gradient(
     135deg,
     var(--blog-card) 0%,
-    rgba(0, 0, 0, 0.04) 100%
+    rgba(var(--wholesip-shadow-rgb), 0.04) 100%
   );
   border: 1px solid var(--blog-border-light);
   border-radius: 16px;
@@ -138,7 +142,7 @@
 
 .blog-publish-cta-container:hover {
   border-color: var(--blog-accent-light);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 20px rgba(var(--wholesip-shadow-rgb), 0.06);
 }
 
 .blog-publish-cta-content {
@@ -159,7 +163,7 @@
     var(--blog-accent) 0%,
     var(--blog-accent-light) 100%
   );
-  color: #fffbf7;
+  color: var(--wholesip-on-ink);
   flex-shrink: 0;
 }
 
@@ -184,7 +188,7 @@
   border: 1px solid transparent;
   border-radius: 100px;
   background: var(--blog-accent);
-  color: #ffffff;
+  color: var(--wholesip-on-ink);
   font-size: 0.88rem;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -198,7 +202,7 @@
 .blog-publish-cta-btn:hover {
   background: var(--blog-accent-deep);
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(138, 106, 82, 0.25);
+  box-shadow: 0 8px 20px rgba(var(--wholesip-shadow-rgb), 0.25);
 }
 
 .blog-publish-cta-btn:active {
@@ -325,7 +329,7 @@
 
 .blog-search-input:focus {
   border-color: var(--blog-accent);
-  box-shadow: 0 0 0 3px rgba(138, 106, 82, 0.16);
+  box-shadow: 0 0 0 3px rgba(var(--wholesip-shadow-rgb), 0.16);
 }
 
 .blog-search-clear {
@@ -374,7 +378,7 @@
 
 .blog-tag-pill[data-active="true"] {
   background: var(--blog-accent);
-  color: #ffffff;
+  color: var(--wholesip-on-ink);
 }
 
 /* ============================================
@@ -538,7 +542,7 @@
 
 .blog-category-item[data-active="true"] .blog-category-count {
   color: var(--blog-accent-deep);
-  background: rgba(138, 106, 82, 0.12);
+  background: rgba(var(--wholesip-shadow-rgb), 0.12);
 }
 
 .blog-sidebar-clear {
@@ -649,7 +653,7 @@
   border: 1px solid var(--blog-border);
   border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(32, 36, 46, 0.04);
+  box-shadow: 0 1px 2px rgba(var(--wholesip-shadow-rgb), 0.04);
   transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   text-decoration: none;
   color: inherit;
@@ -658,8 +662,8 @@
 .blog-card:hover {
   transform: translateY(-6px);
   box-shadow:
-    0 22px 44px rgba(45, 32, 22, 0.1),
-    0 8px 16px rgba(45, 32, 22, 0.05);
+    0 22px 44px rgba(var(--wholesip-shadow-rgb), 0.1),
+    0 8px 16px rgba(var(--wholesip-shadow-rgb), 0.05);
   border-color: var(--blog-accent);
   background: var(--blog-card-hover);
 }
@@ -705,14 +709,14 @@
   left: 14px;
   padding: 5px 12px;
   border-radius: 100px;
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in srgb, var(--wholesip-surface) 92%, transparent);
   backdrop-filter: blur(8px);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--blog-accent-deep);
-  box-shadow: 0 2px 8px rgba(32, 36, 46, 0.1);
+  box-shadow: 0 2px 8px rgba(var(--wholesip-shadow-rgb), 0.1);
 }
 
 .blog-card-body {
@@ -894,7 +898,7 @@
    default `.storefront-root a { color: inherit }` would otherwise win on
    specificity and paint it dark-on-dark. */
 .storefront-root a.blog-publish-cta-btn {
-  color: #ffffff;
+  color: var(--wholesip-on-ink);
 }
 
 .blog-detail-cover {
@@ -1057,7 +1061,7 @@
   border-left: 3px solid var(--blog-accent-light);
   padding: 16px 24px;
   margin: 28px 0;
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(var(--wholesip-shadow-rgb), 0.04);
   border-radius: 0 8px 8px 0;
   font-style: italic;
   color: var(--blog-muted);
@@ -1082,14 +1086,14 @@
   border-radius: 12px;
   background: var(--blog-dark);
   overflow-x: auto;
-  border: 1px solid rgba(255, 251, 247, 0.1);
+  border: 1px solid color-mix(in srgb, var(--wholesip-on-ink) 10%, transparent);
 }
 
 .blog-prose pre code {
   padding: 0;
   border-radius: 0;
   background: none;
-  color: #fffbf7;
+  color: var(--wholesip-on-ink);
   font-size: 0.85rem;
   line-height: 1.7;
 }
@@ -1376,12 +1380,12 @@
   align-items: center;
   gap: 4px;
   padding: 8px 7px;
-  background: #ffffff;
+  background: var(--wholesip-surface);
   border: 1px solid var(--blog-border);
   border-radius: 100px;
   box-shadow:
-    0 12px 32px -8px rgba(0, 0, 0, 0.18),
-    0 2px 8px -2px rgba(0, 0, 0, 0.08);
+    0 12px 32px -8px rgba(var(--wholesip-shadow-rgb), 0.18),
+    0 2px 8px -2px rgba(var(--wholesip-shadow-rgb), 0.08);
   transition:
     opacity 0.25s ease,
     visibility 0.25s ease,
@@ -1441,7 +1445,7 @@
   padding: 0 4px;
   border-radius: 999px;
   background: var(--blog-accent);
-  color: #fff;
+  color: var(--wholesip-on-accent);
   font-size: 10.5px;
   font-weight: 700;
   line-height: 1;
@@ -1470,8 +1474,8 @@
   height: 50px;
   border: 1px solid var(--blog-border);
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.2);
+  background: var(--wholesip-surface);
+  box-shadow: 0 6px 16px -4px rgba(var(--wholesip-shadow-rgb), 0.2);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -1533,8 +1537,8 @@
     padding: 8px 10px;
     border: 1px solid var(--blog-border);
     border-radius: 100px;
-    background: #fff;
-    box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.2);
+    background: var(--wholesip-surface);
+    box-shadow: 0 12px 32px -8px rgba(var(--wholesip-shadow-rgb), 0.2);
     opacity: 0;
     visibility: hidden;
     pointer-events: none;

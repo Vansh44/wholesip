@@ -1,6 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
-import type { ShopByCategoryConfig } from "@/lib/homepage/section-types";
+import { ImageIcon } from "lucide-react";
+import type {
+  SectionStyle,
+  ShopByCategoryConfig,
+} from "@/lib/homepage/section-types";
+import { SectionShell } from "../sections/section-shell";
 
 export interface CategoryTile {
   id: string;
@@ -12,16 +17,20 @@ export interface CategoryTile {
 // Presentational: receives the resolved, ordered categories. Tiles link to the
 // shop. Renders nothing when there are no categories.
 export function ShopByCategorySection({
+  sectionId,
+  style,
   config,
   categories,
 }: {
+  sectionId: string;
+  style?: SectionStyle;
   config: ShopByCategoryConfig;
   categories: CategoryTile[];
 }) {
   if (categories.length === 0) return null;
 
   return (
-    <section className="home-section">
+    <SectionShell sectionId={sectionId} style={style}>
       {(config.heading || config.subheading) && (
         <div className="home-section-head">
           {config.heading && (
@@ -33,9 +42,12 @@ export function ShopByCategorySection({
         </div>
       )}
       <div
-        className={
-          config.layout === "scroll" ? "home-cat-scroll" : "home-cat-grid"
-        }
+        className={[
+          config.layout === "scroll" ? "home-cat-scroll" : "home-cat-grid",
+          config.display === "cards" ? "is-cards" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       >
         {categories.map((c) => (
           <Link
@@ -53,13 +65,15 @@ export function ShopByCategorySection({
                   className="home-cat-img-el"
                 />
               ) : (
-                <div className="home-cat-img-placeholder">🧺</div>
+                <div className="home-cat-img-placeholder">
+                  <ImageIcon size={28} strokeWidth={1.5} aria-hidden />
+                </div>
               )}
             </div>
             <span className="home-cat-name">{c.name}</span>
           </Link>
         ))}
       </div>
-    </section>
+    </SectionShell>
   );
 }

@@ -6,10 +6,17 @@ import {
   EMPTY_CONFIG,
   LIMIT_MIN,
   LIMIT_MAX,
+  MAX_FAQ_ITEMS,
+  MAX_TILES,
+  MAX_USP_ITEMS,
+  type FaqAccordionConfig,
   type FeaturedProductsConfig,
+  type HeroConfig,
   type ShopByCategoryConfig,
   type PromoBannerConfig,
   type LatestBlogsConfig,
+  type TileGridConfig,
+  type UspBarConfig,
 } from "./section-types";
 
 // clampLimit() pins the "max products/blogs to show" knob into 1..12, falling
@@ -142,6 +149,161 @@ describe("validateConfig", () => {
     });
   });
 
+  // --- hero ------------------------------------------------------------------
+  describe("hero", () => {
+    it("requires a headline or image when publishing", () => {
+      const out = validateConfig("hero", { heading: "", image_url: "" });
+      expect(out).toEqual({
+        error: "Add a headline or an image for the hero.",
+      });
+      // Draft mode lets the empty hero through (autosave mid-edit).
+      expect("config" in validateConfig("hero", {}, "draft")).toBe(true);
+    });
+
+    it("normalises variant/theme/alignment and strips unsafe values", () => {
+      const out = validateConfig("hero", {
+        heading: "  Hi  ",
+        variant: "weird",
+        theme: "neon",
+        alignment: "right",
+        cta_href: "javascript:alert(1)",
+        background: "url(evil)",
+        badge_text: " 51% off ",
+      });
+      const config = (out as { config: HeroConfig }).config;
+      expect(config.heading).toBe("Hi");
+      expect(config.variant).toBe("banner");
+      expect(config.theme).toBe("dark");
+      expect(config.alignment).toBe("left");
+      expect(config.cta_href).toBe("");
+      expect(config.background).toBe("");
+      expect(config.badge_text).toBe("51% off");
+    });
+
+    it("keeps a strict colour background", () => {
+      const out = validateConfig("hero", {
+        heading: "x",
+        background: "#fae3c1",
+      });
+      expect((out as { config: HeroConfig }).config.background).toBe("#fae3c1");
+    });
+  });
+
+  // --- usp_bar ---------------------------------------------------------------
+  describe("usp_bar", () => {
+    it("drops empty rows, caps items and falls back on unknown icons", () => {
+      const out = validateConfig("usp_bar", {
+        items: [
+          { icon: "truck", title: "Fast delivery", subtitle: "" },
+          { icon: "not-an-icon", title: "Quality", subtitle: "Guaranteed" },
+          { icon: "leaf", title: "", subtitle: "" }, // dropped
+        ],
+        theme: "light",
+      });
+      const config = (out as { config: UspBarConfig }).config;
+      expect(config.items).toHaveLength(2);
+      expect(config.items[1].icon).toBe("star");
+      expect(config.theme).toBe("light");
+    });
+
+    it("errors on publish with no items, allows it in draft", () => {
+      expect(validateConfig("usp_bar", { items: [] })).toEqual({
+        error: "Add at least one item.",
+      });
+      expect(
+        "config" in validateConfig("usp_bar", { items: [] }, "draft"),
+      ).toBe(true);
+    });
+
+    it("rejects more than MAX_USP_ITEMS", () => {
+      const items = Array.from({ length: MAX_USP_ITEMS + 1 }, () => ({
+        icon: "star",
+        title: "t",
+        subtitle: "",
+      }));
+      expect(validateConfig("usp_bar", { items })).toEqual({
+        error: `At most ${MAX_USP_ITEMS} items.`,
+      });
+    });
+  });
+
+  // --- tile_grid ---------------------------------------------------------------
+  describe("tile_grid", () => {
+    it("normalises tiles: strict colours, safe hrefs, empty tiles dropped", () => {
+      const out = validateConfig("tile_grid", {
+        heading: "Offers",
+        columns: 7,
+        height: "huge",
+        tiles: [
+          {
+            title: "Juices",
+            href: "/shop",
+            background: "expression(alert(1))",
+            theme: "light",
+          },
+          { title: "", subtitle: "", image_url: "" }, // dropped
+        ],
+      });
+      const config = (out as { config: TileGridConfig }).config;
+      expect(config.tiles).toHaveLength(1);
+      expect(config.tiles[0].background).toBe("");
+      expect(config.tiles[0].href).toBe("/shop");
+      expect(config.tiles[0].theme).toBe("light");
+      expect(config.columns).toBe(4);
+      expect(config.height).toBe("sm");
+    });
+
+    it("errors on publish with no tiles and caps the tile count", () => {
+      expect(validateConfig("tile_grid", { tiles: [] })).toEqual({
+        error: "Add at least one tile.",
+      });
+      const tiles = Array.from({ length: MAX_TILES + 1 }, () => ({
+        title: "t",
+      }));
+      expect(validateConfig("tile_grid", { tiles })).toEqual({
+        error: `At most ${MAX_TILES} tiles.`,
+      });
+    });
+  });
+
+  // --- faq_accordion ---------------------------------------------------------
+  describe("faq_accordion", () => {
+    it("drops empty rows and caps question length", () => {
+      const out = validateConfig("faq_accordion", {
+        heading: "  FAQ  ",
+        show_filters: true,
+        items: [
+          { question: "Q1?", answer: "A1", category: "Delivery" },
+          { question: "", answer: "", category: "X" }, // dropped
+        ],
+      });
+      const config = (out as { config: FaqAccordionConfig }).config;
+      expect(config.heading).toBe("FAQ");
+      expect(config.items).toHaveLength(1);
+      expect(config.items[0].category).toBe("Delivery");
+      expect(config.show_filters).toBe(true);
+    });
+
+    it("errors on publish with no items, allows it in draft", () => {
+      expect(validateConfig("faq_accordion", { items: [] })).toEqual({
+        error: "Add at least one question.",
+      });
+      expect(
+        "config" in validateConfig("faq_accordion", { items: [] }, "draft"),
+      ).toBe(true);
+    });
+
+    it("rejects more than the item cap", () => {
+      const items = Array.from({ length: MAX_FAQ_ITEMS + 1 }, () => ({
+        question: "q",
+        answer: "a",
+      }));
+      expect(validateConfig("faq_accordion", { items })).toEqual({
+        error: `At most ${MAX_FAQ_ITEMS} questions.`,
+      });
+    });
+  });
+
   // --- shop_by_category ----------------------------------------------------
   describe("shop_by_category", () => {
     it("defaults source to 'all' and layout to 'grid'", () => {
@@ -156,6 +318,7 @@ describe("validateConfig", () => {
         source: "all",
         category_ids: [],
         layout: "grid",
+        display: "circles",
       });
     });
 

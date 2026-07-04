@@ -2,6 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, revalidateTag } from "next/cache";
+import { after } from "next/server";
+import { getStoreUrl } from "@/lib/site";
+import { pingIndexNow } from "@/lib/seo/search-engines";
 import { TAGS } from "@/lib/storefront/tags";
 import { sanitizeBlogContent } from "@/lib/sanitize";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -447,14 +450,16 @@ export async function publishBlog(id: string): Promise<ActionResult> {
     return { error: "Not authenticated" };
   }
 
-  const { error } = await supabase
+  const { data: published, error } = await supabase
     .from("blogs")
     .update({
       status: "published",
       published_at: new Date().toISOString(),
       updated_by: userId,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .select("slug")
+    .single();
 
   if (error) {
     console.error("publishBlog error:", error);
@@ -464,6 +469,12 @@ export async function publishBlog(id: string): Promise<ActionResult> {
   revalidatePath("/dashboard/blogs");
   revalidatePath("/blogs");
   revalidateTag(TAGS.blogs, "max");
+
+  // Nudge search engines to crawl the newly published post (best-effort).
+  if (published?.slug) {
+    const base = await getStoreUrl();
+    after(() => pingIndexNow([`${base}/blogs/${published.slug}`]));
+  }
   return { success: true };
 }
 

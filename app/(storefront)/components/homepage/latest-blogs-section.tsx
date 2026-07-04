@@ -1,7 +1,12 @@
 import Link from "next/link";
 import Image from "next/image";
-import type { LatestBlogsConfig } from "@/lib/homepage/section-types";
+import { ImageIcon } from "lucide-react";
+import type {
+  LatestBlogsConfig,
+  SectionStyle,
+} from "@/lib/homepage/section-types";
 import { BlogCarousel } from "./blog-carousel";
+import { SectionShell } from "../sections/section-shell";
 
 export interface BlogCardData {
   id: string;
@@ -42,7 +47,9 @@ function BlogCard({ b }: { b: BlogCardData }) {
             className="home-blog-img-el"
           />
         ) : (
-          <div className="home-blog-img-placeholder">📝</div>
+          <div className="home-blog-img-placeholder">
+            <ImageIcon size={28} strokeWidth={1.5} aria-hidden />
+          </div>
         )}
         {b.categories && b.categories.length > 0 && (
           <span className="home-blog-cat">{b.categories[0]}</span>
@@ -74,9 +81,13 @@ function BlogCard({ b }: { b: BlogCardData }) {
 // Presentational: receives already-resolved, ordered blog rows. Renders
 // nothing when there are no posts so we never show an empty heading.
 export function LatestBlogsSection({
+  sectionId,
+  style,
   config,
   blogs,
 }: {
+  sectionId: string;
+  style?: SectionStyle;
   config: LatestBlogsConfig;
   blogs: BlogCardData[];
 }) {
@@ -85,7 +96,7 @@ export function LatestBlogsSection({
   const cards = blogs.map((b) => <BlogCard key={b.id} b={b} />);
 
   return (
-    <section className="home-section">
+    <SectionShell sectionId={sectionId} style={style}>
       {(config.heading || config.subheading) && (
         <div className="home-section-head">
           {config.heading && (
@@ -101,6 +112,6 @@ export function LatestBlogsSection({
       ) : (
         <div className="home-blog-grid">{cards}</div>
       )}
-    </section>
+    </SectionShell>
   );
 }

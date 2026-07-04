@@ -286,7 +286,7 @@ export default function AuthModal() {
   // ---- Render steps ----
   const renderPhoneStep = () => (
     <div className={styles.step} key="phone">
-      <h2 className={styles.title}>Welcome to WholeSip</h2>
+      <h2 className={styles.title}>Welcome to {brand.name}</h2>
       <p className={styles.subtitle}>
         Enter your mobile number to sign in or create an account
       </p>
@@ -529,7 +529,7 @@ export default function AuthModal() {
       }}
       role="dialog"
       aria-modal="true"
-      aria-label="Sign in to WholeSip"
+      aria-label={`Sign in to ${brand.name}`}
     >
       <div className={styles.modal}>
         <button

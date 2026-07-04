@@ -7,8 +7,15 @@ import CartProvider from "@/app/(storefront)/components/cart/CartProvider";
 import CartDrawer from "@/app/(storefront)/components/cart/CartDrawer";
 import AuthModal from "@/app/(storefront)/components/auth/AuthModal";
 import { BrandProvider } from "@/app/(storefront)/components/brand-provider";
+import { MenuProvider } from "@/app/(storefront)/components/menu-provider";
+import { notFound } from "next/navigation";
 import { getStoreBrand } from "@/lib/store/brand";
+import { getStoreMenus } from "@/lib/storefront/queries";
+import { getCurrentStoreOrNull } from "@/lib/store/resolve";
 import { getStoreUrl } from "@/lib/site";
+import { getThemeDefinition } from "@/lib/themes";
+import { isThemeId } from "@/lib/themes/meta";
+import { designToCssVars } from "@/lib/themes/types";
 import { Toaster } from "@/components/ui/sonner";
 import "./storefront-theme.css";
 
@@ -30,20 +37,54 @@ export default async function StorefrontLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const brand = await getStoreBrand();
+  // An unclaimed subdomain / unknown custom domain must NOT fall back to the
+  // WholeSip storefront — render a proper "store not found" 404 instead. This
+  // one guard covers every storefront page (they all render inside this layout).
+  const store = await getCurrentStoreOrNull();
+  if (!store) notFound();
+
+  const [brand, menus] = await Promise.all([
+    getStoreBrand(),
+    getStoreMenus(store.id),
+  ]);
+
+  // The visual skin: resolve the store's theme (settings.template) and flatten
+  // its palette/fonts/shape into CSS custom properties written inline on
+  // .storefront-root. Inline-style specificity beats the globals.css :root
+  // defaults, so the whole storefront re-skins with no per-component wiring.
+  // A store with NO real theme id (the WholeSip fallback, legacy stores) gets
+  // only --brand-primary — the globals.css defaults ARE the WholeSip look, so
+  // it stays exactly as today.
+  const template = (store.settings as Record<string, unknown> | null)?.template;
+  const design = isThemeId(template)
+    ? getThemeDefinition(template).design
+    : null;
+  const themeVars: Record<string, string> = design
+    ? designToCssVars(design, brand.primaryColor)
+    : { "--brand-primary": brand.primaryColor };
+
+  // Chrome layout variants (theme-driven; absent = classic WholeSip chrome).
+  // Rendered as root classes so plain CSS can switch header/card treatments.
+  const rootClass = [
+    "storefront-root",
+    design?.layout?.header === "market" ? "sm-header-market" : "",
+    design?.layout?.card === "quick_add" ? "sm-card-quickadd" : "",
+    design?.layout?.storefront === "grocery" ? "sm-storefront-grocery" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <AuthProvider>
       <CartProvider>
         <BrandProvider brand={brand}>
-          <div
-            className="storefront-root"
-            style={{ "--brand-primary": brand.primaryColor } as CSSProperties}
-          >
-            <Header />
-            {children}
-            <Footer />
-          </div>
+          <MenuProvider menus={menus}>
+            <div className={rootClass} style={themeVars as CSSProperties}>
+              <Header />
+              {children}
+              <Footer />
+            </div>
+          </MenuProvider>
         </BrandProvider>
         <AuthModal />
         <CartDrawer />

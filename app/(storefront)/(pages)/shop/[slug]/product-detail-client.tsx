@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { ImageIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   discountPercent,
@@ -13,6 +14,7 @@ import {
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
 import { ShareButtons } from "@/app/(storefront)/components/share-buttons";
 import { RelatedProducts, type RelatedProduct } from "./related-products";
+import { GroceryProductDetail } from "./grocery-product-detail";
 import ReviewsSection, {
   RatingStars,
   type ProductReview,
@@ -69,10 +71,12 @@ export default function ProductDetailClient({
   product,
   related,
   reviews,
+  grocery = false,
 }: {
   product: DetailProduct;
   related: RelatedProduct[];
   reviews: ProductReview[];
+  grocery?: boolean;
 }) {
   const router = useRouter();
   const { addItem, openCart } = useCart();
@@ -164,6 +168,7 @@ export default function ProductDetailClient({
         price: selling,
         basePrice: base,
         image: activeImg ?? product.image_url ?? null,
+        category: product.category?.name ?? null,
       },
       qty,
     );
@@ -180,6 +185,71 @@ export default function ProductDetailClient({
     addToCart();
     router.push("/cart");
   };
+
+  if (grocery) {
+    return (
+      <main className="shop-main gpdp-main">
+        <GroceryProductDetail
+          product={product}
+          gallery={gallery}
+          activeImg={activeImg}
+          setActiveImg={setActiveImg}
+          onZoom={() => setZoomOpen(true)}
+          averageRating={averageRating}
+          reviewCount={reviewCount}
+          hasVariants={hasVariants}
+          variantId={variantId}
+          selectVariant={selectVariant}
+          base={base}
+          selling={selling}
+          discount={discount}
+          outOfStock={outOfStock}
+          qty={qty}
+          setQuantity={setQuantity}
+          maxQty={maxQty}
+          onAddToCart={handleAddToCart}
+          onBuyNow={handleBuyNow}
+        />
+
+        <ReviewsSection
+          productId={product.id}
+          productSlug={product.slug}
+          reviews={reviews}
+        />
+
+        <RelatedProducts products={related} grocery />
+
+        {zoomOpen && activeImg && (
+          <div
+            className="pdp-lightbox"
+            onClick={() => setZoomOpen(false)}
+            role="dialog"
+            aria-label="Zoomed product image"
+          >
+            <button
+              className="pdp-lightbox-close"
+              onClick={() => setZoomOpen(false)}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+            <div
+              className="pdp-lightbox-img-wrap"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Image
+                src={activeImg}
+                alt={product.name}
+                fill
+                sizes="90vw"
+                className="pdp-lightbox-img"
+              />
+            </div>
+          </div>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className="shop-main">
@@ -217,7 +287,9 @@ export default function ProductDetailClient({
                 <span className="pdp-zoom-hint">🔍 Click to zoom</span>
               </>
             ) : (
-              <div className="pdp-img-placeholder">🥛</div>
+              <div className="pdp-img-placeholder">
+                <ImageIcon size={40} strokeWidth={1.5} aria-hidden />
+              </div>
             )}
           </button>
           {gallery.length > 1 && (
@@ -282,41 +354,38 @@ export default function ProductDetailClient({
                 {product.variants.map((v) => {
                   const disabled = v.stock <= 0;
                   const hasSale = hasSpecialPrice(v);
+                  const vSelling = variantSellingWithFallback(v);
+                  // Show the struck-through original only when it's genuinely
+                  // higher than what the customer pays for this variant.
+                  const showWas = v.base_price > vSelling;
                   return (
-                    <div
+                    <button
                       key={v.id}
-                      className={`pdp-variant-slot${hasSale ? " has-sale" : ""}`}
+                      className={`pdp-variant${variantId === v.id ? " active" : ""}${
+                        disabled ? " disabled" : ""
+                      }${hasSale ? " has-sale" : ""}`}
+                      onClick={() => !disabled && selectVariant(v)}
+                      disabled={disabled}
+                      aria-label={`${v.name} — ${formatPrice(vSelling)}${
+                        hasSale ? ", best value" : ""
+                      }${disabled ? ", sold out" : ""}`}
                     >
                       {hasSale && (
-                        // Yellow "best value" tag floats above the chip when
-                        // this variant has a special price. The tag's text
-                        // shows the special price; the chip below still drives
-                        // the click target.
-                        <span
-                          className="pdp-variant-tag"
-                          aria-label={`Special price ${formatPrice(v.special_price!)} — best value`}
-                        >
-                          <span className="pdp-variant-tag-price">
-                            Only {formatPrice(v.special_price!)}
-                          </span>
-                          <span className="pdp-variant-tag-sub">
-                            best value!
-                          </span>
-                        </span>
+                        <span className="pdp-variant-badge">Best value</span>
                       )}
-                      <button
-                        className={`pdp-variant${variantId === v.id ? " active" : ""}${
-                          disabled ? " disabled" : ""
-                        }`}
-                        onClick={() => !disabled && selectVariant(v)}
-                        disabled={disabled}
-                      >
-                        {v.name}
-                        {disabled && (
-                          <span className="pdp-variant-oos"> · sold out</span>
+                      <span className="pdp-variant-name">{v.name}</span>
+                      <span className="pdp-variant-price">
+                        {formatPrice(vSelling)}
+                        {showWas && (
+                          <span className="pdp-variant-was">
+                            {formatPrice(v.base_price)}
+                          </span>
                         )}
-                      </button>
-                    </div>
+                      </span>
+                      {disabled && (
+                        <span className="pdp-variant-oos">Sold out</span>
+                      )}
+                    </button>
                   );
                 })}
               </div>

@@ -16,6 +16,7 @@ type Item = {
   badge?: string;
   badgeTone?: "accent" | "amber";
   children?: Child[];
+  openInNewTab?: boolean;
 };
 type Group = { group: string; items: Item[] };
 
@@ -184,6 +185,7 @@ export function DashboardSidebar({
                         icon={item.icon}
                         badge={item.badge}
                         badgeTone={item.badgeTone}
+                        openInNewTab={item.openInNewTab}
                       />
                     ))}
                   </nav>

@@ -17,10 +17,10 @@
 }
 
 .headerScrolled {
-  background-color: rgba(253, 252, 251, 0.92); /* near-white */
+  background-color: color-mix(in srgb, var(--wholesip-cream) 92%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 4px 20px rgba(23, 19, 15, 0.06);
+  box-shadow: 0 4px 20px rgba(var(--wholesip-shadow-rgb), 0.06);
 }
 
 .headerLeft {
@@ -41,7 +41,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-weight: 800;
   font-size: 24px;
-  color: #1a1a1a;
+  color: var(--wholesip-ink);
   letter-spacing: -0.02em;
 }
 
@@ -58,7 +58,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-weight: 600;
   font-size: 15px;
-  color: #323232;
+  color: var(--wholesip-ink);
   transition:
     opacity 0.2s ease,
     transform 0.2s ease;
@@ -83,13 +83,13 @@
 .searchBar {
   display: flex;
   align-items: center;
-  background: var(--wholesip-sand, #e7dcc6);
-  border: 1px solid rgba(43, 38, 32, 0.14);
-  border-radius: 20px;
+  background: var(--wholesip-sand);
+  border: 1px solid var(--wholesip-border);
+  border-radius: var(--wholesip-radius-control);
   padding: 0 16px;
   width: 280px;
   height: 38px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px rgba(var(--wholesip-shadow-rgb), 0.04);
   transition:
     box-shadow 0.2s ease,
     border-color 0.2s ease,
@@ -97,8 +97,8 @@
 }
 
 .searchBar:focus-within {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(var(--wholesip-shadow-rgb), 0.08);
+  border-color: var(--wholesip-ink-faint);
 }
 
 .searchInput {
@@ -108,32 +108,36 @@
   font-size: 14px;
   font-family: var(--font-outfit), sans-serif;
   font-weight: 500;
-  color: #323232;
+  color: var(--wholesip-ink);
   background: transparent;
 }
 
 .searchInput::placeholder {
-  color: #a0a0a0;
+  color: var(--wholesip-ink-faint);
 }
 
 .searchIcon {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a0a0a0;
+  color: var(--wholesip-ink-faint);
   cursor: pointer;
   margin-left: 8px;
   transition: color 0.2s ease;
+  /* It's a submit button now — keep the old icon-only look. */
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 
 .searchBar:focus-within .searchIcon {
-  color: #323232;
+  color: var(--wholesip-ink);
 }
 
 .userIcon {
   background: transparent;
   border: none;
-  color: #323232;
+  color: var(--wholesip-ink);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -153,7 +157,7 @@
   position: relative;
   background: transparent;
   border: none;
-  color: #323232;
+  color: var(--wholesip-ink);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -176,9 +180,9 @@
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border-radius: 999px;
-  background: #17130f;
-  color: #fff;
+  border-radius: var(--wholesip-radius-pill);
+  background: var(--wholesip-ink);
+  color: var(--wholesip-on-ink);
   font-size: 11px;
   font-weight: 700;
   line-height: 18px;
@@ -200,8 +204,12 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #1a1a1a 0%, #444 100%);
-  color: #fff;
+  background: linear-gradient(
+    135deg,
+    var(--wholesip-ink) 0%,
+    var(--wholesip-ink-soft) 100%
+  );
+  color: var(--wholesip-on-ink);
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
   font-weight: 700;
@@ -219,12 +227,12 @@
   top: calc(100% + 10px);
   right: 0;
   width: 268px;
-  background: #ffffff;
-  border-radius: 14px;
+  background: var(--wholesip-surface);
+  border-radius: var(--wholesip-radius-control);
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.1),
-    0 2px 8px rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+    0 12px 40px rgba(var(--wholesip-shadow-rgb), 0.1),
+    0 2px 8px rgba(var(--wholesip-shadow-rgb), 0.04);
+  border: 1px solid var(--wholesip-border);
   z-index: 60;
   padding: 8px;
   animation: dropdownFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -266,8 +274,12 @@
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #1a1a1a 0%, #444 100%);
-  color: #fff;
+  background: linear-gradient(
+    135deg,
+    var(--wholesip-ink) 0%,
+    var(--wholesip-ink-soft) 100%
+  );
+  color: var(--wholesip-on-ink);
   font-family: var(--font-outfit), sans-serif;
   font-size: 15px;
   font-weight: 700;
@@ -285,7 +297,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--wholesip-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -294,12 +306,12 @@
 .profileDropdownPhone {
   font-family: var(--font-outfit), sans-serif;
   font-size: 12px;
-  color: #888;
+  color: var(--wholesip-ink-faint);
 }
 
 .profileDropdownDivider {
   height: 1px;
-  background: #f0f0f0;
+  background: var(--wholesip-border);
   margin: 4px 8px;
 }
 
@@ -322,22 +334,22 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--wholesip-ink);
 }
 
 .profileDropdownLoginSub {
   font-family: var(--font-outfit), sans-serif;
   font-size: 11.5px;
-  color: #999;
+  color: var(--wholesip-ink-faint);
 }
 
 .profileDropdownLoginBtn {
   flex-shrink: 0;
   padding: 8px 18px;
   border: none;
-  border-radius: 8px;
-  background: #1a1a1a;
-  color: #fff;
+  border-radius: var(--wholesip-radius-sm);
+  background: var(--wholesip-ink);
+  color: var(--wholesip-on-ink);
   font-family: var(--font-outfit), sans-serif;
   font-size: 13px;
   font-weight: 600;
@@ -360,11 +372,11 @@
   padding: 10px 12px;
   border: none;
   background: none;
-  border-radius: 8px;
+  border-radius: var(--wholesip-radius-sm);
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: #555;
+  color: var(--wholesip-ink-soft);
   cursor: pointer;
   text-align: left;
   transition:
@@ -374,13 +386,13 @@
 
 .profileDropdownItem svg {
   flex-shrink: 0;
-  color: #888;
+  color: var(--wholesip-ink-faint);
   transition: color 0.15s ease;
 }
 
 .profileDropdownItem:hover {
-  background: #f8f8f8;
-  color: #1a1a1a;
+  background: var(--wholesip-cream-deep);
+  color: var(--wholesip-ink);
 }
 
 .profileDropdownItem:hover svg {
@@ -390,7 +402,7 @@
 /* Trailing chevron pushed to the right edge */
 .profileItemArrow {
   margin-left: auto;
-  color: #ccc !important;
+  color: var(--wholesip-ink-faint) !important;
   opacity: 0;
   transform: translateX(-4px);
   transition:
@@ -407,7 +419,7 @@
 .drawerAuth {
   margin-top: auto;
   padding-top: 32px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--wholesip-border);
 }
 
 .drawerAuthUser {
@@ -424,8 +436,12 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #1a1a1a 0%, #444 100%);
-  color: #fff;
+  background: linear-gradient(
+    135deg,
+    var(--wholesip-ink) 0%,
+    var(--wholesip-ink-soft) 100%
+  );
+  color: var(--wholesip-on-ink);
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
   font-weight: 700;
@@ -435,19 +451,19 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 15px;
   font-weight: 600;
-  color: #323232;
+  color: var(--wholesip-ink);
 }
 
 .drawerAuthBtn {
   width: 100%;
   padding: 12px;
-  border: 1.5px solid #1a1a1a;
-  border-radius: 10px;
+  border: 1.5px solid var(--wholesip-ink);
+  border-radius: var(--wholesip-radius-sm);
   background: transparent;
   font-family: var(--font-outfit), sans-serif;
   font-size: 15px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--wholesip-ink);
   cursor: pointer;
   text-align: center;
   transition:
@@ -456,15 +472,15 @@
 }
 
 .drawerAuthBtn:hover {
-  background: #1a1a1a;
-  color: #fff;
+  background: var(--wholesip-ink);
+  color: var(--wholesip-on-ink);
 }
 
 .hamburgerBtn {
   display: none;
   background: transparent;
   border: none;
-  color: #323232;
+  color: var(--wholesip-ink);
   cursor: pointer;
   align-items: center;
   justify-content: center;
@@ -486,9 +502,9 @@
   width: 320px;
   max-width: 85vw;
   height: 100vh;
-  background: #ffffff;
+  background: var(--wholesip-surface);
   z-index: 100;
-  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.08);
+  box-shadow: -10px 0 30px rgba(var(--wholesip-shadow-rgb), 0.08);
   display: flex;
   flex-direction: column;
   padding: 32px 24px;
@@ -510,7 +526,7 @@
 .closeBtn {
   background: transparent;
   border: none;
-  color: #323232;
+  color: var(--wholesip-ink);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -534,9 +550,9 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--wholesip-sand, #e7dcc6);
-  border: 1px solid rgba(43, 38, 32, 0.14);
-  border-radius: 20px;
+  background: var(--wholesip-sand);
+  border: 1px solid var(--wholesip-border);
+  border-radius: var(--wholesip-radius-control);
   padding: 0 16px;
   width: 100%;
   height: 44px;
@@ -556,7 +572,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-weight: 600;
   font-size: 18px;
-  color: #323232;
+  color: var(--wholesip-ink);
   transition:
     padding-left 0.2s ease,
     color 0.2s ease;
@@ -591,7 +607,7 @@
 }
 
 /* =========================================
-   Responsiveness Media Queries 
+   Responsiveness Media Queries
    ========================================= */
 @media (max-width: 1024px) {
   .header {
@@ -666,4 +682,47 @@
   .headerRight {
     gap: 14px;
   }
+}
+
+/* ---- "market" header variant (theme layout.header = "market") ----
+   A solid brand-coloured bar with a prominent search box — activated by the
+   .sm-header-market class the storefront layout puts on .storefront-root.
+   Colours come from --sm-header-bg / --sm-header-fg (designToCssVars),
+   falling back to the ink / on-ink tokens. */
+:global(.sm-header-market) .header {
+  background: var(--sm-header-bg, var(--wholesip-ink));
+  box-shadow: 0 2px 14px rgba(var(--wholesip-shadow-rgb), 0.12);
+}
+:global(.sm-header-market) .headerScrolled {
+  background: var(--sm-header-bg, var(--wholesip-ink));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:global(.sm-header-market) .brandNameText,
+:global(.sm-header-market) .navLinks a,
+:global(.sm-header-market) .userIcon,
+:global(.sm-header-market) .cartBtn,
+:global(.sm-header-market) .hamburgerBtn {
+  color: var(--sm-header-fg, var(--wholesip-on-ink));
+}
+
+/* The search box becomes the header's centrepiece: white pill, grows to fill
+   the middle. */
+:global(.sm-header-market) .headerRight {
+  gap: 28px;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+:global(.sm-header-market) .searchBar {
+  background: var(--wholesip-surface);
+  border-color: transparent;
+  border-radius: var(--wholesip-radius-pill, 999px);
+  height: 42px;
+  flex: 1 1 auto;
+  max-width: 560px;
+  margin-left: clamp(12px, 4vw, 48px);
+}
+:global(.sm-header-market) .searchBar:focus-within {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25);
 }

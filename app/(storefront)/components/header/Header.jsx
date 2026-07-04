@@ -3,9 +3,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import styles from "./Header.module.css";
 import Image from "next/image";
 import { useBrand } from "@/app/(storefront)/components/brand-provider";
+import { useMenus } from "@/app/(storefront)/components/menu-provider";
 import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
 import {
@@ -21,11 +23,14 @@ export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const router = useRouter();
   const profileRef = useRef(null);
   const closeTimerRef = useRef(null);
   const { user, customer, loading, openAuthModal, signOut } = useAuth();
   const { totalItems, hydrated: cartHydrated, openCart } = useCart();
   const brand = useBrand();
+  const { header: navLinks } = useMenus();
 
   const isLoggedIn = !!user && !!customer;
 
@@ -79,6 +84,15 @@ export default function Header() {
     await signOut();
   };
 
+  // Header search → the shop grid, filtered by ?q=. Empty submits just go
+  // to the shop.
+  const submitSearch = (e) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    setIsMenuOpen(false);
+    router.push(q ? `/shop?q=${encodeURIComponent(q)}` : "/shop");
+  };
+
   const displayName = customer
     ? `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`
     : user?.phone || "Account";
@@ -109,23 +123,34 @@ export default function Header() {
         </Link>
 
         <nav className={styles.navLinks}>
-          <Link href="/shop">Shop</Link>
-          <Link href="/track-order">Track Order</Link>
-          <Link href="/find-us">Find Us</Link>
-          <Link href="/enquiries">Enquiries</Link>
-          <Link href="/blogs">Blogs</Link>
+          {navLinks.map((link) => (
+            <Link key={`${link.href}|${link.label}`} href={link.href}>
+              {link.label}
+            </Link>
+          ))}
         </nav>
       </div>
 
       <div className={styles.headerRight}>
         {/* Search Bar - Now exclusively in the main header */}
-        <div className={styles.searchBar}>
+        <form
+          className={styles.searchBar}
+          onSubmit={submitSearch}
+          role="search"
+        >
           <input
             type="text"
-            placeholder="search..."
+            placeholder="Search products..."
             className={styles.searchInput}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search products"
           />
-          <span className={styles.searchIcon}>
+          <button
+            type="submit"
+            className={styles.searchIcon}
+            aria-label="Search"
+          >
             <svg
               width="18"
               height="18"
@@ -139,8 +164,8 @@ export default function Header() {
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-          </span>
-        </div>
+          </button>
+        </form>
 
         <div className={styles.iconGroup}>
           {/* Profile Button with Dropdown */}
@@ -368,8 +393,16 @@ export default function Header() {
         </div>
 
         <div className={styles.drawerSearch}>
-          <div className={styles.drawerSearchBar}>
-            <span className={styles.searchIcon}>
+          <form
+            className={styles.drawerSearchBar}
+            onSubmit={submitSearch}
+            role="search"
+          >
+            <button
+              type="submit"
+              className={styles.searchIcon}
+              aria-label="Search"
+            >
               <svg
                 width="18"
                 height="18"
@@ -383,31 +416,28 @@ export default function Header() {
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
-            </span>
+            </button>
             <input
               type="text"
-              placeholder="search..."
+              placeholder="Search products..."
               className={styles.searchInput}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search products"
             />
-          </div>
+          </form>
         </div>
 
         <nav className={styles.drawerNav}>
-          <Link href="/shop" onClick={() => setIsMenuOpen(false)}>
-            Shop
-          </Link>
-          <Link href="/track-order" onClick={() => setIsMenuOpen(false)}>
-            Track Order
-          </Link>
-          <Link href="/find-us" onClick={() => setIsMenuOpen(false)}>
-            Find Us
-          </Link>
-          <Link href="/enquiries" onClick={() => setIsMenuOpen(false)}>
-            Enquiries
-          </Link>
-          <Link href="/blogs" onClick={() => setIsMenuOpen(false)}>
-            Blogs
-          </Link>
+          {navLinks.map((link) => (
+            <Link
+              key={`${link.href}|${link.label}`}
+              href={link.href}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              {link.label}
+            </Link>
+          ))}
         </nav>
 
         {/* Mobile auth section in drawer */}

@@ -10,7 +10,7 @@
 
   font-size: 14px;
   font-weight: 400;
-  color: #6b6b6b;
+  color: var(--wholesip-ink-soft);
   letter-spacing: 0.2px;
 }
 
@@ -21,7 +21,7 @@
 
 .credit strong {
   font-weight: 600;
-  color: #222;
+  color: var(--wholesip-ink);
 }
 
 @keyframes heartbeat {
@@ -186,7 +186,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-weight: 800;
   font-size: 20px;
-  color: #1a1a1a;
+  color: var(--wholesip-ink);
   letter-spacing: -0.02em;
 }
 

@@ -14,8 +14,8 @@
   --cart-border: var(--wholesip-border);
   --cart-accent: var(--wholesip-accent);
   --cart-accent-hover: var(--wholesip-accent-deep);
-  --cart-accent-soft: rgba(23, 19, 15, 0.08);
-  --cart-on-accent: #ffffff;
+  --cart-accent-soft: rgba(var(--wholesip-shadow-rgb), 0.08);
+  --cart-on-accent: var(--wholesip-on-accent);
 
   min-height: 100vh;
   background: var(--cart-bg);
@@ -376,4 +376,310 @@
 
 .cart-empty-cta:hover {
   background: var(--cart-accent-hover);
+}
+
+/* ============================================================
+   GROCERY cart  (theme layout.storefront = "grocery")
+   Distinct `gcart-*` markup, gated by the sm-storefront-grocery
+   root class so the classic WholeSip cart is untouched.
+   ============================================================ */
+.gcart-main {
+  min-height: 100vh;
+  background: var(--wholesip-cream);
+  color: var(--wholesip-ink);
+  padding: 120px 24px 80px;
+}
+@media (min-width: 768px) {
+  .gcart-main {
+    padding: 140px 64px 96px;
+  }
+}
+
+.gcart-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 1120px;
+  margin: 0 auto 18px;
+  font-size: 0.9rem;
+  color: var(--wholesip-ink-faint);
+}
+.gcart-breadcrumb a {
+  color: var(--wholesip-ink-soft);
+  text-decoration: none;
+}
+.gcart-breadcrumb a:hover {
+  color: var(--wholesip-ink);
+}
+.gcart-breadcrumb-current {
+  color: var(--wholesip-ink);
+  font-weight: 600;
+}
+
+.gcart-title {
+  max-width: 1120px;
+  margin: 0 auto;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.gcart-subtitle {
+  max-width: 1120px;
+  margin: 6px auto 32px;
+  color: var(--wholesip-ink-soft);
+}
+
+.gcart-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+  max-width: 1120px;
+  margin: 0 auto;
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .gcart-layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 40px;
+  }
+}
+
+/* Line items */
+.gcart-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.gcart-item {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--wholesip-border);
+}
+.gcart-item:first-child {
+  padding-top: 0;
+}
+.gcart-item-img {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--wholesip-cream-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gcart-item-img-el {
+  object-fit: cover;
+}
+.gcart-item-img-ph {
+  color: var(--wholesip-ink-faint);
+}
+.gcart-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.gcart-item-name {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--wholesip-ink);
+  text-decoration: none;
+  line-height: 1.25;
+}
+.gcart-item-name:hover {
+  text-decoration: underline;
+}
+.gcart-item-sub {
+  font-size: 0.85rem;
+  color: var(--wholesip-ink-soft);
+}
+.gcart-item-remove {
+  align-self: flex-start;
+  margin-top: 4px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 0.82rem;
+  color: var(--wholesip-ink-faint);
+  cursor: pointer;
+}
+.gcart-item-remove:hover {
+  color: var(--wholesip-accent, var(--brand-primary));
+  text-decoration: underline;
+}
+.gcart-item-total {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--wholesip-ink);
+  text-align: right;
+  min-width: 64px;
+}
+
+/* Stepper (pill) */
+.gcart-stepper {
+  display: inline-flex;
+  align-items: center;
+  background: var(--wholesip-surface);
+  border: 1px solid var(--wholesip-border);
+  border-radius: var(--wholesip-radius-pill, 999px);
+  padding: 3px;
+}
+.gcart-stepper button {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--wholesip-ink);
+  cursor: pointer;
+}
+.gcart-stepper button:hover {
+  background: var(--wholesip-cream-deep);
+}
+.gcart-stepper span {
+  min-width: 34px;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* Summary card */
+.gcart-summary {
+  background: var(--wholesip-butter);
+  border-radius: 22px;
+  padding: 26px;
+  position: sticky;
+  top: 120px;
+}
+.gcart-summary-title {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin: 0 0 18px;
+}
+.gcart-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 0.98rem;
+  margin-bottom: 12px;
+  color: var(--wholesip-ink-soft);
+}
+.gcart-summary-row span:last-child {
+  color: var(--wholesip-ink);
+  font-weight: 600;
+}
+.gcart-savings span:last-child {
+  color: var(--wholesip-accent, var(--brand-primary));
+}
+.gcart-free {
+  color: var(--wholesip-success);
+  font-weight: 700;
+}
+.gcart-coupon {
+  margin: 16px 0 6px;
+}
+.gcart-summary-divider {
+  height: 1px;
+  background: rgba(var(--wholesip-shadow-rgb), 0.12);
+  margin: 8px 0 16px;
+}
+.gcart-summary-total {
+  font-size: 1.3rem;
+  margin-bottom: 20px;
+}
+.gcart-summary-total span {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 800 !important;
+  color: var(--wholesip-ink) !important;
+}
+.gcart-checkout-btn {
+  width: 100%;
+  border: none;
+  background: var(--wholesip-accent, var(--brand-primary));
+  color: var(--wholesip-on-accent);
+  border-radius: var(--wholesip-radius-pill, 999px);
+  padding: 15px 20px;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.gcart-checkout-btn:hover {
+  filter: brightness(0.95);
+}
+.gcart-continue {
+  display: block;
+  text-align: center;
+  margin-top: 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--wholesip-ink-soft);
+  text-decoration: none;
+}
+.gcart-continue:hover {
+  color: var(--wholesip-ink);
+}
+
+/* Empty / loading */
+.gcart-loading {
+  max-width: 1120px;
+  margin: 0 auto;
+  text-align: center;
+  color: var(--wholesip-ink-soft);
+  padding: 60px 0;
+}
+.gcart-empty {
+  max-width: 460px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 40px 0;
+}
+.gcart-empty-icon {
+  color: var(--wholesip-ink-faint);
+  margin-bottom: 14px;
+}
+.gcart-empty-title {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0 0 8px;
+}
+.gcart-empty-sub {
+  color: var(--wholesip-ink-soft);
+  margin: 0 0 24px;
+}
+.gcart-empty-cta {
+  display: inline-block;
+  background: var(--wholesip-accent, var(--brand-primary));
+  color: var(--wholesip-on-accent);
+  border-radius: var(--wholesip-radius-pill, 999px);
+  padding: 13px 30px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+@media (max-width: 560px) {
+  .gcart-item {
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+    gap: 14px;
+  }
+  .gcart-item-total {
+    grid-column: 2 / 4;
+    text-align: left;
+    margin-top: 4px;
+  }
 }

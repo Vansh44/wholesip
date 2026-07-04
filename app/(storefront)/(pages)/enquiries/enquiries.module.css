@@ -33,9 +33,9 @@
 
 .card {
   background: var(--wholesip-surface);
-  border-radius: 24px;
+  border-radius: var(--wholesip-radius-card);
   padding: 40px;
-  box-shadow: 0 8px 24px rgba(43, 38, 32, 0.06);
+  box-shadow: 0 8px 24px rgba(var(--wholesip-shadow-rgb), 0.06);
   border: 1px solid var(--wholesip-border);
 }
 
@@ -69,13 +69,13 @@
 .label {
   font-size: 13px;
   font-weight: 600;
-  color: #444;
+  color: var(--wholesip-ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .required {
-  color: #c62828;
+  color: var(--wholesip-error);
   margin-left: 3px;
 }
 
@@ -87,9 +87,9 @@
 .input {
   width: 100%;
   padding: 14px 16px;
-  border-radius: 12px;
-  border: 1.5px solid #eaeaea;
-  background: #fafafa;
+  border-radius: var(--wholesip-radius-control);
+  border: 1.5px solid var(--wholesip-border);
+  background: var(--wholesip-cream-deep);
   font-size: 15px;
   font-family: var(--font-outfit), sans-serif;
   color: var(--wholesip-ink);
@@ -99,7 +99,7 @@
 .input:focus {
   outline: none;
   border-color: var(--wholesip-ink);
-  background: #ffffff;
+  background: var(--wholesip-surface);
 }
 
 .input:disabled {
@@ -124,9 +124,9 @@
 .countrySelect {
   flex-shrink: 0;
   padding: 14px 12px;
-  border-radius: 12px;
-  border: 1.5px solid #eaeaea;
-  background: #fafafa;
+  border-radius: var(--wholesip-radius-control);
+  border: 1.5px solid var(--wholesip-border);
+  background: var(--wholesip-cream-deep);
   font-size: 15px;
   font-family: var(--font-outfit), sans-serif;
   color: var(--wholesip-ink);
@@ -137,16 +137,16 @@
 .countrySelect:focus {
   outline: none;
   border-color: var(--wholesip-ink);
-  background: #ffffff;
+  background: var(--wholesip-surface);
 }
 
 .phoneInput {
   flex: 1;
   min-width: 0;
   padding: 14px 16px;
-  border-radius: 12px;
-  border: 1.5px solid #eaeaea;
-  background: #fafafa;
+  border-radius: var(--wholesip-radius-control);
+  border: 1.5px solid var(--wholesip-border);
+  background: var(--wholesip-cream-deep);
   font-size: 15px;
   font-family: var(--font-outfit), sans-serif;
   color: var(--wholesip-ink);
@@ -156,7 +156,7 @@
 .phoneInput:focus {
   outline: none;
   border-color: var(--wholesip-ink);
-  background: #ffffff;
+  background: var(--wholesip-surface);
 }
 
 .verifiedNote {
@@ -164,10 +164,11 @@
   align-items: center;
   gap: 8px;
   padding: 13px 16px;
-  border-radius: 12px;
-  border: 1.5px solid #c8e6c9;
-  background: #f1f8f2;
-  color: #2e7d32;
+  border-radius: var(--wholesip-radius-control);
+  border: 1.5px solid
+    color-mix(in srgb, var(--wholesip-success) 28%, transparent);
+  background: var(--wholesip-success-soft);
+  color: var(--wholesip-success);
   font-size: 14px;
   font-weight: 500;
 }
@@ -180,9 +181,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: var(--wholesip-radius-control);
   background: var(--wholesip-accent);
-  color: #ffffff;
+  color: var(--wholesip-on-accent);
   font-size: 14px;
   font-weight: 600;
   font-family: var(--font-outfit), sans-serif;
@@ -194,7 +195,7 @@
 
 .verifyBtn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px rgba(var(--wholesip-shadow-rgb), 0.12);
 }
 
 .verifyBtn:disabled {
@@ -209,7 +210,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: var(--wholesip-radius-control);
   background: transparent;
   color: var(--wholesip-ink-soft);
   font-size: 14px;
@@ -229,7 +230,7 @@
 .otpInline {
   margin-top: 14px;
   padding: 16px;
-  border-radius: 14px;
+  border-radius: var(--wholesip-radius-control);
   background: var(--wholesip-cream-deep);
   border: 1px solid var(--wholesip-border);
 }
@@ -244,9 +245,9 @@
 .select {
   width: 100%;
   padding: 14px 42px 14px 16px;
-  border-radius: 12px;
-  border: 1.5px solid #eaeaea;
-  background-color: #fafafa;
+  border-radius: var(--wholesip-radius-control);
+  border: 1.5px solid var(--wholesip-border);
+  background-color: var(--wholesip-cream-deep);
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23574f47' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
   background-repeat: no-repeat;
   background-position: right 14px center;
@@ -262,7 +263,7 @@
 .select:focus {
   outline: none;
   border-color: var(--wholesip-ink);
-  background-color: #ffffff;
+  background-color: var(--wholesip-surface);
 }
 
 .submitHint {
@@ -276,9 +277,9 @@
 .submitBtn {
   margin-top: 6px;
   padding: 16px;
-  border-radius: 12px;
+  border-radius: var(--wholesip-radius-control);
   background: var(--wholesip-accent);
-  color: #ffffff;
+  color: var(--wholesip-on-accent);
   font-size: 15px;
   font-weight: 600;
   font-family: var(--font-outfit), sans-serif;
@@ -293,7 +294,7 @@
 
 .submitBtn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px rgba(var(--wholesip-shadow-rgb), 0.12);
 }
 
 .submitBtn:disabled {
@@ -304,7 +305,7 @@
 .secondaryBtn {
   margin-top: 8px;
   padding: 13px 22px;
-  border-radius: 12px;
+  border-radius: var(--wholesip-radius-control);
   background: transparent;
   color: var(--wholesip-ink);
   font-size: 14px;
@@ -358,9 +359,9 @@
   text-align: center;
   font-size: 22px;
   font-weight: 600;
-  border-radius: 12px;
-  border: 1.5px solid #eaeaea;
-  background: #fafafa;
+  border-radius: var(--wholesip-radius-control);
+  border: 1.5px solid var(--wholesip-border);
+  background: var(--wholesip-cream-deep);
   color: var(--wholesip-ink);
   transition: all 0.2s ease;
 }
@@ -368,7 +369,7 @@
 .otpInput:focus {
   outline: none;
   border-color: var(--wholesip-ink);
-  background: #ffffff;
+  background: var(--wholesip-surface);
 }
 
 .otpInput:disabled {
@@ -413,15 +414,15 @@
 /* ---------------- Status messages ---------------- */
 .statusMessage {
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--wholesip-radius-sm);
   font-size: 14px;
   font-weight: 500;
 }
 
 .error {
-  background: #ffebee;
-  color: #c62828;
-  border: 1px solid #ffcdd2;
+  background: var(--wholesip-error-soft);
+  color: var(--wholesip-error);
+  border: 1px solid color-mix(in srgb, var(--wholesip-error) 28%, transparent);
 }
 
 /* ---------------- Success ---------------- */
@@ -434,7 +435,7 @@
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: #2e7d32;
+  background: var(--wholesip-success);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -463,13 +464,13 @@
   height: 16px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #ffffff;
+  border-top-color: var(--wholesip-on-accent);
   animation: enq-spin 0.7s linear infinite;
   display: inline-block;
 }
 
 .spinnerDark {
-  border: 2px solid rgba(26, 26, 26, 0.15);
+  border: 2px solid rgba(var(--wholesip-shadow-rgb), 0.15);
   border-top-color: var(--wholesip-ink);
 }
 

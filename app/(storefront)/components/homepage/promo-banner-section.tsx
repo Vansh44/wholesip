@@ -1,10 +1,22 @@
 import Link from "next/link";
 import Image from "next/image";
-import type { PromoBannerConfig } from "@/lib/homepage/section-types";
+import type {
+  PromoBannerConfig,
+  SectionStyle,
+} from "@/lib/homepage/section-types";
+import { SectionShell } from "../sections/section-shell";
 
 // Full-width promo banner. Internal CTA links use next/link; absolute URLs use
 // a plain anchor. Renders nothing if there's neither an image nor a heading.
-export function PromoBannerSection({ config }: { config: PromoBannerConfig }) {
+export function PromoBannerSection({
+  sectionId,
+  style,
+  config,
+}: {
+  sectionId: string;
+  style?: SectionStyle;
+  config: PromoBannerConfig;
+}) {
   if (!config.image_url && !config.heading) return null;
 
   const hasCta = config.cta_label && config.cta_href;
@@ -28,7 +40,7 @@ export function PromoBannerSection({ config }: { config: PromoBannerConfig }) {
   ) : null;
 
   return (
-    <section className="home-section">
+    <SectionShell sectionId={sectionId} style={style}>
       <div
         className={`home-banner align-${config.alignment} theme-${config.theme}`}
       >
@@ -53,6 +65,6 @@ export function PromoBannerSection({ config }: { config: PromoBannerConfig }) {
           </div>
         </div>
       </div>
-    </section>
+    </SectionShell>
   );
 }

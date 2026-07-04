@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
@@ -261,12 +262,12 @@ export function ProductsManagementView({
           <Lightbulb className="h-4 w-4 shrink-0 text-[var(--dash-amber)]" />
           <span>
             You have no categories yet. Products work without one, but{" "}
-            <a
+            <Link
               href="/dashboard/categories"
               className="font-semibold text-[var(--dash-accent)]"
             >
               create a category
-            </a>{" "}
+            </Link>{" "}
             to group them on the storefront.
           </span>
         </div>

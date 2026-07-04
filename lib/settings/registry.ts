@@ -46,6 +46,7 @@ export const FEATURES_KEY = "features";
 export const SETTING_KEYS = [
   "blogs.customerSubmissions",
   "blogs.requireApproval",
+  "pages.customCode",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
@@ -89,6 +90,17 @@ export const SETTINGS: readonly SettingDef[] = [
     type: "boolean",
     defaultValue: true,
     dependsOn: "blogs.customerSubmissions",
+  },
+  {
+    key: "pages.customCode",
+    label: "Allow custom code",
+    description:
+      "Let admins add custom HTML/CSS/JavaScript sections to pages. Code runs in a secure sandbox. Turn off to disable custom-code sections store-wide.",
+    group: "Website",
+    section: "builder",
+    type: "boolean",
+    defaultValue: true,
+    // minPlan intentionally unset for now — gate to a paid plan when billing ships.
   },
 ];
 

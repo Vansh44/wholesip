@@ -1,6 +1,7 @@
-import Link from "next/link";
-import Image from "next/image";
-import { effectivePricing, formatPrice } from "@/lib/pricing";
+import {
+  ShopCard,
+  type ShopCardProduct,
+} from "@/app/(storefront)/components/shop-card";
 
 export interface RelatedProduct {
   id: string;
@@ -9,7 +10,10 @@ export interface RelatedProduct {
   base_price: number;
   selling_price: number;
   image_url: string | null;
+  card_color: string | null;
   featured: boolean;
+  /** Resolved category name (flattened in the page query). */
+  category: string | null;
   variants: {
     base_price: number;
     selling_price: number;
@@ -18,55 +22,27 @@ export interface RelatedProduct {
   }[];
 }
 
-export function RelatedProducts({ products }: { products: RelatedProduct[] }) {
+// "You may also like" — renders the shared ShopCard so it stays visually in
+// sync with the shop grid (category eyebrow, quick-add, and any theme card
+// treatment like the grocery skin all come for free).
+export function RelatedProducts({
+  products,
+  grocery = false,
+}: {
+  products: RelatedProduct[];
+  grocery?: boolean;
+}) {
   if (!products || products.length === 0) return null;
 
   return (
     <section className="pdp-related">
-      <h2 className="pdp-related-title">You may also like</h2>
+      <h2 className="pdp-related-title">
+        {grocery ? "You might also like" : "You may also like"}
+      </h2>
       <div className="shop-grid">
-        {products.map((p) => {
-          const pr = effectivePricing(p);
-          return (
-            <Link key={p.id} href={`/shop/${p.slug}`} className="shop-card">
-              <div className="shop-card-img">
-                {p.image_url ? (
-                  <Image
-                    src={p.image_url}
-                    alt={p.name}
-                    fill
-                    sizes="(max-width: 768px) 50vw, 240px"
-                    className="shop-card-img-el"
-                  />
-                ) : (
-                  <div className="shop-card-img-placeholder">🥛</div>
-                )}
-                {p.featured && (
-                  <span className="shop-card-badge">Featured</span>
-                )}
-              </div>
-              <div className="shop-card-body">
-                <h3 className="shop-card-name">{p.name}</h3>
-                <div className="shop-card-price">
-                  {pr.hasVariants && (
-                    <span className="shop-card-from">from </span>
-                  )}
-                  <span className="shop-card-sell">
-                    {formatPrice(pr.selling)}
-                  </span>
-                  {pr.discount > 0 && (
-                    <>
-                      <span className="shop-card-base">
-                        {formatPrice(pr.base)}
-                      </span>
-                      <span className="shop-card-off">{pr.discount}% off</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </Link>
-          );
-        })}
+        {products.map((p) => (
+          <ShopCard key={p.id} product={p as unknown as ShopCardProduct} />
+        ))}
       </div>
     </section>
   );

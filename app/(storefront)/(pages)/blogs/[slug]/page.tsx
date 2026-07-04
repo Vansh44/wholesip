@@ -5,10 +5,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { createPublicClient } from "@/lib/supabase/public";
-import { getCurrentStoreId } from "@/lib/store/resolve";
+import { requireStorefrontStoreId } from "@/lib/store/resolve";
+import { getStoreBrand } from "@/lib/store/brand";
+import { getStoreUrl } from "@/lib/site";
 import { getStoreSetting } from "@/lib/settings/resolve";
 import { sanitizeBlogContent } from "@/lib/sanitize";
 import { getOgImageUrl } from "@/lib/og-image";
+import { articleSchema, breadcrumbSchema } from "@/lib/seo/schema";
+import { JsonLd } from "@/app/(storefront)/components/json-ld";
 import { BlogCard } from "../blog-listing-client";
 import { ShareButtons } from "@/app/(storefront)/components/share-buttons";
 import { getBlogReactionCounts } from "@/app/actions/blog-social";
@@ -130,25 +134,28 @@ async function getComments(
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const blog = await getBlog(slug, await getCurrentStoreId());
+  const blog = await getBlog(slug, await requireStorefrontStoreId());
 
   if (!blog) {
     return {
-      title: "Blog Not Found | WholeSip",
+      title: "Blog not found",
     };
   }
 
+  const brand = await getStoreBrand();
   const title = blog.seo_title || blog.title;
   const description =
     blog.seo_description ||
     blog.excerpt ||
-    "Read this article on WholeSip Blog.";
+    `Read this article on the ${brand.name} blog.`;
 
   const ogImageUrl = getOgImageUrl(blog.cover_image_url);
 
   return {
-    title: `${title} | WholeSip`,
+    // Layout templates as "%s | {brand}", so pass the bare article title.
+    title,
     description,
+    alternates: { canonical: `/blogs/${blog.slug}` },
     openGraph: {
       title,
       description,
@@ -160,8 +167,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         ? [
             {
               url: ogImageUrl,
-              width: 800,
-              height: 420,
+              width: 1200,
+              height: 630,
               alt: blog.title,
             },
           ]
@@ -209,20 +216,28 @@ function BackLink() {
 
 export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
-  const storeId = await getCurrentStoreId();
+  const storeId = await requireStorefrontStoreId();
   const blog = await getBlog(slug, storeId);
 
   if (!blog) {
     notFound();
   }
 
-  const [relatedBlogs, reactionCounts, comments, allowSubmissions] =
-    await Promise.all([
-      getRelatedBlogs(blog, storeId),
-      getBlogReactionCounts(blog.id),
-      getComments(blog.id, storeId),
-      getStoreSetting("blogs.customerSubmissions"),
-    ]);
+  const [
+    relatedBlogs,
+    reactionCounts,
+    comments,
+    allowSubmissions,
+    brand,
+    siteUrl,
+  ] = await Promise.all([
+    getRelatedBlogs(blog, storeId),
+    getBlogReactionCounts(blog.id),
+    getComments(blog.id, storeId),
+    getStoreSetting("blogs.customerSubmissions"),
+    getStoreBrand(),
+    getStoreUrl(),
+  ]);
   // Never trust stored HTML at the render boundary — sanitize even though the
   // write path also sanitizes (defense in depth).
   const sanitizedContent = sanitizeBlogContent(blog.content);
@@ -232,8 +247,33 @@ export default async function BlogDetailPage({ params }: Props) {
   // we got a non-published row here it's a preview, not a public view.
   const isPreview = blog.status !== "published";
 
+  // Structured data only for the public (published) view — never for drafts/
+  // previews (which are force-dynamic and not indexed anyway).
+  const articleLd = isPreview
+    ? null
+    : articleSchema({
+        siteUrl,
+        brandName: brand.name,
+        logoUrl: brand.logoUrl,
+        title: blog.seo_title || blog.title,
+        slug: blog.slug,
+        description: blog.seo_description || blog.excerpt,
+        image: blog.cover_image_url,
+        authorName: blog.author,
+        publishedAt: blog.published_at,
+        updatedAt: blog.updated_at,
+      });
+  const breadcrumbLd = isPreview
+    ? null
+    : breadcrumbSchema(siteUrl, [
+        { name: "Home", path: "/" },
+        { name: "Blog", path: "/blogs" },
+        { name: blog.title, path: `/blogs/${blog.slug}` },
+      ]);
+
   return (
     <main>
+      {articleLd && breadcrumbLd && <JsonLd data={[articleLd, breadcrumbLd]} />}
       <section className="blog-detail-page-section">
         <div className="blog-detail-content-container">
           {isPreview && (

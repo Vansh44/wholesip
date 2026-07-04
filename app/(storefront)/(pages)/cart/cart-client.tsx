@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { formatPrice, discountPercent } from "@/lib/pricing";
 import {
@@ -10,8 +11,14 @@ import {
   type CartItem,
 } from "@/app/(storefront)/components/cart/CartProvider";
 import CouponField from "@/app/(storefront)/components/cart/CouponField";
+import { GroceryCart } from "./grocery-cart";
 
-export default function CartClient() {
+export default function CartClient({ grocery = false }: { grocery?: boolean }) {
+  if (grocery) return <GroceryCart />;
+  return <ClassicCart />;
+}
+
+function ClassicCart() {
   const {
     items,
     hydrated,
@@ -152,7 +159,9 @@ function CartLine({
             className="cart-item-img-el"
           />
         ) : (
-          <span className="cart-item-img-placeholder">🥛</span>
+          <span className="cart-item-img-placeholder">
+            <ImageIcon size={22} strokeWidth={1.5} aria-hidden />
+          </span>
         )}
       </Link>
 

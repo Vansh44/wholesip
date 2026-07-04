@@ -34,6 +34,7 @@ vi.mock("@/lib/settings/resolve", () => ({
   getStoreSettings: vi.fn(async () => ({
     "blogs.customerSubmissions": true,
     "blogs.requireApproval": true,
+    "pages.customCode": true,
   })),
 }));
 
@@ -429,6 +430,7 @@ describe("blog-actions", () => {
       vi.mocked(getStoreSettings).mockResolvedValueOnce({
         "blogs.customerSubmissions": false,
         "blogs.requireApproval": true,
+        "pages.customCode": true,
       });
       const result = await submitCustomerBlog(customerForm);
       expect(result.error).toMatch(/disabled/i);
@@ -442,6 +444,7 @@ describe("blog-actions", () => {
       vi.mocked(getStoreSettings).mockResolvedValueOnce({
         "blogs.customerSubmissions": true,
         "blogs.requireApproval": false,
+        "pages.customCode": true,
       });
       const result = await submitCustomerBlog(customerForm);
       expect(result.success).toBe(true);

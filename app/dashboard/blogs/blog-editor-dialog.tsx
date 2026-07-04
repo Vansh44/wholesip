@@ -3,6 +3,7 @@
 "use client";
 
 import { MediaPickerDialog } from "./media-picker-dialog";
+import NextLink from "next/link";
 import { useState, useEffect, useCallback, useRef, useTransition } from "react";
 import { toast } from "sonner";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -821,7 +822,10 @@ export function BlogEditorDialog({
                 {categoryOptions.length === 0 && categories.length === 0 && (
                   <p style={{ fontSize: 12, color: "#8b93a3", marginTop: 4 }}>
                     No categories yet — add them in{" "}
-                    <a href="/dashboard/blogs/settings">Blog settings</a>.
+                    <NextLink href="/dashboard/blogs/settings">
+                      Blog settings
+                    </NextLink>
+                    .
                   </p>
                 )}
                 <div
@@ -1064,7 +1068,10 @@ export function BlogEditorDialog({
                 {tagOptions.length === 0 && tags.length === 0 && (
                   <p style={{ fontSize: 12, color: "#8b93a3", marginTop: 4 }}>
                     No tags yet — add them in{" "}
-                    <a href="/dashboard/blogs/settings">Blog settings</a>.
+                    <NextLink href="/dashboard/blogs/settings">
+                      Blog settings
+                    </NextLink>
+                    .
                   </p>
                 )}
                 <div

@@ -1,20 +1,28 @@
 import { ShopCard, type ShopCardProduct } from "../shop-card";
-import type { FeaturedProductsConfig } from "@/lib/homepage/section-types";
+import type {
+  FeaturedProductsConfig,
+  SectionStyle,
+} from "@/lib/homepage/section-types";
+import { SectionShell } from "../sections/section-shell";
 
 // Presentational: receives already-resolved product rows (resolution + the
 // Supabase query happen once in the homepage server component). Renders
 // nothing when there are no products so we never show an empty heading.
 export function FeaturedProductsSection({
+  sectionId,
+  style,
   config,
   products,
 }: {
+  sectionId: string;
+  style?: SectionStyle;
   config: FeaturedProductsConfig;
   products: ShopCardProduct[];
 }) {
   if (products.length === 0) return null;
 
   return (
-    <section className="home-section">
+    <SectionShell sectionId={sectionId} style={style}>
       {(config.heading || config.subheading) && (
         <div className="home-section-head">
           {config.heading && (
@@ -30,6 +38,6 @@ export function FeaturedProductsSection({
           <ShopCard key={p.id} product={p} />
         ))}
       </div>
-    </section>
+    </SectionShell>
   );
 }

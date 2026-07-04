@@ -1,7 +1,8 @@
 import { unstable_cache } from "next/cache";
 import { createPublicClient } from "@/lib/supabase/public";
 import { TAGS } from "@/lib/storefront/tags";
-import type { HomepageSection } from "@/lib/homepage/section-types";
+import type { PageSectionItem } from "@/lib/sections/registry";
+import { normalizeMenus, type StoreMenus } from "@/lib/menus";
 
 // ---------------------------------------------------------------------------
 // Cached PUBLIC storefront reads.
@@ -180,21 +181,78 @@ export const getBlogTaxonomyNames = unstable_cache(
   { tags: [TAGS.blogTaxonomy], revalidate: REVALIDATE },
 );
 
-export const getEnabledHomepageSections = unstable_cache(
-  async (storeId: string): Promise<HomepageSection[]> => {
+// A published store_pages row for the storefront. Selects NAMED columns only
+// (the anon role can't read the draft `sections` column — see store_pages.sql)
+// and returns the live `published_sections`. `null` (incl. cached nulls, so a
+// 404 storm on junk URLs stays cheap) means "no such published page".
+export interface PublishedPage {
+  id: string;
+  slug: string;
+  title: string;
+  seo_title: string;
+  seo_description: string;
+  seo_noindex: boolean;
+  published_sections: PageSectionItem[];
+}
+
+export const getPublishedPage = unstable_cache(
+  async (storeId: string, slug: string): Promise<PublishedPage | null> => {
     const supabase = createPublicClient();
     const { data, error } = await supabase
-      .from("homepage_sections")
-      .select("*")
+      .from("store_pages")
+      .select(
+        "id, slug, title, seo_title, seo_description, seo_noindex, published_sections",
+      )
       .eq("store_id", storeId)
-      .eq("enabled", true)
-      .order("sort_order", { ascending: true });
-    if (error) {
-      // Table may not exist yet (migration not applied) — render just the hero.
-      return [];
-    }
-    return (data ?? []) as unknown as HomepageSection[];
+      .eq("slug", slug)
+      .eq("status", "published")
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as unknown as PublishedPage;
   },
-  ["storefront-homepage-sections"],
-  { tags: [TAGS.homepage], revalidate: REVALIDATE },
+  ["storefront-store-page"],
+  { tags: [TAGS.pages], revalidate: REVALIDATE },
+);
+
+// Per-store navigation (header + footer). Returns normalized menus, falling
+// back to DEFAULT_MENUS for any store without a row (or empty fields). Consumed
+// by the storefront layout → MenuProvider → Header/Footer.
+export const getStoreMenus = unstable_cache(
+  async (storeId: string): Promise<StoreMenus> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("store_menus")
+      .select("header, footer_groups, footer_legal")
+      .eq("store_id", storeId)
+      .maybeSingle();
+    if (error || !data) return normalizeMenus(null);
+    return normalizeMenus(data);
+  },
+  ["storefront-store-menus"],
+  { tags: [TAGS.menus], revalidate: REVALIDATE },
+);
+
+// Published page slugs for the current store — used by the sitemap.
+export const getPublishedPageSlugs = unstable_cache(
+  async (storeId: string): Promise<{ slug: string; updated_at: string }[]> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("store_pages")
+      .select("slug, updated_at, seo_noindex")
+      .eq("store_id", storeId)
+      .eq("status", "published");
+    if (error) return [];
+    // The homepage sentinel (slug '') is served by `/`, not as a custom page.
+    // Pages the merchant flagged noindex must not appear in the sitemap either —
+    // a sitemap that advertises URLs it also asks crawlers to skip is a bad
+    // signal.
+    const rows = (data ?? []) as {
+      slug: string;
+      updated_at: string;
+      seo_noindex: boolean;
+    }[];
+    return rows.filter((r) => !!r.slug && !r.seo_noindex);
+  },
+  ["storefront-store-page-slugs"],
+  { tags: [TAGS.pages], revalidate: REVALIDATE },
 );
