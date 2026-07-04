@@ -25,10 +25,17 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
+// A true 1200×630 card — the standard OG ratio (1.91:1) that Facebook,
+// Twitter/X and LinkedIn expect, so the width/height we declare in page
+// metadata is honest. `contain` + white pad keeps the whole product/cover
+// visible (no awkward cropping) while still filling the fixed canvas.
 const OG_WIDTH = 1200;
+const OG_HEIGHT = 630;
 const JPEG_QUALITY = 70;
 const CACHE_BUCKET = "media";
-const CACHE_PREFIX = "og-cache";
+// Versioned: bumping this (or the dimensions) invalidates previously cached
+// files, which were generated with the old aspect-preserving logic.
+const CACHE_PREFIX = "og-cache/v2";
 
 const CACHE_HEADERS = {
   "Content-Type": "image/jpeg",
@@ -99,7 +106,12 @@ export async function GET(request: NextRequest) {
 
     const inputBuffer = Buffer.from(await upstream.arrayBuffer());
     const optimized = await sharp(inputBuffer)
-      .resize(OG_WIDTH, undefined, { withoutEnlargement: true })
+      .resize(OG_WIDTH, OG_HEIGHT, {
+        fit: "contain",
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+        withoutEnlargement: true,
+      })
+      .flatten({ background: { r: 255, g: 255, b: 255 } })
       .jpeg({ quality: JPEG_QUALITY, progressive: true })
       .toBuffer();
 
