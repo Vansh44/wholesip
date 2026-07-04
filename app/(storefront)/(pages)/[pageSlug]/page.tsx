@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireStorefrontStoreId } from "@/lib/store/resolve";
 import { getStoreBrand } from "@/lib/store/brand";
+import { brandOgImageUrl } from "@/lib/seo/og-card";
 import { getPublishedPage } from "@/lib/storefront/queries";
 import { getDraftPageForPreview } from "@/lib/pages/preview";
 import { resolveSectionData } from "@/lib/sections/resolve-data";
@@ -54,16 +55,31 @@ export async function generateMetadata({
 
   const brand = await getStoreBrand();
   const title = page.seo_title || page.title || brand.name;
+  const description = page.seo_description || undefined;
+  // Custom pages have no image field → a generated branded card (page title
+  // over the brand name/colour), so shares aren't imageless.
+  const ogImage = brandOgImageUrl({
+    title: page.title || brand.name,
+    subtitle: brand.name,
+    color: brand.primaryColor,
+  });
   return {
     title,
-    description: page.seo_description || undefined,
+    description,
     alternates: { canonical: `/${page.slug}` },
     robots: page.seo_noindex ? { index: false, follow: false } : undefined,
     openGraph: {
       title,
-      description: page.seo_description || undefined,
+      description,
       url: `/${page.slug}`,
       type: "website",
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage],
     },
   };
 }

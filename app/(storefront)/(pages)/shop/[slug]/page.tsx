@@ -5,7 +5,11 @@ import { createPublicClient } from "@/lib/supabase/public";
 import { requireStorefrontStoreId } from "@/lib/store/resolve";
 import { getStorefrontLayout } from "@/lib/store/storefront-layout";
 import { getStoreBrand } from "@/lib/store/brand";
+import { getStoreUrl } from "@/lib/site";
 import { getOgImageUrl } from "@/lib/og-image";
+import { variantEffectiveSelling } from "@/lib/pricing";
+import { productSchema, breadcrumbSchema } from "@/lib/seo/schema";
+import { JsonLd } from "@/app/(storefront)/components/json-ld";
 import ProductDetailClient, {
   type DetailProduct,
 } from "./product-detail-client";
@@ -117,6 +121,7 @@ export async function generateMetadata({
   return {
     title,
     description,
+    alternates: { canonical: `/shop/${product.slug}` },
     openGraph: {
       title,
       description,
@@ -126,8 +131,8 @@ export async function generateMetadata({
         ? [
             {
               url: ogImageUrl,
-              width: 800,
-              height: 420,
+              width: 1200,
+              height: 630,
               alt: product.name,
             },
           ]
@@ -151,18 +156,68 @@ export default async function ProductDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const [related, reviews, layout] = await Promise.all([
+  const [related, reviews, layout, brand, siteUrl] = await Promise.all([
     getRelated(product.category_id, product.id, storeId),
     getReviews(product.id, storeId),
     getStorefrontLayout(),
+    getStoreBrand(),
+    getStoreUrl(),
+  ]);
+
+  // Product / Breadcrumb JSON-LD (rich results: price, availability, stars).
+  // Effective per-variant selling prices → an Offer (single price) or
+  // AggregateOffer (a low–high range). Stock: in stock if any variant has some,
+  // or if the product is unvariant'd (no per-product stock column to check).
+  const variantPrices = product.variants.map((v) => {
+    const eff = variantEffectiveSelling(v);
+    return eff > 0 ? eff : v.base_price;
+  });
+  const prices = variantPrices.length
+    ? variantPrices
+    : [product.selling_price > 0 ? product.selling_price : product.base_price];
+  const inStock = product.variants.length
+    ? product.variants.some((v) => v.stock > 0)
+    : true;
+  const ratingCount = reviews.length;
+  const ratingValue = ratingCount
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / ratingCount
+    : 0;
+
+  const productLd = productSchema({
+    siteUrl,
+    brandName: brand.name,
+    name: product.name,
+    slug: product.slug,
+    description: product.seo_description || product.description,
+    category: product.category?.name ?? null,
+    images: [product.image_url, ...(product.images ?? [])],
+    price: { low: Math.min(...prices), high: Math.max(...prices) },
+    inStock,
+    rating: ratingCount ? { value: ratingValue, count: ratingCount } : null,
+  });
+  const breadcrumbLd = breadcrumbSchema(siteUrl, [
+    { name: "Home", path: "/" },
+    { name: "Shop", path: "/shop" },
+    ...(product.category
+      ? [
+          {
+            name: product.category.name,
+            path: `/shop?category=${product.category.slug}`,
+          },
+        ]
+      : []),
+    { name: product.name, path: `/shop/${product.slug}` },
   ]);
 
   return (
-    <ProductDetailClient
-      product={product}
-      related={related}
-      reviews={reviews}
-      grocery={layout.storefront === "grocery"}
-    />
+    <>
+      <JsonLd data={[productLd, breadcrumbLd]} />
+      <ProductDetailClient
+        product={product}
+        related={related}
+        reviews={reviews}
+        grocery={layout.storefront === "grocery"}
+      />
+    </>
   );
 }

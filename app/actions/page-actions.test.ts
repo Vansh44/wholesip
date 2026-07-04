@@ -9,6 +9,14 @@ vi.mock("next/cache", () => ({
   // lib/settings/resolve → lib/store/resolve which wraps reads at module load.
   unstable_cache: (fn: unknown) => fn,
 }));
+vi.mock("next/server", () => ({ after: vi.fn() }));
+vi.mock("@/lib/site", () => ({
+  getStoreUrl: vi.fn(async () => "https://store-1.storemink.com"),
+}));
+vi.mock("@/lib/seo/search-engines", () => ({
+  pingIndexNow: vi.fn(),
+  submitSitemapToGoogle: vi.fn(),
+}));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),

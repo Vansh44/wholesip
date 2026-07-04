@@ -109,7 +109,9 @@ wholesip/
 │   │       │                  # preview-bridge (§11)
 │   │       ├── brand-provider.tsx   # Injects per-store branding CSS vars
 │   │       ├── menu-provider.tsx    # Supplies per-store header/footer nav (store_menus)
-│   │       ├── shop-card.tsx / share-buttons.tsx / structured-data.tsx
+│   │       ├── shop-card.tsx / share-buttons.tsx
+│   │       ├── structured-data.tsx  # homepage Organization + WebSite JSON-LD
+│   │       ├── json-ld.tsx          # generic <JsonLd> renderer (builders: lib/seo)
 │   │       ├── quick-add-button.tsx # "+ Add" on product cards (theme layout.card
 │   │       │                        # = "quick_add"; hidden by CSS otherwise)
 │   │
@@ -169,7 +171,10 @@ wholesip/
 │   │
 │   └── api/
 │       ├── cron/send-emails/  # Daily email campaign worker (Vercel cron)
-│       ├── og-image/          # Dynamic OG image generation
+│       ├── og-image/          # OG image proxy (compresses Supabase images only)
+│       ├── og/                # Dynamic branded OG card (ImageResponse; ?d=JSON
+│       │                      # {title,subtitle,color}) — default share image for
+│       │                      # homepage/custom pages/platform (lib/seo/og-card.ts)
 │       └── upload/            # File upload → Supabase Storage
 │
 ├── lib/
@@ -194,6 +199,15 @@ wholesip/
 │   │                          # shared by homepage / [pageSlug] / preview). Tested (drift test).
 │   ├── pages/                 # ★ preview.ts — uncached, cookie-authenticated draft loader
 │   │                          # for the builder preview (getManagerUserId("builder") gate)
+│   ├── seo/                   # ★ schema.ts — pure JSON-LD builders (productSchema/
+│   │                          # articleSchema/breadcrumbSchema), tested. Rendered via the
+│   │                          # (storefront) <JsonLd> component on product/blog pages.
+│   │                          # og-card.ts — brandOgImageUrl() builds the /api/og URL
+│   │                          # (single `d` param) for the branded default share card.
+│   │                          # search-engines.ts — pingIndexNow() (Bing/Yandex) +
+│   │                          # submitSitemapToGoogle() (Search Console); fired via
+│   │                          # after() on store create + publish. Best-effort, dormant
+│   │                          # until env is set. IndexNow key: public/<key>.txt.
 │   ├── email/                 # sender, layout, campaign-worker, coupon-campaign,
 │   │                          # trigger-worker, blog/enquiry notifications
 │   ├── homepage/section-types.ts  # Section schema (typed, tested) — shared by homepage AND
@@ -453,6 +467,13 @@ npm run format      # prettier --write
 - **Vercel**: hosting + cron. Wildcard domain `*.storemink.com` → store subdomains.
 - **Resend**: transactional email + custom-domain DNS verification.
 - **Gemini**: AI copy generation.
+- **Search-engine indexing** (`lib/seo/search-engines.ts`): IndexNow needs no
+  account (public key file `public/<key>.txt`; `INDEXNOW_KEY` overrides it,
+  `INDEXNOW_FORCE=1` enables pings outside prod). Google Search Console
+  submission is DORMANT until `GOOGLE_SEARCH_CONSOLE_CREDENTIALS` (service-account
+  JSON) + `GOOGLE_SEARCH_CONSOLE_PROPERTY` (e.g. `sc-domain:storemink.com`) are
+  set. One-time human setup: verify `storemink.com` as a Search Console _Domain
+  property_ (covers all `*.storemink.com`) and grant the service account access.
 
 ## 8. Multi-tenant rollout status (as of 2026-07)
 

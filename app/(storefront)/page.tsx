@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import StructuredData from "@/app/(storefront)/components/structured-data";
 import { requireStorefrontStoreId } from "@/lib/store/resolve";
 import { getStoreBrand } from "@/lib/store/brand";
+import { brandOgImageUrl } from "@/lib/seo/og-card";
 import { getPublishedPage } from "@/lib/storefront/queries";
 import { getDraftPageForPreview } from "@/lib/pages/preview";
 import { resolveSectionData } from "@/lib/sections/resolve-data";
@@ -52,11 +53,32 @@ export async function generateMetadata({
   const storeId = await requireStorefrontStoreId();
   const page = await getPublishedPage(storeId, HOME_SLUG);
   const title = page?.seo_title || fallbackTitle;
+  const description = page?.seo_description || brand.tagline || undefined;
+  // No dedicated homepage image field → a generated branded card (name +
+  // tagline on the brand colour) so shares aren't imageless.
+  const ogImage = brandOgImageUrl({
+    title: brand.name,
+    subtitle: brand.tagline,
+    color: brand.primaryColor,
+  });
   return {
     title: { absolute: title },
-    description: page?.seo_description || brand.tagline || undefined,
+    description,
     alternates: { canonical: "/" },
     robots: page?.seo_noindex ? { index: false, follow: false } : undefined,
+    openGraph: {
+      title,
+      description,
+      url: "/",
+      type: "website",
+      images: [{ url: ogImage, width: 1200, height: 630, alt: brand.name }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage],
+    },
   };
 }
 

@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
+import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
+import { getStoreUrl } from "@/lib/site";
+import { pingIndexNow } from "@/lib/seo/search-engines";
 import { TAGS } from "@/lib/storefront/tags";
 import { getStoreSetting } from "@/lib/settings/resolve";
 import { sanitizeBlogContent } from "@/lib/sanitize";
@@ -378,6 +381,14 @@ export async function publishPage(
   }
 
   revalidatePage(page.slug);
+
+  // Nudge search engines to re-crawl the just-published page (best-effort, off
+  // the response path). getStoreUrl reads the request host, so resolve it now
+  // rather than inside after().
+  const base = await getStoreUrl();
+  const pageUrl = page.slug ? `${base}/${page.slug}` : `${base}/`;
+  after(() => pingIndexNow([pageUrl]));
+
   return {
     success: true,
     data: {
