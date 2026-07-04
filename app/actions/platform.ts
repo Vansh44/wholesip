@@ -3,9 +3,10 @@
 import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { STORE_TAG } from "@/lib/store/resolve";
+import { STORE_TAG, WHOLESIP_STORE_ID } from "@/lib/store/resolve";
 import { getThemeDefinition } from "@/lib/themes";
 import { applyTheme } from "@/lib/themes/apply";
+import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 
 // A Storemink platform operator (from platform_admins, by JWT email).
 export interface PlatformViewer {
@@ -39,6 +40,7 @@ export interface PlatformStoreRow {
   plan: string;
   custom_domain: string | null;
   created_at: string;
+  owner_email: string | null; // superadmin who set the store up (from admins)
 }
 
 // Strip PostgREST filter-control chars so a search term can't break .or().
@@ -65,7 +67,32 @@ export async function listAllStores(q?: string): Promise<PlatformStoreRow[]> {
     console.error("listAllStores:", error.message);
     return [];
   }
-  return (data ?? []) as PlatformStoreRow[];
+
+  const stores = (data ?? []).map(
+    (s): PlatformStoreRow => ({ ...s, owner_email: null }),
+  ) as PlatformStoreRow[];
+
+  // Attach the store's owner email (the superadmin created at signup). Fetched
+  // in one query and mapped back — earliest superadmin per store wins.
+  if (stores.length) {
+    const { data: owners } = await admin
+      .from("admins")
+      .select("store_id, email, created_at")
+      .in(
+        "store_id",
+        stores.map((s) => s.id),
+      )
+      .eq("role", "superadmin")
+      .order("created_at", { ascending: true });
+    const byStore = new Map<string, string>();
+    for (const o of owners ?? []) {
+      const sid = o.store_id as string;
+      if (!byStore.has(sid) && o.email) byStore.set(sid, o.email as string);
+    }
+    for (const s of stores) s.owner_email = byStore.get(s.id) ?? null;
+  }
+
+  return stores;
 }
 
 export interface ActionResult {
@@ -95,6 +122,104 @@ export async function setStoreStatus(
     console.error("setStoreStatus:", error.message);
     return { error: "Could not update the store. Please try again." };
   }
+  revalidateTag(STORE_TAG, "max");
+  return { success: true };
+}
+
+// Any media-bucket public URL. Store media isn't namespaced by store in the
+// bucket, so we can't purge by prefix — instead we scrape every media URL out
+// of the store's own rows (product images, blog bodies, brand logo, page
+// sections…) before the DB rows cascade away, then delete those files.
+const MEDIA_URL_RE = /https?:\/\/[^"'\s)]+\/object\/public\/media\/[^"'\s)]+/g;
+
+// PERMANENTLY delete a store and everything belonging to it (platform
+// superadmin only). Irreversible. Every store-scoped table FKs stores(id) with
+// ON DELETE CASCADE, so one DELETE removes all DB rows; we additionally purge
+// the store's uploaded media and delete its owner/staff login accounts (neither
+// cascades from the stores table).
+export async function deleteStore(storeId: string): Promise<ActionResult> {
+  const viewer = await getPlatformViewer();
+  if (viewer?.role !== "superadmin") {
+    return { error: "Only a platform superadmin can delete a store." };
+  }
+  // The WholeSip fallback store underpins unresolved-host handling — never let
+  // it be deleted from the console.
+  if (storeId === WHOLESIP_STORE_ID) {
+    return { error: "The WholeSip fallback store can't be deleted." };
+  }
+
+  const admin = createAdminClient();
+
+  const { data: store } = await admin
+    .from("stores")
+    .select("id, settings")
+    .eq("id", storeId)
+    .maybeSingle();
+  if (!store) return { error: "Store not found." };
+
+  // 1. Login accounts to delete (auth.users). admins.id AND users.id are both
+  //    auth user ids; their rows cascade away with the store, so we collect the
+  //    ids first. Each id maps to exactly one store (both are global PKs), so
+  //    deleting the auth account is safe. Deduped in case an owner is also a
+  //    customer row.
+  const authUserIds = new Set<string>();
+  const [{ data: staff }, { data: customers }] = await Promise.all([
+    admin.from("admins").select("id").eq("store_id", storeId),
+    admin.from("users").select("id").eq("store_id", storeId),
+  ]);
+  for (const r of staff ?? []) authUserIds.add(r.id as string);
+  for (const r of customers ?? []) authUserIds.add(r.id as string);
+
+  // 2. Media URLs referenced anywhere in the store's rows (scanned as JSON so we
+  //    catch image fields, jsonb arrays AND HTML bodies without per-column code).
+  const mediaUrls = new Set<string>();
+  const scan = (obj: unknown) => {
+    for (const m of JSON.stringify(obj ?? "").match(MEDIA_URL_RE) ?? [])
+      mediaUrls.add(m);
+  };
+  scan(store.settings);
+  // Every store-scoped table that can hold an uploaded image (product/variant
+  // galleries, category tiles, blog covers+bodies, page sections, review photos,
+  // campaign HTML, colour-card art, customer avatars). select("*") + JSON scan
+  // means a new image column is covered automatically.
+  const MEDIA_TABLES = [
+    "products",
+    "product_variants",
+    "categories",
+    "blogs",
+    "blog_comments",
+    "store_pages",
+    "product_reviews",
+    "email_campaigns",
+    "card_colors",
+    "users",
+  ];
+  for (const table of MEDIA_TABLES) {
+    const { data: rows } = await admin
+      .from(table)
+      .select("*")
+      .eq("store_id", storeId);
+    if (rows) scan(rows);
+  }
+
+  // 3. Delete the store — FK ON DELETE CASCADE wipes every store-scoped row.
+  const { error: delErr } = await admin
+    .from("stores")
+    .delete()
+    .eq("id", storeId);
+  if (delErr) {
+    console.error("deleteStore:", delErr.message);
+    return { error: "Could not delete the store. Please try again." };
+  }
+
+  // 4. Best-effort cleanup of things that DON'T cascade from stores. The store
+  //    is already gone, so failures here are logged but not surfaced as errors.
+  await deleteStorageUrls(Array.from(mediaUrls));
+  for (const id of authUserIds) {
+    const { error } = await admin.auth.admin.deleteUser(id);
+    if (error) console.error("deleteStore (auth user)", id, error.message);
+  }
+
   revalidateTag(STORE_TAG, "max");
   return { success: true };
 }
