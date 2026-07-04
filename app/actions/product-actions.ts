@@ -2,10 +2,13 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, revalidateTag } from "next/cache";
+import { after } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
+import { getStoreUrl } from "@/lib/site";
+import { pingIndexNow } from "@/lib/seo/search-engines";
 import { TAGS } from "@/lib/storefront/tags";
 import { callGemini, brandSystemText, loadBrandSoul } from "@/lib/ai/gemini";
 
@@ -191,6 +194,18 @@ function revalidateProduct(slug?: string) {
   revalidateTag(TAGS.products, "max");
 }
 
+// Nudge search engines to (re)crawl a product page after it goes live. No-op
+// for drafts — a draft URL isn't publicly indexable. Best-effort, off the
+// response path; getStoreUrl reads the request host so resolve it before after.
+async function notifyProductPublished(
+  slug: string | undefined,
+  published: boolean,
+) {
+  if (!published || !slug) return;
+  const base = await getStoreUrl();
+  after(() => pingIndexNow([`${base}/shop/${slug}`]));
+}
+
 // ---------------------------------------------------------------------------
 // Storage cleanup — keep Supabase Storage in sync when images are removed.
 // Uploads add files to the `media` bucket; removing an image only drops its
@@ -295,6 +310,7 @@ export async function createProduct(
         return { error: `Product saved but variants failed: ${variantError}` };
       }
       revalidateProduct(slug);
+      await notifyProductPublished(slug, formData.status === "published");
       return { success: true, data: data as Record<string, unknown> };
     }
 
@@ -394,6 +410,7 @@ export async function updateProduct(
       await deleteStorageUrls(oldImageUrls.filter((u) => !kept.has(u)));
 
       revalidateProduct(slug);
+      await notifyProductPublished(slug, formData.status === "published");
       return { success: true };
     }
 
@@ -462,6 +479,7 @@ export async function toggleProductPublish(
   }
 
   revalidateProduct(data?.slug);
+  await notifyProductPublished(data?.slug, publish);
   return { success: true };
 }
 

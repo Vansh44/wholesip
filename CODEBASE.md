@@ -204,6 +204,10 @@ wholesip/
 │   │                          # (storefront) <JsonLd> component on product/blog pages.
 │   │                          # og-card.ts — brandOgImageUrl() builds the /api/og URL
 │   │                          # (single `d` param) for the branded default share card.
+│   │                          # search-engines.ts — pingIndexNow() (Bing/Yandex) +
+│   │                          # submitSitemapToGoogle() (Search Console); fired via
+│   │                          # after() on store create + publish. Best-effort, dormant
+│   │                          # until env is set. IndexNow key: public/<key>.txt.
 │   ├── email/                 # sender, layout, campaign-worker, coupon-campaign,
 │   │                          # trigger-worker, blog/enquiry notifications
 │   ├── homepage/section-types.ts  # Section schema (typed, tested) — shared by homepage AND
@@ -463,6 +467,13 @@ npm run format      # prettier --write
 - **Vercel**: hosting + cron. Wildcard domain `*.storemink.com` → store subdomains.
 - **Resend**: transactional email + custom-domain DNS verification.
 - **Gemini**: AI copy generation.
+- **Search-engine indexing** (`lib/seo/search-engines.ts`): IndexNow needs no
+  account (public key file `public/<key>.txt`; `INDEXNOW_KEY` overrides it,
+  `INDEXNOW_FORCE=1` enables pings outside prod). Google Search Console
+  submission is DORMANT until `GOOGLE_SEARCH_CONSOLE_CREDENTIALS` (service-account
+  JSON) + `GOOGLE_SEARCH_CONSOLE_PROPERTY` (e.g. `sc-domain:storemink.com`) are
+  set. One-time human setup: verify `storemink.com` as a Search Console *Domain
+  property* (covers all `*.storemink.com`) and grant the service account access.
 
 ## 8. Multi-tenant rollout status (as of 2026-07)
 

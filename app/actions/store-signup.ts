@@ -1,12 +1,15 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
+import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { STORE_TAG } from "@/lib/store/resolve";
+import { ROOT_DOMAIN } from "@/lib/store/host";
 import { slugify } from "@/lib/slug";
 import { applyTheme } from "@/lib/themes/apply";
 import { DEFAULT_THEME_ID } from "@/lib/themes/meta";
+import { submitSitemapToGoogle, pingIndexNow } from "@/lib/seo/search-engines";
 
 // Subdomains we can never hand out (platform-reserved or operational).
 const RESERVED = new Set([
@@ -195,5 +198,18 @@ export async function createStore(
 
   // New store row is now resolvable — bust the cached store lookups.
   revalidateTag(STORE_TAG, "max");
+
+  // Announce the new store to search engines so it's discovered without waiting
+  // for organic crawl. Runs after the response (never blocks signup) and is
+  // best-effort/dormant until the platform's Search Console + IndexNow env is
+  // configured. Google then finds all future content via the dynamic sitemap.
+  const storeUrl = `https://${store.slug}.${ROOT_DOMAIN}`;
+  after(async () => {
+    await Promise.allSettled([
+      submitSitemapToGoogle(`${storeUrl}/sitemap.xml`),
+      pingIndexNow([`${storeUrl}/`]),
+    ]);
+  });
+
   return { slug: store.slug as string };
 }
