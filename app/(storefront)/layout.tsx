@@ -23,6 +23,20 @@ import "./storefront-theme.css";
 // their own title; this is the fallback and the "%s | Brand" suffix, and
 // metadataBase makes OG/canonical URLs resolve to this store's own domain.
 export async function generateMetadata(): Promise<Metadata> {
+  // Guard like the layout component does: on an unclaimed/suspended host the
+  // layout renders the root "store doesn't exist" 404. generateMetadata runs
+  // independently, so it must NOT fall back to the WholeSip brand here (that's
+  // what getStoreBrand()/getStoreUrl() do) — otherwise the tab title becomes
+  // "… | WholeSip" and the favicon becomes WholeSip's logo on the 404.
+  const store = await getCurrentStoreOrNull();
+  if (!store) {
+    return {
+      title: "Store not found",
+      icons: { icon: "/icon.svg" },
+      robots: { index: false, follow: false },
+    };
+  }
+
   const [brand, siteUrl] = await Promise.all([getStoreBrand(), getStoreUrl()]);
   return {
     metadataBase: new URL(siteUrl),
