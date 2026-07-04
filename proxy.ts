@@ -7,6 +7,16 @@ export async function proxy(request: NextRequest) {
   const host =
     request.headers.get("x-forwarded-host") || request.headers.get("host");
 
+  // --- Static public assets (e.g. /themes/arcade/preview.webp, svgs) ---
+  // Serve them as-is on EVERY host. Without this, the platform/help rewrites
+  // below would map /themes/... to /platform/themes/... and 404 the file.
+  // Anything with a file extension is a public asset (app routes never have
+  // dots except robots.txt/sitemap.xml, which should also skip the rewrite —
+  // they're host-aware app routes at the root).
+  if (/\.[a-z0-9]+$/i.test(pathname)) {
+    return NextResponse.next();
+  }
+
   // --- Help centre: help.storemink.com -> /help/* ---
   if (isHelpHost(host) && !pathname.startsWith("/help")) {
     const url = request.nextUrl.clone();

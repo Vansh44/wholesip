@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCurrentStoreId } from "@/lib/store/resolve";
+import { requireStorefrontStoreId } from "@/lib/store/resolve";
 import { getStoreBrand } from "@/lib/store/brand";
 import { getPublishedPage } from "@/lib/storefront/queries";
 import { getDraftPageForPreview } from "@/lib/pages/preview";
@@ -10,6 +10,7 @@ import {
   PreviewBridge,
   PreviewBadge,
 } from "@/app/(storefront)/components/sections/preview-bridge";
+import { BuilderOverlay } from "@/app/(storefront)/components/sections/builder-overlay";
 import type { PageSectionItem } from "@/lib/sections/registry";
 import "@/app/(storefront)/(pages)/shop/shop.css"; // .shop-card styles for product sections
 import "@/app/(storefront)/components/homepage/homepage.css";
@@ -20,7 +21,7 @@ import "@/app/(storefront)/components/homepage/homepage.css";
 // match a built-in route. Unknown slugs fall through to a cached 404.
 //
 // Storefront reads are cached per store (unstable_cache); the page stays
-// dynamic only because getCurrentStoreId reads headers().
+// dynamic only because requireStorefrontStoreId reads headers().
 export const revalidate = 300;
 
 type Props = {
@@ -35,7 +36,7 @@ export async function generateMetadata({
   searchParams,
 }: Props): Promise<Metadata> {
   const [{ pageSlug }, sp] = await Promise.all([params, searchParams]);
-  const storeId = await getCurrentStoreId();
+  const storeId = await requireStorefrontStoreId();
 
   // Preview renders draft content — always noindex, minimal metadata.
   if (isPreview(sp)) {
@@ -83,6 +84,7 @@ async function renderSections(
         <>
           <PreviewBridge />
           <PreviewBadge />
+          <BuilderOverlay />
         </>
       )}
     </main>
@@ -91,7 +93,7 @@ async function renderSections(
 
 export default async function StorePage({ params, searchParams }: Props) {
   const [{ pageSlug }, sp] = await Promise.all([params, searchParams]);
-  const storeId = await getCurrentStoreId();
+  const storeId = await requireStorefrontStoreId();
 
   // Builder preview: draft sections, admin-gated + uncached. Unauthorized or
   // missing → fall through to the published render (never leak, never error).

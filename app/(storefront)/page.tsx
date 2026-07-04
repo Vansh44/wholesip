@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import StructuredData from "@/app/(storefront)/components/structured-data";
-import { getCurrentStoreId } from "@/lib/store/resolve";
+import { requireStorefrontStoreId } from "@/lib/store/resolve";
 import { getStoreBrand } from "@/lib/store/brand";
 import { getPublishedPage } from "@/lib/storefront/queries";
 import { getDraftPageForPreview } from "@/lib/pages/preview";
@@ -10,6 +10,7 @@ import {
   PreviewBridge,
   PreviewBadge,
 } from "@/app/(storefront)/components/sections/preview-bridge";
+import { BuilderOverlay } from "@/app/(storefront)/components/sections/builder-overlay";
 import type { PageSectionItem } from "@/lib/sections/registry";
 import "@/app/(storefront)/(pages)/shop/shop.css"; // .shop-card styles for product sections
 import "@/app/(storefront)/components/homepage/homepage.css";
@@ -20,7 +21,7 @@ import "@/app/(storefront)/components/homepage/homepage.css";
 // a custom_code section, so it's fully editable too. See CODEBASE.md §11.
 //
 // Storefront reads are cached per store (unstable_cache); the route stays
-// dynamic only because getCurrentStoreId reads headers().
+// dynamic only because requireStorefrontStoreId reads headers().
 export const revalidate = 300;
 
 const HOME_SLUG = "";
@@ -48,7 +49,7 @@ export async function generateMetadata({
     };
   }
 
-  const storeId = await getCurrentStoreId();
+  const storeId = await requireStorefrontStoreId();
   const page = await getPublishedPage(storeId, HOME_SLUG);
   const title = page?.seo_title || fallbackTitle;
   return {
@@ -76,6 +77,7 @@ async function renderSections(
         <>
           <PreviewBridge />
           <PreviewBadge />
+          <BuilderOverlay />
         </>
       )}
     </main>
@@ -84,7 +86,7 @@ async function renderSections(
 
 export default async function Home({ searchParams }: Props) {
   const sp = await searchParams;
-  const storeId = await getCurrentStoreId();
+  const storeId = await requireStorefrontStoreId();
 
   // Builder preview: draft sections, admin-gated + uncached. Unauthorized or
   // missing → fall through to the published render (never leak, never error).

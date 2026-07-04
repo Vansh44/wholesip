@@ -1,6 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
+import { ImageIcon } from "lucide-react";
 import { effectivePricing, formatPrice, type PricedLike } from "@/lib/pricing";
+import { QuickAddButton } from "./quick-add-button";
 
 // Card background falls back to this when a product has no card_color set.
 // (Per-product colour is the source of truth.)
@@ -40,7 +42,9 @@ export function ShopCard({ product: p }: { product: ShopCardProduct }) {
             className="shop-card-img-el"
           />
         ) : (
-          <div className="shop-card-img-placeholder">🥛</div>
+          <div className="shop-card-img-placeholder">
+            <ImageIcon size={28} strokeWidth={1.5} aria-hidden />
+          </div>
         )}
       </div>
       <div className="shop-card-body">
@@ -55,6 +59,8 @@ export function ShopCard({ product: p }: { product: ShopCardProduct }) {
               <span className="shop-card-off">{pr.discount}% off</span>
             </>
           )}
+          {/* Hidden unless the theme opts into quick-add (.sm-card-quickadd). */}
+          <QuickAddButton product={p} />
         </div>
       </div>
     </Link>

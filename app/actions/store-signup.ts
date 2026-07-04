@@ -5,6 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { STORE_TAG } from "@/lib/store/resolve";
 import { slugify } from "@/lib/slug";
+import { applyTheme } from "@/lib/themes/apply";
+import { DEFAULT_THEME_ID } from "@/lib/themes/meta";
 
 // Subdomains we can never hand out (platform-reserved or operational).
 const RESERVED = new Set([
@@ -68,6 +70,10 @@ export async function checkStoreSlugAvailability(
   if (RESERVED.has(slug)) {
     return { slug, available: false, reason: "This name is reserved." };
   }
+  // The demo- namespace belongs to theme demo stores (seedDemoStore).
+  if (/^demo(-|$)/.test(slug)) {
+    return { slug, available: false, reason: "This name is reserved." };
+  }
 
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -99,7 +105,7 @@ export interface CreateStoreResult {
  */
 export async function createStore(
   rawName: string,
-  template: string = "arcade",
+  template: string = DEFAULT_THEME_ID,
 ): Promise<CreateStoreResult> {
   const supabase = await createClient();
   const {
@@ -160,37 +166,6 @@ export async function createStore(
     return { error: "Could not create your store. Please try again." };
   }
 
-  // Seed the homepage as a store_pages row (slug "" — the homepage sentinel,
-  // edited in /dashboard/builder like any page) with a default promo banner so
-  // the new store's homepage isn't totally empty. Published immediately.
-  const welcomeBanner = [
-    {
-      id: crypto.randomUUID(),
-      type: "promo_banner",
-      enabled: true,
-      config: {
-        image_url: "",
-        heading: `Welcome to ${rawName.trim()}`,
-        subtext: "We're getting things ready. Check back soon!",
-        cta_label: "Shop Now",
-        cta_href: "/shop",
-        alignment: "center",
-        theme: "light",
-      },
-    },
-  ];
-  await admin.from("store_pages").insert({
-    store_id: store.id,
-    slug: "",
-    title: "Home",
-    status: "published",
-    sections: welcomeBanner,
-    published_sections: welcomeBanner,
-    published_at: new Date().toISOString(),
-    created_by: user.id,
-    updated_by: user.id,
-  });
-
   // Make the owner the store's superadmin.
   const { error: adminErr } = await admin.from("admins").insert({
     id: user.id,
@@ -203,6 +178,19 @@ export async function createStore(
     await admin.from("stores").delete().eq("id", store.id);
     console.error("createStore (admin insert):", adminErr.message);
     return { error: "Could not set up your store account. Please try again." };
+  }
+
+  // Seed the chosen theme: homepage + content pages (published), menus, brand
+  // accents, and clearly-labeled sample products/categories — the merchant
+  // starts by EDITING a real website, not building from a blank canvas.
+  // Best-effort: a partial seed still leaves a working store, and applyTheme
+  // is idempotent (upserts by store_id+slug) so it can be re-run.
+  const seeded = await applyTheme(store.id, template, {
+    publish: true,
+    actorUserId: user.id,
+  });
+  if (!seeded.success) {
+    console.error("createStore (theme seed):", seeded.errors.join(" | "));
   }
 
   // New store row is now resolvable — bust the cached store lookups.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ShopCard } from "@/app/(storefront)/components/shop-card";
 
 export interface ShopProduct {
@@ -37,6 +38,11 @@ type Props = {
   // Optional ?category=<slug> deep-link (e.g. from the homepage category
   // tiles) — preselects that category's tab instead of "All".
   initialCategorySlug?: string;
+  // Optional ?q=<text> deep-link from the header search — filters the grid
+  // by name/description match.
+  initialQuery?: string;
+  // Grocery theme: swap the WholeSip-branded hero/ticker for a clean header.
+  grocery?: boolean;
 };
 
 // Repeating phrases for the scrolling promo ticker.
@@ -68,50 +74,94 @@ export default function ShopClient({
   products,
   categories,
   initialCategorySlug,
+  initialQuery,
+  grocery = false,
 }: Props) {
   // Map the deep-link slug to its category id; fall back to "all" when absent
   // or unknown.
   const initialActive =
     categories.find((c) => c.slug === initialCategorySlug)?.id ?? "all";
   const [active, setActive] = useState<string>(initialActive);
+  const [query, setQuery] = useState<string>(initialQuery ?? "");
+  const router = useRouter();
+
+  // The header search pushes a new ?q= onto the SAME route, so this component
+  // is reused rather than remounted — adopt the new deep link during render
+  // (React's "adjusting state when a prop changes" pattern).
+  const [lastInitialQuery, setLastInitialQuery] = useState(initialQuery);
+  if (lastInitialQuery !== initialQuery) {
+    setLastInitialQuery(initialQuery);
+    setQuery(initialQuery ?? "");
+  }
 
   const filtered = useMemo(() => {
-    if (active === "all") return products;
-    if (active === "uncategorized")
-      return products.filter((p) => !p.category_id);
-    return products.filter((p) => p.category_id === active);
-  }, [products, active]);
+    let list = products;
+    if (active === "uncategorized") list = list.filter((p) => !p.category_id);
+    else if (active !== "all")
+      list = list.filter((p) => p.category_id === active);
+    const q = query.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.description ?? "").toLowerCase().includes(q) ||
+          (p.category ?? "").toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [products, active, query]);
+
+  const clearQuery = () => {
+    setQuery("");
+    router.replace("/shop");
+  };
 
   const hasUncategorized = products.some((p) => !p.category_id);
 
   return (
     <main className="shop-main shop-listing">
       <div className="shop-panel">
-        {/* Promo ticker — continuous scrolling marquee */}
-        <div className="shop-ticker">
-          <div className="shop-ticker-track">
-            <TickerSequence />
-            <TickerSequence ariaHidden />
+        {/* Promo ticker — continuous scrolling marquee (classic only). */}
+        {!grocery && (
+          <div className="shop-ticker">
+            <div className="shop-ticker-track">
+              <TickerSequence />
+              <TickerSequence ariaHidden />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="shop-panel-body">
-          {/* Hero: kicker + big lowercase headline + sticky note */}
-          <section className="shop-hero">
-            <span className="shop-kicker">the wholesip store</span>
-            <div className="shop-hero-row">
-              <h1 className="shop-title">
-                the whole shelf
-                <br />
-                {/* shelf */}
+          {/* Hero: grocery gets a clean, brand-neutral header; the classic
+              theme keeps the WholeSip lowercase-headline hero. */}
+          {grocery ? (
+            <section className="shop-hero shop-hero-grocery">
+              <h1 className="shop-title-grocery">
+                {query.trim()
+                  ? `Results for “${query.trim()}”`
+                  : "Shop everything"}
               </h1>
-              <div className="shop-note">
-                100% whole food
-                <br />
-                nothing synthetic
+              <p className="shop-sub-grocery">
+                Fresh picks, daily staples and pantry favourites.
+              </p>
+            </section>
+          ) : (
+            <section className="shop-hero">
+              <span className="shop-kicker">the wholesip store</span>
+              <div className="shop-hero-row">
+                <h1 className="shop-title">
+                  the whole shelf
+                  <br />
+                  {/* shelf */}
+                </h1>
+                <div className="shop-note">
+                  100% whole food
+                  <br />
+                  nothing synthetic
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          )}
 
           {products.length === 0 ? (
             <div className="shop-empty">
@@ -148,10 +198,28 @@ export default function ShopClient({
                 )}
               </div>
 
+              {/* Active search chip (from the header search / ?q= deep link) */}
+              {query.trim() && (
+                <p className="shop-count">
+                  Results for &ldquo;{query.trim()}&rdquo;{" "}
+                  <button
+                    type="button"
+                    className="shop-chip"
+                    onClick={clearQuery}
+                  >
+                    Clear search
+                  </button>
+                </p>
+              )}
+
               {/* Product grid */}
               {filtered.length === 0 ? (
                 <div className="shop-empty">
-                  <p>No products in this category yet.</p>
+                  <p>
+                    {query.trim()
+                      ? "No products match your search."
+                      : "No products in this category yet."}
+                  </p>
                 </div>
               ) : (
                 <>

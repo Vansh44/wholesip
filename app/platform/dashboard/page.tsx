@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getPlatformViewer, listAllStores } from "@/app/actions/platform";
+import { THEME_META } from "@/lib/themes/meta";
 import { StoresConsole } from "./stores-console";
+import { ThemesPanel } from "./themes-panel";
 
 export const metadata = { title: "Storemink Admin" };
 
@@ -41,13 +43,24 @@ export default async function PlatformDashboard({
   const { q } = await searchParams;
   const stores = await listAllStores(q);
 
+  // Which theme demo stores already exist (for the Themes panel).
+  const demoSlugs = new Set(THEME_META.map((t) => t.demoSlug));
+  const demoSlugsLive = stores
+    .filter((s) => demoSlugs.has(s.slug))
+    .map((s) => s.slug);
+
   return (
-    <StoresConsole
-      stores={stores}
-      canManage={viewer.role === "superadmin"}
-      email={viewer.email}
-      q={q ?? ""}
-      rootDomain={ROOT_DOMAIN}
-    />
+    <div className="w-full max-w-6xl space-y-8">
+      <StoresConsole
+        stores={stores}
+        canManage={viewer.role === "superadmin"}
+        email={viewer.email}
+        q={q ?? ""}
+        rootDomain={ROOT_DOMAIN}
+      />
+      {viewer.role === "superadmin" && (
+        <ThemesPanel rootDomain={ROOT_DOMAIN} demoSlugsLive={demoSlugsLive} />
+      )}
+    </div>
   );
 }

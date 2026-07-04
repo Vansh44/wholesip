@@ -26,6 +26,10 @@ import {
   Globe,
   Type,
   Code2,
+  GalleryHorizontalEnd,
+  BadgeCheck,
+  LayoutDashboard,
+  HelpCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -53,6 +57,10 @@ export const navIcons = {
   globe: Globe,
   rich_text: Type,
   custom_code: Code2,
+  hero: GalleryHorizontalEnd,
+  usp: BadgeCheck,
+  tiles: LayoutDashboard,
+  faq: HelpCircle,
 } satisfies Record<string, LucideIcon>;
 
 export type NavIconKey = keyof typeof navIcons;

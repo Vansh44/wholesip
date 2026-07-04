@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
+import { useBrand } from "@/app/(storefront)/components/brand-provider";
 import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
@@ -94,6 +95,7 @@ export default function WriteBlogEditor({
     openAuthModal,
     refreshCustomer,
   } = useAuth();
+  const brand = useBrand();
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -513,8 +515,8 @@ export default function WriteBlogEditor({
           </div>
           <h1 className="write-blog-auth-title">Share Your Story</h1>
           <p className="write-blog-auth-desc">
-            Sign in to write and publish your own blog posts on WholeSip. Join
-            our community of health and wellness enthusiasts.
+            Sign in to write and publish your own blog posts on {brand.name}.
+            Join our community of readers and contributors.
           </p>
           <button className="write-blog-submit-btn" onClick={openAuthModal}>
             Sign In to Start Writing

@@ -16,19 +16,26 @@ export * from "@/lib/homepage/section-types";
 import {
   HOMEPAGE_SECTION_TYPES,
   validateConfig,
+  validateSectionStyle,
   type AnySectionConfig,
   type HomepageSectionType,
+  type SectionStyle,
+  type ValidateMode,
 } from "@/lib/homepage/section-types";
 
 /** Alias — "homepage" naming is historical; these types serve every page. */
 export type SectionType = HomepageSectionType;
 
-/** One section inside a page's `sections` jsonb array. */
+/** One section inside a page's `sections` jsonb array. `style` is the shared
+ *  per-section appearance (SectionShell) — a SIBLING of config so per-type
+ *  validation never has to know about it; absent = pre-style rows render
+ *  exactly as before. */
 export interface PageSectionItem {
   id: string;
   type: SectionType;
   enabled: boolean;
   config: AnySectionConfig;
+  style?: SectionStyle;
 }
 
 export const MAX_PAGE_SECTIONS = 40;
@@ -38,9 +45,11 @@ export const MAX_PAGE_SECTIONS = 40;
  * PageSectionItems. Every config passes through validateConfig, ids must be
  * unique non-empty strings, unknown types are rejected. Returns the FIRST
  * error with its section index so the builder can point at the culprit.
+ * mode "draft" (autosave) skips completeness rules; "publish" is strict.
  */
 export function validateSections(
   raw: unknown,
+  { mode = "publish" }: { mode?: ValidateMode } = {},
 ): { sections: PageSectionItem[] } | { error: string } {
   if (!Array.isArray(raw)) {
     return { error: "Sections must be a list." };
@@ -66,16 +75,18 @@ export function validateSections(
       return { error: `${label}: unknown section type.` };
     }
 
-    const validated = validateConfig(type, item.config);
+    const validated = validateConfig(type, item.config, mode);
     if ("error" in validated) {
       return { error: `${label} (${type}): ${validated.error}` };
     }
 
+    const style = validateSectionStyle(item.style);
     sections.push({
       id,
       type,
       enabled: item.enabled !== false,
       config: validated.config,
+      ...(style ? { style } : {}),
     });
   }
 

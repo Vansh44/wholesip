@@ -144,6 +144,28 @@ a {
   --wholesip-accent-warm: #ce8662; /* terracotta — ticker separators & small
                                    warm accents only (NOT the primary accent;
                                    the primary accent stays ink) */
+
+  /* ── Per-theme design tokens (the "skin") ──
+     These default to the WholeSip values so the default store + any code that
+     hasn't been tokenised yet keeps today's look. A theme overrides them
+     wholesale, inline on .storefront-root (see lib/themes design + the
+     (storefront) layout injection). Do NOT hardcode these colours in
+     component CSS — always reference the token so a theme can re-skin it. */
+  --wholesip-on-accent: #ffffff; /* text/icon sitting ON an accent-filled button */
+  --wholesip-on-ink: #ffffff; /* text/icon sitting ON an ink-filled surface */
+  --wholesip-shadow-rgb: 23, 19, 15; /* base rgb for rgba() elevation shadows */
+  --wholesip-success: #2e7d32;
+  --wholesip-success-soft: #e8f5e9;
+  --wholesip-error: #c62828;
+  --wholesip-error-soft: #ffebee;
+  --wholesip-star: #f5a623; /* rating stars */
+  --wholesip-highlight: #f7a600; /* "best value" / promo highlight base */
+
+  /* Shape scale — a theme dials roundness from sharp (0px) to soft (20px+). */
+  --wholesip-radius-card: 20px; /* product / content cards */
+  --wholesip-radius-control: 12px; /* inputs, buttons, selects */
+  --wholesip-radius-sm: 10px; /* small controls, steppers */
+  --wholesip-radius-pill: 999px; /* pills, chips, avatars */
 }
 
 .dark {

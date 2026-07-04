@@ -2,7 +2,9 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
-import { getCurrentStoreId } from "@/lib/store/resolve";
+import { requireStorefrontStoreId } from "@/lib/store/resolve";
+import { getStorefrontLayout } from "@/lib/store/storefront-layout";
+import { getStoreBrand } from "@/lib/store/brand";
 import { getOgImageUrl } from "@/lib/og-image";
 import ProductDetailClient, {
   type DetailProduct,
@@ -45,7 +47,7 @@ const getProduct = cache(
   },
 );
 
-// This page resolves the store from the request host (getCurrentStoreId), so it
+// This page resolves the store from the request host (requireStorefrontStoreId), so it
 // renders per-store/per-request — no generateStaticParams (a slug can exist in
 // more than one store). The underlying reads stay cheap via the data cache.
 
@@ -60,7 +62,7 @@ async function getRelated(
   const { data } = await supabase
     .from("products")
     .select(
-      "id, name, slug, base_price, selling_price, image_url, featured, variants:product_variants(base_price, selling_price, special_price, sort_order)",
+      "id, name, slug, base_price, selling_price, image_url, card_color, featured, category:categories(name), variants:product_variants(base_price, selling_price, special_price, sort_order)",
     )
     .eq("store_id", storeId)
     .eq("status", "published")
@@ -69,7 +71,12 @@ async function getRelated(
     .order("sort_order", { ascending: true })
     .limit(4);
 
-  return (data ?? []) as unknown as RelatedProduct[];
+  // Flatten the joined category to a plain name for the card eyebrow.
+  return (data ?? []).map((r) => {
+    const row = r as Record<string, unknown>;
+    const cat = row.category as { name?: string } | null;
+    return { ...row, category: cat?.name ?? null } as unknown as RelatedProduct;
+  });
 }
 
 // Public reviews for a product, newest first.
@@ -92,14 +99,18 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const product = await getProduct(slug, await getCurrentStoreId());
-  if (!product) return { title: "Product not found | WholeSip" };
+  const storeId = await requireStorefrontStoreId();
+  const product = await getProduct(slug, storeId);
+  if (!product) return { title: "Product not found" };
 
-  const title = product.seo_title || `${product.name} | WholeSip`;
+  const brand = await getStoreBrand();
+  // Layout templates the title as "%s | {brand}", so use the product name
+  // (or its own SEO title) — never a hardcoded store name.
+  const title = product.seo_title || product.name;
   const description =
     product.seo_description ||
     product.description ||
-    `Shop ${product.name} at WholeSip.`;
+    `Shop ${product.name} at ${brand.name}.`;
 
   const ogImageUrl = getOgImageUrl(product.image_url);
 
@@ -133,16 +144,17 @@ export async function generateMetadata({
 
 export default async function ProductDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const storeId = await getCurrentStoreId();
+  const storeId = await requireStorefrontStoreId();
   const product = await getProduct(slug, storeId);
 
   if (!product) {
     notFound();
   }
 
-  const [related, reviews] = await Promise.all([
+  const [related, reviews, layout] = await Promise.all([
     getRelated(product.category_id, product.id, storeId),
     getReviews(product.id, storeId),
+    getStorefrontLayout(),
   ]);
 
   return (
@@ -150,6 +162,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       product={product}
       related={related}
       reviews={reviews}
+      grocery={layout.storefront === "grocery"}
     />
   );
 }

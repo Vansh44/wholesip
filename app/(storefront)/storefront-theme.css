@@ -38,7 +38,7 @@
   padding: 16px 22px;
   border-radius: 14px;
   transform: rotate(-2.5deg);
-  box-shadow: 0 8px 18px rgba(43, 38, 32, 0.08);
+  box-shadow: 0 8px 18px rgba(var(--wholesip-shadow-rgb), 0.08);
 }
 
 /* Shared promo ticker — reuse anywhere with class .wholesip-ticker */
@@ -48,7 +48,7 @@
   justify-content: space-between;
   gap: 16px;
   background: var(--wholesip-taupe);
-  color: #3a322a;
+  color: var(--wholesip-ink-soft);
   font-family: var(--font-outfit), sans-serif;
   font-weight: 600;
   font-size: 14px;
@@ -68,25 +68,36 @@
   align-items: center;
   gap: 7px;
   height: 38px;
-  padding: 0 14px;
+  padding: 0 16px;
   border: 1px solid var(--wholesip-border);
   border-radius: 999px;
   background: var(--wholesip-surface);
   color: var(--wholesip-ink);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
+  letter-spacing: 0.01em;
   cursor: pointer;
   transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    transform 0.15s ease;
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+/* Brand-accent icon gives the quiet secondary action a crafted touch. */
+.wholesip-share-btn svg {
+  color: var(--wholesip-accent);
+  transition: color 0.18s ease;
 }
 .wholesip-share-btn:hover {
   border-color: var(--wholesip-ink);
   background: var(--wholesip-cream-deep);
+  box-shadow: 0 4px 12px rgba(var(--wholesip-shadow-rgb), 0.06);
+  transform: translateY(-1px);
 }
 .wholesip-share-btn:active {
-  transform: scale(0.97);
+  transform: translateY(0) scale(0.97);
+  box-shadow: none;
 }
 
 /* ---- Blog comments ---- */
@@ -153,7 +164,7 @@
   border: none;
   border-radius: 999px;
   background: var(--wholesip-accent);
-  color: #fff;
+  color: var(--wholesip-on-accent);
   font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
@@ -189,7 +200,7 @@
   border: none;
   border-radius: 999px;
   background: var(--wholesip-accent);
-  color: #fff;
+  color: var(--wholesip-on-accent);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -241,7 +252,7 @@
   justify-content: center;
   border-radius: 50%;
   background: var(--wholesip-ink);
-  color: #fff;
+  color: var(--wholesip-on-accent);
   font-size: 12px;
   font-weight: 700;
 }
@@ -281,5 +292,132 @@
   cursor: pointer;
 }
 .blog-comment-delete:hover {
-  color: #c2434d;
+  color: var(--wholesip-error);
+}
+
+/* ---- Quick-add product cards (theme layout.card = "quick_add") ----
+   Every ShopCard renders the button; only quick-add themes show it. */
+.shop-card-add {
+  display: none;
+}
+.sm-card-quickadd .shop-card-add {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  padding: 6px 14px;
+  border: 1.5px solid var(--wholesip-ink);
+  border-radius: var(--wholesip-radius-sm, 8px);
+  background: var(--wholesip-surface);
+  color: var(--wholesip-ink);
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+.sm-card-quickadd .shop-card-add:hover {
+  background: var(--wholesip-ink);
+  color: var(--wholesip-on-ink);
+  transform: translateY(-1px);
+}
+.sm-card-quickadd .shop-card-price {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+/* ============================================================
+   GROCERY product cards (theme layout.storefront = "grocery")
+   Peach card, rounded image, category pill, always-on "+ Add".
+   Lives in the global storefront stylesheet so it reaches the
+   shop grid, homepage featured row AND the PDP "related" grid.
+   Doubled root class lifts specificity over the per-grid rules
+   in shop.css / homepage.css. Gated → WholeSip cards untouched.
+   ============================================================ */
+.sm-storefront-grocery.storefront-root .shop-card {
+  background: var(--wholesip-butter);
+  border: none;
+  border-radius: 20px;
+  padding: 14px;
+  box-shadow: 0 1px 2px rgba(var(--wholesip-shadow-rgb), 0.05);
+}
+.sm-storefront-grocery.storefront-root .shop-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px rgba(var(--wholesip-shadow-rgb), 0.12);
+}
+.sm-storefront-grocery.storefront-root .shop-card-img {
+  aspect-ratio: 1 / 1;
+  height: auto;
+  border-radius: 14px;
+  background: var(--wholesip-surface);
+  overflow: hidden;
+}
+.sm-storefront-grocery.storefront-root .shop-card-img-el {
+  object-fit: cover;
+  padding: 0;
+}
+.sm-storefront-grocery.storefront-root .shop-card-body {
+  padding: 14px 4px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sm-storefront-grocery.storefront-root .shop-card-cat {
+  align-self: flex-start;
+  border: 1px solid var(--wholesip-ink);
+  border-radius: var(--wholesip-radius-pill, 999px);
+  padding: 4px 14px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wholesip-ink);
+  background: transparent;
+}
+.sm-storefront-grocery.storefront-root .shop-card-name {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  color: var(--wholesip-ink);
+}
+.sm-storefront-grocery.storefront-root .shop-card-price {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: auto;
+}
+.sm-storefront-grocery.storefront-root .shop-card-sell {
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--wholesip-ink);
+}
+.sm-storefront-grocery.storefront-root .shop-card-base {
+  color: var(--wholesip-ink-faint);
+  text-decoration: line-through;
+  font-size: 0.85rem;
+}
+.sm-storefront-grocery.storefront-root .shop-card-off {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--wholesip-accent, var(--brand-primary));
+  background: transparent;
+  padding: 0;
+}
+.sm-storefront-grocery.storefront-root .shop-card-from {
+  color: var(--wholesip-ink-soft);
+  font-size: 0.82rem;
+}
+/* Quick-add sits at the end of the price row, white pill w/ ink border. */
+.sm-storefront-grocery.storefront-root .shop-card-add {
+  margin-left: auto;
+  border-radius: var(--wholesip-radius-pill, 999px);
+  border: 1.5px solid var(--wholesip-ink);
+  padding: 7px 16px;
 }

@@ -47,11 +47,14 @@ Every request belongs to exactly one store, resolved from the **Host header**.
 `/auth/login`), enforces `force_password_reset` → `/auth/set-password`, and
 restricts `/dashboard/users` + `/dashboard/media` to role `superadmin`.
 Storefront paths skip the session check entirely (anonymous + cache-friendly).
+Paths with a file extension (public/ assets like `/themes/...webp`) pass
+through untouched on EVERY host — the platform/help rewrites would otherwise
+404 them.
 
 ### Tenant resolution — `lib/store/`
 
 - `host.ts` — pure host classification (`parseHost`, `isPlatformHost`, `isHelpHost`, `cookieDomainForHost`). No Node imports; safe on edge. `ROOT_DOMAIN` from `NEXT_PUBLIC_ROOT_DOMAIN` (default `storemink.com`). Cookies are scoped to `.storemink.com` so a session spans platform + all store subdomains.
-- `resolve.ts` — DB-backed store lookup, cached with `unstable_cache` (tag `STORE_TAG = "stores"`, 300 s revalidate). `getCurrentStore()` never returns null — falls back to WholeSip. `getCurrentStoreId()` is what gets threaded into every query. **Call `revalidateTag(STORE_TAG)` after any store create/settings/domain change.**
+- `resolve.ts` — DB-backed store lookup, cached with `unstable_cache` (tag `STORE_TAG = "stores"`, 300 s revalidate). Three resolvers: `getCurrentStoreOrNull()` (honest — null when the host maps to no active store); `getCurrentStore()`/`getCurrentStoreId()` (never-null — fall back to WholeSip; for dashboard/actions/internal callers that must always have a store id); **`requireStorefrontStore()`/`requireStorefrontStoreId()`** (render-only — `notFound()` on an unknown host). **Storefront PAGES must use the `require…` variants** (the `(storefront)` layout guards too, but a layout `notFound()` does NOT abort concurrently-rendering child pages, so each content page guards itself — otherwise an unclaimed subdomain streams the WholeSip fallback content into its HTML). Unknown store host → root `app/not-found.tsx` ("store doesn't exist"); missing page within a real store → `app/(storefront)/not-found.tsx` ("page not found", with store chrome). **Call `revalidateTag(STORE_TAG)` after any store create/settings/domain change.**
 - `brand.ts` — per-store branding (colors/logo) consumed by `app/(storefront)/components/brand-provider.tsx`.
 
 **Rule: every DB read/write for store data must be scoped by `store_id`** (RLS also enforces this — see `supabase/multitenant_03_rls.sql`).
@@ -101,10 +104,14 @@ wholesip/
 │   │       │                  # blog carousel, promo banner, shop-by-category…)
 │   │       ├── sections/      # ★ Generalized section renderer shared by homepage + pages:
 │   │       │                  # page-section-renderer, custom-code-frame (sandboxed iframe),
-│   │       │                  # custom-code-section, rich-text-section, preview-bridge (§11)
+│   │       │                  # custom-code-section, rich-text-section, hero-section,
+│   │       │                  # usp-bar-section, tile-grid-section, faq-accordion-section,
+│   │       │                  # preview-bridge (§11)
 │   │       ├── brand-provider.tsx   # Injects per-store branding CSS vars
 │   │       ├── menu-provider.tsx    # Supplies per-store header/footer nav (store_menus)
 │   │       ├── shop-card.tsx / share-buttons.tsx / structured-data.tsx
+│   │       ├── quick-add-button.tsx # "+ Add" on product cards (theme layout.card
+│   │       │                        # = "quick_add"; hidden by CSS otherwise)
 │   │
 │   ├── dashboard/             # ★ STORE ADMIN DASHBOARD (per-store, auth-gated)
 │   │   ├── layout.tsx         # Sidebar + topbar shell (dashboard.css)
@@ -190,7 +197,8 @@ wholesip/
 │   ├── email/                 # sender, layout, campaign-worker, coupon-campaign,
 │   │                          # trigger-worker, blog/enquiry notifications
 │   ├── homepage/section-types.ts  # Section schema (typed, tested) — shared by homepage AND
-│   │                          # custom pages; types incl. rich_text + custom_code (see §11)
+│   │                          # custom pages; 10 types incl. hero, tile_grid, usp_bar,
+│   │                          # faq_accordion, rich_text + custom_code (see §11)
 │   ├── menus.ts               # ★ Per-store nav (§11): StoreMenus types, DEFAULT_MENUS,
 │   │                          # normalize/sanitize. Read cached via getStoreMenus.
 │   ├── ai/gemini.ts           # Gemini client for AI copy
@@ -278,11 +286,19 @@ wholesip/
 11. **Website Builder — pages & custom code are per-store, dashboard-editable.**
     The storefront itself is a per-store artifact, not hardcoded: - **Section registry**: `lib/homepage/section-types.ts` is the single typed
     section schema (config types, `EMPTY_CONFIG`, `META`, `validateConfig`),
-    shared by the homepage AND custom pages. `rich_text` (inline sanitized
-    HTML, SEO-friendly) and `custom_code` (merchant HTML/CSS/JS) are section
-    types alongside the product/blog/banner ones. `lib/sections/registry.ts`
-    re-exports it and adds page-level helpers: `PageSectionItem`,
-    `validateSections`, `RESERVED_PAGE_SLUGS`, `validatePageSlug`. - **Custom pages** live in `store_pages` (draft `sections` jsonb +
+    shared by the homepage AND custom pages. Ten block types: `hero`
+    (banner/split/minimal variants — first-class hero, replaces the old
+    custom_code hero hack), `featured_products`, `shop_by_category` (with a
+    `display: circles|cards` tile-shape variant), `promo_banner`, `tile_grid`
+    (linked colour/image tiles — offers, collections, 2-up mini banners),
+    `usp_bar` (fixed icon catalog `USP_ICONS` + label strip), `faq_accordion`
+    (expandable Q/A with optional category-filter pills; plain-text answers),
+    `latest_blogs`, `rich_text` (inline sanitized HTML, SEO-friendly) and
+    `custom_code` (merchant HTML/CSS/JS). Hero/tile `background` fields are
+    strict colours (`safeColor`) because they render into inline style attrs.
+    `lib/sections/registry.ts` re-exports it and adds page-level helpers:
+    `PageSectionItem`, `validateSections`, `RESERVED_PAGE_SLUGS`,
+    `validatePageSlug`. - **Custom pages** live in `store_pages` (draft `sections` jsonb +
     `published_sections` snapshot; **publish = copy draft → published**). Served
     by `(pages)/[pageSlug]`; App Router matches static sibling dirs first, and
     every static (pages) dir slug is in `RESERVED_PAGE_SLUGS` (a drift unit test
@@ -306,18 +322,33 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     counterpart: sanitized at save AND render via `lib/sanitize.ts` (blog trust
     model). Custom-code availability is gated by the `pages.customCode` setting
     (registry, section `builder`), enforced **server-side** in `page-actions.ts`
-    (all sections — homepage + custom pages — now save through it). - **Builder UI** at `/dashboard/builder` (permission section `builder`, group
-    Content; sidebar link opens a new tab). A `fixed inset-0` overlay over the
-    dashboard shell — kept at `z-index:40`, BELOW the shared `z-50` dialog layer,
-    so the builder's own dialogs (new page, type chooser, section editor with its
-    code editors) render above it with a working backdrop (the shell has no
-    z-index, so the overlay still fully covers it). Pages panel + sections panel + center preview iframe
-    (`/{slug}?preview=1`). Draft edits are local client state; **Save draft**
-    writes the jsonb once (with `expectedUpdatedAt` stale-tab guard);
-    **Publish** copies draft → published + `updateTag(TAGS.pages)` +
-    `revalidatePath`. Code editing uses CodeMirror 6 lazy-loaded
-    (`code-editor-lazy.tsx`, ssr:false, the TipTap `write-blog-editor-lazy`
-    pattern) with a live `CustomCodeFrame` pane. - **Homepage (Phase 4a, done)**: the storefront homepage is the `store_pages`
+    (all sections — homepage + custom pages — now save through it). - **Builder v2 UI** at `/dashboard/builder` (permission section `builder`,
+    group Content; sidebar link opens a new tab; `fixed inset-0` overlay at
+    `z-index:40`, below the shared `z-50` dialog layer). Unizap-style canvas
+    editing: LEFT `outline-panel.tsx` (page-switcher dropdown, Header/Footer
+    rows → `/dashboard/navigation`, dnd-kit-sortable section outline, Add
+    Section); CENTER preview iframe (`/{slug}?preview=1`) with viewport
+    toggles (desktop/tablet/mobile widths) and a **click-to-edit canvas
+    overlay** (`app/(storefront)/components/sections/builder-overlay.tsx` —
+    measured hit-layer, NOT event delegation, because sandboxed custom_code
+    iframes swallow clicks; MutationObserver+ResizeObserver re-scan survives
+    router.refresh(); postMessage protocol sm-select / sm-hover / sm-add-at
+    {afterId} / sm-visible / sm-highlight / sm-scroll-to, extending the
+    existing sm-preview-refresh/ready); RIGHT `inspector-panel.tsx` (tabs:
+    Content = shared `section-form.tsx` forms; Style = shared per-section
+    `style` {background,padding_y,width,anchor} applied by
+    `section-shell.tsx`, the root element of EVERY section — strict color
+    validation because it renders into an inline style attr; Advanced =
+    anchor/duplicate/delete; page settings + delete when nothing selected).
+    **Autosave replaces Save-draft** (`use-autosave.ts`: 600ms debounce for
+    content, immediate for structural ops, single-flight latest-wins chain,
+    stale-tab token from `savePageDraft`'s returned `updated_at`, hard-block
+    dialog on stale, beforeunload while dirty; preview refresh pings coalesce
+    ≥1200ms). Validation is split: `validateConfig/validateSections` take a
+    mode — "draft" skips completeness (autosave never fails mid-edit),
+    "publish" is strict (publishPage + applyTheme). Publish stays explicit,
+    with its own token guard. custom_code edits in a wide dialog hosting the
+    lazy CodeMirror editors (`code-editor-lazy.tsx`). - **Homepage (Phase 4a, done)**: the storefront homepage is the `store_pages`
     row with slug `""` (the "homepage sentinel"). `app/(storefront)/page.tsx`
     reads it (published + `?preview=1` draft) exactly like `[pageSlug]`. It's
     pinned first in the builder as "Home" (`ensureHomepage` creates it on demand;
@@ -333,7 +364,73 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     read / admin write). Read cached via `getStoreMenus` (tag `TAGS.menus`) →
     `MenuProvider` → `Header`/`Footer`. Edited at `/dashboard/navigation`
     (permission section `navigation`) via `menu-actions.ts`; shape + defaults in
-    `lib/menus.ts` (`DEFAULT_MENUS` fallback). - **Phase 4d (not built, by design)**: nothing pending — homepage, static
+    `lib/menus.ts` (`DEFAULT_MENUS` fallback). - **Themes (signup seeding)**: a theme is a DATA PACKAGE in `lib/themes/` —
+    `meta.ts` (client-safe catalog for the signup picker: id/name/category/
+    previewImage/demoSlug; the picker must NEVER import definitions),
+    `definitions/basket.ts` (brand accents, **`design` skin**, pages incl. the
+    homepage sentinel, menus, sample categories/products+variants — imagery
+    bundled under `public/themes/{id}/`; **basket** is the grocery/F&B
+    reference template with real Unsplash photography, per
+    docs/vertical-templates-plan.md §9.1, and currently the only/default
+    theme — the Arcade/Fresko placeholders were retired 2026-07-04),
+    `apply.ts` `applyTheme(storeId, themeId,
+    {publish, reset?})` — service-role, idempotent upserts keyed on
+    (store_id, slug), best-effort per entity with an errors accumulator;
+    `reset` refuses unless `stores.settings.demo === true`. `createStore`
+    (signup) calls it with the picked template (published immediately; brand
+    NAME preserved). v1 constraints CI-tested in `lib/themes/themes.test.ts`:
+    non-id sources only, no latest_blogs, homepage present, strict publish
+    validation, every referenced asset exists. **Demo stores**: one per theme
+    (`demo-{id}` — the namespace is blocked at signup), seeded/reseeded via
+    `seedDemoStore` (platform superadmin action) from the Themes panel on the
+    platform stores console; the signup picker's Preview opens
+    `https://demo-{id}.{ROOT_DOMAIN}`. - **Theme DESIGN engine (the visual "skin")**: a theme controls the FULL
+    design system, not just one accent. `ThemeDesign` (`lib/themes/types.ts`) =
+    `palette` (all 14 `--wholesip-*` colour tokens + `onAccent`/`onInk`/
+    `shadowRgb`/`success`/`error`/`star`/`highlight` semantic tokens), `fonts`
+    (`body`/`display`, pointing at next/font variables loaded in
+    `app/layout.tsx` — Inter/Fraunces/Space Grotesk/Plus Jakarta alongside the
+    legacy Outfit/Roboto/Stick), and `shape` (`card`/`control`/`sm`/`pill`
+    radii). `designToCssVars(design, brandPrimary)` flattens it to a CSS-var map
+    the `(storefront)` layout writes **inline on `.storefront-root`** — inline
+    specificity beats the globals.css `:root` defaults, so the whole storefront
+    re-skins with zero per-component wiring. Fonts re-point the existing
+    `--font-outfit`/`--font-stick-no-bills` slots, so all 64 font call-sites
+    switch with no find-replace. **Defaults = WholeSip**: the `:root` token
+    values in `globals.css` ARE the WholeSip look, and a store with no real
+    `settings.template` (the WholeSip fallback, legacy stores) gets only
+    `--brand-primary` — untouched. Storefront component CSS is fully
+    tokenised (no raw hex; darks→`ink`, mids→`ink-soft`, faints→`ink-faint`,
+    on-dark whites→`on-ink`/`on-accent`, panels→`surface`, shadows→
+    `rgba(var(--wholesip-shadow-rgb), α)`, radii→shape tokens) so palette +
+    shape reach every surface (header, footer, auth modal, shop cards + badges,
+    profile/enquiry forms, blog + write-blog editor). CI-guards in
+    `themes.test.ts` assert each theme ships a complete, injectable design.
+    **Layout variants** (`ThemeDesign.layout`, all optional — absent = classic
+    WholeSip chrome): `header: "market"` renders a solid brand-coloured header
+    bar with a prominent search box (colours via `--sm-header-bg`/`--sm-header-fg`
+    from `designToCssVars`; activated by the `sm-header-market` class the
+    storefront layout puts on `.storefront-root`); `card: "quick_add"` shows an
+    inline "+ Add" to-cart button on product cards (`quick-add-button.tsx`,
+    class `sm-card-quickadd`; multi-variant products fall through to the detail
+    page). The header search is FUNCTIONAL on all variants — it submits to
+    `/shop?q=`, and the shop grid filters by name/description/category
+    (`shop-client.tsx`, synced to the deep link).
+    `storefront: "grocery"` is the deepest variant: it swaps the shared
+    product cards, the product-detail page and the cart for a distinct
+    premium grocery layout, so a store on such a theme looks NOTHING like the
+    classic WholeSip storefront. Product cards restyle via the
+    `sm-storefront-grocery` root class (CSS-only, in `storefront-theme.css`,
+    doubled-class specificity over the per-grid rules). The PDP and cart
+    branch to ENTIRELY SEPARATE markup + classes (`grocery-product-detail.tsx`
+    / `gpdp-*` in shop.css; `grocery-cart.tsx` / `gcart-*` in cart.css) — the
+    page servers read the flag via `lib/store/storefront-layout.ts`
+    (`getStorefrontLayout`) and pass a `grocery` prop to the client
+    components; the shop listing also drops its WholeSip-branded hero/ticker.
+    All of this is GATED, so the WholeSip fallback and any classic theme keep
+    today's shared layout untouched. (Basket is the first grocery theme.)
+    Design derives from the theme id at RENDER time (no DB column), so no reseed
+    is needed when a theme's skin changes. - **Phase 4d (not built, by design)**: nothing pending — homepage, static
     pages, and menus are all migrated. Remaining WholeSip cleanup (config/site.ts,
     brand/) continues opportunistically.
 

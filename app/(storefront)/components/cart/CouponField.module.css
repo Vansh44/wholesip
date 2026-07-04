@@ -47,7 +47,7 @@
 }
 
 .applyBtn:hover:not(:disabled) {
-  background: rgba(23, 19, 15, 0.06);
+  background: rgba(var(--wholesip-shadow-rgb), 0.06);
 }
 
 .applyBtn:disabled {
@@ -69,7 +69,7 @@
   border: 1px dashed var(--wholesip-ink);
   border-radius: 9px;
   padding: 9px 12px;
-  background: rgba(23, 19, 15, 0.04);
+  background: rgba(var(--wholesip-shadow-rgb), 0.04);
 }
 
 .tag {
@@ -112,6 +112,6 @@
 }
 
 .remove:hover {
-  background: rgba(23, 19, 15, 0.08);
+  background: rgba(var(--wholesip-shadow-rgb), 0.08);
   color: var(--wholesip-ink);
 }

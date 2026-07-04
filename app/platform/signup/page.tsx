@@ -12,36 +12,29 @@ import {
   CheckCircle2,
   ChevronRight,
   ChevronLeft,
+  ExternalLink,
   Lock,
   Loader2,
   Check,
 } from "lucide-react";
+import {
+  THEME_META,
+  THEME_CATEGORIES,
+  DEFAULT_THEME_ID,
+  type ThemeCategory,
+} from "@/lib/themes/meta";
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storemink.com";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const TEMPLATES = [
-  {
-    id: "arcade",
-    name: "Arcade",
-    description: "Simplistic and pleasing design for modern stores.",
-    img: "https://placehold.co/600x400/1f7a5a/ffffff?text=Arcade",
-    color: "bg-[#1f7a5a]",
-  },
-  {
-    id: "fresko",
-    name: "Fresko",
-    description: "Minimal yet alluring theme for high quality brands.",
-    img: "https://placehold.co/600x400/2a9d8f/ffffff?text=Fresko",
-    color: "bg-[#2a9d8f]",
-  },
-  {
-    id: "emporio",
-    name: "Emporio",
-    description: "Energizing theme featuring extensive design layouts.",
-    img: "https://placehold.co/600x400/e76f51/ffffff?text=Emporio",
-    color: "bg-[#e76f51]",
-  },
-];
+// The picker renders from the client-safe theme META catalog (lib/themes/meta)
+// — the chosen id is seeded server-side by createStore → applyTheme. Preview
+// opens the theme's live demo store.
+function demoUrl(demoSlug: string): string {
+  const { hostname, protocol, port } = window.location;
+  return hostname.endsWith("localhost")
+    ? `${protocol}//${demoSlug}.localhost${port ? ":" + port : ""}`
+    : `https://${demoSlug}.${ROOT_DOMAIN}`;
+}
 
 function normalizePhone(p: string): string {
   const raw = p.replace(/[^\d+]/g, "");
@@ -70,7 +63,8 @@ export default function SignupPage() {
 
   // Wizard Steps
   const [step, setStep] = useState<Step>("name");
-  const [template, setTemplate] = useState<string>("arcade");
+  const [template, setTemplate] = useState<string>(DEFAULT_THEME_ID);
+  const [themeFilter, setThemeFilter] = useState<ThemeCategory | "all">("all");
 
   // Step 1: Name
   const [name, setName] = useState("");
@@ -131,7 +125,7 @@ export default function SignupPage() {
   }
   const h = hint();
   const selectedThemeInfo =
-    TEMPLATES.find((t) => t.id === template) || TEMPLATES[0];
+    THEME_META.find((t) => t.id === template) || THEME_META[0];
 
   // Step 3 Logic
   async function handleSendEmailOtp() {
@@ -325,14 +319,39 @@ export default function SignupPage() {
                     {name.trim() ? name : "your store"}.
                   </p>
 
+                  {/* Category filter chips */}
+                  <div className="mb-6 flex flex-wrap gap-2">
+                    {THEME_CATEGORIES.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setThemeFilter(c.id)}
+                        className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
+                          themeFilter === c.id
+                            ? "border-primary bg-primary text-white"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-primary/50"
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
-                    {TEMPLATES.map((t) => {
+                    {THEME_META.filter(
+                      (t) =>
+                        themeFilter === "all" || t.category === themeFilter,
+                    ).map((t) => {
                       const selected = template === t.id;
+                      const locked = !!t.minPlan; // signup provisions plan "free"
                       return (
                         <div
                           key={t.id}
-                          onClick={() => setTemplate(t.id)}
-                          className={`group relative rounded-xl border-2 transition-all cursor-pointer overflow-hidden bg-white shadow-sm ${
+                          onClick={() => !locked && setTemplate(t.id)}
+                          className={`group relative rounded-xl border-2 transition-all overflow-hidden bg-white shadow-sm ${
+                            locked
+                              ? "cursor-not-allowed opacity-70"
+                              : "cursor-pointer"
+                          } ${
                             selected
                               ? "border-primary ring-2 ring-primary ring-offset-2"
                               : "border-gray-200 hover:border-primary/50 hover:shadow-md"
@@ -341,7 +360,7 @@ export default function SignupPage() {
                           <div className="aspect-[4/3] w-full overflow-hidden bg-gray-100 border-b relative">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={t.img}
+                              src={t.previewImage}
                               alt={t.name}
                               className="w-full h-full object-cover"
                             />
@@ -352,12 +371,32 @@ export default function SignupPage() {
                                 </div>
                               </div>
                             )}
+                            {locked && (
+                              <span className="absolute top-2 right-2 rounded-full bg-gray-900/80 px-2.5 py-1 text-[11px] font-bold text-white">
+                                {t.minPlan!.toUpperCase()}+ plan
+                              </span>
+                            )}
                           </div>
                           <div className="p-4">
-                            <h3 className="text-lg font-bold text-gray-900 mb-1">
-                              {t.name}
-                            </h3>
-                            <p className="text-xs text-gray-500 mb-3 h-8 line-clamp-2">
+                            <div className="mb-1 flex items-center justify-between gap-2">
+                              <h3 className="text-lg font-bold text-gray-900">
+                                {t.name}
+                              </h3>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(
+                                    demoUrl(t.demoSlug),
+                                    "_blank",
+                                    "noopener,noreferrer",
+                                  );
+                                }}
+                                className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:border-primary/50 hover:text-primary"
+                              >
+                                Preview <ExternalLink className="h-3 w-3" />
+                              </button>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-1 h-8 line-clamp-2">
                               {t.description}
                             </p>
                           </div>
@@ -404,9 +443,7 @@ export default function SignupPage() {
 
                 {/* Mockup Content */}
                 <div className="p-6 bg-white min-h-[350px] transition-all duration-300">
-                  <div
-                    className={`flex items-center justify-between mb-8 ${template === "fresko" ? "flex-col gap-4" : ""}`}
-                  >
+                  <div className="flex items-center justify-between mb-8">
                     <div className="font-bold text-xl text-gray-800">
                       {name.trim() ? name : "Your Store"}
                     </div>
@@ -416,22 +453,20 @@ export default function SignupPage() {
                     </div>
                   </div>
 
-                  {/* Dynamic Layout based on theme */}
-                  <div
-                    className={`w-full h-48 rounded-xl mb-6 transition-colors duration-500 ${selectedThemeInfo.color} opacity-90`}
-                  ></div>
+                  {/* Hero slot shows the selected theme's real preview image. */}
+                  <div className="w-full h-48 rounded-xl mb-6 overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedThemeInfo.previewImage}
+                      alt={selectedThemeInfo.name}
+                      className="h-full w-full object-cover transition-opacity duration-500"
+                    />
+                  </div>
 
-                  <div
-                    className={`grid gap-6 ${template === "emporio" ? "grid-cols-2" : template === "fresko" ? "grid-cols-4" : "grid-cols-3"}`}
-                  >
+                  <div className="grid gap-6 grid-cols-3">
                     <div className="h-32 bg-gray-100 rounded-xl"></div>
                     <div className="h-32 bg-gray-100 rounded-xl"></div>
-                    {(template === "arcade" || template === "fresko") && (
-                      <div className="h-32 bg-gray-100 rounded-xl"></div>
-                    )}
-                    {template === "fresko" && (
-                      <div className="h-32 bg-gray-100 rounded-xl"></div>
-                    )}
+                    <div className="h-32 bg-gray-100 rounded-xl"></div>
                   </div>
                 </div>
               </div>

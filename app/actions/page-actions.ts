@@ -11,6 +11,7 @@ import {
   validateSections,
   type PageSectionItem,
   type RichTextConfig,
+  type ValidateMode,
 } from "@/lib/sections/registry";
 
 // ---------------------------------------------------------------------------
@@ -58,12 +59,14 @@ function revalidatePage(slug: string) {
  * Validate + process a draft sections array for saving: shape/size via the
  * registry, then the cross-cutting server rules — reject custom_code when the
  * store setting is off, and sanitize rich_text HTML. Returns clean items or an
- * error.
+ * error. mode "draft" (autosave) skips completeness rules so a mid-edit save
+ * never fails; "publish" is strict.
  */
 async function processSections(
   raw: unknown,
+  mode: ValidateMode = "publish",
 ): Promise<{ sections: PageSectionItem[] } | { error: string }> {
-  const result = validateSections(raw);
+  const result = validateSections(raw, { mode });
   if ("error" in result) return result;
 
   const hasCustomCode = result.sections.some((s) => s.type === "custom_code");
@@ -290,31 +293,44 @@ export async function savePageDraft(
   if (!page) return { error: "Page not found." };
 
   // Stale-tab guard: refuse to clobber edits saved from another tab/session.
+  // data.stale lets the autosave hook distinguish this (hard block + reload)
+  // from a transient failure (retry).
   if (expectedUpdatedAt && page.updated_at !== expectedUpdatedAt) {
     return {
       error:
         "This page was changed somewhere else. Reload the builder to get the latest version before saving.",
+      data: { stale: true },
     };
   }
 
-  const processed = await processSections(rawSections);
+  // Draft mode: safety normalisation only — a half-configured section must
+  // never make autosave fail (publish re-validates strictly).
+  const processed = await processSections(rawSections, "draft");
   if ("error" in processed) return { error: processed.error };
 
-  const { error } = await admin
+  // .select() returns the trigger-stamped updated_at in the same round trip —
+  // the client feeds it back as the next expectedUpdatedAt (stale-tab token).
+  // No revalidatePath here: autosave fires every few seconds and the builder
+  // list doesn't need per-keystroke freshness (create/publish/delete revalidate).
+  const { data: saved, error } = await admin
     .from("store_pages")
     .update({ sections: processed.sections, updated_by: userId })
     .eq("store_id", storeId)
-    .eq("id", id);
+    .eq("id", id)
+    .select("updated_at")
+    .single();
   if (error) {
     console.error("savePageDraft error:", error.message);
     return { error: "Could not save the draft. Please try again." };
   }
 
-  revalidatePath("/dashboard/builder");
-  return { success: true };
+  return { success: true, data: { updated_at: saved.updated_at as string } };
 }
 
-export async function publishPage(id: string): Promise<ActionResult> {
+export async function publishPage(
+  id: string,
+  expectedUpdatedAt?: string,
+): Promise<ActionResult> {
   const userId = await getManagerUserId("builder");
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
@@ -322,17 +338,28 @@ export async function publishPage(id: string): Promise<ActionResult> {
 
   const { data: page } = await admin
     .from("store_pages")
-    .select("slug, sections")
+    .select("slug, sections, updated_at")
     .eq("store_id", storeId)
     .eq("id", id)
     .maybeSingle();
   if (!page) return { error: "Page not found." };
 
-  // Re-process on publish too (the setting may have changed since last save).
-  const processed = await processSections(page.sections);
+  // Same stale-tab guard as savePageDraft — publishing from a tab that hasn't
+  // seen the latest draft would push someone else's half-finished edits live.
+  if (expectedUpdatedAt && page.updated_at !== expectedUpdatedAt) {
+    return {
+      error:
+        "This page was changed somewhere else. Reload the builder to get the latest version before publishing.",
+      data: { stale: true },
+    };
+  }
+
+  // Strict re-validation on publish (completeness rules + the custom-code
+  // setting may have changed since the last draft save).
+  const processed = await processSections(page.sections, "publish");
   if ("error" in processed) return { error: processed.error };
 
-  const { error } = await admin
+  const { data: saved, error } = await admin
     .from("store_pages")
     .update({
       published_sections: processed.sections,
@@ -342,14 +369,22 @@ export async function publishPage(id: string): Promise<ActionResult> {
       updated_by: userId,
     })
     .eq("store_id", storeId)
-    .eq("id", id);
+    .eq("id", id)
+    .select("updated_at, published_at")
+    .single();
   if (error) {
     console.error("publishPage error:", error.message);
     return { error: "Could not publish. Please try again." };
   }
 
   revalidatePage(page.slug);
-  return { success: true };
+  return {
+    success: true,
+    data: {
+      updated_at: saved.updated_at as string,
+      published_at: saved.published_at as string,
+    },
+  };
 }
 
 export async function unpublishPage(id: string): Promise<ActionResult> {

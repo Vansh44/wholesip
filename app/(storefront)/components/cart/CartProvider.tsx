@@ -25,6 +25,9 @@ export interface CartItem {
   basePrice: number; // original price, for struck-through display
   image: string | null;
   quantity: number;
+  /** Resolved category name — shown as the line subtitle in the grocery cart.
+   *  Optional so older persisted carts (and non-grocery callers) still fit. */
+  category?: string | null;
 }
 
 type AddItemInput = Omit<CartItem, "quantity">;

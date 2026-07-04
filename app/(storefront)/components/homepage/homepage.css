@@ -30,6 +30,20 @@
   margin-top: calc(-1 * clamp(40px, 6vw, 72px));
 }
 
+/* ---- Shared per-section style (SectionShell / builder Style tab) ---- */
+.home-section.is-fullbleed {
+  padding-inline: 0;
+}
+.home-section.home-pad-sm {
+  padding-block: clamp(16px, 2.5vw, 28px);
+}
+.home-section.home-pad-md {
+  padding-block: clamp(32px, 5vw, 56px);
+}
+.home-section.home-pad-lg {
+  padding-block: clamp(56px, 8vw, 96px);
+}
+
 /* ---- Rich text ---- */
 .home-rich-text-content {
   max-width: 760px;
@@ -134,12 +148,12 @@
   border: none;
   border-radius: 20px;
   padding: 10px;
-  box-shadow: 0 1px 2px rgba(23, 19, 15, 0.04);
+  box-shadow: 0 1px 2px rgba(var(--wholesip-shadow-rgb), 0.04);
 }
 
 .home-product-grid .shop-card:hover {
   transform: translateY(-6px);
-  box-shadow: 0 22px 44px rgba(23, 19, 15, 0.14);
+  box-shadow: 0 22px 44px rgba(var(--wholesip-shadow-rgb), 0.14);
 }
 
 .home-product-grid .shop-card-img {
@@ -163,7 +177,7 @@
   right: 14px;
   top: 14px;
   background: var(--wholesip-ink);
-  color: #fff;
+  color: var(--wholesip-on-accent);
   font-size: 13px;
   padding: 6px 14px;
   text-transform: none;
@@ -331,7 +345,7 @@
   background: var(--wholesip-surface);
   color: var(--wholesip-ink);
   border: 1px solid var(--wholesip-border);
-  box-shadow: 0 8px 24px rgba(23, 19, 15, 0.14);
+  box-shadow: 0 8px 24px rgba(var(--wholesip-shadow-rgb), 0.14);
   cursor: pointer;
   opacity: 1;
   transition:
@@ -342,7 +356,7 @@
 }
 .home-blog-arrow:hover {
   transform: translateY(-50%) scale(1.08);
-  box-shadow: 0 12px 30px rgba(23, 19, 15, 0.2);
+  box-shadow: 0 12px 30px rgba(var(--wholesip-shadow-rgb), 0.2);
 }
 .home-blog-arrow:active {
   transform: translateY(-50%) scale(0.96);
@@ -389,7 +403,7 @@
 }
 .home-blog-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 18px 40px rgba(23, 19, 15, 0.1);
+  box-shadow: 0 18px 40px rgba(var(--wholesip-shadow-rgb), 0.1);
 }
 
 .home-blog-img {
@@ -415,7 +429,7 @@
   top: 12px;
   left: 12px;
   background: var(--wholesip-ink);
-  color: #fff;
+  color: var(--wholesip-on-accent);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -520,7 +534,7 @@
 
 /* Theme controls text colour over the image. */
 .home-banner.theme-light .home-banner-content {
-  color: #fff;
+  color: var(--wholesip-on-accent);
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
 }
 .home-banner.theme-dark .home-banner-content {
@@ -562,9 +576,389 @@
 }
 /* On a dark-text banner, the dark button needs the inverse for contrast. */
 .home-banner.theme-light .home-banner-cta {
-  background: #fff;
+  background: var(--wholesip-surface);
   color: var(--wholesip-ink);
 }
 .home-banner.theme-light .home-banner-cta:hover {
   background: var(--wholesip-cream);
+}
+
+/* ---- Hero ----
+   theme-dark = ink text (light field), theme-light = on-ink text (dark field).
+   The colour field comes from config.background (strict colour, inline). */
+.home-hero {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: clamp(20px, 4vw, 48px);
+  background: var(--wholesip-cream-deep);
+  overflow: hidden;
+}
+.home-hero.theme-dark {
+  color: var(--wholesip-ink);
+}
+.home-hero.theme-light {
+  color: var(--wholesip-on-ink);
+}
+
+.home-hero-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+.home-hero.align-center .home-hero-copy {
+  align-items: center;
+  text-align: center;
+  margin-inline: auto;
+}
+
+.home-hero-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: var(--wholesip-radius-pill, 999px);
+  background: var(--wholesip-surface);
+  color: var(--wholesip-accent, var(--brand-primary));
+  font-weight: 700;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 14px rgba(var(--wholesip-shadow-rgb), 0.1);
+}
+
+.home-hero-heading {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: clamp(1.9rem, 4.5vw, 3.25rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  margin: 0;
+}
+
+.home-hero-sub {
+  font-size: clamp(0.95rem, 1.6vw, 1.1rem);
+  margin: 0;
+  max-width: 46ch;
+  opacity: 0.85;
+}
+
+.home-hero-cta {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 13px 32px;
+  border-radius: var(--wholesip-radius-pill, 999px);
+  font-weight: 700;
+  font-size: 0.98rem;
+  text-decoration: none;
+  background: var(--wholesip-accent, var(--brand-primary));
+  color: var(--wholesip-on-accent);
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
+}
+.home-hero-cta:hover {
+  transform: translateY(-2px);
+  filter: brightness(0.94);
+}
+
+.home-hero-media {
+  position: relative;
+  flex: 0 0 46%;
+  min-height: 100%;
+}
+.home-hero-img {
+  object-fit: cover;
+}
+
+/* banner — inset rounded card; the section gutter stays, the card rounds. */
+.home-hero.variant-banner {
+  border-radius: var(--wholesip-radius-card, 20px);
+  min-height: clamp(280px, 34vw, 440px);
+}
+.home-hero.variant-banner .home-hero-copy {
+  padding: clamp(24px, 4.5vw, 56px);
+  flex: 1 1 auto;
+}
+
+/* split — edge-to-edge two-column band (pairs with Style → full width). */
+.home-hero.variant-split {
+  min-height: clamp(320px, 42vw, 540px);
+}
+.home-hero.variant-split .home-hero-copy {
+  padding: clamp(24px, 5vw, 64px);
+  flex: 1 1 auto;
+}
+.home-hero.variant-split .home-hero-media {
+  flex-basis: 50%;
+}
+
+/* minimal — centred statement; an image becomes a cover background. */
+.home-hero.variant-minimal {
+  min-height: clamp(300px, 38vw, 480px);
+  border-radius: var(--wholesip-radius-card, 20px);
+}
+.home-hero.variant-minimal .home-hero-copy {
+  padding: clamp(32px, 6vw, 72px);
+  flex: 1 1 auto;
+  align-items: center;
+  text-align: center;
+}
+.home-hero-bgmedia {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.home-hero.variant-minimal.theme-light .home-hero-bgmedia::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 860px) {
+  .home-hero.variant-banner,
+  .home-hero.variant-split {
+    flex-direction: column;
+    gap: 0;
+  }
+  .home-hero-media {
+    flex-basis: auto;
+    min-height: 220px;
+    order: -1;
+  }
+  .home-hero.variant-banner .home-hero-media {
+    margin: 12px 12px 0;
+    border-radius: calc(var(--wholesip-radius-card, 20px) - 8px);
+    overflow: hidden;
+  }
+}
+
+/* ---- USP bar ---- */
+.home-usp {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(18px, 4vw, 48px);
+  padding: clamp(18px, 3vw, 28px) clamp(16px, 3vw, 32px);
+}
+.home-usp.theme-dark {
+  color: var(--wholesip-ink);
+}
+.home-usp.theme-light {
+  color: var(--wholesip-on-ink);
+}
+
+.home-usp-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.home-usp-icon {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  opacity: 0.9;
+}
+
+.home-usp-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.home-usp-title {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+.home-usp-sub {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+@media (max-width: 700px) {
+  .home-usp {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+/* ---- Tile grid ---- */
+.home-tile-grid {
+  display: grid;
+  gap: clamp(12px, 2vw, 20px);
+}
+.home-tile-grid.cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.home-tile-grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.home-tile-grid.cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.home-tile {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  border-radius: var(--wholesip-radius-card, 16px);
+  background: var(--wholesip-cream-deep);
+  text-decoration: none;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+a.home-tile:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(var(--wholesip-shadow-rgb), 0.14);
+}
+
+.home-tile-grid.size-sm .home-tile {
+  min-height: clamp(110px, 12vw, 150px);
+}
+.home-tile-grid.size-md .home-tile {
+  min-height: clamp(160px, 20vw, 240px);
+}
+.home-tile-grid.size-lg .home-tile {
+  min-height: clamp(220px, 28vw, 340px);
+}
+
+.home-tile-img {
+  object-fit: cover;
+  z-index: 0;
+}
+
+.home-tile-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: clamp(14px, 2vw, 22px);
+}
+.home-tile.theme-dark .home-tile-copy {
+  color: var(--wholesip-ink);
+}
+.home-tile.theme-light .home-tile-copy {
+  color: var(--wholesip-on-ink);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.3);
+}
+
+.home-tile-title {
+  font-family: var(--font-outfit), sans-serif;
+  font-weight: 700;
+  font-size: clamp(1rem, 1.6vw, 1.2rem);
+  line-height: 1.2;
+}
+.home-tile-sub {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+@media (max-width: 860px) {
+  .home-tile-grid.cols-3,
+  .home-tile-grid.cols-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 460px) {
+  .home-tile-grid.cols-2,
+  .home-tile-grid.cols-3,
+  .home-tile-grid.cols-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .home-tile-grid.size-lg .home-tile {
+    min-height: 180px;
+  }
+}
+
+/* ---- Shop by category — "cards" display variant ----
+   Default (absent display) keeps the historical circular chips; is-cards
+   switches to rounded-rect image tiles with the label below. */
+.home-cat-grid.is-cards .home-cat-img,
+.home-cat-scroll.is-cards .home-cat-img {
+  border-radius: var(--wholesip-radius-card, 16px);
+  aspect-ratio: 4 / 3;
+}
+
+/* ---- FAQ accordion ---- */
+.home-faq-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: clamp(20px, 3vw, 32px);
+}
+.home-faq-pill {
+  border: none;
+  background: var(--wholesip-cream-deep);
+  color: var(--wholesip-ink-soft);
+  border-radius: var(--wholesip-radius-pill, 999px);
+  padding: 9px 20px;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.home-faq-pill:hover {
+  color: var(--wholesip-ink);
+}
+.home-faq-pill.active {
+  background: var(--wholesip-ink);
+  color: var(--wholesip-on-ink);
+}
+
+.home-faq-list {
+  max-width: 820px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.home-faq-item {
+  background: var(--wholesip-surface);
+  border: 1px solid var(--wholesip-border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+.home-faq-item.open {
+  border-color: var(--wholesip-ink-faint);
+}
+.home-faq-q {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 20px 24px;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--wholesip-ink);
+  cursor: pointer;
+}
+.home-faq-q svg {
+  flex: 0 0 auto;
+  color: var(--wholesip-ink-soft);
+}
+.home-faq-a {
+  margin: 0;
+  padding: 0 24px 22px;
+  color: var(--wholesip-ink-soft);
+  line-height: 1.7;
+  font-size: 0.98rem;
 }

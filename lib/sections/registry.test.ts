@@ -10,6 +10,7 @@ import {
   validateConfig,
   validatePageSlug,
   validateSections,
+  validateSectionStyle,
   summarizeSection,
   type CustomCodeConfig,
   type PageSectionItem,
@@ -80,6 +81,126 @@ describe("custom_code validation", () => {
       config: (r as { config: CustomCodeConfig }).config,
     });
     expect(summary).toBe("Custom code · HTML + JS");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Shared per-section style + draft/publish validation modes
+// ---------------------------------------------------------------------------
+
+describe("validateSectionStyle", () => {
+  it("accepts strict colors, padding, width and anchors", () => {
+    expect(
+      validateSectionStyle({
+        background: "#F6F7F9",
+        padding_y: "md",
+        width: "full",
+        anchor: "Our-Story",
+      }),
+    ).toEqual({
+      background: "#F6F7F9",
+      padding_y: "md",
+      width: "full",
+      anchor: "our-story",
+    });
+    expect(
+      validateSectionStyle({ background: "rgba(10, 20, 30, 0.5)" }),
+    ).toEqual({ background: "rgba(10, 20, 30, 0.5)" });
+  });
+
+  it("rejects CSS-injection backgrounds (inline style attr safety)", () => {
+    for (const bad of [
+      "url(https://evil.example/x)",
+      "red; position: fixed",
+      "expression(alert(1))",
+      "linear-gradient(#fff, #000)", // not in the strict allowlist
+      "#zzz",
+    ]) {
+      expect(validateSectionStyle({ background: bad }), bad).toBeUndefined();
+    }
+  });
+
+  it("drops invalid anchors and padding values", () => {
+    expect(validateSectionStyle({ anchor: "1-leading-digit" })).toBeUndefined();
+    expect(validateSectionStyle({ anchor: "has space" })).toBeUndefined();
+    expect(validateSectionStyle({ padding_y: "xl" })).toBeUndefined();
+  });
+
+  it("returns undefined for empty/garbage input (key omitted from JSON)", () => {
+    expect(validateSectionStyle(undefined)).toBeUndefined();
+    expect(validateSectionStyle("nope")).toBeUndefined();
+    expect(validateSectionStyle({})).toBeUndefined();
+  });
+});
+
+describe("draft vs publish validation modes", () => {
+  it("draft mode saves incomplete sections that publish mode rejects", () => {
+    const incomplete: [string, unknown][] = [
+      ["featured_products", { source: "manual", product_ids: [] }],
+      ["shop_by_category", { source: "selected", category_ids: [] }],
+      ["latest_blogs", { source: "manual", blog_ids: [] }],
+      ["rich_text", { html: "" }],
+      ["custom_code", { html: "", css: "", js: "" }],
+      ["promo_banner", { heading: "", image_url: "" }],
+    ];
+    for (const [type, raw] of incomplete) {
+      expect(
+        "error" in validateConfig(type as never, raw, "publish"),
+        `${type} publish`,
+      ).toBe(true);
+      expect(
+        "config" in validateConfig(type as never, raw, "draft"),
+        `${type} draft`,
+      ).toBe(true);
+    }
+  });
+
+  it("draft mode still enforces SAFETY rules (caps + href scheme)", () => {
+    const oversized = validateConfig(
+      "custom_code",
+      { js: "x".repeat(CODE_MAX_CHARS + 1) },
+      "draft",
+    );
+    expect("error" in oversized).toBe(true);
+
+    const unsafeHref = validateConfig(
+      "promo_banner",
+      { heading: "Hi", cta_label: "Go", cta_href: "javascript:alert(1)" },
+      "draft",
+    );
+    expect(
+      ("config" in unsafeHref &&
+        (unsafeHref.config as { cta_href: string }).cta_href) as string,
+    ).toBe("");
+  });
+
+  it("validateSections passes the mode through and keeps valid style", () => {
+    const draftItem = {
+      id: "a",
+      type: "rich_text",
+      enabled: true,
+      config: { html: "" }, // incomplete
+      style: { background: "#fff", padding_y: "sm" },
+    };
+    expect("error" in validateSections([draftItem])).toBe(true); // publish
+    const r = validateSections([draftItem], { mode: "draft" });
+    expect("sections" in r).toBe(true);
+    const s = (r as { sections: PageSectionItem[] }).sections[0];
+    expect(s.style).toEqual({ background: "#fff", padding_y: "sm" });
+  });
+
+  it("validateSections omits the style key entirely when invalid/empty", () => {
+    const r = validateSections([
+      {
+        id: "a",
+        type: "rich_text",
+        enabled: true,
+        config: { html: "<p>x</p>" },
+        style: { background: "url(evil)" },
+      },
+    ]);
+    const s = (r as { sections: PageSectionItem[] }).sections[0];
+    expect("style" in s).toBe(false);
   });
 });
 

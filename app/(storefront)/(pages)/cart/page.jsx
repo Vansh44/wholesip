@@ -1,10 +1,13 @@
 import CartClient from "./cart-client";
+import { getStorefrontLayout } from "@/lib/store/storefront-layout";
 import "./cart.css";
 
+// Layout templates the title as "%s | {brand}", so keep it brand-neutral.
 export const metadata = {
-  title: "Shopping Cart — wholesip",
+  title: "Cart",
 };
 
-export default function Cart() {
-  return <CartClient />;
+export default async function Cart() {
+  const layout = await getStorefrontLayout();
+  return <CartClient grocery={layout.storefront === "grocery"} />;
 }

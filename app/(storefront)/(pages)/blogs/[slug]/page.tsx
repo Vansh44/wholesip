@@ -5,7 +5,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { createPublicClient } from "@/lib/supabase/public";
-import { getCurrentStoreId } from "@/lib/store/resolve";
+import { requireStorefrontStoreId } from "@/lib/store/resolve";
+import { getStoreBrand } from "@/lib/store/brand";
 import { getStoreSetting } from "@/lib/settings/resolve";
 import { sanitizeBlogContent } from "@/lib/sanitize";
 import { getOgImageUrl } from "@/lib/og-image";
@@ -130,24 +131,26 @@ async function getComments(
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const blog = await getBlog(slug, await getCurrentStoreId());
+  const blog = await getBlog(slug, await requireStorefrontStoreId());
 
   if (!blog) {
     return {
-      title: "Blog Not Found | WholeSip",
+      title: "Blog not found",
     };
   }
 
+  const brand = await getStoreBrand();
   const title = blog.seo_title || blog.title;
   const description =
     blog.seo_description ||
     blog.excerpt ||
-    "Read this article on WholeSip Blog.";
+    `Read this article on the ${brand.name} blog.`;
 
   const ogImageUrl = getOgImageUrl(blog.cover_image_url);
 
   return {
-    title: `${title} | WholeSip`,
+    // Layout templates as "%s | {brand}", so pass the bare article title.
+    title,
     description,
     openGraph: {
       title,
@@ -209,7 +212,7 @@ function BackLink() {
 
 export default async function BlogDetailPage({ params }: Props) {
   const { slug } = await params;
-  const storeId = await getCurrentStoreId();
+  const storeId = await requireStorefrontStoreId();
   const blog = await getBlog(slug, storeId);
 
   if (!blog) {

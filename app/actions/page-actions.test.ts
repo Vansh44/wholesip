@@ -144,14 +144,42 @@ describe("page-actions", () => {
       expect(admin._tables.store_pages.update).not.toHaveBeenCalled();
     });
 
-    it("rejects a stale save (updated_at mismatch)", async () => {
+    it("rejects a stale save (updated_at mismatch) with the stale flag", async () => {
       admin._tables.store_pages = makeChain({
         data: { slug: "about", updated_at: "t1" },
         error: null,
       });
       const r = await savePageDraft("p1", [richSection()], "t0");
       expect(r.error).toMatch(/changed somewhere else/i);
+      expect(r.data?.stale).toBe(true);
       expect(admin._tables.store_pages.update).not.toHaveBeenCalled();
+    });
+
+    it("returns the fresh updated_at token (autosave round trip)", async () => {
+      admin._tables.store_pages = makeChain({
+        data: { slug: "about", updated_at: "t9" },
+        error: null,
+      });
+      const r = await savePageDraft("p1", [richSection()], "t9");
+      expect(r.success).toBe(true);
+      expect(r.data?.updated_at).toBe("t9"); // .single() echoes the row
+    });
+
+    it("saves INCOMPLETE sections (draft mode skips completeness)", async () => {
+      admin._tables.store_pages = makeChain({
+        data: { slug: "about", updated_at: "t0" },
+        error: null,
+      });
+      const r = await savePageDraft("p1", [
+        {
+          id: "half",
+          type: "featured_products",
+          enabled: true,
+          config: { source: "manual", product_ids: [] }, // mid-edit state
+        },
+      ]);
+      expect(r.success).toBe(true);
+      expect(admin._tables.store_pages.update).toHaveBeenCalled();
     });
   });
 
@@ -167,6 +195,38 @@ describe("page-actions", () => {
       expect(update.status).toBe("published");
       expect(update.published_at).toBeTruthy();
       expect(update.published_sections).toHaveLength(1);
+    });
+
+    it("rejects a stale publish (token mismatch)", async () => {
+      admin._tables.store_pages = makeChain({
+        data: { slug: "about", sections: [richSection()], updated_at: "t2" },
+        error: null,
+      });
+      const r = await publishPage("p1", "t1");
+      expect(r.error).toMatch(/changed somewhere else/i);
+      expect(r.data?.stale).toBe(true);
+      expect(admin._tables.store_pages.update).not.toHaveBeenCalled();
+    });
+
+    it("STRICTLY re-validates on publish (incomplete draft is rejected)", async () => {
+      admin._tables.store_pages = makeChain({
+        data: {
+          slug: "about",
+          updated_at: "t0",
+          sections: [
+            {
+              id: "half",
+              type: "featured_products",
+              enabled: true,
+              config: { source: "manual", product_ids: [] },
+            },
+          ],
+        },
+        error: null,
+      });
+      const r = await publishPage("p1");
+      expect(r.error).toMatch(/at least one product/i);
+      expect(admin._tables.store_pages.update).not.toHaveBeenCalled();
     });
   });
 

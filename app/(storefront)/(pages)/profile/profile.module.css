@@ -17,13 +17,13 @@
 .title {
   font-size: 40px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--wholesip-ink);
   margin-bottom: 12px;
 }
 
 .subtitle {
   font-size: 16px;
-  color: #666;
+  color: var(--wholesip-ink-soft);
   font-weight: 400;
 }
 
@@ -35,9 +35,9 @@
 
 .card {
   background: var(--wholesip-surface);
-  border-radius: 24px;
+  border-radius: var(--wholesip-radius-card);
   padding: 40px;
-  box-shadow: 0 8px 24px rgba(43, 38, 32, 0.06);
+  box-shadow: 0 8px 24px rgba(var(--wholesip-shadow-rgb), 0.06);
   border: 1px solid var(--wholesip-border);
   display: flex;
   flex-direction: column;
@@ -50,13 +50,13 @@
 .cardTitle {
   font-size: 24px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--wholesip-ink);
   margin-bottom: 8px;
 }
 
 .cardSubtitle {
   font-size: 14px;
-  color: #888;
+  color: var(--wholesip-ink-faint);
 }
 
 .form {
@@ -75,7 +75,7 @@
 .label {
   font-size: 13px;
   font-weight: 600;
-  color: #444;
+  color: var(--wholesip-ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -83,19 +83,19 @@
 .input {
   width: 100%;
   padding: 14px 16px;
-  border-radius: 12px;
-  border: 1.5px solid #eaeaea;
-  background: #fafafa;
+  border-radius: var(--wholesip-radius-control);
+  border: 1.5px solid var(--wholesip-border);
+  background: var(--wholesip-cream-deep);
   font-size: 15px;
   font-family: var(--font-outfit), sans-serif;
-  color: #1a1a1a;
+  color: var(--wholesip-ink);
   transition: all 0.2s ease;
 }
 
 .input:focus {
   outline: none;
-  border-color: #1a1a1a;
-  background: #ffffff;
+  border-color: var(--wholesip-ink);
+  background: var(--wholesip-surface);
 }
 
 .input:disabled {
@@ -106,9 +106,9 @@
 .submitBtn {
   margin-top: auto;
   padding: 16px;
-  border-radius: 12px;
+  border-radius: var(--wholesip-radius-control);
   background: var(--wholesip-accent);
-  color: #ffffff;
+  color: var(--wholesip-on-accent);
   font-size: 15px;
   font-weight: 600;
   font-family: var(--font-outfit), sans-serif;
@@ -123,7 +123,7 @@
 .submitBtn:hover:not(:disabled) {
   background: var(--wholesip-accent-deep);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(var(--wholesip-shadow-rgb), 0.12);
 }
 
 .submitBtn:disabled {
@@ -133,22 +133,22 @@
 
 .statusMessage {
   padding: 12px;
-  border-radius: 8px;
+  border-radius: var(--wholesip-radius-sm);
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 16px;
 }
 
 .success {
-  background: #e8f5e9;
-  color: #2e7d32;
-  border: 1px solid #c8e6c9;
+  background: var(--wholesip-success-soft);
+  color: var(--wholesip-success);
+  border: 1px solid color-mix(in srgb, var(--wholesip-success) 28%, transparent);
 }
 
 .error {
-  background: #ffebee;
-  color: #c62828;
-  border: 1px solid #ffcdd2;
+  background: var(--wholesip-error-soft);
+  color: var(--wholesip-error);
+  border: 1px solid color-mix(in srgb, var(--wholesip-error) 28%, transparent);
 }
 
 @media (max-width: 900px) {

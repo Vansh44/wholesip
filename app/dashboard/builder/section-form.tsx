@@ -6,14 +6,25 @@ import { NumberField } from "@/components/ui/number-field";
 import { CustomCodeFrame } from "@/app/(storefront)/components/sections/custom-code-frame";
 import CodeEditor from "./code-editor-lazy";
 import {
+  MAX_FAQ_ITEMS,
+  MAX_TILES,
+  MAX_USP_ITEMS,
+  USP_ICONS,
   type AnySectionConfig,
   type CustomCodeConfig,
+  type FaqAccordionConfig,
+  type FaqItem,
   type FeaturedProductsConfig,
+  type HeroConfig,
   type HomepageSectionType,
   type LatestBlogsConfig,
   type PromoBannerConfig,
   type RichTextConfig,
   type ShopByCategoryConfig,
+  type TileGridConfig,
+  type TileItem,
+  type UspBarConfig,
+  type UspItem,
 } from "@/lib/homepage/section-types";
 
 // ---------------------------------------------------------------------------
@@ -65,6 +76,26 @@ export function SectionForm({
   blogs: BlogOption[];
 }) {
   switch (type) {
+    case "hero":
+      return <HeroFields config={config as HeroConfig} setConfig={setConfig} />;
+    case "usp_bar":
+      return (
+        <UspBarFields config={config as UspBarConfig} setConfig={setConfig} />
+      );
+    case "tile_grid":
+      return (
+        <TileGridFields
+          config={config as TileGridConfig}
+          setConfig={setConfig}
+        />
+      );
+    case "faq_accordion":
+      return (
+        <FaqFields
+          config={config as FaqAccordionConfig}
+          setConfig={setConfig}
+        />
+      );
     case "featured_products":
       return (
         <FeaturedFields
@@ -208,6 +239,649 @@ function OrderedPicker({
         </div>
       )}
     </div>
+  );
+}
+
+// Strict-colour input: free text (hex/rgb/hsl) + a native picker swatch.
+// Invalid values are dropped by validateConfig, so this stays permissive.
+function ColorField({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  const pickable = /^#[0-9a-f]{6}$/i.test(value);
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="color"
+        className="h-9 w-10 shrink-0 cursor-pointer rounded-md border p-0.5"
+        value={pickable ? value : "#ffffff"}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="Pick a colour"
+      />
+      <input
+        className={fieldClass}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder ?? "#f6e7cf (blank = theme default)"}
+      />
+    </div>
+  );
+}
+
+const USP_ICON_LABELS: Record<(typeof USP_ICONS)[number], string> = {
+  star: "Star",
+  "badge-check": "Badge check",
+  truck: "Truck (delivery)",
+  shield: "Shield (protection)",
+  leaf: "Leaf (natural)",
+  gift: "Gift",
+  lock: "Lock (secure)",
+  refresh: "Refresh (returns)",
+  clock: "Clock (speed)",
+  heart: "Heart",
+  headphones: "Headphones (support)",
+  sparkles: "Sparkles (quality)",
+};
+
+function HeroFields({
+  config,
+  setConfig,
+}: {
+  config: HeroConfig;
+  setConfig: (c: AnySectionConfig) => void;
+}) {
+  const set = <K extends keyof HeroConfig>(key: K, value: HeroConfig[K]) =>
+    setConfig({ ...config, [key]: value });
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Layout</label>
+          <select
+            className={fieldClass}
+            value={config.variant}
+            onChange={(e) =>
+              set("variant", e.target.value as HeroConfig["variant"])
+            }
+          >
+            <option value="banner">Banner card (copy + image)</option>
+            <option value="split">Split (half copy, half image)</option>
+            <option value="minimal">Minimal (centred statement)</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelClass}>Text alignment</label>
+          <select
+            className={fieldClass}
+            value={config.alignment}
+            onChange={(e) =>
+              set("alignment", e.target.value as HeroConfig["alignment"])
+            }
+          >
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Headline</label>
+        <input
+          className={fieldClass}
+          value={config.heading}
+          onChange={(e) => set("heading", e.target.value)}
+          placeholder="From farm to your kitchen"
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>Subheadline</label>
+        <textarea
+          className={`${fieldClass} min-h-[60px] resize-y`}
+          value={config.subheading}
+          onChange={(e) => set("subheading", e.target.value)}
+          placeholder="(optional)"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Button label</label>
+          <input
+            className={fieldClass}
+            value={config.cta_label}
+            onChange={(e) => set("cta_label", e.target.value)}
+            placeholder="Shop now"
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Button link</label>
+          <input
+            className={fieldClass}
+            value={config.cta_href}
+            onChange={(e) => set("cta_href", e.target.value)}
+            placeholder="/shop"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Image</label>
+        <ImageUpload
+          folder="homepage"
+          defaultImage={config.image_url || undefined}
+          onUploadSuccess={(url) => set("image_url", url)}
+        />
+        <p className="text-muted-foreground mt-1 text-[11px]">
+          Banner/split show it beside the copy; minimal uses it as a full
+          background.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Badge (optional)</label>
+          <input
+            className={fieldClass}
+            value={config.badge_text}
+            onChange={(e) => set("badge_text", e.target.value)}
+            placeholder="51% off this week"
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Text theme</label>
+          <select
+            className={fieldClass}
+            value={config.theme}
+            onChange={(e) =>
+              set("theme", e.target.value as HeroConfig["theme"])
+            }
+          >
+            <option value="dark">Dark text (light background)</option>
+            <option value="light">Light text (dark background)</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Background colour</label>
+        <ColorField
+          value={config.background}
+          onChange={(v) => set("background", v)}
+        />
+      </div>
+    </>
+  );
+}
+
+function UspBarFields({
+  config,
+  setConfig,
+}: {
+  config: UspBarConfig;
+  setConfig: (c: AnySectionConfig) => void;
+}) {
+  const setItems = (items: UspItem[]) => setConfig({ ...config, items });
+  const setItem = (i: number, patch: Partial<UspItem>) =>
+    setItems(config.items.map((it, j) => (j === i ? { ...it, ...patch } : it)));
+  const move = (i: number, dir: -1 | 1) => {
+    const target = i + dir;
+    if (target < 0 || target >= config.items.length) return;
+    const next = [...config.items];
+    [next[i], next[target]] = [next[target], next[i]];
+    setItems(next);
+  };
+
+  return (
+    <>
+      <div>
+        <label className={labelClass}>Text theme</label>
+        <select
+          className={fieldClass}
+          value={config.theme}
+          onChange={(e) =>
+            setConfig({
+              ...config,
+              theme: e.target.value as UspBarConfig["theme"],
+            })
+          }
+        >
+          <option value="dark">Dark text (light background)</option>
+          <option value="light">Light text (dark background)</option>
+        </select>
+        <p className="text-muted-foreground mt-1 text-[11px]">
+          For a dark strip, set a dark background in the Style tab and pick
+          light text here.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <label className={labelClass}>Items</label>
+        {config.items.map((item, i) => (
+          <div
+            key={i}
+            className="bg-background space-y-2 rounded-md border p-2"
+          >
+            <div className="flex items-center gap-2">
+              <select
+                className={`${fieldClass} max-w-[180px]`}
+                value={item.icon}
+                onChange={(e) =>
+                  setItem(i, { icon: e.target.value as UspItem["icon"] })
+                }
+              >
+                {USP_ICONS.map((icon) => (
+                  <option key={icon} value={icon}>
+                    {USP_ICON_LABELS[icon]}
+                  </option>
+                ))}
+              </select>
+              <div className="ml-auto flex items-center">
+                <button
+                  type="button"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  title="Move up"
+                  className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(i, 1)}
+                  disabled={i === config.items.length - 1}
+                  title="Move down"
+                  className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setItems(config.items.filter((_, j) => j !== i))
+                  }
+                  title="Remove"
+                  className="text-muted-foreground hover:text-[var(--dash-red)] flex h-7 w-6 items-center justify-center rounded hover:bg-[var(--dash-red-soft)]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className={fieldClass}
+                value={item.title}
+                onChange={(e) => setItem(i, { title: e.target.value })}
+                placeholder="Free delivery"
+              />
+              <input
+                className={fieldClass}
+                value={item.subtitle}
+                onChange={(e) => setItem(i, { subtitle: e.target.value })}
+                placeholder="On orders over ₹499 (optional)"
+              />
+            </div>
+          </div>
+        ))}
+        {config.items.length < MAX_USP_ITEMS && (
+          <button
+            type="button"
+            onClick={() =>
+              setItems([
+                ...config.items,
+                { icon: "star", title: "", subtitle: "" },
+              ])
+            }
+            className="text-muted-foreground hover:bg-muted flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add item
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+function TileGridFields({
+  config,
+  setConfig,
+}: {
+  config: TileGridConfig;
+  setConfig: (c: AnySectionConfig) => void;
+}) {
+  const set = <K extends keyof TileGridConfig>(
+    key: K,
+    value: TileGridConfig[K],
+  ) => setConfig({ ...config, [key]: value });
+  const setTile = (i: number, patch: Partial<TileItem>) =>
+    set(
+      "tiles",
+      config.tiles.map((t, j) => (j === i ? { ...t, ...patch } : t)),
+    );
+  const move = (i: number, dir: -1 | 1) => {
+    const target = i + dir;
+    if (target < 0 || target >= config.tiles.length) return;
+    const next = [...config.tiles];
+    [next[i], next[target]] = [next[target], next[i]];
+    set("tiles", next);
+  };
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Heading</label>
+          <input
+            className={fieldClass}
+            value={config.heading}
+            onChange={(e) => set("heading", e.target.value)}
+            placeholder="Top offers this week"
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Subheading</label>
+          <input
+            className={fieldClass}
+            value={config.subheading}
+            onChange={(e) => set("subheading", e.target.value)}
+            placeholder="(optional)"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Columns (desktop)</label>
+          <select
+            className={fieldClass}
+            value={config.columns}
+            onChange={(e) =>
+              set(
+                "columns",
+                Number(e.target.value) as TileGridConfig["columns"],
+              )
+            }
+          >
+            <option value={2}>2 — mini banners</option>
+            <option value={3}>3</option>
+            <option value={4}>4 — offer tiles</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelClass}>Tile height</label>
+          <select
+            className={fieldClass}
+            value={config.height}
+            onChange={(e) =>
+              set("height", e.target.value as TileGridConfig["height"])
+            }
+          >
+            <option value="sm">Short</option>
+            <option value="md">Medium</option>
+            <option value="lg">Tall</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className={labelClass}>Tiles</label>
+        {config.tiles.map((tile, i) => (
+          <div
+            key={i}
+            className="bg-background space-y-2 rounded-md border p-2"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-xs font-medium">
+                Tile {i + 1}
+              </span>
+              <div className="ml-auto flex items-center">
+                <button
+                  type="button"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  title="Move up"
+                  className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(i, 1)}
+                  disabled={i === config.tiles.length - 1}
+                  title="Move down"
+                  className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    set(
+                      "tiles",
+                      config.tiles.filter((_, j) => j !== i),
+                    )
+                  }
+                  title="Remove"
+                  className="text-muted-foreground hover:text-[var(--dash-red)] flex h-7 w-6 items-center justify-center rounded hover:bg-[var(--dash-red-soft)]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className={fieldClass}
+                value={tile.title}
+                onChange={(e) => setTile(i, { title: e.target.value })}
+                placeholder="Fresh produce"
+              />
+              <input
+                className={fieldClass}
+                value={tile.subtitle}
+                onChange={(e) => setTile(i, { subtitle: e.target.value })}
+                placeholder="from ₹19 (optional)"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className={fieldClass}
+                value={tile.href}
+                onChange={(e) => setTile(i, { href: e.target.value })}
+                placeholder="/shop?category=fruits"
+              />
+              <select
+                className={fieldClass}
+                value={tile.theme}
+                onChange={(e) =>
+                  setTile(i, { theme: e.target.value as TileItem["theme"] })
+                }
+              >
+                <option value="dark">Dark text</option>
+                <option value="light">Light text</option>
+              </select>
+            </div>
+            <ColorField
+              value={tile.background}
+              onChange={(v) => setTile(i, { background: v })}
+            />
+            <ImageUpload
+              folder="homepage"
+              defaultImage={tile.image_url || undefined}
+              onUploadSuccess={(url) => setTile(i, { image_url: url })}
+            />
+          </div>
+        ))}
+        {config.tiles.length < MAX_TILES && (
+          <button
+            type="button"
+            onClick={() =>
+              set("tiles", [
+                ...config.tiles,
+                {
+                  title: "",
+                  subtitle: "",
+                  href: "",
+                  image_url: "",
+                  background: "",
+                  theme: "dark",
+                },
+              ])
+            }
+            className="text-muted-foreground hover:bg-muted flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add tile
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+function FaqFields({
+  config,
+  setConfig,
+}: {
+  config: FaqAccordionConfig;
+  setConfig: (c: AnySectionConfig) => void;
+}) {
+  const set = <K extends keyof FaqAccordionConfig>(
+    key: K,
+    value: FaqAccordionConfig[K],
+  ) => setConfig({ ...config, [key]: value });
+  const setItem = (i: number, patch: Partial<FaqItem>) =>
+    set(
+      "items",
+      config.items.map((it, j) => (j === i ? { ...it, ...patch } : it)),
+    );
+  const move = (i: number, dir: -1 | 1) => {
+    const target = i + dir;
+    if (target < 0 || target >= config.items.length) return;
+    const next = [...config.items];
+    [next[i], next[target]] = [next[target], next[i]];
+    set("items", next);
+  };
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Heading</label>
+          <input
+            className={fieldClass}
+            value={config.heading}
+            onChange={(e) => set("heading", e.target.value)}
+            placeholder="Frequently asked questions"
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Subheading</label>
+          <input
+            className={fieldClass}
+            value={config.subheading}
+            onChange={(e) => set("subheading", e.target.value)}
+            placeholder="(optional)"
+          />
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={config.show_filters}
+          onChange={(e) => set("show_filters", e.target.checked)}
+        />
+        Show category filter pills
+      </label>
+
+      <div className="space-y-2">
+        <label className={labelClass}>Questions</label>
+        {config.items.map((item, i) => (
+          <div
+            key={i}
+            className="bg-background space-y-2 rounded-md border p-2"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-xs font-medium">
+                Q{i + 1}
+              </span>
+              <div className="ml-auto flex items-center">
+                <button
+                  type="button"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  title="Move up"
+                  className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(i, 1)}
+                  disabled={i === config.items.length - 1}
+                  title="Move down"
+                  className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    set(
+                      "items",
+                      config.items.filter((_, j) => j !== i),
+                    )
+                  }
+                  title="Remove"
+                  className="text-muted-foreground hover:text-[var(--dash-red)] flex h-7 w-6 items-center justify-center rounded hover:bg-[var(--dash-red-soft)]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <input
+              className={fieldClass}
+              value={item.question}
+              onChange={(e) => setItem(i, { question: e.target.value })}
+              placeholder="How fresh is the produce?"
+            />
+            <textarea
+              className={`${fieldClass} min-h-[70px] resize-y`}
+              value={item.answer}
+              onChange={(e) => setItem(i, { answer: e.target.value })}
+              placeholder="Answer…"
+            />
+            {config.show_filters && (
+              <input
+                className={fieldClass}
+                value={item.category}
+                onChange={(e) => setItem(i, { category: e.target.value })}
+                placeholder="Filter group (e.g. Delivery)"
+              />
+            )}
+          </div>
+        ))}
+        {config.items.length < MAX_FAQ_ITEMS && (
+          <button
+            type="button"
+            onClick={() =>
+              set("items", [
+                ...config.items,
+                { question: "", answer: "", category: "" },
+              ])
+            }
+            className="text-muted-foreground hover:bg-muted flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add question
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -375,6 +1049,20 @@ function CategoryFields({
             <option value="scroll">Horizontal scroll</option>
           </select>
         </div>
+      </div>
+
+      <div className="max-w-[220px]">
+        <label className={labelClass}>Tile shape</label>
+        <select
+          className={fieldClass}
+          value={config.display ?? "circles"}
+          onChange={(e) =>
+            set("display", e.target.value as ShopByCategoryConfig["display"])
+          }
+        >
+          <option value="circles">Circles</option>
+          <option value="cards">Rounded cards</option>
+        </select>
       </div>
 
       {config.source === "selected" && (

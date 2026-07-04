@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import { unstable_cache } from "next/cache";
 import { createPublicClient } from "@/lib/supabase/public";
 import { parseHost } from "@/lib/store/host";
@@ -103,13 +104,26 @@ export const lookupStoreById = unstable_cache(
   { tags: [STORE_TAG], revalidate: 300 },
 );
 
-// Resolve the store for the *current* request. Never returns null: platform /
-// unknown hosts fall back to WholeSip so the site keeps rendering during the
-// single-tenant period.
-export async function getCurrentStore(): Promise<Store> {
+// Resolve the store for the current request's Host, or null when the host
+// doesn't map to a real active store. Use this at the STOREFRONT render
+// boundary (the (storefront) layout) so an unclaimed subdomain / unknown
+// custom domain renders a proper "store not found" 404 instead of silently
+// impersonating another store. (Internal callers that must always have a
+// store id use getCurrentStore()/getCurrentStoreId() below.)
+export async function getCurrentStoreOrNull(): Promise<Store | null> {
   const headersList = await headers();
   const host = headersList.get("x-forwarded-host") || headersList.get("host");
-  const resolved = await lookupStoreByHost(host ?? "");
+  return lookupStoreByHost(host ?? "");
+}
+
+// Resolve the store for the *current* request. Never returns null: unresolved
+// hosts fall back to WholeSip so non-storefront callers (dashboard/actions that
+// thread a store id into queries) never crash. NOTE: the storefront itself must
+// NOT rely on this fallback — it uses getCurrentStoreOrNull() and 404s on an
+// unknown host. WholeSip resolves on its own hosts (wholesip.com, its subdomain)
+// via lookupStoreByHost, so this fallback only ever covers genuine misses.
+export async function getCurrentStore(): Promise<Store> {
+  const resolved = await getCurrentStoreOrNull();
   if (resolved) return resolved;
 
   const fallback = await lookupStoreById(WHOLESIP_STORE_ID);
@@ -131,4 +145,20 @@ export async function getCurrentStore(): Promise<Store> {
 // Convenience: just the current store's id (the value threaded into queries).
 export async function getCurrentStoreId(): Promise<string> {
   return (await getCurrentStore()).id;
+}
+
+// RENDER-CONTEXT ONLY (storefront pages). Resolve the current store or trigger
+// a 404 when the host maps to no real store. A layout `notFound()` does NOT
+// abort concurrently-rendering child pages in the App Router, so each storefront
+// PAGE must guard itself — otherwise an unclaimed subdomain would still render
+// (and serve in its HTML source) the WholeSip fallback content. Never call this
+// from a server action / non-render context (notFound() would throw there).
+export async function requireStorefrontStore(): Promise<Store> {
+  const store = await getCurrentStoreOrNull();
+  if (!store) notFound();
+  return store;
+}
+
+export async function requireStorefrontStoreId(): Promise<string> {
+  return (await requireStorefrontStore()).id;
 }

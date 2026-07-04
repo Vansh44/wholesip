@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { ImageIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/pricing";
@@ -119,7 +120,9 @@ export default function CartDrawer() {
                           className={styles.itemImgEl}
                         />
                       ) : (
-                        <span className={styles.itemImgPlaceholder}>🥛</span>
+                        <span className={styles.itemImgPlaceholder}>
+                          <ImageIcon size={22} strokeWidth={1.5} aria-hidden />
+                        </span>
                       )}
                     </Link>
 
