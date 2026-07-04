@@ -25,23 +25,39 @@ const stickNoBills = Stick_No_Bills({
 });
 
 // ── Theme font palette ──────────────────────────────────────────────────
-// next/font runs at build time, so every family a theme can pick must be
+// next/font runs at build time, so every family a theme CAN pick must be
 // declared here. A theme's design.fonts references these --font-* variables;
 // the (storefront) layout re-points --font-outfit / --font-stick-no-bills to
 // the chosen families, re-skinning all storefront typography with no CSS
 // find-replace. Weights kept tight to bound the download.
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+//
+// preload: false — which of these a page actually uses is decided per request
+// from the store's theme, so we must NOT emit <link rel=preload> for all of
+// them on every page (that forced 4 extra font downloads on every render,
+// including stores on the default look that use NONE of them — an LCP/CLS
+// cost). They still load on demand for a store whose theme references them,
+// with display:swap (next/font's default) + auto size-adjusted fallbacks
+// keeping any flash minimal. The base families below (the default look) stay
+// preloaded.
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  preload: false,
+});
 const fraunces = Fraunces({
   subsets: ["latin"],
   variable: "--font-fraunces",
+  preload: false,
 });
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   variable: "--font-space-grotesk",
+  preload: false,
 });
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-jakarta",
+  preload: false,
 });
 
 // Neutral platform-level fallback. The (storefront) layout overrides this per
