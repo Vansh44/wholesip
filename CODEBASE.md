@@ -472,8 +472,8 @@ npm run format      # prettier --write
   `INDEXNOW_FORCE=1` enables pings outside prod). Google Search Console
   submission is DORMANT until `GOOGLE_SEARCH_CONSOLE_CREDENTIALS` (service-account
   JSON) + `GOOGLE_SEARCH_CONSOLE_PROPERTY` (e.g. `sc-domain:storemink.com`) are
-  set. One-time human setup: verify `storemink.com` as a Search Console *Domain
-  property* (covers all `*.storemink.com`) and grant the service account access.
+  set. One-time human setup: verify `storemink.com` as a Search Console _Domain
+  property_ (covers all `*.storemink.com`) and grant the service account access.
 
 ## 8. Multi-tenant rollout status (as of 2026-07)
 
