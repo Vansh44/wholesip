@@ -36,6 +36,7 @@ const post = (msg: Record<string, unknown>) =>
 
 export function BuilderOverlay() {
   const [rects, setRects] = useState<Rect[]>([]);
+  const [docHeight, setDocHeight] = useState(0);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [remoteHighlightId, setRemoteHighlightId] = useState<string | null>(
     null,
@@ -62,6 +63,7 @@ export function BuilderOverlay() {
         };
       });
       setRects(next);
+      setDocHeight(document.documentElement.scrollHeight);
 
       // Tell the builder which sections actually rendered (empty ones return
       // null and have no DOM node) — the outline badges the missing ones.
@@ -119,10 +121,7 @@ export function BuilderOverlay() {
         top: 0,
         left: 0,
         right: 0,
-        height: Math.max(
-          document.documentElement.scrollHeight,
-          ...rects.map((r) => r.top + r.height),
-        ),
+        height: Math.max(docHeight, ...rects.map((r) => r.top + r.height)),
         pointerEvents: "none",
         zIndex: 2147483000,
       }}

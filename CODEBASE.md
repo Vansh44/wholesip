@@ -238,6 +238,9 @@ wholesip/
 │   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
 │   ├── store_menus.sql        # ★ per-store header/footer nav (+ RLS + WholeSip seed) — §11
 │   ├── homepage_to_store_pages.sql  # Phase 4a data migration: homepage_sections → slug ""
+│   ├── wholesip_static_pages_seed.sql  # Phase 4b: seed the 17 legacy static pages
+│   │                          # (our-story, faqs, privacy-policy…) as published
+│   │                          # store_pages rows for the WholeSip fallback store
 │   ├── homepage_hero_seed.sql  # ★ WholeSip hero carousel as a leading custom_code section
 │   │                          # on the homepage row (the "one-time hero seed" — §11). Idempotent,
 │   │                          # keyed on a fixed section id. Regen: homepage_hero_seed.gen.py
@@ -370,8 +373,10 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     is now a `custom_code` section. Retired: `homepage_sections` reads,
     `homepage-actions.ts`, `/dashboard/homepage`, `Hero.jsx` (the
     `homepage_sections` table is kept, deprecated, as migration rollback). - **Static pages (Phase 4b, done)**: the 17 former hardcoded content pages
-    (our-story, faqs, …) are seeded as `store_pages` rows and their route dirs
-    deleted, so `[pageSlug]` serves them; `RESERVED_PAGE_SLUGS` now reserves only
+    (our-story, faqs, …) are seeded as `store_pages` rows (new stores via the
+    theme at signup; the legacy WholeSip fallback store via
+    `wholesip_static_pages_seed.sql`) and their route dirs deleted, so
+    `[pageSlug]` serves them; `RESERVED_PAGE_SLUGS` now reserves only
     the INTERACTIVE routes that stay in code (blogs, cart, enquiries, profile,
     shop) + system routes. - **Menu builder (Phase 4c, done)**: header + footer nav is per-store in
     `store_menus` (jsonb: `header`, `footer_groups`, `footer_legal`; RLS public
