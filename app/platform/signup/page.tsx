@@ -127,10 +127,21 @@ export default function SignupPage() {
   const selectedThemeInfo =
     THEME_META.find((t) => t.id === template) || THEME_META[0];
 
-  // Step 3 Logic
+  // Step 3 Logic. Account credentials (email + password + confirm) are all
+  // collected together up front — signUp needs the password to create the user
+  // and trigger the confirmation email, so we validate the whole set here before
+  // sending the code. No trailing "retype password" later in the flow.
   async function handleSendEmailOtp() {
-    if (!EMAIL_RE.test(email) || password.length < 6) {
-      setError("Enter a valid email and a password (min 6 chars) first.");
+    if (!EMAIL_RE.test(email)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== repassword) {
+      setError("Passwords do not match.");
       return;
     }
     setBusy(true);
@@ -145,6 +156,14 @@ export default function SignupPage() {
     } else {
       setEmailSent(true);
     }
+  }
+
+  // Let the user correct a mistyped email before verifying (re-enables the
+  // credential fields; they re-send the code).
+  function resetEmailStep() {
+    setEmailSent(false);
+    setEmailCode("");
+    setError("");
   }
 
   async function handleVerifyEmailOtp() {
@@ -477,10 +496,11 @@ export default function SignupPage() {
         {step === "details" && (
           <div className="w-full max-w-md mx-auto mt-10">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 mb-2">
-              Your Details
+              Create your account
             </h1>
             <p className="text-gray-500 mb-8">
-              Secure your superadmin account for <strong>{name}</strong>.
+              You&apos;ll be the superadmin for <strong>{name}</strong>. Verify
+              your email, then your phone.
             </p>
 
             {error && (
@@ -489,88 +509,169 @@ export default function SignupPage() {
               </div>
             )}
 
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 flex flex-col gap-6">
-              {/* Email Section */}
-              <div className="flex flex-col gap-3">
-                <label className="text-sm font-semibold text-gray-700">
-                  Email Address
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    className="stq-input flex-1"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={emailVerified || emailSent}
-                  />
-                  {!emailVerified && (
-                    <button
-                      type="button"
-                      onClick={handleSendEmailOtp}
-                      disabled={busy || emailSent || !email}
-                      className="stq-btn stq-btn-primary whitespace-nowrap text-sm px-4"
-                    >
-                      {emailSent ? "Sent" : "Send OTP"}
-                    </button>
-                  )}
-                  {emailVerified && (
-                    <div className="flex items-center px-3 bg-emerald-50 text-emerald-600 rounded-md border border-emerald-100">
-                      <Check className="w-5 h-5" />
-                    </div>
-                  )}
-                </div>
-
-                {emailSent && !emailVerified && (
-                  <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
-                    <input
-                      type="text"
-                      className="stq-input flex-1"
-                      placeholder="6-digit code"
-                      maxLength={6}
-                      value={emailCode}
-                      onChange={(e) =>
-                        setEmailCode(e.target.value.replace(/\D/g, ""))
-                      }
-                    />
-                    <button
-                      type="button"
-                      onClick={handleVerifyEmailOtp}
-                      disabled={busy || emailCode.length < 6}
-                      className="stq-btn stq-btn-primary whitespace-nowrap text-sm px-4"
-                    >
-                      Verify
-                    </button>
-                  </div>
+            {/* ── Step 1 · Account (email + password) ───────────────────── */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <span
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                      emailVerified
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-primary/10 text-primary"
+                    }`}
+                  >
+                    {emailVerified ? <Check className="w-3.5 h-3.5" /> : "1"}
+                  </span>
+                  Account details
+                </h2>
+                {emailVerified && (
+                  <span className="text-xs font-medium text-emerald-600 flex items-center gap-1">
+                    <Check className="w-4 h-4" /> Email verified
+                  </span>
                 )}
               </div>
 
-              {/* Password Section (Need it early to signUp with email) */}
-              {!emailVerified && (
-                <div className="flex flex-col gap-3">
-                  <label className="text-sm font-semibold text-gray-700">
-                    Set Password
-                  </label>
-                  <p className="text-xs text-gray-500 -mt-2">
-                    Required before sending email OTP
-                  </p>
-                  <input
-                    type="password"
-                    className="stq-input"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={emailVerified}
-                  />
+              {emailVerified ? (
+                <p className="text-sm text-gray-500">
+                  Signed in as{" "}
+                  <span className="font-medium text-gray-800">{email}</span>.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-semibold text-gray-700">
+                      Email address
+                    </label>
+                    <input
+                      type="email"
+                      className="stq-input"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={emailSent}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-semibold text-gray-700">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      className="stq-input"
+                      placeholder="At least 6 characters"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={emailSent}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-semibold text-gray-700">
+                      Confirm password
+                    </label>
+                    <input
+                      type="password"
+                      className="stq-input"
+                      placeholder="Re-enter your password"
+                      value={repassword}
+                      onChange={(e) => setRepassword(e.target.value)}
+                      disabled={emailSent}
+                    />
+                    {repassword.length > 0 && password !== repassword && (
+                      <p className="text-xs text-red-500">
+                        Passwords don&apos;t match.
+                      </p>
+                    )}
+                  </div>
+
+                  {!emailSent ? (
+                    <button
+                      type="button"
+                      onClick={handleSendEmailOtp}
+                      disabled={
+                        busy ||
+                        !email ||
+                        password.length < 6 ||
+                        password !== repassword
+                      }
+                      className="stq-btn stq-btn-primary h-11"
+                    >
+                      {busy ? "Sending…" : "Send verification code"}
+                    </button>
+                  ) : (
+                    <div className="flex flex-col gap-2 pt-2 border-t border-gray-100 animate-in fade-in slide-in-from-top-2">
+                      <label className="text-sm font-semibold text-gray-700 mt-2">
+                        Enter the code sent to {email}
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          className="stq-input flex-1"
+                          placeholder="6-digit code"
+                          inputMode="numeric"
+                          maxLength={6}
+                          autoFocus
+                          value={emailCode}
+                          onChange={(e) =>
+                            setEmailCode(e.target.value.replace(/\D/g, ""))
+                          }
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyEmailOtp}
+                          disabled={busy || emailCode.length < 6}
+                          className="stq-btn stq-btn-primary whitespace-nowrap text-sm px-4"
+                        >
+                          {busy ? "…" : "Verify"}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={resetEmailStep}
+                        className="text-xs text-gray-500 hover:text-primary text-left mt-1"
+                      >
+                        ← Wrong email? Edit and resend
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
+            </div>
 
-              {/* Phone Section (Requires Email Verified First) */}
-              {emailVerified && (
-                <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
-                  <label className="text-sm font-semibold text-gray-700">
-                    Phone Number
-                  </label>
+            {/* ── Step 2 · Phone (unlocked after email verified) ─────────── */}
+            <div
+              className={`bg-white border border-gray-200 rounded-xl shadow-sm p-6 mt-5 transition-opacity ${
+                emailVerified ? "" : "opacity-50 pointer-events-none"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <span
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                      phoneVerified
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-primary/10 text-primary"
+                    }`}
+                  >
+                    {phoneVerified ? <Check className="w-3.5 h-3.5" /> : "2"}
+                  </span>
+                  Phone number
+                </h2>
+                {phoneVerified && (
+                  <span className="text-xs font-medium text-emerald-600 flex items-center gap-1">
+                    <Check className="w-4 h-4" /> Verified
+                  </span>
+                )}
+              </div>
+
+              {phoneVerified ? (
+                <p className="text-sm text-gray-500">
+                  Verified{" "}
+                  <span className="font-medium text-gray-800">{phone}</span>.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-3">
                   <div className="flex gap-2">
                     <input
                       type="tel"
@@ -578,31 +679,25 @@ export default function SignupPage() {
                       placeholder="+91 98765 43210"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      disabled={phoneVerified || phoneSent}
+                      disabled={phoneSent}
                     />
-                    {!phoneVerified && (
-                      <button
-                        type="button"
-                        onClick={handleSendPhoneOtp}
-                        disabled={busy || phoneSent || !phone}
-                        className="stq-btn stq-btn-primary whitespace-nowrap text-sm px-4"
-                      >
-                        {phoneSent ? "Sent" : "Send OTP"}
-                      </button>
-                    )}
-                    {phoneVerified && (
-                      <div className="flex items-center px-3 bg-emerald-50 text-emerald-600 rounded-md border border-emerald-100">
-                        <Check className="w-5 h-5" />
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleSendPhoneOtp}
+                      disabled={busy || phoneSent || !phone}
+                      className="stq-btn stq-btn-primary whitespace-nowrap text-sm px-4"
+                    >
+                      {phoneSent ? "Sent" : "Send OTP"}
+                    </button>
                   </div>
 
-                  {phoneSent && !phoneVerified && (
+                  {phoneSent && (
                     <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
                       <input
                         type="text"
                         className="stq-input flex-1"
                         placeholder="6-digit code"
+                        inputMode="numeric"
                         maxLength={6}
                         value={phoneCode}
                         onChange={(e) =>
@@ -621,35 +716,6 @@ export default function SignupPage() {
                   )}
                 </div>
               )}
-
-              {/* Passwords for creation confirmation */}
-              {emailVerified && (
-                <div className="flex flex-col gap-4 pt-4 border-t border-gray-100">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-semibold text-gray-700">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      className="stq-input bg-gray-50 text-gray-500"
-                      value="••••••••"
-                      disabled
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-semibold text-gray-700">
-                      Retype Password
-                    </label>
-                    <input
-                      type="password"
-                      className="stq-input"
-                      placeholder="••••••••"
-                      value={repassword}
-                      onChange={(e) => setRepassword(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="mt-8 flex items-center justify-between">
@@ -661,13 +727,7 @@ export default function SignupPage() {
               </button>
               <button
                 onClick={handleCreateStore}
-                disabled={
-                  busy ||
-                  !emailVerified ||
-                  !phoneVerified ||
-                  !repassword ||
-                  password !== repassword
-                }
+                disabled={busy || !emailVerified || !phoneVerified}
                 className="stq-btn stq-btn-primary px-8"
               >
                 Create Store

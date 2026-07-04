@@ -2,8 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { setStoreStatus, type PlatformStoreRow } from "@/app/actions/platform";
-import { Search } from "lucide-react";
+import {
+  setStoreStatus,
+  deleteStore,
+  type PlatformStoreRow,
+} from "@/app/actions/platform";
+import { Search, AlertTriangle } from "lucide-react";
 
 function storeUrl(store: PlatformStoreRow, rootDomain: string): string {
   return store.custom_domain
@@ -28,6 +32,12 @@ export function StoresConsole({
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
+  // Permanent-delete confirmation: the operator must retype the store slug.
+  const [toDelete, setToDelete] = useState<PlatformStoreRow | null>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
     const params = search.trim()
@@ -45,6 +55,26 @@ export function StoresConsole({
       alert(res.error);
       return;
     }
+    startTransition(() => router.refresh());
+  }
+
+  function openDelete(store: PlatformStoreRow) {
+    setToDelete(store);
+    setConfirmText("");
+    setDeleteError("");
+  }
+
+  async function confirmDelete() {
+    if (!toDelete) return;
+    setDeleting(true);
+    setDeleteError("");
+    const res = await deleteStore(toDelete.id);
+    setDeleting(false);
+    if (res.error) {
+      setDeleteError(res.error);
+      return;
+    }
+    setToDelete(null);
     startTransition(() => router.refresh());
   }
 
@@ -78,6 +108,7 @@ export function StoresConsole({
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 font-medium text-gray-500">Store</th>
+                <th className="px-6 py-3 font-medium text-gray-500">Owner</th>
                 <th className="px-6 py-3 font-medium text-gray-500">Status</th>
                 <th className="px-6 py-3 font-medium text-gray-500">Plan</th>
                 <th className="px-6 py-3 font-medium text-gray-500">Created</th>
@@ -90,7 +121,7 @@ export function StoresConsole({
               {stores.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-6 py-12 text-center text-gray-500"
                   >
                     No stores found.
@@ -106,6 +137,11 @@ export function StoresConsole({
                         {s.name}
                       </div>
                       <div className="text-gray-500 mt-0.5">{addr}</div>
+                    </td>
+                    <td className="px-6 py-4 text-gray-600">
+                      {s.owner_email ?? (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span
@@ -142,7 +178,7 @@ export function StoresConsole({
                           <button
                             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                               s.status === "active"
-                                ? "text-red-700 bg-red-50 hover:bg-red-100"
+                                ? "text-amber-700 bg-amber-50 hover:bg-amber-100"
                                 : "text-gray-700 bg-gray-100 hover:bg-gray-200"
                             }`}
                             disabled={pendingId === s.id}
@@ -155,6 +191,14 @@ export function StoresConsole({
                                 : "Activate"}
                           </button>
                         )}
+                        {canManage && (
+                          <button
+                            className="px-3 py-1.5 rounded-md text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                            onClick={() => openDelete(s)}
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -164,6 +208,77 @@ export function StoresConsole({
           </table>
         </div>
       </div>
+
+      {toDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !deleting && setToDelete(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">
+                    Permanently delete {toDelete.name}?
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    This erases the store and <strong>all of its data</strong> —
+                    products, categories, blogs, pages, menus, coupons and
+                    uploaded media — plus every login for it (owner
+                    {toDelete.owner_email ? ` ${toDelete.owner_email}` : ""},
+                    staff and customers). This <strong>cannot be undone</strong>
+                    .
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <label className="text-sm font-medium text-gray-700">
+                  Type{" "}
+                  <span className="font-mono font-semibold text-gray-900">
+                    {toDelete.slug}
+                  </span>{" "}
+                  to confirm
+                </label>
+                <input
+                  autoFocus
+                  className="mt-2 h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-red-400 focus:ring-4 focus:ring-red-50"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder={toDelete.slug}
+                  disabled={deleting}
+                />
+                {deleteError && (
+                  <p className="mt-2 text-sm text-red-600">{deleteError}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+              <button
+                className="px-4 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"
+                onClick={() => setToDelete(null)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded-md text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={deleting || confirmText.trim() !== toDelete.slug}
+                onClick={confirmDelete}
+              >
+                {deleting ? "Deleting…" : "Delete forever"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
