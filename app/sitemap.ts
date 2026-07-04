@@ -1,11 +1,12 @@
 import type { MetadataRoute } from "next";
-import { getStoreUrl } from "@/lib/site";
+import { PLATFORM_URL } from "@/lib/site";
+import { ROOT_DOMAIN } from "@/lib/store/host";
 import {
   getPublishedProducts,
   getPublishedBlogCards,
   getPublishedPageSlugs,
 } from "@/lib/storefront/queries";
-import { getCurrentStoreId } from "@/lib/store/resolve";
+import { getCurrentStoreOrNull } from "@/lib/store/resolve";
 
 // Regenerate hourly; the underlying product/blog reads are themselves cached
 // and invalidated on dashboard edits.
@@ -42,14 +43,32 @@ function imageEntry(
   return {};
 }
 
+// The platform apex (storemink.com) has no store catalog — its sitemap is its
+// own public marketing pages. Kept separate from the per-store sitemap so the
+// WholeSip fallback never leaks its products into storemink.com/sitemap.xml.
+const PLATFORM_PATHS: { path: string; priority: number; freq: ChangeFreq }[] = [
+  { path: "/", priority: 1, freq: "weekly" },
+  { path: "/signup", priority: 0.8, freq: "monthly" },
+];
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
-  // Per-host: this sitemap is for the store on the requesting domain.
-  const [siteUrl, storeId] = await Promise.all([
-    getStoreUrl(),
-    getCurrentStoreId(),
-  ]);
+  // Per-host: resolve the store on the requesting domain. No real store (the
+  // platform apex, or an unresolved host) → emit the platform's own sitemap
+  // instead of falling back to the WholeSip catalog.
+  const store = await getCurrentStoreOrNull();
+  if (!store) {
+    return PLATFORM_PATHS.map((p) => ({
+      url: `${PLATFORM_URL}${p.path === "/" ? "" : p.path}`,
+      lastModified: now,
+      changeFrequency: p.freq,
+      priority: p.priority,
+    }));
+  }
+
+  const siteUrl = `https://${store.custom_domain ?? `${store.slug}.${ROOT_DOMAIN}`}`;
+  const storeId = store.id;
 
   const staticEntries: MetadataRoute.Sitemap = STATIC_PATHS.map((p) => ({
     url: `${siteUrl}${p.path === "/" ? "" : p.path}`,

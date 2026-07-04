@@ -1,8 +1,17 @@
 import type { MetadataRoute } from "next";
-import { getStoreUrl } from "@/lib/site";
+import { PLATFORM_URL } from "@/lib/site";
+import { ROOT_DOMAIN } from "@/lib/store/host";
+import { getCurrentStoreOrNull } from "@/lib/store/resolve";
 
 export default async function robots(): Promise<MetadataRoute.Robots> {
-  const siteUrl = await getStoreUrl();
+  // Host-aware: a real store host advertises its own canonical origin; the
+  // platform apex (storemink.com) and any unresolved host must advertise the
+  // platform itself — NOT the WholeSip fallback that getStoreUrl() would return
+  // here (that pointed robots/sitemap at wholesip.com on storemink.com).
+  const store = await getCurrentStoreOrNull();
+  const siteUrl = store
+    ? `https://${store.custom_domain ?? `${store.slug}.${ROOT_DOMAIN}`}`
+    : PLATFORM_URL;
   return {
     rules: {
       userAgent: "*",
