@@ -13,33 +13,34 @@ export const revalidate = 3600;
 
 type ChangeFreq = MetadataRoute.Sitemap[number]["changeFrequency"];
 
-// Public, indexable content pages. Storefront routes live in the
-// (storefront)/ route groups — both are parenthesised, so they add no
-// URL segment (e.g. /shop, not /pages/shop). Auth-gated / utility routes —
-// cart, profile, order tracking, blog authoring, my-submissions — are
-// intentionally left out.
+// Only the routes that exist for EVERY store live in code (the interactive
+// route groups that were never migrated to store_pages). Everything else —
+// our-story, faqs, contact, gift-packs, … — is now per-store data in
+// store_pages and comes from getPublishedPageSlugs below, so this sitemap is
+// correct for any tenant, not just WholeSip. (Storefront routes live in the
+// parenthesised (storefront)/(pages) groups, which add no URL segment, e.g.
+// /shop not /pages/shop.) Auth-gated / utility routes — cart, profile, order
+// tracking, blog authoring, my-submissions — are intentionally omitted.
 const STATIC_PATHS: { path: string; priority: number; freq: ChangeFreq }[] = [
   { path: "/", priority: 1, freq: "daily" },
   { path: "/shop", priority: 0.9, freq: "daily" },
   { path: "/blogs", priority: 0.7, freq: "weekly" },
-  { path: "/gift-packs", priority: 0.7, freq: "weekly" },
-  { path: "/our-story", priority: 0.6, freq: "monthly" },
-  { path: "/ingredients", priority: 0.6, freq: "monthly" },
-  { path: "/process", priority: 0.5, freq: "monthly" },
-  { path: "/sustainability", priority: 0.5, freq: "monthly" },
-  { path: "/find-us", priority: 0.5, freq: "monthly" },
-  { path: "/wholesale", priority: 0.5, freq: "monthly" },
-  { path: "/contact", priority: 0.5, freq: "monthly" },
   { path: "/enquiries", priority: 0.4, freq: "monthly" },
-  { path: "/faqs", priority: 0.4, freq: "monthly" },
-  { path: "/careers", priority: 0.3, freq: "monthly" },
-  { path: "/shipping", priority: 0.3, freq: "yearly" },
-  { path: "/returns", priority: 0.3, freq: "yearly" },
-  { path: "/refund-policy", priority: 0.3, freq: "yearly" },
-  { path: "/privacy-policy", priority: 0.3, freq: "yearly" },
-  { path: "/terms", priority: 0.3, freq: "yearly" },
-  { path: "/cookie-policy", priority: 0.3, freq: "yearly" },
 ];
+
+// Image sitemaps need an absolute image URL. Uploaded media is already an
+// absolute Supabase Storage URL; theme-bundled imagery is a site-relative
+// /public path, so resolve that against the store origin. Anything else is
+// skipped.
+function imageEntry(
+  siteUrl: string,
+  url: string | null | undefined,
+): { images?: string[] } {
+  if (!url) return {};
+  if (/^https?:\/\//.test(url)) return { images: [url] };
+  if (url.startsWith("/")) return { images: [`${siteUrl}${url}`] };
+  return {};
+}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
@@ -66,17 +67,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     getPublishedPageSlugs(storeId).catch(() => []),
   ]);
 
-  const productEntries: MetadataRoute.Sitemap = (products as { slug: string }[])
+  const productEntries: MetadataRoute.Sitemap = (
+    products as { slug: string; image_url: string | null }[]
+  )
     .filter((p) => p.slug)
     .map((p) => ({
       url: `${siteUrl}/shop/${p.slug}`,
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.8,
+      ...imageEntry(siteUrl, p.image_url),
     }));
 
   const blogEntries: MetadataRoute.Sitemap = (
-    blogs as { slug: string; published_at: string | null }[]
+    blogs as {
+      slug: string;
+      published_at: string | null;
+      cover_image_url: string | null;
+    }[]
   )
     .filter((b) => b.slug)
     .map((b) => ({
@@ -84,6 +92,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: b.published_at ? new Date(b.published_at) : now,
       changeFrequency: "monthly",
       priority: 0.6,
+      ...imageEntry(siteUrl, b.cover_image_url),
     }));
 
   const pageEntries: MetadataRoute.Sitemap = customPages

@@ -238,13 +238,20 @@ export const getPublishedPageSlugs = unstable_cache(
     const supabase = createPublicClient();
     const { data, error } = await supabase
       .from("store_pages")
-      .select("slug, updated_at")
+      .select("slug, updated_at, seo_noindex")
       .eq("store_id", storeId)
       .eq("status", "published");
     if (error) return [];
     // The homepage sentinel (slug '') is served by `/`, not as a custom page.
-    const rows = (data ?? []) as { slug: string; updated_at: string }[];
-    return rows.filter((r) => !!r.slug);
+    // Pages the merchant flagged noindex must not appear in the sitemap either —
+    // a sitemap that advertises URLs it also asks crawlers to skip is a bad
+    // signal.
+    const rows = (data ?? []) as {
+      slug: string;
+      updated_at: string;
+      seo_noindex: boolean;
+    }[];
+    return rows.filter((r) => !!r.slug && !r.seo_noindex);
   },
   ["storefront-store-page-slugs"],
   { tags: [TAGS.pages], revalidate: REVALIDATE },
