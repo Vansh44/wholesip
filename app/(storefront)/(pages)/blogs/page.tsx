@@ -17,6 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
     // Layout templates as "%s | {brand}", so just "Blog".
     title: "Blog",
     description,
+    alternates: { canonical: "/blogs" },
     openGraph: {
       title: `Blog | ${brand.name}`,
       description,

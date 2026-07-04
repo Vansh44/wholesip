@@ -109,7 +109,9 @@ wholesip/
 │   │       │                  # preview-bridge (§11)
 │   │       ├── brand-provider.tsx   # Injects per-store branding CSS vars
 │   │       ├── menu-provider.tsx    # Supplies per-store header/footer nav (store_menus)
-│   │       ├── shop-card.tsx / share-buttons.tsx / structured-data.tsx
+│   │       ├── shop-card.tsx / share-buttons.tsx
+│   │       ├── structured-data.tsx  # homepage Organization + WebSite JSON-LD
+│   │       ├── json-ld.tsx          # generic <JsonLd> renderer (builders: lib/seo)
 │   │       ├── quick-add-button.tsx # "+ Add" on product cards (theme layout.card
 │   │       │                        # = "quick_add"; hidden by CSS otherwise)
 │   │
@@ -194,6 +196,9 @@ wholesip/
 │   │                          # shared by homepage / [pageSlug] / preview). Tested (drift test).
 │   ├── pages/                 # ★ preview.ts — uncached, cookie-authenticated draft loader
 │   │                          # for the builder preview (getManagerUserId("builder") gate)
+│   ├── seo/                   # ★ schema.ts — pure JSON-LD builders (productSchema/
+│   │                          # articleSchema/breadcrumbSchema), tested. Rendered via the
+│   │                          # (storefront) <JsonLd> component on product/blog pages.
 │   ├── email/                 # sender, layout, campaign-worker, coupon-campaign,
 │   │                          # trigger-worker, blog/enquiry notifications
 │   ├── homepage/section-types.ts  # Section schema (typed, tested) — shared by homepage AND

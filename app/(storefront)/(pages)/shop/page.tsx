@@ -11,12 +11,23 @@ import "./shop.css";
 
 // Per-store metadata — the layout templates the title as "%s | {brand}", so
 // this returns just "Shop" and a brand-aware description (never WholeSip).
-export async function generateMetadata(): Promise<Metadata> {
-  const brand = await getStoreBrand();
+//
+// ?category= and ?q= are client-side facets over the same catalog, not
+// distinct pages, so every variant canonicalises to /shop to consolidate link
+// equity. Internal search-result pages (?q=) are additionally noindex'd —
+// Google discourages indexing site-search results.
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string; q?: string }>;
+}): Promise<Metadata> {
+  const [brand, { q }] = await Promise.all([getStoreBrand(), searchParams]);
   const description = `Browse the full ${brand.name} range.`;
   return {
     title: "Shop",
     description,
+    alternates: { canonical: "/shop" },
+    robots: q ? { index: false, follow: true } : undefined,
     openGraph: {
       title: `Shop | ${brand.name}`,
       description,
