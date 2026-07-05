@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Sora, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { getStoreBrand } from "@/lib/store/brand";
@@ -48,32 +49,32 @@ export default async function DashboardLayout({
     redirect("/auth/login");
   }
 
-  const { userId, userEmail, profile, isSuperadmin, permissions } = ctx;
+  const { userEmail, profile, isSuperadmin, permissions } = ctx;
 
   if (!profile) {
+    // Authenticated, but this account is not staff of THIS store (and not a
+    // platform operator). In the multi-tenant model that's simply "no access"
+    // — never expose SQL / a self-provision path, which would be a privilege
+    // escalation hint.
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f6f7f9] px-4 text-[#111827]">
-        <div className="max-w-lg space-y-4 rounded-2xl border border-[rgba(17,24,39,0.08)] bg-white p-8 shadow-[0_12px_32px_-8px_rgba(16,24,40,0.16)]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-lg font-bold text-amber-600">
-              ⚠️
-            </div>
-            <div>
-              <h1 className="text-lg font-bold">Profile Not Found</h1>
-              <p className="text-sm text-[#5b6472]">
-                Your auth account exists but has no profile row.
-              </p>
-            </div>
+        <div className="max-w-md space-y-4 rounded-2xl border border-[rgba(17,24,39,0.08)] bg-white p-8 text-center shadow-[0_12px_32px_-8px_rgba(16,24,40,0.16)]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15 text-2xl">
+            🔒
           </div>
+          <h1 className="text-lg font-bold">No access to this dashboard</h1>
           <p className="text-sm text-[#5b6472]">
-            Run the following SQL in your Supabase SQL Editor:
+            You&apos;re signed in as{" "}
+            <span className="font-medium text-[#111827]">{userEmail}</span>, but
+            this account isn&apos;t a staff member of this store. If this is
+            your store, sign in with the account you used to create it.
           </p>
-          <pre className="overflow-auto rounded-lg border border-[rgba(17,24,39,0.08)] bg-[#f3f4f6] p-3 text-xs text-[#111827]">
-            {`INSERT INTO profiles (id, email, role, force_password_reset)\nVALUES ('${userId}', '${userEmail}', 'superadmin', false);`}
-          </pre>
-          <p className="text-xs text-[#8b93a3]">
-            After inserting, refresh this page.
-          </p>
+          <Link
+            href="/auth/login"
+            className="inline-block rounded-lg bg-[#111827] px-5 py-2.5 text-sm font-semibold text-white"
+          >
+            Switch account
+          </Link>
         </div>
       </div>
     );

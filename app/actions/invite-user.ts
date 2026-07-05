@@ -78,10 +78,12 @@ export async function inviteUser(formData: FormData) {
   // blocks duplicate auth emails, but an auth account created without an email
   // (e.g. phone sign-up) can still collide at the profile layer.
   const normalizedEmail = email.trim().toLowerCase();
+  // Exact match on the already-lowercased email (not `.ilike()`, whose `_`/`%`
+  // wildcards would let a crafted invite address collide with an unrelated admin).
   const { data: existingProfile } = await adminClient
     .from("admins")
     .select("id")
-    .ilike("email", normalizedEmail)
+    .eq("email", normalizedEmail)
     .maybeSingle();
 
   if (existingProfile) {

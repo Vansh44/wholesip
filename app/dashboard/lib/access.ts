@@ -39,10 +39,15 @@ const getPlatformRole = cache(
       data: { user },
     } = await supabase.auth.getUser();
     if (!user?.email) return null;
+    // Exact (case-normalised) match — NEVER `.ilike()` on the user's own email:
+    // that treats `_`/`%` in a registered address as SQL wildcards, so an email
+    // like `admin0_@x.com` could match a real operator and escalate to platform
+    // god access. Operator emails are always stored lowercased (invitePlatformAdmin
+    // + seed), mirroring the DB's `lower(email)` RLS helpers.
     const { data } = await supabase
       .from("platform_admins")
       .select("role")
-      .ilike("email", user.email)
+      .eq("email", user.email.toLowerCase())
       .maybeSingle();
     return (data?.role as "superadmin" | "member" | undefined) ?? null;
   },

@@ -60,8 +60,21 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Only allow proxying Supabase storage images (safety guard)
-  if (!url.includes("supabase.co/storage/")) {
+  // Only allow proxying Supabase Storage images. Parse and validate STRUCTURALLY
+  // — a substring test (`url.includes("supabase.co/storage/")`) is trivially
+  // bypassable with a URL like `http://169.254.169.254/?x=supabase.co/storage/`,
+  // turning this fetch() into an SSRF vector against internal/metadata hosts.
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    !parsed.hostname.endsWith(".supabase.co") ||
+    !parsed.pathname.startsWith("/storage/")
+  ) {
     return NextResponse.json(
       { error: "Only Supabase storage URLs are allowed" },
       { status: 403 },

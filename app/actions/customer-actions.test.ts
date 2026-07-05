@@ -6,6 +6,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
 
 import { updateCustomer, deleteCustomer } from "./customer-actions";
@@ -29,7 +30,9 @@ describe("customer-actions", () => {
     vi.clearAllMocks();
     admin = makeSupabase({
       users: makeChain(
-        { data: null, error: null },
+        // Store-scoped ownership pre-check (maybeSingle): the customer belongs
+        // to the acting store, so mutations/deletes are allowed to proceed.
+        { data: { id: "cust-1" }, error: null },
         { data: null, error: null },
       ),
     });
@@ -120,6 +123,19 @@ describe("customer-actions", () => {
       expect(result.error).toMatch(/permission/i);
     });
 
+    // Cross-store isolation: a customer that isn't in the acting store must not
+    // be deletable by id. The service role bypasses RLS, so the app-layer
+    // ownership check is the only thing preventing a cross-tenant account delete.
+    it("refuses to delete a customer from another store", async () => {
+      admin._tables.users = makeChain(
+        { data: null, error: null }, // ownership pre-check finds no in-store row
+        { data: null, error: null },
+      );
+      const result = await deleteCustomer("other-store-cust");
+      expect(result.error).toMatch(/not found/i);
+      expect(admin.auth.admin.deleteUser).not.toHaveBeenCalled();
+    });
+
     // Happy path — deleting the auth user cascades to the customer row.
     it("deletes the auth user and revalidates", async () => {
       const result = await deleteCustomer("cust-1");
@@ -158,7 +174,7 @@ describe("customer-actions", () => {
         .fn()
         .mockResolvedValue({ error: { message: "not found" } });
       admin._tables.users = makeChain(
-        { data: null, error: null },
+        { data: { id: "cust-1" }, error: null },
         { data: null, error: { message: "still here" } },
       );
       const result = await deleteCustomer("cust-1");

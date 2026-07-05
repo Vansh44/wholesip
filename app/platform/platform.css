@@ -231,6 +231,34 @@
   border-color: var(--stq-brand);
   box-shadow: 0 0 0 3px #eceaff;
 }
+/* react-phone-number-input on the signup phone step, styled to match .stq-input.
+   The country selector and the number field are two boxed controls in a row. */
+.stq-phone {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.stq-phone .PhoneInputCountry {
+  margin: 0;
+  padding: 0 6px;
+  border: 1px solid var(--stq-line);
+  border-radius: 10px;
+  background: #fff;
+}
+.stq-phone .PhoneInputInput {
+  flex: 1;
+  padding: 11px 13px;
+  border: 1px solid var(--stq-line);
+  border-radius: 10px;
+  font-size: 15px;
+  outline: none;
+  background: #fff;
+}
+.stq-phone .PhoneInputInput:focus {
+  border-color: var(--stq-brand);
+  box-shadow: 0 0 0 3px #eceaff;
+}
 .stq-suffix {
   display: inline-flex;
   align-items: center;
