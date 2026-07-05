@@ -115,30 +115,7 @@
   color: var(--wholesip-ink-soft);
 }
 
-/* ---- Featured products grid (reuses .shop-card from shop.css) ---- */
-.home-product-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 22px;
-}
-
-@media (max-width: 1100px) {
-  .home-product-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-@media (max-width: 760px) {
-  .home-product-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 460px) {
-  .home-product-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ---- Featured Products Carousel ---- */
+/* ---- Featured Products Carousel (reuses .shop-card from shop.css) ---- */
 .home-product-carousel {
   position: relative;
 }
@@ -222,11 +199,10 @@
 }
 
 /* Card look — mirrors the `.shop-listing .shop-card*` tile styling so homepage
-   featured cards match the shop grid (soft colour tile via --card-bg, capped
-   image height instead of the generic 2/3 aspect, ink typography). The base
+   featured cards match the shop grid (soft colour tile via --card-bg, square
+   image tile instead of the generic 2/3 aspect, ink typography). The base
    .shop-card rules in shop.css are otherwise scoped under .shop-listing and
    wouldn't reach the homepage. */
-.home-product-grid .shop-card,
 .home-product-carousel .shop-card {
   background: var(--card-bg, var(--wholesip-tile, #f4dfe0));
   border: none;
@@ -235,13 +211,11 @@
   box-shadow: 0 1px 2px rgba(var(--wholesip-shadow-rgb), 0.04);
 }
 
-.home-product-grid .shop-card:hover,
 .home-product-carousel .shop-card:hover {
   transform: translateY(-6px);
   box-shadow: 0 22px 44px rgba(var(--wholesip-shadow-rgb), 0.14);
 }
 
-.home-product-grid .shop-card-img,
 .home-product-carousel .shop-card-img {
   aspect-ratio: 1 / 1;
   height: auto;
@@ -249,18 +223,15 @@
   border-radius: 14px;
 }
 
-.home-product-grid .shop-card-img-el,
 .home-product-carousel .shop-card-img-el {
   padding: 10px;
   transition: transform 0.3s ease;
 }
 
-.home-product-grid .shop-card:hover .shop-card-img-el,
 .home-product-carousel .shop-card:hover .shop-card-img-el {
   transform: scale(1.05);
 }
 
-.home-product-grid .shop-card-badge,
 .home-product-carousel .shop-card-badge {
   left: auto;
   right: 14px;
@@ -273,12 +244,10 @@
   letter-spacing: 0;
 }
 
-.home-product-grid .shop-card-body,
 .home-product-carousel .shop-card-body {
   padding: 6px 12px 14px;
 }
 
-.home-product-grid .shop-card-name,
 .home-product-carousel .shop-card-name {
   font-family: var(--font-outfit), sans-serif;
   font-weight: 700;
@@ -286,21 +255,16 @@
   color: var(--wholesip-ink);
 }
 
-.home-product-grid .shop-card-price,
 .home-product-carousel .shop-card-price,
-.home-product-grid .shop-card-sell,
 .home-product-carousel .shop-card-sell,
-.home-product-grid .shop-card-from,
 .home-product-carousel .shop-card-from {
   color: var(--wholesip-ink);
 }
 
-.home-product-grid .shop-card-base,
 .home-product-carousel .shop-card-base {
   color: var(--wholesip-ink-faint);
 }
 
-.home-product-grid .shop-card-off,
 .home-product-carousel .shop-card-off {
   color: var(--wholesip-ink);
   background: rgba(255, 255, 255, 0.55);

@@ -68,13 +68,21 @@ export function ShopByCategorySection({
           )}
         </div>
       )}
-      <HorizontalCarousel
-        carouselClass="home-cat-carousel"
-        scrollClass={`home-cat-scroll${config.display === "cards" ? " is-cards" : ""}`}
-        arrowClass="home-cat-arrow"
-      >
-        {content}
-      </HorizontalCarousel>
+      {config.layout === "grid" ? (
+        <div
+          className={`home-cat-grid${config.display === "cards" ? " is-cards" : ""}`}
+        >
+          {content}
+        </div>
+      ) : (
+        <HorizontalCarousel
+          carouselClass="home-cat-carousel"
+          scrollClass={`home-cat-scroll${config.display === "cards" ? " is-cards" : ""}`}
+          arrowClass="home-cat-arrow"
+        >
+          {content}
+        </HorizontalCarousel>
+      )}
     </SectionShell>
   );
 }

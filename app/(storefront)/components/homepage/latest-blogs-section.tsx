@@ -107,7 +107,11 @@ export function LatestBlogsSection({
           )}
         </div>
       )}
-      <BlogCarousel>{cards}</BlogCarousel>
+      {config.layout === "grid" ? (
+        <div className="home-blog-grid">{cards}</div>
+      ) : (
+        <BlogCarousel>{cards}</BlogCarousel>
+      )}
     </SectionShell>
   );
 }

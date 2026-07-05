@@ -64,7 +64,7 @@ export interface ShopByCategoryConfig {
   /** "all" active categories, or only the "selected" ids (in admin order). */
   source: CategorySource;
   category_ids: string[];
-  /** Wrapped grid vs horizontal scroll row. */
+  /** Horizontal scroll carousel (the default) vs wrapped grid. */
   layout: "grid" | "scroll";
   /** Tile shape: circular image chips (the historical look — absent on
    *  pre-existing rows = "circles") or rounded-rect image cards. */
@@ -200,7 +200,7 @@ export interface LatestBlogsConfig {
   blog_ids: string[];
   /** Max blogs to show (latest mode). 1–12. Manual mode shows all picked. */
   limit: number;
-  /** Wrapped grid vs horizontal scroll row. */
+  /** Horizontal scroll carousel (the default) vs wrapped grid. */
   layout: "grid" | "scroll";
 }
 
@@ -308,7 +308,7 @@ export const EMPTY_CONFIG: {
     subheading: "",
     source: "all",
     category_ids: [],
-    layout: "grid",
+    layout: "scroll",
     display: "circles",
   },
   promo_banner: {
@@ -347,7 +347,7 @@ export const EMPTY_CONFIG: {
     source: "latest",
     blog_ids: [],
     limit: 3,
-    layout: "grid",
+    layout: "scroll",
   },
   rich_text: {
     html: "",
@@ -718,7 +718,7 @@ export function validateConfig(
       subheading: str(input.subheading),
       source,
       category_ids: source === "selected" ? strArray(input.category_ids) : [],
-      layout: input.layout === "scroll" ? "scroll" : "grid",
+      layout: input.layout === "grid" ? "grid" : "scroll",
       display: input.display === "cards" ? "cards" : "circles",
     };
     return { config };
@@ -742,7 +742,7 @@ export function validateConfig(
       source,
       blog_ids: source === "manual" ? strArray(input.blog_ids) : [],
       limit: clampLimit(Number(input.limit)),
-      layout: input.layout === "scroll" ? "scroll" : "grid",
+      layout: input.layout === "grid" ? "grid" : "scroll",
     };
     return { config };
   }

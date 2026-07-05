@@ -306,7 +306,7 @@ describe("validateConfig", () => {
 
   // --- shop_by_category ----------------------------------------------------
   describe("shop_by_category", () => {
-    it("defaults source to 'all' and layout to 'grid'", () => {
+    it("defaults source to 'all' and layout to 'scroll'", () => {
       const out = validateConfig("shop_by_category", {
         heading: "  Categories  ",
         category_ids: ["dropped"], // irrelevant for source=all
@@ -317,7 +317,7 @@ describe("validateConfig", () => {
         subheading: "",
         source: "all",
         category_ids: [],
-        layout: "grid",
+        layout: "scroll",
         display: "circles",
       });
     });
@@ -340,13 +340,13 @@ describe("validateConfig", () => {
       expect(config.category_ids).toEqual(["c1", "c2"]);
     });
 
-    it("honours layout='scroll'", () => {
+    it("honours an explicit layout='grid'", () => {
       const out = validateConfig("shop_by_category", {
         source: "all",
-        layout: "scroll",
+        layout: "grid",
       });
       const config = (out as { config: ShopByCategoryConfig }).config;
-      expect(config.layout).toBe("scroll");
+      expect(config.layout).toBe("grid");
     });
   });
 
@@ -365,7 +365,7 @@ describe("validateConfig", () => {
         source: "latest",
         blog_ids: [],
         limit: 5,
-        layout: "grid",
+        layout: "scroll",
       });
     });
 
@@ -396,22 +396,22 @@ describe("validateConfig", () => {
       expect(config.limit).toBe(LIMIT_MIN);
     });
 
-    it("defaults layout to 'grid' and honours layout='scroll'", () => {
-      const grid = (
+    it("defaults layout to 'scroll' and honours layout='grid'", () => {
+      const scroll = (
         validateConfig("latest_blogs", { source: "latest" }) as {
           config: LatestBlogsConfig;
         }
       ).config;
-      expect(grid.layout).toBe("grid");
+      expect(scroll.layout).toBe("scroll");
 
-      const scroll = (
+      const grid = (
         validateConfig("latest_blogs", {
           source: "manual",
           blog_ids: ["b1"],
-          layout: "scroll",
+          layout: "grid",
         }) as { config: LatestBlogsConfig }
       ).config;
-      expect(scroll.layout).toBe("scroll");
+      expect(grid.layout).toBe("grid");
     });
 
     it("keeps source=featured and needs no blog_ids", () => {

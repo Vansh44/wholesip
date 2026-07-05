@@ -15,13 +15,11 @@ export function HorizontalCarousel({
   carouselClass = "home-carousel",
   scrollClass = "home-carousel-scroll",
   arrowClass = "home-carousel-arrow",
-  scrollStyle,
 }: {
   children: ReactNode;
   carouselClass?: string;
   scrollClass?: string;
   arrowClass?: string;
-  scrollStyle?: React.CSSProperties;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [canPrev, setCanPrev] = useState(false);
@@ -92,6 +90,12 @@ export function HorizontalCarousel({
     drag.current.active = false;
     setDragging(false);
     trackRef.current?.releasePointerCapture?.(e.pointerId);
+    // The browser fires the (possibly drag-suppressed) click right after
+    // pointerup; clear the flag once it has had its chance so a drag that
+    // ends without a click can't swallow the next genuine tap.
+    setTimeout(() => {
+      drag.current.moved = false;
+    }, 0);
   };
 
   const onClickCapture = (e: React.MouseEvent) => {
@@ -117,7 +121,6 @@ export function HorizontalCarousel({
       <div
         ref={trackRef}
         className={`${scrollClass}${dragging ? " is-dragging" : ""}`}
-        style={scrollStyle}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}

@@ -9,6 +9,7 @@ import {
   FileText,
   Loader2,
   Monitor,
+  Settings,
   Smartphone,
   Tablet,
 } from "lucide-react";
@@ -215,12 +216,15 @@ export function BuilderClient({
     [setDraftSynced],
   );
 
+  // Open the homepage by default so the builder never starts on an empty
+  // canvas (the sentinel slug "" is pinned first, but match by slug so a
+  // future ordering change can't silently open the wrong page).
   const hasAutoSelected = useRef(false);
   useEffect(() => {
-    if (!hasAutoSelected.current && initialPages.length > 0) {
-      hasAutoSelected.current = true;
-      loadDraft(initialPages[0].id);
-    }
+    if (hasAutoSelected.current || initialPages.length === 0) return;
+    hasAutoSelected.current = true;
+    const home = initialPages.find((p) => p.slug === "") ?? initialPages[0];
+    loadDraft(home.id);
   }, [initialPages, loadDraft]);
 
   // --- Local section mutations (autosaved) ---
@@ -481,6 +485,13 @@ export function BuilderClient({
               title="Open live page"
             >
               <ExternalLink className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/dashboard/builder/settings"
+              className="sm-builder-iconbtn"
+              title="Website settings"
+            >
+              <Settings className="h-4 w-4" />
             </Link>
             {draft.status === "published" ? (
               <Button

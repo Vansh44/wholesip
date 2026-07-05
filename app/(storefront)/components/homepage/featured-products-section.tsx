@@ -38,7 +38,6 @@ export function FeaturedProductsSection({
         carouselClass="home-product-carousel"
         scrollClass="home-product-scroll"
         arrowClass="home-product-arrow"
-        scrollStyle={{ alignItems: "flex-start" }}
       >
         {products.map((p) => (
           <ShopCard key={p.id} product={p} />

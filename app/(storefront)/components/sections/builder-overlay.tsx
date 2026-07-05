@@ -236,7 +236,7 @@ function labelFor(el: HTMLElement): string {
   if (el.classList.contains("home-custom-code")) return "Custom Code";
   if (el.classList.contains("home-rich-text")) return "Rich Text";
   if (el.querySelector(".home-banner")) return "Promo Banner";
-  if (el.querySelector(".home-product-grid")) return "Featured Products";
+  if (el.querySelector(".home-product-carousel")) return "Featured Products";
   if (el.querySelector(".home-cat-grid, .home-cat-scroll"))
     return "Shop by Category";
   if (el.querySelector(".home-blog-grid, .home-blog-carousel"))

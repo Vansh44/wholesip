@@ -29,6 +29,10 @@ const routeMeta: Record<string, { title: string; breadcrumb: string }> = {
     title: "Blog Settings",
     breadcrumb: "Content / Blogs / Settings",
   },
+  "/dashboard/builder/settings": {
+    title: "Website Settings",
+    breadcrumb: "Content / Website / Settings",
+  },
   "/dashboard/marketing": {
     title: "Marketing",
     breadcrumb: "Content / Marketing",

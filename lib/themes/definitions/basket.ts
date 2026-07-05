@@ -99,7 +99,7 @@ export const basket: ThemeDefinition = {
             subheading: "",
             source: "all",
             category_ids: [],
-            layout: "grid",
+            layout: "scroll",
             display: "circles",
           },
         },

@@ -119,7 +119,8 @@ wholesip/
 │   │   ├── layout.tsx         # Sidebar + topbar shell (dashboard.css)
 │   │   ├── page.tsx           # Overview: metrics, revenue chart, activity, inventory…
 │   │   ├── components/        # Dashboard widgets (executive-metrics, revenue-chart,
-│   │   │                      # recent-orders-table, activity-feed, bulk-actions…)
+│   │   │                      # recent-orders-table, activity-feed, bulk-actions…) +
+│   │   │                      # feature-toggles (shared settings-group card, convention #9)
 │   │   ├── lib/               # access.ts, permissions.ts (role → allowed nav/actions),
 │   │   │                      # list-params.ts, use-row-selection.ts
 │   │   ├── products/          # CRUD + @modal intercepted route for quick edit
@@ -132,6 +133,8 @@ wholesip/
 │   │   │                      # per-section editing. builder-client,
 │   │   │                      # pages-panel, sections-panel, section-form (shared editor forms),
 │   │   │                      # code-editor(+-lazy) (CodeMirror), builder.css
+│   │   │   └── settings/      # Website settings ("Website" registry group, e.g.
+│   │   │                      # pages.customCode) — linked from the builder top bar
 │   │   ├── marketing/coupons/ # coupon CRUD + coupon email campaigns
 │   │   ├── enquiries/         # enquiry inbox + @modal detail
 │   │   ├── users/             # customers + user_groups/ (segments)  [superadmin only]
@@ -291,7 +294,10 @@ wholesip/
    (e.g. customers may only insert `pending_review` blogs), do the privileged
    step with the service-role client AFTER checking the setting — see
    direct-publish in `blog-actions.ts`. First consumers:
-   `blogs.customerSubmissions`, `blogs.requireApproval`.
+   `blogs.customerSubmissions`, `blogs.requireApproval` (rendered at
+   `/dashboard/blogs/settings`) and `pages.customCode` (rendered at
+   `/dashboard/builder/settings`); both pages share the
+   `dashboard/components/feature-toggles.tsx` card.
    **⚠ `stores.settings` (which holds `features`) is ANON-READABLE** — the
    "Read stores" RLS policy (`multitenant_03_rls.sql`) grants `SELECT` on every
    active store to `anon`, and the storefront reads it with the public client.
@@ -346,7 +352,8 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     counterpart: sanitized at save AND render via `lib/sanitize.ts` (blog trust
     model). Custom-code availability is gated by the `pages.customCode` setting
     (registry, section `builder`), enforced **server-side** in `page-actions.ts`
-    (all sections — homepage + custom pages — now save through it). - **Builder v2 UI** at `/dashboard/builder` (permission section `builder`,
+    (all sections — homepage + custom pages — now save through it); admins
+    toggle it at `/dashboard/builder/settings`. - **Builder v2 UI** at `/dashboard/builder` (permission section `builder`,
     group Content; sidebar link opens a new tab; `fixed inset-0` overlay at
     `z-index:40`, below the shared `z-50` dialog layer). Unizap-style canvas
     editing: LEFT `outline-panel.tsx` (page-switcher dropdown, Header/Footer
