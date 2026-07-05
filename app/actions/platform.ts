@@ -20,10 +20,12 @@ export async function getPlatformViewer(): Promise<PlatformViewer | null> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user?.email) return null;
+  // Exact (case-normalised) match, not `.ilike()` — see access.ts getPlatformRole:
+  // a user-controlled email used as a LIKE pattern is a privilege-escalation vector.
   const { data } = await supabase
     .from("platform_admins")
     .select("email, role")
-    .ilike("email", user.email)
+    .eq("email", user.email.toLowerCase())
     .maybeSingle();
   if (!data) return null;
   return {

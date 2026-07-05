@@ -292,6 +292,13 @@ wholesip/
    step with the service-role client AFTER checking the setting — see
    direct-publish in `blog-actions.ts`. First consumers:
    `blogs.customerSubmissions`, `blogs.requireApproval`.
+   **⚠ `stores.settings` (which holds `features`) is ANON-READABLE** — the
+   "Read stores" RLS policy (`multitenant_03_rls.sql`) grants `SELECT` on every
+   active store to `anon`, and the storefront reads it with the public client.
+   So NEVER put a secret (API key, token, webhook secret) in `stores.settings`;
+   it would be world-readable via PostgREST. Secrets belong in env, or in a
+   separate column/table that is NOT granted to `anon` (mirror the `store_pages`
+   draft-column pattern: revoke anon, grant only named non-sensitive columns).
 10. **Blog categories & tags are per-store data**, not code: `blog_categories` /
     `blog_tags` tables (`supabase/blog_taxonomy.sql`), managed in
     `/dashboard/blogs/settings` via `blog-taxonomy-actions.ts`. Blogs store
@@ -469,6 +476,14 @@ npm run format      # prettier --write
 
 - **Supabase**: Postgres + Auth + Storage (`media` bucket). Env in `.env`
   (never commit secrets). Supabase MCP server available for SQL/migrations.
+  **Auth-hardening (dashboard config — enforce in the Supabase console, not code):**
+  (1) enable **CAPTCHA** (hCaptcha/Turnstile) on Auth so signup/OTP endpoints
+  (`signUp`, `signInWithOtp`, `updateUser({phone})` — merchant + customer) can't
+  be scripted for SMS-pumping / OTP-flooding; (2) turn on **leaked-password
+  protection** (HaveIBeenPwned); (3) keep **SMS/email OTP rate limits** tight.
+  These auth sends happen client-side against Supabase, so the app's Postgres
+  `rateLimit()` can't cover them — the console controls are the real boundary.
+  App-side password floor is 8 chars (`app/platform/signup/page.tsx`).
 - **Vercel**: hosting + cron. Wildcard domain `*.storemink.com` → store subdomains.
 - **Resend**: transactional email + custom-domain DNS verification.
 - **Gemini**: AI copy generation.

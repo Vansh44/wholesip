@@ -145,13 +145,17 @@ export async function updateRole(
   const invalid = validate(form);
   if (invalid) return { error: invalid };
 
+  // Scope every query by store_id — the service role bypasses RLS, so an id
+  // alone would let a store's roles manager edit another store's roles.
   const admin = createAdminClient();
+  const storeId = await getActingStoreId();
 
   const { data: existing } = await admin
     .from("roles")
     .select("slug, is_system")
     .eq("id", id)
-    .single();
+    .eq("store_id", storeId)
+    .maybeSingle();
 
   if (!existing) return { error: "Role not found." };
 
@@ -166,7 +170,8 @@ export async function updateRole(
         description: form.description.trim() || null,
         color: form.color,
       })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("store_id", storeId);
     if (error) return { error: error.message };
     revalidatePath("/dashboard/roles");
     return { success: true };
@@ -180,7 +185,8 @@ export async function updateRole(
       color: form.color,
       permissions: normalizePermissions(form.permissions),
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("store_id", storeId);
 
   if (error) {
     if (error.code === UNIQUE_VIOLATION) {
@@ -205,23 +211,27 @@ export async function deleteRole(id: string): Promise<RoleActionResult> {
     return { error: "You do not have permission to manage roles." };
 
   const admin = createAdminClient();
+  const storeId = await getActingStoreId();
 
   const { data: role } = await admin
     .from("roles")
     .select("slug, is_system")
     .eq("id", id)
-    .single();
+    .eq("store_id", storeId)
+    .maybeSingle();
 
   if (!role) return { error: "Role not found." };
   if (role.is_system) {
     return { error: "System roles cannot be deleted." };
   }
 
-  // Block deletion while admins still hold this role — they'd be left with
-  // no permissions. Surface the count so the user knows to reassign first.
+  // Block deletion while admins OF THIS STORE still hold this role — they'd be
+  // left with no permissions. Surface the count so the user reassigns first.
+  // (Role slugs are per-store, so the count MUST be store-scoped.)
   const { count } = await admin
     .from("admins")
     .select("id", { count: "exact", head: true })
+    .eq("store_id", storeId)
     .eq("role", role.slug);
 
   if ((count ?? 0) > 0) {
@@ -230,7 +240,11 @@ export async function deleteRole(id: string): Promise<RoleActionResult> {
     };
   }
 
-  const { error } = await admin.from("roles").delete().eq("id", id);
+  const { error } = await admin
+    .from("roles")
+    .delete()
+    .eq("id", id)
+    .eq("store_id", storeId);
   if (error) {
     console.error("deleteRole error:", error);
     return { error: error.message };

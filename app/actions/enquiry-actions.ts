@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { getCurrentStoreId } from "@/lib/store/resolve";
 import { getStoreBrand } from "@/lib/store/brand";
 import { sendEnquiryAcknowledgementEmail } from "@/lib/email/enquiry-notifications";
@@ -128,11 +128,14 @@ export async function updateEnquiryStatus(
     return { error: "Invalid status." };
   }
 
+  // Scope by store_id — service role bypasses RLS, so an id alone would let a
+  // store admin mutate another store's enquiry.
   const admin = createAdminClient();
   const { error } = await admin
     .from("enquiries")
     .update({ status })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("store_id", await getActingStoreId());
 
   if (error) {
     console.error("Failed to update enquiry status:", error);
@@ -151,7 +154,11 @@ export async function deleteEnquiry(id: string): Promise<ActionResult> {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.from("enquiries").delete().eq("id", id);
+  const { error } = await admin
+    .from("enquiries")
+    .delete()
+    .eq("id", id)
+    .eq("store_id", await getActingStoreId());
 
   if (error) {
     console.error("Failed to delete enquiry:", error);

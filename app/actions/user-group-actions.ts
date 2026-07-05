@@ -83,6 +83,8 @@ export async function updateUserGroup(
   const name = form.name.trim();
   if (!name) return { error: "Group name is required." };
 
+  // Scope by store_id (service role bypasses RLS) so a group can only be edited
+  // by an admin of the store that owns it.
   const admin = createAdminClient();
   const { error } = await admin
     .from("user_groups")
@@ -91,7 +93,8 @@ export async function updateUserGroup(
       description: form.description.trim() || null,
       color: form.color || "blue",
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("store_id", await getActingStoreId());
 
   if (error) {
     if (error.code === UNIQUE_VIOLATION)
@@ -113,7 +116,11 @@ export async function deleteUserGroup(id: string): Promise<ActionResult> {
   if (!userId) return { error: "Not authenticated" };
 
   const admin = createAdminClient();
-  const { error } = await admin.from("user_groups").delete().eq("id", id);
+  const { error } = await admin
+    .from("user_groups")
+    .delete()
+    .eq("id", id)
+    .eq("store_id", await getActingStoreId());
 
   if (error) {
     console.error("deleteUserGroup error:", error);
@@ -139,10 +146,21 @@ export async function setGroupMembers(
 
   const admin = createAdminClient();
 
+  // Verify the group belongs to this store before rewriting its membership —
+  // otherwise a store admin could target another store's group by id.
+  const { data: group } = await admin
+    .from("user_groups")
+    .select("id")
+    .eq("id", groupId)
+    .eq("store_id", storeId)
+    .maybeSingle();
+  if (!group) return { error: "Group not found." };
+
   const { error: delError } = await admin
     .from("user_group_members")
     .delete()
-    .eq("group_id", groupId);
+    .eq("group_id", groupId)
+    .eq("store_id", storeId);
 
   if (delError) {
     console.error("setGroupMembers (clear) error:", delError);

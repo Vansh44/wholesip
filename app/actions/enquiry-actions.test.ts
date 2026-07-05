@@ -17,6 +17,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
 vi.mock("@/lib/store/brand", () => ({
   getStoreBrand: vi.fn(async () => ({

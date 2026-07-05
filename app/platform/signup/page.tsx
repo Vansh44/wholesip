@@ -136,8 +136,8 @@ export default function SignupPage() {
       setError("Enter a valid email address.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
     if (password !== repassword) {
@@ -559,7 +559,7 @@ export default function SignupPage() {
                     <input
                       type="password"
                       className="stq-input"
-                      placeholder="At least 6 characters"
+                      placeholder="At least 8 characters"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={emailSent}
@@ -592,7 +592,7 @@ export default function SignupPage() {
                       disabled={
                         busy ||
                         !email ||
-                        password.length < 6 ||
+                        password.length < 8 ||
                         password !== repassword
                       }
                       className="stq-btn stq-btn-primary h-11"
