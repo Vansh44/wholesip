@@ -23,6 +23,10 @@ import {
   DEFAULT_THEME_ID,
   type ThemeCategory,
 } from "@/lib/themes/meta";
+import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
+import "react-phone-number-input/style.css";
+import { customPhoneLabels } from "@/lib/phone-labels";
+import { CountrySelect } from "@/components/ui/phone-country-select";
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storemink.com";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,15 +38,6 @@ function demoUrl(demoSlug: string): string {
   return hostname.endsWith("localhost")
     ? `${protocol}//${demoSlug}.localhost${port ? ":" + port : ""}`
     : `https://${demoSlug}.${ROOT_DOMAIN}`;
-}
-
-function normalizePhone(p: string): string {
-  const raw = p.replace(/[^\d+]/g, "");
-  if (raw.startsWith("+")) return raw;
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10) return `+91${digits}`;
-  if (digits.startsWith("91")) return `+${digits}`;
-  return `+${digits}`;
 }
 
 function dashboardUrl(slug: string): string {
@@ -78,7 +73,7 @@ export default function SignupPage() {
   const [emailSent, setEmailSent] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
 
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState<string | undefined>("");
   const [phoneCode, setPhoneCode] = useState("");
   const [phoneSent, setPhoneSent] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
@@ -190,26 +185,26 @@ export default function SignupPage() {
   }
 
   async function handleSendPhoneOtp() {
-    const phoneDigits = phone.replace(/\D/g, "");
-    if (phoneDigits.length < 10) {
+    // isValidPhoneNumber (libphonenumber) validates per selected country, so we
+    // never spend an SMS on a malformed number. `phone` is already E.164.
+    if (!phone || !isValidPhoneNumber(phone)) {
       setError("Enter a valid phone number.");
       return;
     }
     setBusy(true);
     setError("");
-    const { error: pErr } = await supabase.auth.updateUser({
-      phone: normalizePhone(phone),
-    });
+    const { error: pErr } = await supabase.auth.updateUser({ phone });
     setBusy(false);
     if (pErr) return setError(pErr.message);
     setPhoneSent(true);
   }
 
   async function handleVerifyPhoneOtp() {
+    if (!phone) return;
     setBusy(true);
     setError("");
     const { error: vErr } = await supabase.auth.verifyOtp({
-      phone: normalizePhone(phone),
+      phone,
       token: phoneCode.trim(),
       type: "phone_change",
     });
@@ -673,13 +668,16 @@ export default function SignupPage() {
               ) : (
                 <div className="flex flex-col gap-3">
                   <div className="flex gap-2">
-                    <input
-                      type="tel"
-                      className="stq-input flex-1"
-                      placeholder="+91 98765 43210"
+                    <PhoneInput
+                      defaultCountry="IN"
+                      countrySelectComponent={CountrySelect}
+                      labels={customPhoneLabels}
+                      placeholder="Mobile number"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={setPhone}
                       disabled={phoneSent}
+                      numberInputProps={{ autoComplete: "tel-national" }}
+                      className="stq-phone"
                     />
                     <button
                       type="button"
