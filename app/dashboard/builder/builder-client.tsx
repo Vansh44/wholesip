@@ -215,6 +215,14 @@ export function BuilderClient({
     [setDraftSynced],
   );
 
+  const hasAutoSelected = useRef(false);
+  useEffect(() => {
+    if (!hasAutoSelected.current && initialPages.length > 0) {
+      hasAutoSelected.current = true;
+      loadDraft(initialPages[0].id);
+    }
+  }, [initialPages, loadDraft]);
+
   // --- Local section mutations (autosaved) ---
   const setSections = useCallback(
     (

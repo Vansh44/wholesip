@@ -107,11 +107,7 @@ export function LatestBlogsSection({
           )}
         </div>
       )}
-      {config.layout === "scroll" ? (
-        <BlogCarousel>{cards}</BlogCarousel>
-      ) : (
-        <div className="home-blog-grid">{cards}</div>
-      )}
+      <BlogCarousel>{cards}</BlogCarousel>
     </SectionShell>
   );
 }

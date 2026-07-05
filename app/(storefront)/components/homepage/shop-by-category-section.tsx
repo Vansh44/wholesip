@@ -7,6 +7,8 @@ import type {
 } from "@/lib/homepage/section-types";
 import { SectionShell } from "../sections/section-shell";
 
+import { HorizontalCarousel } from "./horizontal-carousel";
+
 export interface CategoryTile {
   id: string;
   name: string;
@@ -29,6 +31,31 @@ export function ShopByCategorySection({
 }) {
   if (categories.length === 0) return null;
 
+  const content = categories.map((c) => (
+    <Link
+      key={c.id}
+      href={`/shop?category=${encodeURIComponent(c.slug)}`}
+      className="home-cat-tile"
+    >
+      <div className="home-cat-img">
+        {c.image_url ? (
+          <Image
+            src={c.image_url}
+            alt={c.name}
+            fill
+            sizes="(max-width: 768px) 40vw, 200px"
+            className="home-cat-img-el"
+          />
+        ) : (
+          <div className="home-cat-img-placeholder">
+            <ImageIcon size={28} strokeWidth={1.5} aria-hidden />
+          </div>
+        )}
+      </div>
+      <span className="home-cat-name">{c.name}</span>
+    </Link>
+  ));
+
   return (
     <SectionShell sectionId={sectionId} style={style}>
       {(config.heading || config.subheading) && (
@@ -41,39 +68,13 @@ export function ShopByCategorySection({
           )}
         </div>
       )}
-      <div
-        className={[
-          config.layout === "scroll" ? "home-cat-scroll" : "home-cat-grid",
-          config.display === "cards" ? "is-cards" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+      <HorizontalCarousel
+        carouselClass="home-cat-carousel"
+        scrollClass={`home-cat-scroll${config.display === "cards" ? " is-cards" : ""}`}
+        arrowClass="home-cat-arrow"
       >
-        {categories.map((c) => (
-          <Link
-            key={c.id}
-            href={`/shop?category=${encodeURIComponent(c.slug)}`}
-            className="home-cat-tile"
-          >
-            <div className="home-cat-img">
-              {c.image_url ? (
-                <Image
-                  src={c.image_url}
-                  alt={c.name}
-                  fill
-                  sizes="(max-width: 768px) 40vw, 200px"
-                  className="home-cat-img-el"
-                />
-              ) : (
-                <div className="home-cat-img-placeholder">
-                  <ImageIcon size={28} strokeWidth={1.5} aria-hidden />
-                </div>
-              )}
-            </div>
-            <span className="home-cat-name">{c.name}</span>
-          </Link>
-        ))}
-      </div>
+        {content}
+      </HorizontalCarousel>
     </SectionShell>
   );
 }

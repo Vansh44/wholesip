@@ -138,12 +138,95 @@
   }
 }
 
+/* ---- Featured Products Carousel ---- */
+.home-product-carousel {
+  position: relative;
+}
+
+.home-product-scroll {
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 24px; /* room for shadow */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+  cursor: grab;
+}
+.home-product-scroll::-webkit-scrollbar {
+  display: none;
+}
+.home-product-scroll.is-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+}
+.home-product-scroll.is-dragging * {
+  user-select: none;
+}
+
+/* 3 visible on desktop/tablet */
+.home-product-scroll .shop-card {
+  flex: 0 0 calc((100% - 44px) / 3);
+  scroll-snap-align: start;
+}
+
+/* Mobile view: show ~2.3 cards to indicate scrolling and reduce vertical extension */
+@media (max-width: 760px) {
+  .home-product-scroll .shop-card {
+    flex: 0 0 155px;
+  }
+}
+
+.home-product-arrow {
+  position: absolute;
+  top: 45%;
+  transform: translateY(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--wholesip-surface);
+  color: var(--wholesip-ink);
+  border: 1px solid var(--wholesip-border);
+  box-shadow: 0 8px 24px rgba(var(--wholesip-shadow-rgb), 0.14);
+  cursor: pointer;
+  opacity: 1;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.2s ease,
+    background 0.18s ease;
+}
+.home-product-arrow:hover {
+  transform: translateY(-50%) scale(1.08);
+  box-shadow: 0 12px 30px rgba(var(--wholesip-shadow-rgb), 0.2);
+}
+.home-product-arrow:active {
+  transform: translateY(-50%) scale(0.96);
+}
+.home-product-arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+.home-product-arrow-prev {
+  left: -12px;
+}
+.home-product-arrow-next {
+  right: -12px;
+}
+
 /* Card look — mirrors the `.shop-listing .shop-card*` tile styling so homepage
    featured cards match the shop grid (soft colour tile via --card-bg, capped
    image height instead of the generic 2/3 aspect, ink typography). The base
    .shop-card rules in shop.css are otherwise scoped under .shop-listing and
    wouldn't reach the homepage. */
-.home-product-grid .shop-card {
+.home-product-grid .shop-card, .home-product-carousel .shop-card {
   background: var(--card-bg, var(--wholesip-tile, #f4dfe0));
   border: none;
   border-radius: 20px;
@@ -151,28 +234,28 @@
   box-shadow: 0 1px 2px rgba(var(--wholesip-shadow-rgb), 0.04);
 }
 
-.home-product-grid .shop-card:hover {
+.home-product-grid .shop-card:hover, .home-product-carousel .shop-card:hover {
   transform: translateY(-6px);
   box-shadow: 0 22px 44px rgba(var(--wholesip-shadow-rgb), 0.14);
 }
 
-.home-product-grid .shop-card-img {
-  height: clamp(165px, 18vw, 230px);
-  aspect-ratio: auto;
+.home-product-grid .shop-card-img, .home-product-carousel .shop-card-img {
+  aspect-ratio: 1 / 1;
+  height: auto;
   background: transparent;
   border-radius: 14px;
 }
 
-.home-product-grid .shop-card-img-el {
+.home-product-grid .shop-card-img-el, .home-product-carousel .shop-card-img-el {
   padding: 10px;
   transition: transform 0.3s ease;
 }
 
-.home-product-grid .shop-card:hover .shop-card-img-el {
+.home-product-grid .shop-card:hover .shop-card-img-el, .home-product-carousel .shop-card:hover .shop-card-img-el {
   transform: scale(1.05);
 }
 
-.home-product-grid .shop-card-badge {
+.home-product-grid .shop-card-badge, .home-product-carousel .shop-card-badge {
   left: auto;
   right: 14px;
   top: 14px;
@@ -184,33 +267,37 @@
   letter-spacing: 0;
 }
 
-.home-product-grid .shop-card-body {
+.home-product-grid .shop-card-body, .home-product-carousel .shop-card-body {
   padding: 6px 12px 14px;
 }
 
-.home-product-grid .shop-card-name {
+.home-product-grid .shop-card-name, .home-product-carousel .shop-card-name {
   font-family: var(--font-outfit), sans-serif;
   font-weight: 700;
   font-size: 1.15rem;
   color: var(--wholesip-ink);
 }
 
-.home-product-grid .shop-card-price,
-.home-product-grid .shop-card-sell,
-.home-product-grid .shop-card-from {
+.home-product-grid .shop-card-price, .home-product-carousel .shop-card-price,
+.home-product-grid .shop-card-sell, .home-product-carousel .shop-card-sell,
+.home-product-grid .shop-card-from, .home-product-carousel .shop-card-from {
   color: var(--wholesip-ink);
 }
 
-.home-product-grid .shop-card-base {
+.home-product-grid .shop-card-base, .home-product-carousel .shop-card-base {
   color: var(--wholesip-ink-faint);
 }
 
-.home-product-grid .shop-card-off {
+.home-product-grid .shop-card-off, .home-product-carousel .shop-card-off {
   color: var(--wholesip-ink);
   background: rgba(255, 255, 255, 0.55);
 }
 
 /* ---- Shop by category ---- */
+.home-cat-carousel {
+  position: relative;
+}
+
 .home-cat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -223,11 +310,66 @@
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   padding-bottom: 8px;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+  cursor: grab;
+}
+.home-cat-scroll::-webkit-scrollbar {
+  display: none;
+}
+.home-cat-scroll.is-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+}
+.home-cat-scroll.is-dragging * {
+  user-select: none;
 }
 .home-cat-scroll .home-cat-tile {
   flex: 0 0 160px;
   scroll-snap-align: start;
+}
+
+.home-cat-arrow {
+  position: absolute;
+  top: calc(50% - 14px); /* offset slightly because of text below images */
+  transform: translateY(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--wholesip-surface);
+  color: var(--wholesip-ink);
+  border: 1px solid var(--wholesip-border);
+  box-shadow: 0 8px 24px rgba(var(--wholesip-shadow-rgb), 0.14);
+  cursor: pointer;
+  opacity: 1;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.2s ease,
+    background 0.18s ease;
+}
+.home-cat-arrow:hover {
+  transform: translateY(-50%) scale(1.08);
+  box-shadow: 0 12px 30px rgba(var(--wholesip-shadow-rgb), 0.2);
+}
+.home-cat-arrow:active {
+  transform: translateY(-50%) scale(0.96);
+}
+.home-cat-arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+.home-cat-arrow-prev {
+  left: -10px;
+}
+.home-cat-arrow-next {
+  right: -10px;
 }
 
 .home-cat-tile {

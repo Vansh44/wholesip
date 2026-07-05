@@ -385,6 +385,11 @@
   font-size: 1.05rem;
   line-height: 1.25;
   color: var(--wholesip-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sm-storefront-grocery.storefront-root .shop-card-price {
   display: flex;
