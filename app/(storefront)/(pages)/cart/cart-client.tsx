@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ImageIcon } from "lucide-react";
-import { toast } from "sonner";
+
 import { formatPrice, discountPercent } from "@/lib/pricing";
 import {
   useCart,
@@ -115,12 +115,12 @@ function ClassicCart() {
             <span>Total</span>
             <span>{formatPrice(total)}</span>
           </div>
-          <button
-            className="cart-checkout-btn"
-            onClick={() => toast.info("Checkout is coming soon!")}
+          <Link
+            href="/checkout"
+            className="cart-checkout-btn block text-center"
           >
             Proceed to Checkout
-          </button>
+          </Link>
           <Link href="/shop" className="cart-continue-link">
             Continue shopping
           </Link>

@@ -74,15 +74,19 @@ export function HorizontalCarousel({
       moved: false,
     };
     setDragging(true);
-    el.setPointerCapture?.(e.pointerId);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     const el = trackRef.current;
     if (!el || !drag.current.active) return;
     const dx = e.clientX - drag.current.startX;
-    if (Math.abs(dx) > 4) drag.current.moved = true;
-    el.scrollLeft = drag.current.startScroll - dx;
+    if (Math.abs(dx) > 4) {
+      if (!drag.current.moved) {
+        drag.current.moved = true;
+        el.setPointerCapture?.(e.pointerId);
+      }
+      el.scrollLeft = drag.current.startScroll - dx;
+    }
   };
 
   const endDrag = (e: React.PointerEvent) => {
@@ -90,9 +94,8 @@ export function HorizontalCarousel({
     drag.current.active = false;
     setDragging(false);
     trackRef.current?.releasePointerCapture?.(e.pointerId);
-    // The browser fires the (possibly drag-suppressed) click right after
-    // pointerup; clear the flag once it has had its chance so a drag that
-    // ends without a click can't swallow the next genuine tap.
+
+    // Clear moved flag after click handlers have a chance to run
     setTimeout(() => {
       drag.current.moved = false;
     }, 0);
@@ -126,6 +129,7 @@ export function HorizontalCarousel({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onClickCapture={onClickCapture}
+        onDragStart={(e) => e.preventDefault()}
       >
         {children}
       </div>

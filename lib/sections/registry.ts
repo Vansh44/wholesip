@@ -114,6 +114,7 @@ export const RESERVED_PAGE_SLUGS: ReadonlySet<string> = new Set([
   // intentionally NOT reserved.
   "blogs",
   "cart",
+  "checkout",
   "enquiries",
   "profile",
   "shop",

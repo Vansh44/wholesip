@@ -47,6 +47,7 @@ export function ShopCard({ product: p }: { product: ShopCardProduct }) {
           </div>
         )}
       </div>
+
       <div className="shop-card-body">
         {p.category && <span className="shop-card-cat">{p.category}</span>}
         <h3 className="shop-card-name">{p.name}</h3>
