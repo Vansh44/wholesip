@@ -126,7 +126,6 @@
   opacity: 0.5;
 }
 
-
 /* Primary nav column: logo pinned, nav list scrolls when it overflows the
    viewport (previously the bottom sections were unreachable on short screens). */
 .dashboard-shell .dash-primary {

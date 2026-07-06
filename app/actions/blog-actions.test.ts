@@ -431,6 +431,7 @@ describe("blog-actions", () => {
         "blogs.customerSubmissions": false,
         "blogs.requireApproval": true,
         "pages.customCode": true,
+        "marketing.showAllCoupons": false,
       });
       const result = await submitCustomerBlog(customerForm);
       expect(result.error).toMatch(/disabled/i);
@@ -445,6 +446,7 @@ describe("blog-actions", () => {
         "blogs.customerSubmissions": true,
         "blogs.requireApproval": false,
         "pages.customCode": true,
+        "marketing.showAllCoupons": false,
       });
       const result = await submitCustomerBlog(customerForm);
       expect(result.success).toBe(true);

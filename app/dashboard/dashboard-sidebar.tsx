@@ -53,7 +53,7 @@ export function DashboardSidebar({
     if (saved) {
       const parsed = parseInt(saved, 10);
       if (!isNaN(parsed) && parsed >= 200 && parsed <= 400) {
-        setSidebarWidth(parsed);
+        requestAnimationFrame(() => setSidebarWidth(parsed));
       }
     }
   }, []);

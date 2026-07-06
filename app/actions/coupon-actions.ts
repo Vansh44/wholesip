@@ -2,7 +2,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
+import {
+  getManagerUserId,
+  getActingStoreId,
+  getViewerContext,
+} from "@/app/dashboard/lib/access";
+import { can } from "@/app/dashboard/lib/permissions";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,6 +25,7 @@ export interface CouponFormData {
   valid_from: string; // "" or yyyy-mm-dd
   valid_until: string; // "" or yyyy-mm-dd
   status: "active" | "disabled";
+  show_on_storefront: boolean;
   // User group ids this coupon is restricted to. Empty / omitted = public.
   restricted_group_ids?: string[];
 }
@@ -86,6 +92,7 @@ function buildRow(form: CouponFormData, userId: string, creating: boolean) {
     status: form.status,
     valid_from: toTimestamp(form.valid_from),
     valid_until: toTimestamp(form.valid_until),
+    show_on_storefront: form.show_on_storefront,
     updated_by: userId,
     ...(creating ? { created_by: userId } : {}),
   };
@@ -298,6 +305,7 @@ export async function validateCoupon(
   const code = normalizeCode(rawCode);
   if (!code) return { error: "Enter a coupon code." };
 
+  const storeId = await getActingStoreId();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("coupons")
@@ -305,6 +313,7 @@ export async function validateCoupon(
       "id, code, discount_type, discount_value, min_order_amount, max_uses, used_count, valid_from, valid_until",
     )
     .eq("code", code)
+    .eq("store_id", storeId)
     .maybeSingle();
 
   if (error) {
@@ -344,4 +353,97 @@ export async function validateCoupon(
       minOrderAmount: minOrder,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Storefront Discovery
+// ---------------------------------------------------------------------------
+import { getCurrentStore } from "@/lib/store/resolve";
+import { resolveStoreSettings } from "@/lib/settings/registry";
+
+export interface AvailableCoupon {
+  code: string;
+  description: string | null;
+  discount_type: DiscountType;
+  discount_value: number;
+  min_order_amount: number;
+}
+
+export async function getAvailableStorefrontCoupons(): Promise<
+  AvailableCoupon[]
+> {
+  const store = await getCurrentStore();
+  const settings = resolveStoreSettings(store.settings, store.plan);
+  const showAll = settings["marketing.showAllCoupons"];
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("coupons")
+    .select(
+      "code, description, discount_type, discount_value, min_order_amount, valid_from, valid_until, max_uses, used_count",
+    )
+    .eq("store_id", store.id)
+    .eq("status", "active");
+
+  if (!showAll) {
+    query = query.eq("show_on_storefront", true);
+  }
+
+  const { data } = await query;
+  if (!data) return [];
+
+  const now = Date.now();
+  type DBRow = {
+    code: string;
+    description: string | null;
+    discount_type: DiscountType;
+    discount_value: number;
+    min_order_amount: number;
+    valid_from: string | null;
+    valid_until: string | null;
+    max_uses: number;
+    used_count: number;
+  };
+  return (data as DBRow[])
+    .filter((c) => {
+      if (c.valid_from && new Date(c.valid_from).getTime() > now) return false;
+      if (c.valid_until && new Date(c.valid_until).getTime() < now)
+        return false;
+      if (c.max_uses > 0 && c.used_count >= c.max_uses) return false;
+      return true;
+    })
+    .map((c) => ({
+      code: c.code,
+      description: c.description,
+      discount_type: c.discount_type,
+      discount_value: Number(c.discount_value) || 0,
+      min_order_amount: Number(c.min_order_amount) || 0,
+    }));
+}
+
+export async function toggleCouponVisibility(
+  id: string,
+  show: boolean,
+): Promise<{ success?: boolean; error?: string }> {
+  const ctx = await getViewerContext();
+  if (!ctx?.profile) return { error: "Not authenticated" };
+
+  if (!can(ctx.permissions, "marketing", "manage", ctx.isSuperadmin)) {
+    return { error: "You don't have permission to manage coupons." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("coupons")
+    .update({ show_on_storefront: show })
+    .eq("id", id)
+    .eq("store_id", ctx.storeId);
+
+  if (error) {
+    console.error("toggleCouponVisibility:", error.message);
+    return { error: "Failed to update coupon visibility." };
+  }
+
+  revalidateCoupons();
+  return { success: true };
 }

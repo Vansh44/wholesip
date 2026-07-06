@@ -2,7 +2,10 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+  unstable_cache: vi.fn((fn) => fn),
+}));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
@@ -29,6 +32,7 @@ const validForm = {
   valid_from: "",
   valid_until: "",
   status: "active" as const,
+  show_on_storefront: false,
 };
 
 // coupon-actions.ts covers admin CRUD and the storefront validation path.

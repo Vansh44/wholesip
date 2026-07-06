@@ -6,14 +6,20 @@ import { userEvent } from "@testing-library/user-event";
 
 // CartProvider pulls the storefront coupon validator (a "use server" module);
 // mock it so we drive the apply-coupon path without a network/Supabase round-trip.
-vi.mock("@/app/actions/coupon-actions", () => ({ validateCoupon: vi.fn() }));
+vi.mock("@/app/actions/coupon-actions", () => ({
+  validateCoupon: vi.fn(),
+  getAvailableStorefrontCoupons: vi.fn().mockResolvedValue([]),
+}));
 
 // CouponField surfaces apply/remove feedback through sonner toasts.
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import CartProvider, { useCart } from "./CartProvider";
 import CouponField from "./CouponField";
-import { validateCoupon } from "@/app/actions/coupon-actions";
+import {
+  validateCoupon,
+  getAvailableStorefrontCoupons,
+} from "@/app/actions/coupon-actions";
 import { toast } from "sonner";
 
 // Seeds the cart with one item so subtotal > 0 (required for a coupon to be
@@ -165,5 +171,57 @@ describe("CouponField", () => {
       screen.getByText("Add ₹500 min order to use this"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/You save/)).not.toBeInTheDocument();
+  });
+
+  it("fetches and renders available coupons on mount", async () => {
+    vi.mocked(getAvailableStorefrontCoupons).mockResolvedValue([
+      {
+        code: "WELCOME",
+        description: "Welcome bonus",
+        id: "c1",
+        discount_type: "percentage",
+        discount_value: 10,
+        min_order_amount: 0,
+      },
+    ] as any);
+    renderField();
+
+    // The effect fetches and sets state, so wait for the DOM to update.
+    const heading = await screen.findByText("Available Coupons");
+    expect(heading).toBeInTheDocument();
+
+    expect(screen.getByText("WELCOME")).toBeInTheDocument();
+    expect(screen.getByText("Welcome bonus")).toBeInTheDocument();
+  });
+
+  it("applies an available coupon when clicking its Apply button", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getAvailableStorefrontCoupons).mockResolvedValue([
+      {
+        code: "WELCOME",
+        description: "Welcome bonus",
+        id: "c1",
+        discount_type: "percentage",
+        discount_value: 10,
+        min_order_amount: 0,
+      },
+    ] as any);
+    vi.mocked(validateCoupon).mockResolvedValue({
+      coupon: { ...PCT_COUPON, code: "WELCOME" },
+    } as any);
+
+    renderField({ seedPrice: 200 });
+
+    await user.click(screen.getByText("seed")); // subtotal 200
+
+    // Find the Apply button in the list item
+    const applyBtns = await screen.findAllByRole("button", { name: "Apply" });
+    const listApplyBtn = applyBtns[1]; // second apply button
+
+    await user.click(listApplyBtn);
+
+    expect(validateCoupon).toHaveBeenCalledWith("WELCOME", 200);
+    expect(toast.success).toHaveBeenCalledWith("Coupon applied");
+    expect(screen.getByText("WELCOME")).toBeInTheDocument();
   });
 });
