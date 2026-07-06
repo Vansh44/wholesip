@@ -178,7 +178,7 @@ export default function ProductDetailClient({
   const handleAddToCart = () => {
     if (outOfStock) return;
     addToCart();
-    toast.success(`${product.name} added to cart`);
+    toast.success(`${product.name} added to cart`, { duration: 1800 });
   };
 
   const handleBuyNow = () => {

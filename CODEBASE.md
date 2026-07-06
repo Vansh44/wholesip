@@ -91,7 +91,7 @@ wholesip/
 │   │   │   ├── blogs/         #   blog listing, [slug] detail (comments/reactions),
 │   │   │   │                  #   write/ (TipTap customer blog editor), my-submissions/
 │   │   │   ├── enquiries/     #   enquiry form (tested)
-│   │   │   ├── profile/       #   customer profile
+│   │   │   ├── profile/       #   customer profile (personal info + address-book card)
 │   │   │   └── [pageSlug]/    #   ★ ALL content pages from store_pages (see §11): merchant
 │   │   │                      #   custom pages AND the former hardcoded static pages
 │   │   │                      #   (our-story, faqs, …) — retired in Phase 4b, now editable
@@ -181,6 +181,10 @@ wholesip/
 │   │   │                      # writes (no customer INSERT policy — see convention #12). Tested.
 │   │   ├── order-actions.ts   # ★ getOrders (paginated) + updateOrderStatus (allowlisted
 │   │   │                      # status/payment_status, store-scoped). Tested.
+│   │   ├── address-actions.ts # ★ Customer saved-address book (own-row RLS, tested):
+│   │   │                      # getMyAddresses, saveAddress (checkout dedup+default),
+│   │   │                      # upsertAddress (profile add/edit), setDefaultAddress,
+│   │   │                      # deleteAddress. Prefills checkout + /profile address book.
 │   │   ├── platform.ts        # Platform-admin actions
 │   │   └── _test-helpers.ts   # Shared mocks for action tests (co-located *.test.ts)
 │   │
@@ -258,6 +262,7 @@ wholesip/
 │   │                          # customer INSERT policy by design — placeOrder writes with
 │   │                          # the service role; customers/admins get SELECT/manage (convention #12).
 │   ├── coupons_storefront_visibility.sql  # coupons.show_on_storefront flag (§storefront coupons)
+│   ├── customer_addresses.sql # ★ saved shipping addresses (own-row RLS) — checkout book
 │   ├── coupon_usage_rpc.sql   # ★ increment_/decrement_coupon_usage: atomic used_count
 │   │                          # reserve/release (enforces max_uses under concurrency)
 │   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
@@ -556,6 +561,11 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     - **Dashboard reads/writes**: `order-actions.ts` gates on
       `getManagerUserId("orders")`, scopes every query by `store_id`, paginates
       `getOrders`, and allowlists `status`/`payment_status` in `updateOrderStatus`.
+    - **Checkout UX**: the `/checkout` page opens the auth modal IN PLACE when
+      signed out (no redirect) so a signed-in shopper lands straight on the form.
+      Saved addresses (`address-actions.ts` + `supabase/customer_addresses.sql`,
+      own-row RLS) prefill the default and are picked from cards so the address
+      isn't retyped each order.
 
 ## 6. Commands
 

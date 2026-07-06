@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { updateCustomerProfile } from "@/app/actions/customer-profile";
 import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
+import AddressBook from "./address-book";
 import styles from "./profile.module.css";
 
 export default function ProfilePage() {
@@ -152,6 +153,9 @@ export default function ProfilePage() {
               </button>
             </form>
           </div>
+
+          {/* Address Book Card */}
+          <AddressBook />
         </div>
       </div>
     </div>

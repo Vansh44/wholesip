@@ -31,7 +31,7 @@ export function QuickAddButton({ product }: { product: ShopCardProduct }) {
       image: product.image_url,
       category: product.category ?? null,
     });
-    toast.success(`${product.name} added to cart`);
+    toast.success(`${product.name} added to cart`, { duration: 1800 });
   };
 
   return (

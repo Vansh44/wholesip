@@ -1,15 +1,35 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
 import { placeOrder, CheckoutFormData } from "@/app/actions/checkout-actions";
+import {
+  getMyAddresses,
+  saveAddress as saveAddressAction,
+  deleteAddress,
+  type SavedAddress,
+} from "@/app/actions/address-actions";
 import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
 import { formatPrice } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+const EMPTY_FORM: CheckoutFormData = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  addressLine1: "",
+  addressLine2: "",
+  city: "",
+  state: "",
+  postalCode: "",
+  country: "India",
+};
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -20,29 +40,36 @@ export default function CheckoutPage() {
   // Set once the order is placed so clearing the cart below doesn't trip the
   // "cart empty → /shop" effect and steal the redirect to the success page.
   const orderPlaced = useRef(false);
-  const [form, setForm] = useState<CheckoutFormData>({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    addressLine1: "",
-    addressLine2: "",
-    city: "",
-    state: "",
-    postalCode: "",
-    country: "India",
-  });
+  const [form, setForm] = useState<CheckoutFormData>(EMPTY_FORM);
 
-  // Protect route
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
+  // Which saved address is selected (null = entering a new/edited address).
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [saveForLater, setSaveForLater] = useState(true);
+
+  const fillFormFromAddress = useCallback((a: SavedAddress) => {
+    setForm((f) => ({
+      firstName: a.first_name || f.firstName,
+      lastName: a.last_name || f.lastName,
+      email: a.email || f.email,
+      phone: a.phone || f.phone,
+      addressLine1: a.address_line1,
+      addressLine2: a.address_line2 || "",
+      city: a.city,
+      state: a.state,
+      postalCode: a.postal_code,
+      country: a.country || "India",
+    }));
+  }, []);
+
+  // Not signed in → open the auth modal IN PLACE (no redirect). After sign-in
+  // `customer` populates and the checkout form renders right here, so the click
+  // the shopper already made carries through to checkout.
   useEffect(() => {
-    if (!authLoading && !customer) {
-      toast.error("You must be logged in to checkout");
-      router.push("/");
-      openAuthModal();
-    }
-  }, [authLoading, customer, router, openAuthModal]);
+    if (!authLoading && !customer) openAuthModal();
+  }, [authLoading, customer, openAuthModal]);
 
-  // Pre-fill form
+  // Prefill contact details from the account as a baseline.
   useEffect(() => {
     if (customer) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -56,6 +83,24 @@ export default function CheckoutPage() {
     }
   }, [customer]);
 
+  // Load saved addresses; preselect the default so the shopper doesn't retype.
+  useEffect(() => {
+    if (!customer) return;
+    let active = true;
+    getMyAddresses().then((list) => {
+      if (!active) return;
+      setAddresses(list);
+      const def = list.find((a) => a.is_default) ?? list[0];
+      if (def) {
+        setSelectedId(def.id);
+        fillFormFromAddress(def);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [customer, fillFormFromAddress]);
+
   // Redirect if cart empty (but not when we just emptied it after a successful
   // order — that navigates to the success page instead).
   useEffect(() => {
@@ -66,7 +111,30 @@ export default function CheckoutPage() {
     }
   }, [cart.hydrated, cart.items.length, router]);
 
-  if (authLoading || !cart.hydrated || !customer || cart.items.length === 0) {
+  if (authLoading || !cart.hydrated) {
+    return (
+      <main className="min-h-[50vh] flex items-center justify-center">
+        <p className="text-muted-foreground">Loading checkout...</p>
+      </main>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <main className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-4 pt-[120px] text-center">
+        <h1 className="text-2xl font-bold">Sign in to continue</h1>
+        <p className="max-w-sm text-muted-foreground">
+          Please sign in to review your order and check out — your cart is
+          saved.
+        </p>
+        <Button size="lg" onClick={openAuthModal}>
+          Sign in
+        </Button>
+      </main>
+    );
+  }
+
+  if (cart.items.length === 0) {
     return (
       <main className="min-h-[50vh] flex items-center justify-center">
         <p className="text-muted-foreground">Loading checkout...</p>
@@ -75,12 +143,53 @@ export default function CheckoutPage() {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Manual edits mean the shopper has diverged from the saved card.
+    setSelectedId(null);
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const selectAddress = (a: SavedAddress) => {
+    setSelectedId(a.id);
+    fillFormFromAddress(a);
+  };
+
+  const useNewAddress = () => {
+    setSelectedId(null);
+    setForm((f) => ({
+      ...f,
+      addressLine1: "",
+      addressLine2: "",
+      city: "",
+      state: "",
+      postalCode: "",
+      country: "India",
+    }));
+  };
+
+  const handleDeleteAddress = async (id: string) => {
+    const res = await deleteAddress(id);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    setAddresses((prev) => prev.filter((a) => a.id !== id));
+    if (selectedId === id) setSelectedId(null);
+    toast.success("Address removed");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    // Best-effort: remember this address for next time. Never block the order
+    // on it — the order is the important part.
+    if (saveForLater) {
+      try {
+        await saveAddressAction(form);
+      } catch {
+        // ignore — saving the address book entry is not critical to the order
+      }
+    }
 
     const result = await placeOrder(form, cart.items, cart.appliedCoupon?.code);
 
@@ -103,6 +212,70 @@ export default function CheckoutPage() {
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
         {/* Left Column: Form */}
         <div className="md:col-span-7 space-y-8">
+          {/* Saved addresses */}
+          {addresses.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-xl font-semibold">Delivery Address</h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {addresses.map((a) => (
+                  <div
+                    key={a.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => selectAddress(a)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        selectAddress(a);
+                      }
+                    }}
+                    className={`relative cursor-pointer rounded-lg border p-3 pr-9 text-left transition-colors ${
+                      selectedId === a.id
+                        ? "border-primary ring-1 ring-primary"
+                        : "hover:border-muted-foreground/40"
+                    }`}
+                  >
+                    <div className="text-sm font-medium">
+                      {a.first_name} {a.last_name}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {a.address_line1}
+                      {a.address_line2 ? `, ${a.address_line2}` : ""}, {a.city},{" "}
+                      {a.state} {a.postal_code}
+                    </div>
+                    {a.phone && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {a.phone}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      aria-label="Remove address"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteAddress(a.id);
+                      }}
+                      className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={useNewAddress}
+                  className={`rounded-lg border border-dashed p-3 text-sm text-muted-foreground transition-colors ${
+                    selectedId === null
+                      ? "border-primary text-foreground"
+                      : "hover:border-muted-foreground/40"
+                  }`}
+                >
+                  + Use a new address
+                </button>
+              </div>
+            </div>
+          )}
+
           <form
             id="checkout-form"
             onSubmit={handleSubmit}
@@ -225,6 +398,16 @@ export default function CheckoutPage() {
                   />
                 </div>
               </div>
+
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={saveForLater}
+                  onChange={(e) => setSaveForLater(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                Save this address for future orders
+              </label>
             </div>
 
             {/* Payment Method */}
