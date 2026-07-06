@@ -103,7 +103,29 @@
 .dashboard-shell .dash-sidebar {
   display: flex;
   height: 100vh;
+  background: var(--dash-surface);
+  border-right: 1px solid var(--dash-border);
+  position: relative;
 }
+
+.dashboard-shell .dash-sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.dashboard-shell .dash-sidebar-resizer:hover,
+.dashboard-shell .dash-sidebar-resizer.is-resizing {
+  background: var(--dash-accent);
+  opacity: 0.5;
+}
+
 
 /* Primary nav column: logo pinned, nav list scrolls when it overflows the
    viewport (previously the bottom sections were unreachable on short screens). */
