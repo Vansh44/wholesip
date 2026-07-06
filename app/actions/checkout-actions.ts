@@ -1,8 +1,37 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentStoreId } from "@/lib/store/resolve";
+import { rateLimit } from "@/lib/rate-limit";
 import { validateCoupon } from "./coupon-actions";
 import { CartItem } from "@/app/(storefront)/components/cart/CartProvider";
+
+// Bounds on client-supplied cart data — reject oversized/malformed payloads
+// before any DB work so a hostile client can't send 10k line items or negative
+// quantities.
+const MAX_LINE_ITEMS = 100;
+const MAX_QUANTITY_PER_LINE = 1000;
+const MAX_FIELD_LEN = 200;
+const MAX_NOTES_LEN = 1000;
+
+// Required shipping-address fields. Enforced server-side too (the form's
+// `required` attribute is a UX hint, not a security boundary).
+const REQUIRED_FIELDS: Array<[keyof CheckoutFormData, string]> = [
+  ["firstName", "First name"],
+  ["lastName", "Last name"],
+  ["email", "Email"],
+  ["phone", "Phone"],
+  ["addressLine1", "Address"],
+  ["city", "City"],
+  ["state", "State"],
+  ["postalCode", "Postal code"],
+  ["country", "Country"],
+];
+
+function cleanField(value: string | undefined, maxLen = MAX_FIELD_LEN): string {
+  return (value ?? "").toString().trim().slice(0, maxLen);
+}
 
 export interface CheckoutFormData {
   firstName: string;
@@ -22,11 +51,18 @@ export type CheckoutResult =
   | { success: true; orderId: string }
   | { error: string };
 
+// Normalize a coupon code the same way coupon-actions does (stored uppercased,
+// no whitespace) so the usage-increment lookup matches the stored row.
+function normalizeCode(code: string): string {
+  return code.trim().toUpperCase().replace(/\s+/g, "");
+}
+
 export async function placeOrder(
   form: CheckoutFormData,
   items: CartItem[],
   couponCode?: string | null,
 ): Promise<CheckoutResult> {
+  // Authenticate the shopper with their own session (RLS-respecting client).
   const supabase = await createClient();
   const {
     data: { user },
@@ -36,39 +72,84 @@ export async function placeOrder(
     return { error: "You must be logged in to checkout." };
   }
 
+  // Throttle order placement per customer (abuse / accidental double-submit /
+  // scripted spam). Backed by Postgres so it holds across serverless instances;
+  // fails open on a DB hiccup, since auth + validation remain the real boundary.
+  const rl = await rateLimit(`checkout:${user.id}`, {
+    max: 10,
+    windowSeconds: 60,
+  });
+  if (!rl.allowed) {
+    return {
+      error: "Too many checkout attempts. Please wait a moment and try again.",
+    };
+  }
+
   if (items.length === 0) {
     return { error: "Your cart is empty." };
   }
+  if (items.length > MAX_LINE_ITEMS) {
+    return { error: "Your cart has too many items." };
+  }
 
-  // 1. Re-validate prices by fetching products from DB to prevent client-side tampering
+  // Validate each line's shape before trusting it downstream: a real product id
+  // and a whole, positive, bounded quantity.
+  for (const item of items) {
+    if (typeof item.productId !== "string" || !item.productId) {
+      return { error: "Your cart contains an invalid item." };
+    }
+    if (
+      !Number.isInteger(item.quantity) ||
+      item.quantity < 1 ||
+      item.quantity > MAX_QUANTITY_PER_LINE
+    ) {
+      return { error: `Invalid quantity for ${item.name || "an item"}.` };
+    }
+  }
+
+  // Validate required address fields server-side (defense in depth).
+  for (const [key, label] of REQUIRED_FIELDS) {
+    if (!cleanField(form[key] as string | undefined)) {
+      return { error: `${label} is required.` };
+    }
+  }
+
+  // The order belongs to the store the shopper is actually on (the host),
+  // never a store inferred from client-supplied cart contents.
+  const storeId = await getCurrentStoreId();
+
+  // Orders/order_items are written with the service-role client: there is no
+  // customer INSERT RLS policy on those tables by design (see orders_table.sql),
+  // and all prices/totals are re-derived from the DB below, not trusted from
+  // the client — so the write is safe to run with RLS bypassed.
+  const admin = createAdminClient();
+
+  // 1. Re-validate prices by fetching products from the DB (anti-tampering),
+  //    scoped to the host store so another store's products can't be smuggled in.
   const productIds = Array.from(new Set(items.map((i) => i.productId)));
-  console.log("Checking out Product IDs:", productIds);
 
-  const { data: dbProducts, error: dbProductsError } = await supabase
+  const { data: dbProducts } = await admin
     .from("products")
-    .select("id, name, selling_price, has_variants, store_id")
-    .in("id", productIds);
-
-  console.log("Found products:", dbProducts, "Error:", dbProductsError);
+    .select("id, name, selling_price, store_id")
+    .in("id", productIds)
+    .eq("store_id", storeId);
 
   if (!dbProducts || dbProducts.length === 0) {
     return { error: "One or more products were not found." };
   }
 
-  const storeId = dbProducts[0].store_id;
-  if (dbProducts.some((p) => p.store_id !== storeId)) {
-    return { error: "Cannot checkout products from multiple stores." };
-  }
-
   const productsMap = new Map(dbProducts.map((p) => [p.id, p]));
 
-  // 2. Fetch variants if any
+  // 2. Fetch variants if any (also store-scoped).
   const variantIds = Array.from(
     new Set(items.map((i) => i.variantId).filter(Boolean)),
   ) as string[];
-  const variantsMap = new Map();
+  const variantsMap = new Map<
+    string,
+    { id: string; name: string; selling_price: number }
+  >();
   if (variantIds.length > 0) {
-    const { data: dbVariants } = await supabase
+    const { data: dbVariants } = await admin
       .from("product_variants")
       .select("id, name, selling_price")
       .in("id", variantIds)
@@ -82,8 +163,15 @@ export async function placeOrder(
   }
 
   let subtotal = 0;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const validItems: any[] = [];
+  const validItems: Array<{
+    product_id: string;
+    variant_id: string | null;
+    name: string;
+    variant_name: string | null;
+    price: number;
+    quantity: number;
+    total: number;
+  }> = [];
 
   for (const item of items) {
     const dbProduct = productsMap.get(item.productId);
@@ -92,7 +180,7 @@ export async function placeOrder(
 
     let price = dbProduct.selling_price;
     const name = dbProduct.name;
-    let variantName = null;
+    let variantName: string | null = null;
 
     if (item.variantId) {
       const dbVariant = variantsMap.get(item.variantId);
@@ -114,7 +202,9 @@ export async function placeOrder(
     });
   }
 
-  // 3. Validate and apply coupon
+  // 3. Validate and apply coupon. Round to whole rupees and clamp to subtotal so
+  //    the stored total matches what the cart showed the shopper (CartProvider
+  //    rounds identically).
   let discount = 0;
   if (couponCode) {
     const validation = await validateCoupon(couponCode, subtotal);
@@ -122,21 +212,36 @@ export async function placeOrder(
       return { error: `Coupon error: ${validation.error}` };
     }
     if (validation.coupon) {
-      if (validation.coupon.discountType === "fixed") {
-        discount = validation.coupon.discountValue;
-      } else {
-        discount = subtotal * (validation.coupon.discountValue / 100);
-      }
-      if (discount > subtotal) discount = subtotal;
+      const raw =
+        validation.coupon.discountType === "fixed"
+          ? validation.coupon.discountValue
+          : subtotal * (validation.coupon.discountValue / 100);
+      discount = Math.min(Math.round(raw), subtotal);
     }
   }
 
   const shipping = 0; // Hardcoded free shipping for now
   const tax = 0; // Hardcoded zero tax for now
-  const total = subtotal + shipping + tax - discount;
+  const total = Math.max(0, subtotal + shipping + tax - discount);
 
-  // 4. Create the Order
-  const { data: order, error: orderError } = await supabase
+  // Store only trimmed, length-capped values (the fields render in the admin
+  // dashboard; React escapes output, but we keep the stored data clean too).
+  const shippingAddress = {
+    firstName: cleanField(form.firstName),
+    lastName: cleanField(form.lastName),
+    addressLine1: cleanField(form.addressLine1),
+    addressLine2: cleanField(form.addressLine2),
+    city: cleanField(form.city),
+    state: cleanField(form.state),
+    postalCode: cleanField(form.postalCode),
+    country: cleanField(form.country),
+    email: cleanField(form.email),
+    phone: cleanField(form.phone),
+  };
+  const notes = cleanField(form.notes, MAX_NOTES_LEN) || null;
+
+  // 4. Create the order.
+  const { data: order, error: orderError } = await admin
     .from("orders")
     .insert({
       store_id: storeId,
@@ -144,16 +249,7 @@ export async function placeOrder(
       status: "pending",
       payment_method: "cash_on_delivery",
       payment_status: "pending",
-      shipping_address: {
-        firstName: form.firstName,
-        lastName: form.lastName,
-        addressLine1: form.addressLine1,
-        addressLine2: form.addressLine2,
-        city: form.city,
-        state: form.state,
-        postalCode: form.postalCode,
-        country: form.country,
-      },
+      shipping_address: shippingAddress,
       billing_address: null, // COD uses shipping as billing essentially
       subtotal,
       tax,
@@ -162,31 +258,51 @@ export async function placeOrder(
       total,
       currency: "INR",
       applied_coupon_code: couponCode || null,
-      notes: form.notes || null,
+      notes,
     })
     .select("id")
     .single();
 
-  if (orderError) {
+  if (orderError || !order) {
     console.error("Order creation error:", orderError);
     return { error: "Failed to create order. Please try again." };
   }
 
-  // 5. Create Order Items
+  // 5. Create order items. If this fails, roll back the order row so we don't
+  //    leave an orphan order with no line items (there is no cross-statement
+  //    transaction over PostgREST — a DB RPC would make this atomic).
   const orderItemsToInsert = validItems.map((item) => ({
     ...item,
     order_id: order.id,
   }));
 
-  const { error: itemsError } = await supabase
+  const { error: itemsError } = await admin
     .from("order_items")
     .insert(orderItemsToInsert);
 
   if (itemsError) {
     console.error("Order items error:", itemsError);
-    // Ideally we would rollback the order creation here using an RPC transaction,
-    // but for now, we'll just log it.
-    return { error: "Failed to save order items. Please contact support." };
+    await admin.from("orders").delete().eq("id", order.id);
+    return { error: "Failed to save order items. Please try again." };
+  }
+
+  // 6. Best-effort coupon usage increment so max_uses is actually enforced.
+  //    Read-modify-write here has a small race under concurrency; an atomic
+  //    RPC (used_count = used_count + 1) would be the airtight version.
+  if (couponCode && discount > 0) {
+    const code = normalizeCode(couponCode);
+    const { data: couponRow } = await admin
+      .from("coupons")
+      .select("id, used_count")
+      .eq("code", code)
+      .eq("store_id", storeId)
+      .maybeSingle();
+    if (couponRow) {
+      await admin
+        .from("coupons")
+        .update({ used_count: (couponRow.used_count ?? 0) + 1 })
+        .eq("id", couponRow.id);
+    }
   }
 
   return { success: true, orderId: order.id };

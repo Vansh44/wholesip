@@ -1,9 +1,37 @@
+import Link from "next/link";
 import { getOrders } from "@/app/actions/order-actions";
 import { formatPrice } from "@/lib/pricing";
 import { Badge } from "@/components/ui/badge";
+import { DASHBOARD_PAGE_SIZE, pickPage } from "@/app/dashboard/lib/list-params";
 
-export default async function OrdersPage() {
-  const { orders, error } = await getOrders();
+interface ShippingAddress {
+  firstName?: string;
+  lastName?: string;
+  city?: string;
+  state?: string;
+}
+
+interface OrderRow {
+  id: string;
+  created_at: string;
+  total: number;
+  payment_method: string;
+  payment_status: string;
+  status: string;
+  shipping_address: ShippingAddress | null;
+}
+
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const page = pickPage(sp.page);
+  const pageSize = DASHBOARD_PAGE_SIZE;
+
+  const { orders: rawOrders, total, error } = await getOrders(page, pageSize);
+  const orders = rawOrders as unknown as OrderRow[];
 
   if (error) {
     return (
@@ -25,6 +53,9 @@ export default async function OrdersPage() {
       </div>
     );
   }
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hrefForPage = (p: number) => (p > 1 ? `?page=${p}` : "?page=1");
 
   return (
     <div className="p-8">
@@ -98,6 +129,32 @@ export default async function OrdersPage() {
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-between text-sm text-gray-600">
+          <span>
+            Page {page} of {totalPages} · {total} orders
+          </span>
+          <div className="flex gap-2">
+            {page > 1 && (
+              <Link
+                href={hrefForPage(page - 1)}
+                className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
+              >
+                Previous
+              </Link>
+            )}
+            {page < totalPages && (
+              <Link
+                href={hrefForPage(page + 1)}
+                className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
+              >
+                Next
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

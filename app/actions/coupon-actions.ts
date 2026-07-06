@@ -1,13 +1,14 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import {
   getManagerUserId,
   getActingStoreId,
   getViewerContext,
 } from "@/app/dashboard/lib/access";
 import { can } from "@/app/dashboard/lib/permissions";
+import { TAGS } from "@/lib/storefront/tags";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -113,6 +114,9 @@ function validateForm(form: CouponFormData): string | null {
 
 function revalidateCoupons() {
   revalidatePath("/dashboard/marketing/coupons");
+  // Bust the cached storefront coupon-discovery list so the cart reflects
+  // create/edit/delete/visibility changes immediately.
+  revalidateTag(TAGS.coupons, "max");
 }
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -358,6 +362,8 @@ export async function validateCoupon(
 // ---------------------------------------------------------------------------
 // Storefront Discovery
 // ---------------------------------------------------------------------------
+import { unstable_cache } from "next/cache";
+import { createPublicClient } from "@/lib/supabase/public";
 import { getCurrentStore } from "@/lib/store/resolve";
 import { resolveStoreSettings } from "@/lib/settings/registry";
 
@@ -369,56 +375,75 @@ export interface AvailableCoupon {
   min_order_amount: number;
 }
 
+// Cached, cookieless read of a store's shopper-visible coupons. Runs on the
+// anonymous public client (only ACTIVE coupons are anon-readable via RLS, and
+// we return no admin-only columns), so it is safe to serve from a shared cache.
+// Keyed by (storeId, showAll) — each store + toggle state gets its own entry —
+// and tagged TAGS.coupons so any coupon create/edit/delete/visibility change
+// (revalidateCoupons) busts it. Called from CouponField on mount; caching keeps
+// that from hitting the DB on every page load.
+const getStorefrontCouponsCached = unstable_cache(
+  async (storeId: string, showAll: boolean): Promise<AvailableCoupon[]> => {
+    const supabase = createPublicClient();
+    let query = supabase
+      .from("coupons")
+      .select(
+        "code, description, discount_type, discount_value, min_order_amount, valid_from, valid_until, max_uses, used_count",
+      )
+      .eq("store_id", storeId)
+      .eq("status", "active");
+
+    if (!showAll) {
+      query = query.eq("show_on_storefront", true);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("getStorefrontCoupons:", error.message);
+      return [];
+    }
+    if (!data) return [];
+
+    const now = Date.now();
+    type DBRow = {
+      code: string;
+      description: string | null;
+      discount_type: DiscountType;
+      discount_value: number;
+      min_order_amount: number;
+      valid_from: string | null;
+      valid_until: string | null;
+      max_uses: number;
+      used_count: number;
+    };
+    return (data as unknown as DBRow[])
+      .filter((c) => {
+        if (c.valid_from && new Date(c.valid_from).getTime() > now)
+          return false;
+        if (c.valid_until && new Date(c.valid_until).getTime() < now)
+          return false;
+        if (c.max_uses > 0 && c.used_count >= c.max_uses) return false;
+        return true;
+      })
+      .map((c) => ({
+        code: c.code,
+        description: c.description,
+        discount_type: c.discount_type,
+        discount_value: Number(c.discount_value) || 0,
+        min_order_amount: Number(c.min_order_amount) || 0,
+      }));
+  },
+  ["storefront-available-coupons"],
+  { tags: [TAGS.coupons], revalidate: 300 },
+);
+
 export async function getAvailableStorefrontCoupons(): Promise<
   AvailableCoupon[]
 > {
   const store = await getCurrentStore();
   const settings = resolveStoreSettings(store.settings, store.plan);
   const showAll = settings["marketing.showAllCoupons"];
-
-  const supabase = await createClient();
-  let query = supabase
-    .from("coupons")
-    .select(
-      "code, description, discount_type, discount_value, min_order_amount, valid_from, valid_until, max_uses, used_count",
-    )
-    .eq("store_id", store.id)
-    .eq("status", "active");
-
-  if (!showAll) {
-    query = query.eq("show_on_storefront", true);
-  }
-
-  const { data } = await query;
-  if (!data) return [];
-
-  const now = Date.now();
-  type DBRow = {
-    code: string;
-    description: string | null;
-    discount_type: DiscountType;
-    discount_value: number;
-    min_order_amount: number;
-    valid_from: string | null;
-    valid_until: string | null;
-    max_uses: number;
-    used_count: number;
-  };
-  return (data as DBRow[])
-    .filter((c) => {
-      if (c.valid_from && new Date(c.valid_from).getTime() > now) return false;
-      if (c.valid_until && new Date(c.valid_until).getTime() < now)
-        return false;
-      if (c.max_uses > 0 && c.used_count >= c.max_uses) return false;
-      return true;
-    })
-    .map((c) => ({
-      code: c.code,
-      description: c.description,
-      discount_type: c.discount_type,
-      discount_value: Number(c.discount_value) || 0,
-      min_order_amount: Number(c.min_order_amount) || 0,
-    }));
+  return getStorefrontCouponsCached(store.id, showAll);
 }
 
 export async function toggleCouponVisibility(

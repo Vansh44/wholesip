@@ -50,20 +50,37 @@ CREATE TABLE IF NOT EXISTS public.order_items (
 
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items (order_id);
 
+-- Keep orders.updated_at fresh on status/payment changes (mirrors the shared
+-- catalog trigger used by other tables). Self-contained so this file re-runs.
+CREATE OR REPLACE FUNCTION public.update_orders_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS orders_updated_at_trigger ON public.orders;
+CREATE TRIGGER orders_updated_at_trigger
+  BEFORE UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.update_orders_updated_at();
+
 -- 3. Row Level Security (RLS)
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 
 -- Customers can view their own orders
-CREATE POLICY "Customers can view own orders" 
-ON public.orders FOR SELECT 
-TO authenticated 
+DROP POLICY IF EXISTS "Customers can view own orders" ON public.orders;
+CREATE POLICY "Customers can view own orders"
+ON public.orders FOR SELECT
+TO authenticated
 USING (customer_id = (auth.uid()::uuid));
 
 -- Customers can view their own order items
-CREATE POLICY "Customers can view own order items" 
-ON public.order_items FOR SELECT 
-TO authenticated 
+DROP POLICY IF EXISTS "Customers can view own order items" ON public.order_items;
+CREATE POLICY "Customers can view own order items"
+ON public.order_items FOR SELECT
+TO authenticated
 USING (
   order_id IN (
     SELECT id FROM public.orders WHERE customer_id = (auth.uid()::uuid)
@@ -71,6 +88,7 @@ USING (
 );
 
 -- Store admins can view and manage orders for their store
+DROP POLICY IF EXISTS "Admins can view and manage store orders" ON public.orders;
 CREATE POLICY "Admins can view and manage store orders"
 ON public.orders FOR ALL
 TO authenticated
@@ -80,16 +98,20 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Admins can view and manage store order items" ON public.order_items;
 CREATE POLICY "Admins can view and manage store order items"
 ON public.order_items FOR ALL
 TO authenticated
 USING (
   order_id IN (
-    SELECT id FROM public.orders 
+    SELECT id FROM public.orders
     WHERE store_id IN (
       SELECT store_id FROM public.admins WHERE id = (auth.uid()::uuid)
     )
   )
 );
 
--- Note: Inserting orders should be done via a Service Role (server action) to prevent tampering with prices/totals.
+-- Note: shoppers place orders through the placeOrder server action, which writes
+-- with the SERVICE ROLE (bypasses RLS) after re-deriving all prices/totals from
+-- the DB — so there is intentionally NO customer INSERT policy here. Do not add
+-- one unless the checkout path stops using the service-role client.

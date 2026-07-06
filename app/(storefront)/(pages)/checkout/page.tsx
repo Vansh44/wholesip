@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
@@ -17,6 +17,9 @@ export default function CheckoutPage() {
   const cart = useCart();
 
   const [loading, setLoading] = useState(false);
+  // Set once the order is placed so clearing the cart below doesn't trip the
+  // "cart empty → /shop" effect and steal the redirect to the success page.
+  const orderPlaced = useRef(false);
   const [form, setForm] = useState<CheckoutFormData>({
     firstName: "",
     lastName: "",
@@ -53,8 +56,10 @@ export default function CheckoutPage() {
     }
   }, [customer]);
 
-  // Redirect if cart empty
+  // Redirect if cart empty (but not when we just emptied it after a successful
+  // order — that navigates to the success page instead).
   useEffect(() => {
+    if (orderPlaced.current) return;
     if (cart.hydrated && cart.items.length === 0) {
       toast.info("Your cart is empty");
       router.push("/shop");
@@ -86,8 +91,9 @@ export default function CheckoutPage() {
     }
 
     toast.success("Order placed successfully!");
-    cart.clear(); // Clear the cart state
+    orderPlaced.current = true;
     router.push(`/checkout/success?orderId=${result.orderId}`);
+    cart.clear(); // Clear the cart state after navigating away.
   };
 
   return (

@@ -4,11 +4,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
   unstable_cache: vi.fn((fn) => fn),
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/supabase/public", () => ({ createPublicClient: vi.fn() }));
+vi.mock("@/lib/store/resolve", () => ({ getCurrentStore: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getViewerContext: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
 
@@ -17,10 +21,16 @@ import {
   updateCoupon,
   deleteCoupon,
   validateCoupon,
+  getAvailableStorefrontCoupons,
+  toggleCouponVisibility,
 } from "./coupon-actions";
 import { createClient } from "@/lib/supabase/server";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { createPublicClient } from "@/lib/supabase/public";
+import { getCurrentStore } from "@/lib/store/resolve";
+import { getManagerUserId, getViewerContext } from "@/app/dashboard/lib/access";
 import { makeChain, makeSupabase } from "./_test-helpers";
+
+const STORE = "a0000000-0000-4000-8000-000000000001";
 
 const validForm = {
   code: "  save 10  ",
@@ -259,6 +269,120 @@ describe("coupon-actions", () => {
         discountValue: 10,
         minOrderAmount: 0,
       });
+    });
+  });
+
+  // getAvailableStorefrontCoupons() — the cart's coupon-discovery list. Runs on
+  // the cacheable public client; only ACTIVE, currently-redeemable coupons show.
+  describe("getAvailableStorefrontCoupons", () => {
+    const okRow = {
+      code: "OK",
+      description: "ten off",
+      discount_type: "percentage",
+      discount_value: 10,
+      min_order_amount: 0,
+      valid_from: null,
+      valid_until: null,
+      max_uses: 0,
+      used_count: 0,
+    };
+
+    beforeEach(() => {
+      vi.mocked(getCurrentStore).mockResolvedValue({
+        id: STORE,
+        settings: {},
+        plan: "free",
+      } as any);
+    });
+
+    it("returns only currently-redeemable coupons and filters to visible ones by default", async () => {
+      const now = Date.now();
+      const publicClient = makeSupabase({
+        coupons: makeChain(undefined, {
+          data: [
+            okRow,
+            {
+              ...okRow,
+              code: "EXPIRED",
+              valid_until: new Date(now - 8.64e7).toISOString(),
+            },
+            { ...okRow, code: "USEDUP", max_uses: 5, used_count: 5 },
+          ],
+          error: null,
+        }),
+      });
+      vi.mocked(createPublicClient).mockReturnValue(publicClient as any);
+
+      const result = await getAvailableStorefrontCoupons();
+      expect(result.map((c) => c.code)).toEqual(["OK"]);
+      expect(result[0]).toMatchObject({
+        code: "OK",
+        discount_value: 10,
+        min_order_amount: 0,
+      });
+      // showAll off → only storefront-visible coupons.
+      expect(publicClient._tables.coupons.eq).toHaveBeenCalledWith(
+        "show_on_storefront",
+        true,
+      );
+    });
+
+    it("skips the visibility filter when marketing.showAllCoupons is on", async () => {
+      vi.mocked(getCurrentStore).mockResolvedValue({
+        id: STORE,
+        settings: { features: { "marketing.showAllCoupons": true } },
+        plan: "free",
+      } as any);
+      const publicClient = makeSupabase({
+        coupons: makeChain(undefined, { data: [], error: null }),
+      });
+      vi.mocked(createPublicClient).mockReturnValue(publicClient as any);
+
+      await getAvailableStorefrontCoupons();
+      expect(publicClient._tables.coupons.eq).not.toHaveBeenCalledWith(
+        "show_on_storefront",
+        true,
+      );
+    });
+  });
+
+  // toggleCouponVisibility() — the dashboard inline switch. Permission-gated and
+  // store-scoped so no admin can flip another store's coupon.
+  describe("toggleCouponVisibility", () => {
+    it("rejects an unauthenticated caller", async () => {
+      vi.mocked(getViewerContext).mockResolvedValue(null);
+      const result = await toggleCouponVisibility("c1", true);
+      expect(result.error).toMatch(/not authenticated/i);
+    });
+
+    it("rejects a caller without marketing.manage", async () => {
+      vi.mocked(getViewerContext).mockResolvedValue({
+        profile: { role: "viewer" },
+        permissions: {},
+        isSuperadmin: false,
+        storeId: STORE,
+      } as any);
+      const result = await toggleCouponVisibility("c1", true);
+      expect(result.error).toMatch(/permission/i);
+    });
+
+    it("updates visibility scoped to id + store for an authorised admin", async () => {
+      vi.mocked(getViewerContext).mockResolvedValue({
+        profile: { role: "superadmin" },
+        permissions: {},
+        isSuperadmin: true,
+        storeId: STORE,
+      } as any);
+      const result = await toggleCouponVisibility("c1", true);
+      expect(result.success).toBe(true);
+      expect(supabase._tables.coupons.update).toHaveBeenCalledWith({
+        show_on_storefront: true,
+      });
+      expect(supabase._tables.coupons.eq).toHaveBeenCalledWith("id", "c1");
+      expect(supabase._tables.coupons.eq).toHaveBeenCalledWith(
+        "store_id",
+        STORE,
+      );
     });
   });
 });
