@@ -20,6 +20,12 @@ const nextConfig: NextConfig = {
         pathname: "/storage/v1/object/public/**",
       },
     ],
+    // DEV ONLY: on DNS64/NAT64 networks (common on Indian ISPs) public hosts
+    // resolve to 64:ff9b::/96 addresses, which Next 16's image-optimizer SSRF
+    // guard classifies as private and blocks — every remote (Supabase) image
+    // 400s locally. Relax the check in development only; production keeps the
+    // full SSRF protection.
+    dangerouslyAllowLocalIP: process.env.NODE_ENV === "development",
   },
   experimental: {
     // Tree-shake barrel imports to per-export modules. lucide-react is already

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { HeroConfig, SectionStyle } from "@/lib/homepage/section-types";
+import { videoEmbedUrl } from "@/lib/homepage/video-embed";
 import { SectionShell } from "./section-shell";
 
 // First-class hero block. Three variants:
@@ -20,7 +21,7 @@ export function HeroSection({
   style?: SectionStyle;
   config: HeroConfig;
 }) {
-  if (!config.heading && !config.image_url) return null;
+  if (!config.heading && !config.image_url && !config.video_url) return null;
 
   const hasCta = config.cta_label && config.cta_href;
   const isExternal = /^https?:\/\//i.test(config.cta_href);
@@ -41,8 +42,35 @@ export function HeroSection({
     )
   ) : null;
 
-  const asBackground = config.variant === "minimal" && !!config.image_url;
-  const media = config.image_url ? (
+  const asBackground =
+    config.variant === "minimal" && !!(config.image_url || config.video_url);
+  // Video wins over the image; the image doubles as its poster frame.
+  // YouTube/Vimeo links become a chrome-less background embed; direct files
+  // play via <video>. Muted + playsInline are required for mobile autoplay.
+  const embedUrl = videoEmbedUrl(config.video_url);
+  const media = embedUrl ? (
+    <span className="home-video-embed-wrap">
+      <iframe
+        src={embedUrl}
+        className="home-video-embed"
+        allow="autoplay; encrypted-media; picture-in-picture"
+        title={config.heading || "Hero video"}
+        tabIndex={-1}
+        aria-hidden
+      />
+    </span>
+  ) : config.video_url ? (
+    <video
+      src={config.video_url}
+      poster={config.image_url || undefined}
+      className="home-hero-video"
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="metadata"
+    />
+  ) : config.image_url ? (
     <Image
       src={config.image_url}
       alt={config.heading || "Hero"}

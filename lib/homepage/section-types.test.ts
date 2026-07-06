@@ -7,10 +7,12 @@ import {
   LIMIT_MIN,
   LIMIT_MAX,
   MAX_FAQ_ITEMS,
+  MAX_HERO_SLIDES,
   MAX_TILES,
   MAX_USP_ITEMS,
   type FaqAccordionConfig,
   type FeaturedProductsConfig,
+  type HeroCarouselConfig,
   type HeroConfig,
   type ShopByCategoryConfig,
   type PromoBannerConfig,
@@ -187,6 +189,73 @@ describe("validateConfig", () => {
       });
       expect((out as { config: HeroConfig }).config.background).toBe("#fae3c1");
     });
+
+    it("keeps a safe video_url and strips unsafe schemes", () => {
+      const ok = validateConfig("hero", {
+        heading: "x",
+        video_url: "https://cdn.example.com/clip.mp4",
+      });
+      expect((ok as { config: HeroConfig }).config.video_url).toBe(
+        "https://cdn.example.com/clip.mp4",
+      );
+      const bad = validateConfig("hero", {
+        heading: "x",
+        video_url: "javascript:alert(1)",
+      });
+      expect((bad as { config: HeroConfig }).config.video_url).toBe("");
+    });
+  });
+
+  // --- hero_carousel ---------------------------------------------------------
+  describe("hero_carousel", () => {
+    it("sanitises slides, clamps the interval and defaults autoplay on", () => {
+      const out = validateConfig("hero_carousel", {
+        slides: [
+          {
+            heading: "  Slide one ",
+            cta_href: "javascript:evil()",
+            video_url: "https://cdn.example.com/a.mp4",
+            background: "url(x)",
+            theme: "neon",
+          },
+        ],
+        interval_seconds: 99,
+      });
+      const config = (out as { config: HeroCarouselConfig }).config;
+      expect(config.slides).toHaveLength(1);
+      expect(config.slides[0].heading).toBe("Slide one");
+      expect(config.slides[0].cta_href).toBe("");
+      expect(config.slides[0].video_url).toBe("https://cdn.example.com/a.mp4");
+      expect(config.slides[0].background).toBe("");
+      expect(config.slides[0].theme).toBe("dark");
+      expect(config.autoplay).toBe(true);
+      expect(config.interval_seconds).toBe(15);
+    });
+
+    it("drops empty slides on publish and errors when none remain", () => {
+      const empty = { heading: "", image_url: "", video_url: "" };
+      expect(validateConfig("hero_carousel", { slides: [empty] })).toEqual({
+        error: "Add at least one slide with a headline, image or video.",
+      });
+      // Draft keeps the empty row so the editor doesn't lose it mid-edit.
+      const draft = validateConfig(
+        "hero_carousel",
+        { slides: [empty] },
+        "draft",
+      );
+      expect(
+        (draft as { config: HeroCarouselConfig }).config.slides,
+      ).toHaveLength(1);
+    });
+
+    it("caps the slide count", () => {
+      const slides = Array.from({ length: MAX_HERO_SLIDES + 1 }, () => ({
+        heading: "s",
+      }));
+      expect(validateConfig("hero_carousel", { slides })).toEqual({
+        error: `At most ${MAX_HERO_SLIDES} slides.`,
+      });
+    });
   });
 
   // --- usp_bar ---------------------------------------------------------------
@@ -306,7 +375,7 @@ describe("validateConfig", () => {
 
   // --- shop_by_category ----------------------------------------------------
   describe("shop_by_category", () => {
-    it("defaults source to 'all' and layout to 'grid'", () => {
+    it("defaults source to 'all' and layout to 'scroll'", () => {
       const out = validateConfig("shop_by_category", {
         heading: "  Categories  ",
         category_ids: ["dropped"], // irrelevant for source=all
@@ -317,7 +386,7 @@ describe("validateConfig", () => {
         subheading: "",
         source: "all",
         category_ids: [],
-        layout: "grid",
+        layout: "scroll",
         display: "circles",
       });
     });
@@ -340,13 +409,13 @@ describe("validateConfig", () => {
       expect(config.category_ids).toEqual(["c1", "c2"]);
     });
 
-    it("honours layout='scroll'", () => {
+    it("honours an explicit layout='grid'", () => {
       const out = validateConfig("shop_by_category", {
         source: "all",
-        layout: "scroll",
+        layout: "grid",
       });
       const config = (out as { config: ShopByCategoryConfig }).config;
-      expect(config.layout).toBe("scroll");
+      expect(config.layout).toBe("grid");
     });
   });
 
@@ -365,7 +434,7 @@ describe("validateConfig", () => {
         source: "latest",
         blog_ids: [],
         limit: 5,
-        layout: "grid",
+        layout: "scroll",
       });
     });
 
@@ -396,22 +465,22 @@ describe("validateConfig", () => {
       expect(config.limit).toBe(LIMIT_MIN);
     });
 
-    it("defaults layout to 'grid' and honours layout='scroll'", () => {
-      const grid = (
+    it("defaults layout to 'scroll' and honours layout='grid'", () => {
+      const scroll = (
         validateConfig("latest_blogs", { source: "latest" }) as {
           config: LatestBlogsConfig;
         }
       ).config;
-      expect(grid.layout).toBe("grid");
+      expect(scroll.layout).toBe("scroll");
 
-      const scroll = (
+      const grid = (
         validateConfig("latest_blogs", {
           source: "manual",
           blog_ids: ["b1"],
-          layout: "scroll",
+          layout: "grid",
         }) as { config: LatestBlogsConfig }
       ).config;
-      expect(scroll.layout).toBe("scroll");
+      expect(grid.layout).toBe("grid");
     });
 
     it("keeps source=featured and needs no blog_ids", () => {

@@ -9,6 +9,7 @@ import { LatestBlogsSection, type BlogCardData } from "./latest-blogs-section";
 import { RichTextSection } from "../sections/rich-text-section";
 import { CustomCodeSection } from "../sections/custom-code-section";
 import { HeroSection } from "../sections/hero-section";
+import { HeroCarouselSection } from "../sections/hero-carousel-section";
 import { UspBarSection } from "../sections/usp-bar-section";
 import { TileGridSection } from "../sections/tile-grid-section";
 import { FaqAccordionSection } from "../sections/faq-accordion-section";
@@ -17,6 +18,7 @@ import type {
   CustomCodeConfig,
   FaqAccordionConfig,
   FeaturedProductsConfig,
+  HeroCarouselConfig,
   HeroConfig,
   HomepageSectionType,
   LatestBlogsConfig,
@@ -58,6 +60,13 @@ export function HomepageSectionRenderer({
   switch (section.type) {
     case "hero":
       return <HeroSection {...shell} config={section.config as HeroConfig} />;
+    case "hero_carousel":
+      return (
+        <HeroCarouselSection
+          {...shell}
+          config={section.config as HeroCarouselConfig}
+        />
+      );
     case "usp_bar":
       return (
         <UspBarSection {...shell} config={section.config as UspBarConfig} />

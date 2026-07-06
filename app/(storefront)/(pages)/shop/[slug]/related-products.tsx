@@ -2,6 +2,8 @@ import {
   ShopCard,
   type ShopCardProduct,
 } from "@/app/(storefront)/components/shop-card";
+import { HorizontalCarousel } from "@/app/(storefront)/components/homepage/horizontal-carousel";
+import "@/app/(storefront)/components/homepage/homepage.css";
 
 export interface RelatedProduct {
   id: string;
@@ -39,11 +41,15 @@ export function RelatedProducts({
       <h2 className="pdp-related-title">
         {grocery ? "You might also like" : "You may also like"}
       </h2>
-      <div className="shop-grid">
+      <HorizontalCarousel
+        carouselClass="home-product-carousel"
+        scrollClass="home-product-scroll"
+        arrowClass="home-product-arrow"
+      >
         {products.map((p) => (
           <ShopCard key={p.id} product={p as unknown as ShopCardProduct} />
         ))}
-      </div>
+      </HorizontalCarousel>
     </section>
   );
 }

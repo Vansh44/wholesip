@@ -9,8 +9,15 @@ import {
   FileText,
   Loader2,
   Monitor,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  Redo2,
+  Settings,
+  Settings2,
   Smartphone,
   Tablet,
+  Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { arrayMove } from "@dnd-kit/sortable";
@@ -24,7 +31,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { slugify } from "@/lib/slug";
-import { navIcons } from "../sidebar-nav-link";
 import {
   createPage,
   deletePage,
@@ -38,8 +44,6 @@ import {
 import { useAutosave, type SaveStatus } from "./use-autosave";
 import {
   EMPTY_CONFIG,
-  HOMEPAGE_SECTION_TYPES,
-  SECTION_TYPE_META,
   type AnySectionConfig,
   type HomepageSectionType,
   type SectionStyle,
@@ -54,7 +58,10 @@ import {
   type ProductOption,
 } from "./section-form";
 import { OutlinePanel } from "./outline-panel";
-import { InspectorPanel } from "./inspector-panel";
+import { InspectorPanel, PageSettingsForm } from "./inspector-panel";
+import { SectionLibrary } from "./section-library";
+import { useHistory, type HistoryEntry } from "./use-history";
+import { useBuilderShortcuts } from "./use-builder-shortcuts";
 
 type Options = {
   products: ProductOption[];
@@ -84,11 +91,37 @@ export function BuilderClient({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PageDraft | null>(null);
   const [loadingDraft, setLoadingDraft] = useState(false);
-  const [previewNonce, setPreviewNonce] = useState(0);
+  // Preview iframe lifecycle: the element is REUSED across page switches
+  // (navigation via contentWindow.location.replace) so the outgoing page
+  // stays visible under a loading veil — no blank flash, no scroll jank, and
+  // no parent-history entries. frameSrc is only ever set for a (re)mount;
+  // frameKey bumps only as a remount fallback when replace() throws.
+  const [frameSrc, setFrameSrc] = useState<string | null>(null);
+  const [frameKey, setFrameKey] = useState(0);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const frameSrcRef = useRef<string | null>(null);
+  const veilTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [viewport, setViewport] = useState<Viewport>("desktop");
+  // Left panel collapse (icon rail), persisted per browser.
+  const [leftCollapsed, setLeftCollapsed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.localStorage.getItem("sm-builder-left-collapsed") === "1",
+  );
+  const toggleLeftPanel = () =>
+    setLeftCollapsed((c) => {
+      window.localStorage.setItem("sm-builder-left-collapsed", c ? "0" : "1");
+      return !c;
+    });
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(
     null,
   );
+  // Event handlers (shortcuts, history records) need the CURRENT selection
+  // without re-subscribing; synced every render.
+  const selectedSectionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedSectionIdRef.current = selectedSectionId;
+  }, [selectedSectionId]);
   // Sections the preview reported as not rendering (empty/no data).
   const [hiddenSectionIds, setHiddenSectionIds] = useState<Set<string>>(
     new Set(),
@@ -102,10 +135,12 @@ export function BuilderClient({
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Dialogs.
-  const [typeChooserOpen, setTypeChooserOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [newPageOpen, setNewPageOpen] = useState(false);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const [deletePageOpen, setDeletePageOpen] = useState(false);
+  const [deleteSectionOpen, setDeleteSectionOpen] = useState(false);
+  const [pageSettingsOpen, setPageSettingsOpen] = useState(false);
 
   const options: Options = { products, categories, blogs };
 
@@ -124,38 +159,67 @@ export function BuilderClient({
     [],
   );
 
-  // Preview refresh, coalesced: at most one ping per 1200ms, always trailing —
-  // continuous edits produce zero refreshes, a pause produces exactly one.
-  const lastPingRef = useRef(0);
-  const pingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  // Full preview refresh (RSC round-trip). Only needed when server-rendered
+  // state changes: publish and slug renames. Live section edits paint through
+  // the instant client-side path below (sm-draft → DraftCanvas).
   const pingPreview = useCallback(() => {
     const win = iframeRef.current?.contentWindow;
     if (win)
       win.postMessage({ type: "sm-preview-refresh" }, window.location.origin);
   }, []);
 
-  const pingPreviewCoalesced = useCallback(() => {
-    const since = Date.now() - lastPingRef.current;
-    if (pingTimerRef.current) return; // trailing ping already scheduled
-    const fire = () => {
-      pingTimerRef.current = null;
-      lastPingRef.current = Date.now();
-      pingPreview();
-    };
-    if (since >= 1200) fire();
-    else pingTimerRef.current = setTimeout(fire, 1200 - since);
-  }, [pingPreview]);
-
-  const { status, markDirty, flush } = useAutosave({
+  const { status, markDirty, flush, unblock } = useAutosave({
     pageId: draft?.id ?? null,
     getSections: () => draftRef.current?.sections ?? [],
     tokenRef,
-    onSaved: pingPreviewCoalesced,
+    // The canvas already shows the latest draft (sm-draft) — a refresh after
+    // every save would only redo the same render the slow way.
+    onSaved: () => {},
   });
+
+  // Undo/redo over draft.sections. `record` snapshots the pre-mutation state
+  // inside setSections; typing bursts on one section coalesce to one entry.
+  const {
+    record,
+    undo: historyUndo,
+    redo: historyRedo,
+    reset: resetHistory,
+    canUndo,
+    canRedo,
+  } = useHistory();
 
   const postToPreview = useCallback((msg: Record<string, unknown>) => {
     iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin);
+  }, []);
+
+  const clearVeil = useCallback(() => {
+    if (veilTimerRef.current) {
+      clearTimeout(veilTimerRef.current);
+      veilTimerRef.current = null;
+    }
+    setPreviewLoading(false);
+  }, []);
+
+  // Point the preview at a page. Reuses the live iframe via location.replace
+  // when possible; falls back to a fresh mount (first load, or after the
+  // iframe was unmounted). The veil clears on iframe load / sm-preview-ready,
+  // with a timeout so it can never get stuck.
+  const navigatePreview = useCallback((slug: string) => {
+    const url = `/${slug}?preview=1`;
+    setPreviewLoading(true);
+    if (veilTimerRef.current) clearTimeout(veilTimerRef.current);
+    veilTimerRef.current = setTimeout(() => setPreviewLoading(false), 4000);
+    const win = iframeRef.current?.contentWindow;
+    if (win && frameSrcRef.current) {
+      try {
+        win.location.replace(url);
+        return;
+      } catch {
+        setFrameKey((k) => k + 1); // remount below
+      }
+    }
+    frameSrcRef.current = url;
+    setFrameSrc(url);
   }, []);
 
   // Canvas → builder messages (BuilderOverlay inside the preview iframe).
@@ -178,7 +242,7 @@ export function BuilderClient({
           break;
         case "sm-add-at":
           insertAfterRef.current = data.afterId ?? null;
-          setTypeChooserOpen(true);
+          setLibraryOpen(true);
           break;
         case "sm-visible": {
           // Enabled sections the page did NOT render (empty → no DOM node).
@@ -191,11 +255,14 @@ export function BuilderClient({
           setHiddenSectionIds(hidden);
           break;
         }
+        case "sm-preview-ready":
+          clearVeil();
+          break;
       }
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [clearVeil]);
 
   const loadDraft = useCallback(
     async (id: string) => {
@@ -210,9 +277,52 @@ export function BuilderClient({
       setDraftSynced(() => d);
       setSelectedId(id);
       setSelectedSectionId(null);
-      setPreviewNonce((n) => n + 1);
+      resetHistory();
+      navigatePreview(d.slug);
     },
-    [setDraftSynced],
+    [setDraftSynced, navigatePreview, resetHistory],
+  );
+
+  // Open the homepage by default so the builder never starts on an empty
+  // canvas (the sentinel slug "" is pinned first, but match by slug so a
+  // future ordering change can't silently open the wrong page).
+  const hasAutoSelected = useRef(false);
+  useEffect(() => {
+    if (hasAutoSelected.current || initialPages.length === 0) return;
+    hasAutoSelected.current = true;
+    const home = initialPages.find((p) => p.slug === "") ?? initialPages[0];
+    loadDraft(home.id);
+  }, [initialPages, loadDraft]);
+
+  // Instant preview: push the latest draft sections into the iframe's
+  // DraftCanvas after every mutation. rAF-throttled latest-wins (the send
+  // reads draftRef at fire time); custom_code edits throttle harder so the
+  // sandboxed iframe doesn't remount srcDoc on every keystroke.
+  const draftPostRaf = useRef<number | null>(null);
+  const draftPostTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const postDraftToPreview = useCallback(
+    (delayMs = 0) => {
+      const send = () =>
+        postToPreview({
+          type: "sm-draft",
+          sections: draftRef.current?.sections ?? [],
+        });
+      if (delayMs > 0) {
+        if (draftPostTimer.current) clearTimeout(draftPostTimer.current);
+        draftPostTimer.current = setTimeout(() => {
+          draftPostTimer.current = null;
+          send();
+        }, delayMs);
+        return;
+      }
+      if (draftPostRaf.current != null) return;
+      draftPostRaf.current = requestAnimationFrame(() => {
+        draftPostRaf.current = null;
+        send();
+      });
+    },
+    [postToPreview],
   );
 
   // --- Local section mutations (autosaved) ---
@@ -220,12 +330,63 @@ export function BuilderClient({
     (
       updater: (s: PageSectionItem[]) => PageSectionItem[],
       kind: "content" | "structural" = "structural",
+      opts?: { previewDelayMs?: number },
     ) => {
+      const d = draftRef.current;
+      if (d) {
+        record(
+          {
+            sections: d.sections,
+            selectedSectionId: selectedSectionIdRef.current,
+          },
+          kind === "content"
+            ? `${selectedSectionIdRef.current ?? "page"}:content`
+            : undefined,
+        );
+      }
       setDraftSynced((d) => (d ? { ...d, sections: updater(d.sections) } : d));
       markDirty(kind);
+      postDraftToPreview(opts?.previewDelayMs ?? 0);
     },
-    [setDraftSynced, markDirty],
+    [record, setDraftSynced, markDirty, postDraftToPreview],
   );
+
+  // Undo/redo application: bypasses setSections (must not re-record), but
+  // saves + paints through the same paths as any other mutation.
+  const applyHistoryEntry = useCallback(
+    (entry: HistoryEntry) => {
+      setDraftSynced((d) => (d ? { ...d, sections: entry.sections } : d));
+      const valid =
+        entry.selectedSectionId &&
+        entry.sections.some((s) => s.id === entry.selectedSectionId)
+          ? entry.selectedSectionId
+          : null;
+      setSelectedSectionId(valid);
+      markDirty("structural"); // immediate save through the autosave chain
+      postDraftToPreview();
+    },
+    [setDraftSynced, markDirty, postDraftToPreview],
+  );
+
+  const handleUndo = useCallback(() => {
+    const d = draftRef.current;
+    if (!d) return;
+    const entry = historyUndo({
+      sections: d.sections,
+      selectedSectionId: selectedSectionIdRef.current,
+    });
+    if (entry) applyHistoryEntry(entry);
+  }, [historyUndo, applyHistoryEntry]);
+
+  const handleRedo = useCallback(() => {
+    const d = draftRef.current;
+    if (!d) return;
+    const entry = historyRedo({
+      sections: d.sections,
+      selectedSectionId: selectedSectionIdRef.current,
+    });
+    if (entry) applyHistoryEntry(entry);
+  }, [historyRedo, applyHistoryEntry]);
 
   const selectedSection =
     draft?.sections.find((s) => s.id === selectedSectionId) ?? null;
@@ -236,6 +397,8 @@ export function BuilderClient({
       (s) =>
         s.map((it) => (it.id === selectedSectionId ? { ...it, config } : it)),
       "content",
+      // Typing in the code editor shouldn't remount the sandbox per keystroke.
+      { previewDelayMs: selectedSection?.type === "custom_code" ? 500 : 0 },
     );
   };
 
@@ -291,7 +454,7 @@ export function BuilderClient({
     };
     const insertAfter = insertAfterRef.current;
     insertAfterRef.current = undefined;
-    setTypeChooserOpen(false);
+    setLibraryOpen(false);
     setSections((s) => {
       if (insertAfter === undefined) return [...s, item]; // append (outline)
       if (insertAfter === null) return [item, ...s]; // top of page
@@ -391,7 +554,7 @@ export function BuilderClient({
             : p,
         ),
       );
-      setPreviewNonce((n) => n + 1);
+      navigatePreview(fresh.slug);
     }
     return true;
   };
@@ -413,8 +576,58 @@ export function BuilderClient({
     });
   };
 
+  // --- Keyboard shortcuts ---
+  useBuilderShortcuts({
+    suspended:
+      newPageOpen ||
+      codeEditorOpen ||
+      deletePageOpen ||
+      deleteSectionOpen ||
+      pageSettingsOpen ||
+      status === "blocked",
+    handlers: {
+      undo: handleUndo,
+      redo: handleRedo,
+      save: () => {
+        void flush().then((ok) => {
+          if (ok) toast.success("Saved");
+        });
+      },
+      escape: () => {
+        if (libraryOpen) {
+          setLibraryOpen(false);
+          insertAfterRef.current = undefined;
+        } else {
+          setSelectedSectionId(null);
+        }
+      },
+      moveSelection: (dir) => {
+        if (libraryOpen) return;
+        const secs = draftRef.current?.sections ?? [];
+        if (secs.length === 0) return;
+        const idx = secs.findIndex(
+          (s) => s.id === selectedSectionIdRef.current,
+        );
+        const next =
+          idx < 0
+            ? dir === 1
+              ? 0
+              : secs.length - 1
+            : Math.max(0, Math.min(secs.length - 1, idx + dir));
+        const id = secs[next].id;
+        setSelectedSectionId(id);
+        postToPreview({ type: "sm-scroll-to", id });
+      },
+      duplicate: duplicateSection,
+      requestDelete: () => {
+        if (!libraryOpen && selectedSectionIdRef.current)
+          setDeleteSectionOpen(true);
+      },
+    },
+  });
+
   return (
-    <div className="sm-builder">
+    <div className={`sm-builder ${leftCollapsed ? "is-left-collapsed" : ""}`}>
       {/* Top bar */}
       <header className="sm-builder-topbar">
         <div className="sm-builder-topbar-left">
@@ -425,6 +638,17 @@ export function BuilderClient({
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
+          <button
+            className="sm-builder-iconbtn"
+            onClick={toggleLeftPanel}
+            title={leftCollapsed ? "Show pages & sections" : "Hide panel"}
+          >
+            {leftCollapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
+          </button>
           <span className="sm-builder-brand">{storeName}</span>
           <span className="sm-builder-sep">/</span>
           <span className="sm-builder-title">
@@ -434,6 +658,15 @@ export function BuilderClient({
                 : draft.title || draft.slug
               : "Website Builder"}
           </span>
+          {draft && (
+            <button
+              className="sm-builder-iconbtn"
+              onClick={() => setPageSettingsOpen(true)}
+              title="Page settings (title, slug, SEO)"
+            >
+              <Settings2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         <div className="sm-builder-viewports">
@@ -459,6 +692,22 @@ export function BuilderClient({
 
         {draft && (
           <div className="sm-builder-topbar-right">
+            <button
+              className="sm-builder-iconbtn"
+              onClick={handleUndo}
+              disabled={!canUndo}
+              title="Undo (⌘Z)"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+            <button
+              className="sm-builder-iconbtn"
+              onClick={handleRedo}
+              disabled={!canRedo}
+              title="Redo (⇧⌘Z)"
+            >
+              <Redo2 className="h-4 w-4" />
+            </button>
             <SaveStatusIndicator status={status} onRetry={() => flush()} />
             <span
               className={`sm-builder-status ${draft.status === "published" ? "is-live" : ""}`}
@@ -473,6 +722,13 @@ export function BuilderClient({
               title="Open live page"
             >
               <ExternalLink className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/dashboard/builder/settings"
+              className="sm-builder-iconbtn"
+              title="Website settings"
+            >
+              <Settings className="h-4 w-4" />
             </Link>
             {draft.status === "published" ? (
               <Button
@@ -492,46 +748,73 @@ export function BuilderClient({
       </header>
 
       <div className="sm-builder-body">
-        <OutlinePanel
-          pages={pages}
-          selectedPageId={selectedId}
-          onSelectPage={loadDraft}
-          onNewPage={() => setNewPageOpen(true)}
-          sections={draft?.sections ?? null}
-          selectedSectionId={selectedSectionId}
-          canvasHoverId={canvasHoverId}
-          hiddenSectionIds={hiddenSectionIds}
-          onSelectSection={(id) => {
-            setSelectedSectionId(id);
-            postToPreview({ type: "sm-scroll-to", id });
-          }}
-          onHoverSection={(id) => postToPreview({ type: "sm-highlight", id })}
-          onToggleSection={toggleSection}
-          onReorder={reorderSections}
-          onAddSection={() => {
-            insertAfterRef.current = undefined;
-            setTypeChooserOpen(true);
-          }}
-        />
+        {leftCollapsed ? (
+          <div className="sm-builder-rail">
+            <button
+              className="sm-builder-iconbtn"
+              onClick={toggleLeftPanel}
+              title="Show pages & sections"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+            <button
+              className="sm-builder-iconbtn"
+              onClick={() => {
+                insertAfterRef.current = undefined;
+                setLibraryOpen(true);
+              }}
+              title="Add section"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <OutlinePanel
+            pages={pages}
+            selectedPageId={selectedId}
+            onSelectPage={loadDraft}
+            onNewPage={() => setNewPageOpen(true)}
+            sections={draft?.sections ?? null}
+            selectedSectionId={selectedSectionId}
+            canvasHoverId={canvasHoverId}
+            hiddenSectionIds={hiddenSectionIds}
+            onSelectSection={(id) => {
+              setSelectedSectionId(id);
+              postToPreview({ type: "sm-scroll-to", id });
+            }}
+            onHoverSection={(id) => postToPreview({ type: "sm-highlight", id })}
+            onToggleSection={toggleSection}
+            onReorder={reorderSections}
+            onAddSection={() => {
+              insertAfterRef.current = undefined;
+              setLibraryOpen(true);
+            }}
+          />
+        )}
 
-        {/* Center: preview */}
+        {/* Center: preview. The iframe stays mounted through page switches —
+            the outgoing page remains visible under the veil (no blank flash). */}
         <main className="sm-builder-preview">
-          {loadingDraft ? (
-            <div className="sm-builder-preview-empty">
-              <Loader2 className="h-6 w-6 animate-spin opacity-50" />
-            </div>
-          ) : draft ? (
+          {draft || loadingDraft ? (
             <div
               className="sm-builder-frame-wrap"
               style={{ width: VIEWPORT_WIDTH[viewport] }}
             >
-              <iframe
-                key={`${draft.id}-${previewNonce}`}
-                ref={iframeRef}
-                src={`/${draft.slug}?preview=1`}
-                className="sm-builder-frame"
-                title="Page preview"
-              />
+              {frameSrc ? (
+                <iframe
+                  key={frameKey}
+                  ref={iframeRef}
+                  src={frameSrc}
+                  className="sm-builder-frame"
+                  title="Page preview"
+                  onLoad={clearVeil}
+                />
+              ) : null}
+              {(previewLoading || loadingDraft) && (
+                <div className="sm-builder-frame-veil">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              )}
             </div>
           ) : (
             <div className="sm-builder-preview-empty">
@@ -551,49 +834,50 @@ export function BuilderClient({
           onDelete={deleteSection}
           onClearSelection={() => setSelectedSectionId(null)}
           onOpenCodeEditor={() => setCodeEditorOpen(true)}
-          onSavePageMeta={handleSavePageMeta}
-          onDeletePage={() => setDeletePageOpen(true)}
+          onOpenPageSettings={() => setPageSettingsOpen(true)}
         />
       </div>
 
-      {/* Type chooser */}
-      <Dialog
-        open={typeChooserOpen}
-        onOpenChange={(o) => {
-          setTypeChooserOpen(o);
-          if (!o) insertAfterRef.current = undefined;
-        }}
-      >
-        <DialogContent className="sm:max-w-[520px]">
+      <div className="sm-builder-smallscreen">
+        <p>
+          The website builder needs a larger screen.
+          <br />
+          Please open it on a tablet or desktop.
+        </p>
+      </div>
+
+      {/* Page settings (title / slug / SEO) — topbar-triggered dialog */}
+      <Dialog open={pageSettingsOpen} onOpenChange={setPageSettingsOpen}>
+        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>Add a section</DialogTitle>
+            <DialogTitle>Page settings</DialogTitle>
             <DialogDescription>
-              Pick a block to add to this page.
+              Title, address and search-engine details for this page.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-2 py-2">
-            {HOMEPAGE_SECTION_TYPES.map((t) => {
-              const meta = SECTION_TYPE_META[t];
-              const Icon = navIcons[meta.icon as keyof typeof navIcons];
-              return (
-                <button
-                  key={t}
-                  className="sm-builder-typecard"
-                  onClick={() => addSection(t)}
-                >
-                  <span className="sm-builder-typeicon">
-                    {Icon ? <Icon className="h-4 w-4" /> : null}
-                  </span>
-                  <span className="sm-builder-typelabel">{meta.label}</span>
-                  <span className="sm-builder-typedesc">
-                    {meta.description}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {draft && (
+            <PageSettingsForm
+              key={draft.id}
+              draft={draft}
+              onSave={handleSavePageMeta}
+              onDeletePage={() => {
+                setPageSettingsOpen(false);
+                setDeletePageOpen(true);
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
+
+      {/* Add-section library (slide-over next to the outline) */}
+      <SectionLibrary
+        open={libraryOpen}
+        onAdd={addSection}
+        onClose={() => {
+          setLibraryOpen(false);
+          insertAfterRef.current = undefined;
+        }}
+      />
 
       {/* Code editor (custom_code) — the wide surface the inspector can't be.
           Writes through to the draft live; autosave picks it up. */}
@@ -652,6 +936,35 @@ export function BuilderClient({
         </DialogContent>
       </Dialog>
 
+      {/* Delete section confirm (keyboard Delete) */}
+      <Dialog open={deleteSectionOpen} onOpenChange={setDeleteSectionOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete this section?</DialogTitle>
+            <DialogDescription>
+              You can bring it back with Undo (⌘Z) while the builder stays open.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteSectionOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                deleteSection();
+                setDeleteSectionOpen(false);
+              }}
+              className="bg-[var(--dash-red,#d33a45)] hover:bg-[#b32e38]"
+            >
+              Delete section
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* New page */}
       <NewPageDialog
         open={newPageOpen}
@@ -664,20 +977,59 @@ export function BuilderClient({
       />
 
       {/* Controlled open with no onOpenChange: not dismissible by Esc/outside
-          click — the only way forward is the reload button. */}
+          click — the user must pick an explicit way forward. */}
       <Dialog open={status === "blocked"}>
-        <DialogContent className="sm:max-w-[440px]" showCloseButton={false}>
+        <DialogContent className="sm:max-w-[460px]" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>This page changed somewhere else</DialogTitle>
             <DialogDescription>
-              It was edited from another tab or by a teammate. Reload the
-              builder to continue from the latest version — your unsaved changes
-              here can&apos;t be applied safely.
+              It was edited from another tab or by a teammate. Reload to
+              continue from their version, or keep yours: copy your changes as a
+              backup, or overwrite theirs with what you have here.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => window.location.reload()}>
-              Reload builder
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button className="w-full" onClick={() => window.location.reload()}>
+              Reload builder (use their version)
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(
+                    JSON.stringify(draftRef.current?.sections ?? [], null, 2),
+                  );
+                  toast.success("Your sections were copied as JSON.");
+                } catch {
+                  toast.error("Couldn't copy to the clipboard.");
+                }
+              }}
+            >
+              Copy my changes
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full text-[var(--dash-red,#d33a45)]"
+              disabled={isPending}
+              onClick={() => {
+                if (!draft) return;
+                startTransition(async () => {
+                  // Re-pull only for a fresh stale-tab token; the LOCAL
+                  // sections stay and win — that's the point of taking over.
+                  const fresh = await getPageDraft(draft.id);
+                  if (!fresh) {
+                    toast.error("Could not reach the page — try reloading.");
+                    return;
+                  }
+                  tokenRef.current = fresh.updated_at;
+                  const ok = await unblock();
+                  if (ok) toast.success("Took over — your version is saved.");
+                  else toast.error("Still couldn't save. Reload the builder.");
+                });
+              }}
+            >
+              Take over (overwrite with my version)
             </Button>
           </DialogFooter>
         </DialogContent>

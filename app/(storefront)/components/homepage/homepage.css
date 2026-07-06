@@ -9,6 +9,15 @@
   padding: clamp(40px, 6vw, 72px) 0;
 }
 
+/* The header is position:fixed (takes no layout space). The classic theme
+   floats it TRANSPARENT over the page, so sections may start at the top —
+   but the "market" variant is a solid opaque bar (10vh tall, see
+   Header.module.css): builder pages must clear it or the first section
+   starts underneath. 10vh = the bar itself + a small breathing gap. */
+.sm-header-market .home-sections {
+  padding-top: calc(10vh + clamp(16px, 2.5vw, 28px));
+}
+
 .home-section {
   width: 100%;
   padding-inline: clamp(20px, 5vw, 64px);
@@ -115,35 +124,95 @@
   color: var(--wholesip-ink-soft);
 }
 
-/* ---- Featured products grid (reuses .shop-card from shop.css) ---- */
-.home-product-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 22px;
+/* ---- Featured Products Carousel (reuses .shop-card from shop.css) ---- */
+.home-product-carousel {
+  position: relative;
 }
 
-@media (max-width: 1100px) {
-  .home-product-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
+.home-product-scroll {
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 24px; /* room for shadow */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+  cursor: grab;
 }
+.home-product-scroll::-webkit-scrollbar {
+  display: none;
+}
+.home-product-scroll.is-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+}
+.home-product-scroll.is-dragging * {
+  user-select: none;
+}
+
+/* 3 visible on desktop/tablet */
+.home-product-scroll .shop-card {
+  flex: 0 0 calc((100% - 44px) / 3);
+  scroll-snap-align: start;
+}
+
+/* Mobile view: show ~2.3 cards to indicate scrolling and reduce vertical extension */
 @media (max-width: 760px) {
-  .home-product-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .home-product-scroll .shop-card {
+    flex: 0 0 155px;
   }
 }
-@media (max-width: 460px) {
-  .home-product-grid {
-    grid-template-columns: 1fr;
-  }
+
+.home-product-arrow {
+  position: absolute;
+  top: 45%;
+  transform: translateY(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--wholesip-surface);
+  color: var(--wholesip-ink);
+  border: 1px solid var(--wholesip-border);
+  box-shadow: 0 8px 24px rgba(var(--wholesip-shadow-rgb), 0.14);
+  cursor: pointer;
+  opacity: 1;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.2s ease,
+    background 0.18s ease;
+}
+.home-product-arrow:hover {
+  transform: translateY(-50%) scale(1.08);
+  box-shadow: 0 12px 30px rgba(var(--wholesip-shadow-rgb), 0.2);
+}
+.home-product-arrow:active {
+  transform: translateY(-50%) scale(0.96);
+}
+.home-product-arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+.home-product-arrow-prev {
+  left: -12px;
+}
+.home-product-arrow-next {
+  right: -12px;
 }
 
 /* Card look — mirrors the `.shop-listing .shop-card*` tile styling so homepage
-   featured cards match the shop grid (soft colour tile via --card-bg, capped
-   image height instead of the generic 2/3 aspect, ink typography). The base
+   featured cards match the shop grid (soft colour tile via --card-bg, square
+   image tile instead of the generic 2/3 aspect, ink typography). The base
    .shop-card rules in shop.css are otherwise scoped under .shop-listing and
    wouldn't reach the homepage. */
-.home-product-grid .shop-card {
+.home-product-carousel .shop-card {
   background: var(--card-bg, var(--wholesip-tile, #f4dfe0));
   border: none;
   border-radius: 20px;
@@ -151,28 +220,28 @@
   box-shadow: 0 1px 2px rgba(var(--wholesip-shadow-rgb), 0.04);
 }
 
-.home-product-grid .shop-card:hover {
+.home-product-carousel .shop-card:hover {
   transform: translateY(-6px);
   box-shadow: 0 22px 44px rgba(var(--wholesip-shadow-rgb), 0.14);
 }
 
-.home-product-grid .shop-card-img {
-  height: clamp(165px, 18vw, 230px);
-  aspect-ratio: auto;
+.home-product-carousel .shop-card-img {
+  aspect-ratio: 1 / 1;
+  height: auto;
   background: transparent;
   border-radius: 14px;
 }
 
-.home-product-grid .shop-card-img-el {
+.home-product-carousel .shop-card-img-el {
   padding: 10px;
   transition: transform 0.3s ease;
 }
 
-.home-product-grid .shop-card:hover .shop-card-img-el {
+.home-product-carousel .shop-card:hover .shop-card-img-el {
   transform: scale(1.05);
 }
 
-.home-product-grid .shop-card-badge {
+.home-product-carousel .shop-card-badge {
   left: auto;
   right: 14px;
   top: 14px;
@@ -184,33 +253,37 @@
   letter-spacing: 0;
 }
 
-.home-product-grid .shop-card-body {
+.home-product-carousel .shop-card-body {
   padding: 6px 12px 14px;
 }
 
-.home-product-grid .shop-card-name {
+.home-product-carousel .shop-card-name {
   font-family: var(--font-outfit), sans-serif;
   font-weight: 700;
   font-size: 1.15rem;
   color: var(--wholesip-ink);
 }
 
-.home-product-grid .shop-card-price,
-.home-product-grid .shop-card-sell,
-.home-product-grid .shop-card-from {
+.home-product-carousel .shop-card-price,
+.home-product-carousel .shop-card-sell,
+.home-product-carousel .shop-card-from {
   color: var(--wholesip-ink);
 }
 
-.home-product-grid .shop-card-base {
+.home-product-carousel .shop-card-base {
   color: var(--wholesip-ink-faint);
 }
 
-.home-product-grid .shop-card-off {
+.home-product-carousel .shop-card-off {
   color: var(--wholesip-ink);
   background: rgba(255, 255, 255, 0.55);
 }
 
 /* ---- Shop by category ---- */
+.home-cat-carousel {
+  position: relative;
+}
+
 .home-cat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -223,11 +296,66 @@
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   padding-bottom: 8px;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+  cursor: grab;
+}
+.home-cat-scroll::-webkit-scrollbar {
+  display: none;
+}
+.home-cat-scroll.is-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+}
+.home-cat-scroll.is-dragging * {
+  user-select: none;
 }
 .home-cat-scroll .home-cat-tile {
   flex: 0 0 160px;
   scroll-snap-align: start;
+}
+
+.home-cat-arrow {
+  position: absolute;
+  top: calc(50% - 14px); /* offset slightly because of text below images */
+  transform: translateY(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--wholesip-surface);
+  color: var(--wholesip-ink);
+  border: 1px solid var(--wholesip-border);
+  box-shadow: 0 8px 24px rgba(var(--wholesip-shadow-rgb), 0.14);
+  cursor: pointer;
+  opacity: 1;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.2s ease,
+    background 0.18s ease;
+}
+.home-cat-arrow:hover {
+  transform: translateY(-50%) scale(1.08);
+  box-shadow: 0 12px 30px rgba(var(--wholesip-shadow-rgb), 0.2);
+}
+.home-cat-arrow:active {
+  transform: translateY(-50%) scale(0.96);
+}
+.home-cat-arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+.home-cat-arrow-prev {
+  left: -10px;
+}
+.home-cat-arrow-next {
+  right: -10px;
 }
 
 .home-cat-tile {
@@ -733,6 +861,183 @@
     border-radius: calc(var(--wholesip-radius-card, 20px) - 8px);
     overflow: hidden;
   }
+}
+
+/* ---- Hero carousel ----
+   Slides stack absolutely and cross-fade; media (photo or muted video)
+   covers the slide, copy overlays it. Same theme-dark/light contract and
+   .home-hero-cta button as the hero. */
+.home-carousel {
+  position: relative;
+  min-height: clamp(300px, 40vw, 520px);
+  border-radius: var(--wholesip-radius-card, 20px);
+  overflow: hidden;
+  background: var(--wholesip-cream-deep);
+}
+.home-carousel-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.55s ease;
+}
+.home-carousel-slide.is-active {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 1;
+}
+.home-carousel-slide.theme-dark {
+  color: var(--wholesip-ink);
+}
+.home-carousel-slide.theme-light {
+  color: var(--wholesip-on-ink);
+}
+.home-carousel-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+/* Legibility scrim for light (on-dark) text over media. */
+.home-carousel-slide.theme-light::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.45) 0%,
+    rgba(0, 0, 0, 0.12) 60%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  z-index: 0;
+}
+.home-carousel-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: clamp(24px, 5vw, 64px);
+  max-width: 60ch;
+}
+.home-carousel-heading {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: clamp(1.8rem, 4.2vw, 3.1rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  margin: 0;
+}
+.home-carousel-sub {
+  font-size: clamp(0.95rem, 1.6vw, 1.1rem);
+  margin: 0;
+  max-width: 46ch;
+  opacity: 0.88;
+}
+.home-carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  background: rgba(var(--wholesip-shadow-rgb, 16, 24, 40), 0.28);
+  color: #fff;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+.home-carousel-arrow:hover {
+  background: rgba(var(--wholesip-shadow-rgb, 16, 24, 40), 0.5);
+  transform: translateY(-50%) scale(1.06);
+}
+.home-carousel-arrow svg {
+  width: 22px;
+  height: 22px;
+}
+.home-carousel-arrow.is-prev {
+  left: 14px;
+}
+.home-carousel-arrow.is-next {
+  right: 14px;
+}
+.home-carousel-dots {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+}
+.home-carousel-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 1px 4px rgba(var(--wholesip-shadow-rgb, 16, 24, 40), 0.35);
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+.home-carousel-dot.is-active {
+  background: #fff;
+  transform: scale(1.25);
+}
+@media (max-width: 640px) {
+  .home-carousel {
+    min-height: 320px;
+  }
+  .home-carousel-arrow {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+/* Video media slot in the plain hero (video wins over the image). */
+.home-hero-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* YouTube/Vimeo embeds. Unlike an uploaded file, a YouTube/Vimeo iframe always
+   carries player chrome (title, controls, end cards) and is locked to 16:9 —
+   it cannot be a seamless background video. So we render it as a real, playable
+   16:9 player CONTAINED in the media box (whole frame visible, never zoom-
+   cropped), vertically centred, letterboxed against the slide background. */
+.home-video-embed-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  container-type: size;
+  z-index: 0;
+}
+.home-video-embed {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  /* contain: fit fully inside the box, keeping 16:9 */
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
+  border: 0;
 }
 
 /* ---- USP bar ---- */

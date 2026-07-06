@@ -4,6 +4,7 @@ import type {
   SectionStyle,
 } from "@/lib/homepage/section-types";
 import { SectionShell } from "../sections/section-shell";
+import { HorizontalCarousel } from "./horizontal-carousel";
 
 // Presentational: receives already-resolved product rows (resolution + the
 // Supabase query happen once in the homepage server component). Renders
@@ -33,11 +34,15 @@ export function FeaturedProductsSection({
           )}
         </div>
       )}
-      <div className="home-product-grid">
+      <HorizontalCarousel
+        carouselClass="home-product-carousel"
+        scrollClass="home-product-scroll"
+        arrowClass="home-product-arrow"
+      >
         {products.map((p) => (
           <ShopCard key={p.id} product={p} />
         ))}
-      </div>
+      </HorizontalCarousel>
     </SectionShell>
   );
 }

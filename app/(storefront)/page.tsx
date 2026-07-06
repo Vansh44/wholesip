@@ -5,8 +5,12 @@ import { getStoreBrand } from "@/lib/store/brand";
 import { brandOgImageUrl } from "@/lib/seo/og-card";
 import { getPublishedPage } from "@/lib/storefront/queries";
 import { getDraftPageForPreview } from "@/lib/pages/preview";
-import { resolveSectionData } from "@/lib/sections/resolve-data";
+import {
+  fetchSectionDatasets,
+  resolveSectionData,
+} from "@/lib/sections/resolve-data";
 import { PageSectionRenderer } from "@/app/(storefront)/components/sections/page-section-renderer";
+import { DraftCanvas } from "@/app/(storefront)/components/sections/draft-canvas";
 import {
   PreviewBridge,
   PreviewBadge,
@@ -87,6 +91,23 @@ async function renderSections(
   storeId: string,
   preview: boolean,
 ) {
+  if (preview) {
+    // Builder preview: sections render CLIENT-side (DraftCanvas) so builder
+    // edits paint instantly via the `sm-draft` postMessage — ship the full
+    // dataset snapshots so local re-resolution never lacks data.
+    const datasets = await fetchSectionDatasets(sections, storeId, {
+      all: true,
+    });
+    return (
+      <main>
+        <StructuredData />
+        <DraftCanvas initialSections={sections} datasets={datasets} />
+        <PreviewBridge />
+        <PreviewBadge />
+        <BuilderOverlay />
+      </main>
+    );
+  }
   const resolved = await resolveSectionData(
     sections.filter((s) => s.enabled),
     storeId,
@@ -95,13 +116,6 @@ async function renderSections(
     <main>
       <StructuredData />
       <PageSectionRenderer sections={sections} resolved={resolved} />
-      {preview && (
-        <>
-          <PreviewBridge />
-          <PreviewBadge />
-          <BuilderOverlay />
-        </>
-      )}
     </main>
   );
 }

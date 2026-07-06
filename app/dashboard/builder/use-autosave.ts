@@ -8,7 +8,7 @@ import type { PageSectionItem } from "@/lib/sections/registry";
 // Builder autosave engine. Google-Docs model: the draft saves itself; Publish
 // is the only explicit action.
 //
-//  • markDirty("content")    → debounced save (600ms after the last change)
+//  • markDirty("content")    → debounced save (350ms after the last change)
 //  • markDirty("structural") → immediate save (add/delete/reorder/toggle)
 //  • flush()                 → save now; awaited by Publish
 //
@@ -23,7 +23,7 @@ import type { PageSectionItem } from "@/lib/sections/registry";
 
 export type SaveStatus = "saved" | "dirty" | "saving" | "error" | "blocked";
 
-const CONTENT_DEBOUNCE_MS = 600;
+const CONTENT_DEBOUNCE_MS = 350;
 
 export function useAutosave({
   pageId,
@@ -133,6 +133,19 @@ export function useAutosave({
     return enqueueSave();
   }, [enqueueSave]);
 
+  /**
+   * Escape hatch for the blocked state ("take over"): the caller has re-pulled
+   * a FRESH stale-tab token (getPageDraft → tokenRef) and explicitly chose to
+   * overwrite the other tab's version with the local sections. Re-marks dirty
+   * and saves through the normal chain — with the fresh token the save is
+   * valid, and the local draft wins.
+   */
+  const unblock = useCallback((): Promise<boolean> => {
+    dirtyRef.current = true;
+    applyStatus("dirty");
+    return enqueueSave();
+  }, [enqueueSave, applyStatus]);
+
   // Warn before closing the tab while edits are unsaved or failing.
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
@@ -144,5 +157,5 @@ export function useAutosave({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
-  return { status, markDirty, flush };
+  return { status, markDirty, flush, unblock };
 }

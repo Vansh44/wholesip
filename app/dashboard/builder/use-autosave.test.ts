@@ -143,4 +143,35 @@ describe("useAutosave", () => {
     expect(await hook.result.current.flush()).toBe(true);
     expect(savePageDraft).not.toHaveBeenCalled();
   });
+
+  it("unblock re-saves the local sections after a take-over (fresh token)", async () => {
+    vi.mocked(savePageDraft)
+      .mockResolvedValueOnce({
+        error: "changed somewhere else",
+        data: { stale: true },
+      })
+      .mockResolvedValueOnce({ success: true, data: { updated_at: "t9" } });
+    const { hook } = setup();
+
+    await act(async () => {
+      hook.result.current.markDirty("structural");
+    });
+    await waitFor(() => expect(hook.result.current.status).toBe("blocked"));
+
+    // The caller re-pulled a fresh token (getPageDraft) and chose to overwrite.
+    hook.result.current.tokenRef.current = "t-fresh";
+    let ok: boolean | undefined;
+    await act(async () => {
+      ok = await hook.result.current.unblock();
+    });
+    expect(ok).toBe(true);
+    // Saved the LOCAL sections with the fresh token; token refreshed again.
+    expect(vi.mocked(savePageDraft).mock.calls[1]).toEqual([
+      "p1",
+      [{ id: "a" }],
+      "t-fresh",
+    ]);
+    expect(hook.result.current.tokenRef.current).toBe("t9");
+    await waitFor(() => expect(hook.result.current.status).toBe("saved"));
+  });
 });
