@@ -52,8 +52,7 @@ export function InspectorPanel({
   onDelete,
   onClearSelection,
   onOpenCodeEditor,
-  onSavePageMeta,
-  onDeletePage,
+  onOpenPageSettings,
 }: {
   draft: PageDraft | null;
   section: PageSectionItem | null;
@@ -64,14 +63,7 @@ export function InspectorPanel({
   onDelete: () => void;
   onClearSelection: () => void;
   onOpenCodeEditor: () => void;
-  onSavePageMeta: (fields: {
-    title: string;
-    slug: string;
-    seo_title: string;
-    seo_description: string;
-    seo_noindex: boolean;
-  }) => Promise<boolean>;
-  onDeletePage: () => void;
+  onOpenPageSettings: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("content");
 
@@ -94,12 +86,19 @@ export function InspectorPanel({
   if (!section) {
     return (
       <aside className="sm-builder-inspector">
-        <PageSettings
-          key={draft.id}
-          draft={draft}
-          onSave={onSavePageMeta}
-          onDeletePage={onDeletePage}
-        />
+        <div className="sm-builder-inspector-idle">
+          <p className="sm-builder-inspector-idle-hint">
+            Click a section on the canvas — or in the outline — to edit it.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={onOpenPageSettings}
+          >
+            <Settings2 className="mr-1.5 h-4 w-4" /> Page settings
+          </Button>
+        </div>
       </aside>
     );
   }
@@ -107,7 +106,7 @@ export function InspectorPanel({
   const meta = SECTION_TYPE_META[section.type];
 
   return (
-    <aside className="sm-builder-inspector">
+    <aside className="sm-builder-inspector has-selection">
       <div className="sm-builder-inspector-head">
         <button
           className="sm-builder-backbtn"
@@ -209,6 +208,15 @@ export function InspectorPanel({
   );
 }
 
+function ShortcutRow({ keys, label }: { keys: string; label: string }) {
+  return (
+    <div className="sm-builder-shortcut">
+      <kbd>{keys}</kbd>
+      <span>{label}</span>
+    </div>
+  );
+}
+
 function TabButton({
   active,
   onClick,
@@ -240,6 +248,17 @@ const PADDING_OPTIONS: { value: SectionPaddingY; label: string }[] = [
   { value: "lg", label: "L" },
 ];
 
+// Quick style presets: each chip is just a SectionStyle partial layered over
+// the current style. Pure data — the strict per-field validation still runs
+// server-side on save.
+const STYLE_PRESETS: { label: string; patch: Partial<SectionStyle> }[] = [
+  { label: "Plain", patch: { background: undefined, padding_y: "none" } },
+  { label: "Tinted", patch: { background: "#f6f7f9", padding_y: "md" } },
+  { label: "Contrast", patch: { background: "#111827", padding_y: "lg" } },
+  { label: "Airy", patch: { background: undefined, padding_y: "lg" } },
+  { label: "Band", patch: { width: "full", padding_y: "md" } },
+];
+
 function StyleForm({
   sectionType,
   style,
@@ -260,6 +279,25 @@ function StyleForm({
 
   return (
     <div className="space-y-5">
+      <div>
+        <label className={labelClass}>Presets</label>
+        <div className="sm-builder-presets">
+          {STYLE_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              className="sm-builder-preset"
+              onClick={() => onChange({ ...style, ...p.patch })}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-muted-foreground mt-1 text-[11px]">
+          One-click starting points — tweak anything below after.
+        </p>
+      </div>
+
       <div>
         <label className={labelClass}>Background color</label>
         <div className="flex items-center gap-2">
@@ -366,9 +404,9 @@ function CustomCodeSummary({
   );
 }
 
-// --- Page settings (no section selected) --------------------------------------
+// --- Page settings form (hosted in the builder's topbar dialog) --------------
 
-function PageSettings({
+export function PageSettingsForm({
   draft,
   onSave,
   onDeletePage,
@@ -419,8 +457,7 @@ function PageSettings({
   };
 
   return (
-    <div className="sm-builder-inspector-body">
-      <div className="sm-builder-inspector-title mb-4">Page settings</div>
+    <div>
       <div className="space-y-5">
         <div>
           <label className={labelClass}>Title</label>

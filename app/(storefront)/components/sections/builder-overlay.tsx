@@ -31,6 +31,12 @@ interface Rect {
   height: number;
 }
 
+// The builder's accent, inlined: this runs inside the storefront iframe, so
+// it can't read the dashboard's CSS variables. Keep in sync with
+// --dash-accent in app/dashboard/dashboard.css.
+const ACCENT = "#4f46e5";
+const ACCENT_RGB = "79, 70, 229";
+
 const post = (msg: Record<string, unknown>) =>
   window.parent?.postMessage(msg, window.location.origin);
 
@@ -149,11 +155,11 @@ export function BuilderOverlay() {
               cursor: "pointer",
               outline:
                 activeId === r.id
-                  ? "2px solid #4f39f6"
+                  ? `2px solid ${ACCENT}`
                   : "2px solid transparent",
               outlineOffset: -2,
               background:
-                activeId === r.id ? "rgba(79, 57, 246, 0.05)" : "transparent",
+                activeId === r.id ? `rgba(${ACCENT_RGB}, 0.05)` : "transparent",
               transition: "outline-color 0.12s, background 0.12s",
             }}
           >
@@ -163,7 +169,7 @@ export function BuilderOverlay() {
                   position: "absolute",
                   top: 6,
                   left: 6,
-                  background: "#4f39f6",
+                  background: ACCENT,
                   color: "#fff",
                   fontSize: 11,
                   fontWeight: 700,
@@ -212,8 +218,8 @@ function AddButton({
         alignItems: "center",
         gap: 5,
         background: "#fff",
-        color: "#4f39f6",
-        border: "1px solid #c4bcff",
+        color: ACCENT,
+        border: `1px solid rgba(${ACCENT_RGB}, 0.45)`,
         borderRadius: 999,
         fontSize: 12,
         fontWeight: 700,

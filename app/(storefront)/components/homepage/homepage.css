@@ -854,6 +854,182 @@
   }
 }
 
+/* ---- Hero carousel ----
+   Slides stack absolutely and cross-fade; media (photo or muted video)
+   covers the slide, copy overlays it. Same theme-dark/light contract and
+   .home-hero-cta button as the hero. */
+.home-carousel {
+  position: relative;
+  min-height: clamp(300px, 40vw, 520px);
+  border-radius: var(--wholesip-radius-card, 20px);
+  overflow: hidden;
+  background: var(--wholesip-cream-deep);
+}
+.home-carousel-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.55s ease;
+}
+.home-carousel-slide.is-active {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 1;
+}
+.home-carousel-slide.theme-dark {
+  color: var(--wholesip-ink);
+}
+.home-carousel-slide.theme-light {
+  color: var(--wholesip-on-ink);
+}
+.home-carousel-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+/* Legibility scrim for light (on-dark) text over media. */
+.home-carousel-slide.theme-light::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.45) 0%,
+    rgba(0, 0, 0, 0.12) 60%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  z-index: 0;
+}
+.home-carousel-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: clamp(24px, 5vw, 64px);
+  max-width: 60ch;
+}
+.home-carousel-heading {
+  font-family: var(--font-outfit), sans-serif;
+  font-size: clamp(1.8rem, 4.2vw, 3.1rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  margin: 0;
+}
+.home-carousel-sub {
+  font-size: clamp(0.95rem, 1.6vw, 1.1rem);
+  margin: 0;
+  max-width: 46ch;
+  opacity: 0.88;
+}
+.home-carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  background: rgba(var(--wholesip-shadow-rgb, 16, 24, 40), 0.28);
+  color: #fff;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+.home-carousel-arrow:hover {
+  background: rgba(var(--wholesip-shadow-rgb, 16, 24, 40), 0.5);
+  transform: translateY(-50%) scale(1.06);
+}
+.home-carousel-arrow svg {
+  width: 22px;
+  height: 22px;
+}
+.home-carousel-arrow.is-prev {
+  left: 14px;
+}
+.home-carousel-arrow.is-next {
+  right: 14px;
+}
+.home-carousel-dots {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+}
+.home-carousel-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 1px 4px rgba(var(--wholesip-shadow-rgb, 16, 24, 40), 0.35);
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+.home-carousel-dot.is-active {
+  background: #fff;
+  transform: scale(1.25);
+}
+@media (max-width: 640px) {
+  .home-carousel {
+    min-height: 320px;
+  }
+  .home-carousel-arrow {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+/* Video media slot in the plain hero (video wins over the image). */
+.home-hero-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* YouTube/Vimeo background embeds. The iframe is 16:9 and can't object-fit,
+   so we oversize it to COVER its box using container-query units: at least
+   full width AND full height, whichever dominates, centred. pointer-events
+   stay off — it's a background, the player chrome is disabled anyway. */
+.home-video-embed-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  container-type: size;
+  pointer-events: none;
+  z-index: 0;
+}
+.home-video-embed {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100cqw, 177.78cqh);
+  height: max(100cqh, 56.25cqw);
+  border: 0;
+}
+
 /* ---- USP bar ---- */
 .home-usp {
   display: flex;

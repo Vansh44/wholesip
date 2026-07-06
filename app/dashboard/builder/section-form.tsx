@@ -2,11 +2,14 @@
 
 import { ChevronUp, ChevronDown, X, Plus } from "lucide-react";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { VideoUpload } from "@/components/ui/video-upload";
 import { NumberField } from "@/components/ui/number-field";
 import { CustomCodeFrame } from "@/app/(storefront)/components/sections/custom-code-frame";
 import CodeEditor from "./code-editor-lazy";
+import { FieldGroup } from "./field-group";
 import {
   MAX_FAQ_ITEMS,
+  MAX_HERO_SLIDES,
   MAX_TILES,
   MAX_USP_ITEMS,
   USP_ICONS,
@@ -15,7 +18,9 @@ import {
   type FaqAccordionConfig,
   type FaqItem,
   type FeaturedProductsConfig,
+  type HeroCarouselConfig,
   type HeroConfig,
+  type HeroSlide,
   type HomepageSectionType,
   type LatestBlogsConfig,
   type PromoBannerConfig,
@@ -78,6 +83,13 @@ export function SectionForm({
   switch (type) {
     case "hero":
       return <HeroFields config={config as HeroConfig} setConfig={setConfig} />;
+    case "hero_carousel":
+      return (
+        <CarouselFields
+          config={config as HeroCarouselConfig}
+          setConfig={setConfig}
+        />
+      );
     case "usp_bar":
       return (
         <UspBarFields config={config as UspBarConfig} setConfig={setConfig} />
@@ -273,6 +285,33 @@ function ColorField({
   );
 }
 
+// Video slot: upload a file (signed-URL flow, straight to storage) or paste a
+// direct .mp4/.webm URL. Both write the same config field; the storefront
+// plays it muted/looping in place of the image.
+function VideoField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <VideoUpload
+        folder="homepage"
+        defaultVideo={value || undefined}
+        onUploadSuccess={onChange}
+      />
+      <input
+        className={fieldClass}
+        value={value}
+        onChange={(e) => onChange(e.target.value.trim())}
+        placeholder="…or paste a YouTube / Vimeo / .mp4 link"
+      />
+    </div>
+  );
+}
+
 const USP_ICON_LABELS: Record<(typeof USP_ICONS)[number], string> = {
   star: "Star",
   "badge-check": "Badge check",
@@ -300,91 +339,59 @@ function HeroFields({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass}>Layout</label>
-          <select
-            className={fieldClass}
-            value={config.variant}
-            onChange={(e) =>
-              set("variant", e.target.value as HeroConfig["variant"])
-            }
-          >
-            <option value="banner">Banner card (copy + image)</option>
-            <option value="split">Split (half copy, half image)</option>
-            <option value="minimal">Minimal (centred statement)</option>
-          </select>
+      <FieldGroup title="Layout">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Layout</label>
+            <select
+              className={fieldClass}
+              value={config.variant}
+              onChange={(e) =>
+                set("variant", e.target.value as HeroConfig["variant"])
+              }
+            >
+              <option value="banner">Banner card (copy + image)</option>
+              <option value="split">Split (half copy, half image)</option>
+              <option value="minimal">Minimal (centred statement)</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Text alignment</label>
+            <select
+              className={fieldClass}
+              value={config.alignment}
+              onChange={(e) =>
+                set("alignment", e.target.value as HeroConfig["alignment"])
+              }
+            >
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+            </select>
+          </div>
         </div>
+      </FieldGroup>
+
+      <FieldGroup title="Text">
         <div>
-          <label className={labelClass}>Text alignment</label>
-          <select
-            className={fieldClass}
-            value={config.alignment}
-            onChange={(e) =>
-              set("alignment", e.target.value as HeroConfig["alignment"])
-            }
-          >
-            <option value="left">Left</option>
-            <option value="center">Center</option>
-          </select>
-        </div>
-      </div>
-
-      <div>
-        <label className={labelClass}>Headline</label>
-        <input
-          className={fieldClass}
-          value={config.heading}
-          onChange={(e) => set("heading", e.target.value)}
-          placeholder="From farm to your kitchen"
-        />
-      </div>
-
-      <div>
-        <label className={labelClass}>Subheadline</label>
-        <textarea
-          className={`${fieldClass} min-h-[60px] resize-y`}
-          value={config.subheading}
-          onChange={(e) => set("subheading", e.target.value)}
-          placeholder="(optional)"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass}>Button label</label>
+          <label className={labelClass}>Headline</label>
           <input
             className={fieldClass}
-            value={config.cta_label}
-            onChange={(e) => set("cta_label", e.target.value)}
-            placeholder="Shop now"
+            value={config.heading}
+            onChange={(e) => set("heading", e.target.value)}
+            placeholder="From farm to your kitchen"
           />
         </div>
+
         <div>
-          <label className={labelClass}>Button link</label>
-          <input
-            className={fieldClass}
-            value={config.cta_href}
-            onChange={(e) => set("cta_href", e.target.value)}
-            placeholder="/shop"
+          <label className={labelClass}>Subheadline</label>
+          <textarea
+            className={`${fieldClass} min-h-[60px] resize-y`}
+            value={config.subheading}
+            onChange={(e) => set("subheading", e.target.value)}
+            placeholder="(optional)"
           />
         </div>
-      </div>
 
-      <div>
-        <label className={labelClass}>Image</label>
-        <ImageUpload
-          folder="homepage"
-          defaultImage={config.image_url || undefined}
-          onUploadSuccess={(url) => set("image_url", url)}
-        />
-        <p className="text-muted-foreground mt-1 text-[11px]">
-          Banner/split show it beside the copy; minimal uses it as a full
-          background.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={labelClass}>Badge (optional)</label>
           <input
@@ -394,6 +401,57 @@ function HeroFields({
             placeholder="51% off this week"
           />
         </div>
+      </FieldGroup>
+
+      <FieldGroup title="Button">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Button label</label>
+            <input
+              className={fieldClass}
+              value={config.cta_label}
+              onChange={(e) => set("cta_label", e.target.value)}
+              placeholder="Shop now"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Button link</label>
+            <input
+              className={fieldClass}
+              value={config.cta_href}
+              onChange={(e) => set("cta_href", e.target.value)}
+              placeholder="/shop"
+            />
+          </div>
+        </div>
+      </FieldGroup>
+
+      <FieldGroup title="Image & colour">
+        <div>
+          <label className={labelClass}>Image</label>
+          <ImageUpload
+            folder="homepage"
+            defaultImage={config.image_url || undefined}
+            onUploadSuccess={(url) => set("image_url", url)}
+          />
+          <p className="text-muted-foreground mt-1 text-[11px]">
+            Banner/split show it beside the copy; minimal uses it as a full
+            background.
+          </p>
+        </div>
+
+        <div>
+          <label className={labelClass}>Video (optional)</label>
+          <VideoField
+            value={config.video_url}
+            onChange={(url) => set("video_url", url)}
+          />
+          <p className="text-muted-foreground mt-1 text-[11px]">
+            Plays muted on loop in place of the image; the image becomes the
+            loading poster.
+          </p>
+        </div>
+
         <div>
           <label className={labelClass}>Text theme</label>
           <select
@@ -407,14 +465,191 @@ function HeroFields({
             <option value="light">Light text (dark background)</option>
           </select>
         </div>
-      </div>
 
-      <div>
-        <label className={labelClass}>Background colour</label>
-        <ColorField
-          value={config.background}
-          onChange={(v) => set("background", v)}
-        />
+        <div>
+          <label className={labelClass}>Background colour</label>
+          <ColorField
+            value={config.background}
+            onChange={(v) => set("background", v)}
+          />
+        </div>
+      </FieldGroup>
+    </>
+  );
+}
+
+const EMPTY_SLIDE: HeroSlide = {
+  heading: "",
+  subheading: "",
+  cta_label: "",
+  cta_href: "",
+  image_url: "",
+  video_url: "",
+  background: "",
+  theme: "dark",
+};
+
+function CarouselFields({
+  config,
+  setConfig,
+}: {
+  config: HeroCarouselConfig;
+  setConfig: (c: AnySectionConfig) => void;
+}) {
+  const set = <K extends keyof HeroCarouselConfig>(
+    key: K,
+    value: HeroCarouselConfig[K],
+  ) => setConfig({ ...config, [key]: value });
+  const setSlide = (i: number, patch: Partial<HeroSlide>) =>
+    set(
+      "slides",
+      config.slides.map((s, j) => (j === i ? { ...s, ...patch } : s)),
+    );
+  const move = (i: number, dir: -1 | 1) => {
+    const target = i + dir;
+    if (target < 0 || target >= config.slides.length) return;
+    const next = [...config.slides];
+    [next[i], next[target]] = [next[target], next[i]];
+    set("slides", next);
+  };
+
+  return (
+    <>
+      <FieldGroup title="Playback">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={config.autoplay}
+            onChange={(e) => set("autoplay", e.target.checked)}
+          />
+          Auto-play slides
+        </label>
+        <div>
+          <label className={labelClass}>Seconds per slide</label>
+          <select
+            className={fieldClass}
+            value={config.interval_seconds}
+            onChange={(e) => set("interval_seconds", Number(e.target.value))}
+            disabled={!config.autoplay}
+          >
+            {[2, 3, 5, 8, 10, 15].map((s) => (
+              <option key={s} value={s}>
+                {s} seconds
+              </option>
+            ))}
+          </select>
+        </div>
+      </FieldGroup>
+
+      <div className="space-y-2">
+        <label className={labelClass}>Slides</label>
+        {config.slides.map((slide, i) => (
+          <div
+            key={i}
+            className="bg-background space-y-2 rounded-md border p-2"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-xs font-medium">
+                Slide {i + 1}
+              </span>
+              <div className="ml-auto flex items-center">
+                <button
+                  type="button"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  title="Move up"
+                  className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(i, 1)}
+                  disabled={i === config.slides.length - 1}
+                  title="Move down"
+                  className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    set(
+                      "slides",
+                      config.slides.filter((_, j) => j !== i),
+                    )
+                  }
+                  title="Remove"
+                  className="text-muted-foreground hover:text-[var(--dash-red)] flex h-7 w-6 items-center justify-center rounded hover:bg-[var(--dash-red-soft)]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <input
+              className={fieldClass}
+              value={slide.heading}
+              onChange={(e) => setSlide(i, { heading: e.target.value })}
+              placeholder="Fresh deals every week"
+            />
+            <input
+              className={fieldClass}
+              value={slide.subheading}
+              onChange={(e) => setSlide(i, { subheading: e.target.value })}
+              placeholder="Subheading (optional)"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className={fieldClass}
+                value={slide.cta_label}
+                onChange={(e) => setSlide(i, { cta_label: e.target.value })}
+                placeholder="Shop now"
+              />
+              <input
+                className={fieldClass}
+                value={slide.cta_href}
+                onChange={(e) => setSlide(i, { cta_href: e.target.value })}
+                placeholder="/shop"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                className={fieldClass}
+                value={slide.theme}
+                onChange={(e) =>
+                  setSlide(i, { theme: e.target.value as HeroSlide["theme"] })
+                }
+              >
+                <option value="dark">Dark text</option>
+                <option value="light">Light text (adds a scrim)</option>
+              </select>
+              <ColorField
+                value={slide.background}
+                onChange={(v) => setSlide(i, { background: v })}
+              />
+            </div>
+            <ImageUpload
+              folder="homepage"
+              defaultImage={slide.image_url || undefined}
+              onUploadSuccess={(url) => setSlide(i, { image_url: url })}
+            />
+            <VideoField
+              value={slide.video_url}
+              onChange={(url) => setSlide(i, { video_url: url })}
+            />
+          </div>
+        ))}
+        {config.slides.length < MAX_HERO_SLIDES && (
+          <button
+            type="button"
+            onClick={() =>
+              set("slides", [...config.slides, { ...EMPTY_SLIDE }])
+            }
+            className="text-muted-foreground hover:bg-muted flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add slide
+          </button>
+        )}
       </div>
     </>
   );
@@ -574,60 +809,62 @@ function TileGridFields({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass}>Heading</label>
-          <input
-            className={fieldClass}
-            value={config.heading}
-            onChange={(e) => set("heading", e.target.value)}
-            placeholder="Top offers this week"
-          />
+      <FieldGroup title="Header & layout">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Heading</label>
+            <input
+              className={fieldClass}
+              value={config.heading}
+              onChange={(e) => set("heading", e.target.value)}
+              placeholder="Top offers this week"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Subheading</label>
+            <input
+              className={fieldClass}
+              value={config.subheading}
+              onChange={(e) => set("subheading", e.target.value)}
+              placeholder="(optional)"
+            />
+          </div>
         </div>
-        <div>
-          <label className={labelClass}>Subheading</label>
-          <input
-            className={fieldClass}
-            value={config.subheading}
-            onChange={(e) => set("subheading", e.target.value)}
-            placeholder="(optional)"
-          />
-        </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass}>Columns (desktop)</label>
-          <select
-            className={fieldClass}
-            value={config.columns}
-            onChange={(e) =>
-              set(
-                "columns",
-                Number(e.target.value) as TileGridConfig["columns"],
-              )
-            }
-          >
-            <option value={2}>2 — mini banners</option>
-            <option value={3}>3</option>
-            <option value={4}>4 — offer tiles</option>
-          </select>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Columns (desktop)</label>
+            <select
+              className={fieldClass}
+              value={config.columns}
+              onChange={(e) =>
+                set(
+                  "columns",
+                  Number(e.target.value) as TileGridConfig["columns"],
+                )
+              }
+            >
+              <option value={2}>2 — mini banners</option>
+              <option value={3}>3</option>
+              <option value={4}>4 — offer tiles</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Tile height</label>
+            <select
+              className={fieldClass}
+              value={config.height}
+              onChange={(e) =>
+                set("height", e.target.value as TileGridConfig["height"])
+              }
+            >
+              <option value="sm">Short</option>
+              <option value="md">Medium</option>
+              <option value="lg">Tall</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label className={labelClass}>Tile height</label>
-          <select
-            className={fieldClass}
-            value={config.height}
-            onChange={(e) =>
-              set("height", e.target.value as TileGridConfig["height"])
-            }
-          >
-            <option value="sm">Short</option>
-            <option value="md">Medium</option>
-            <option value="lg">Tall</option>
-          </select>
-        </div>
-      </div>
+      </FieldGroup>
 
       <div className="space-y-2">
         <label className={labelClass}>Tiles</label>
@@ -769,35 +1006,37 @@ function FaqFields({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass}>Heading</label>
-          <input
-            className={fieldClass}
-            value={config.heading}
-            onChange={(e) => set("heading", e.target.value)}
-            placeholder="Frequently asked questions"
-          />
+      <FieldGroup title="Header">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Heading</label>
+            <input
+              className={fieldClass}
+              value={config.heading}
+              onChange={(e) => set("heading", e.target.value)}
+              placeholder="Frequently asked questions"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Subheading</label>
+            <input
+              className={fieldClass}
+              value={config.subheading}
+              onChange={(e) => set("subheading", e.target.value)}
+              placeholder="(optional)"
+            />
+          </div>
         </div>
-        <div>
-          <label className={labelClass}>Subheading</label>
-          <input
-            className={fieldClass}
-            value={config.subheading}
-            onChange={(e) => set("subheading", e.target.value)}
-            placeholder="(optional)"
-          />
-        </div>
-      </div>
 
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={config.show_filters}
-          onChange={(e) => set("show_filters", e.target.checked)}
-        />
-        Show category filter pills
-      </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={config.show_filters}
+            onChange={(e) => set("show_filters", e.target.checked)}
+          />
+          Show category filter pills
+        </label>
+      </FieldGroup>
 
       <div className="space-y-2">
         <label className={labelClass}>Questions</label>

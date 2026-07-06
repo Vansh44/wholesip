@@ -7,10 +7,12 @@ import {
   LIMIT_MIN,
   LIMIT_MAX,
   MAX_FAQ_ITEMS,
+  MAX_HERO_SLIDES,
   MAX_TILES,
   MAX_USP_ITEMS,
   type FaqAccordionConfig,
   type FeaturedProductsConfig,
+  type HeroCarouselConfig,
   type HeroConfig,
   type ShopByCategoryConfig,
   type PromoBannerConfig,
@@ -186,6 +188,73 @@ describe("validateConfig", () => {
         background: "#fae3c1",
       });
       expect((out as { config: HeroConfig }).config.background).toBe("#fae3c1");
+    });
+
+    it("keeps a safe video_url and strips unsafe schemes", () => {
+      const ok = validateConfig("hero", {
+        heading: "x",
+        video_url: "https://cdn.example.com/clip.mp4",
+      });
+      expect((ok as { config: HeroConfig }).config.video_url).toBe(
+        "https://cdn.example.com/clip.mp4",
+      );
+      const bad = validateConfig("hero", {
+        heading: "x",
+        video_url: "javascript:alert(1)",
+      });
+      expect((bad as { config: HeroConfig }).config.video_url).toBe("");
+    });
+  });
+
+  // --- hero_carousel ---------------------------------------------------------
+  describe("hero_carousel", () => {
+    it("sanitises slides, clamps the interval and defaults autoplay on", () => {
+      const out = validateConfig("hero_carousel", {
+        slides: [
+          {
+            heading: "  Slide one ",
+            cta_href: "javascript:evil()",
+            video_url: "https://cdn.example.com/a.mp4",
+            background: "url(x)",
+            theme: "neon",
+          },
+        ],
+        interval_seconds: 99,
+      });
+      const config = (out as { config: HeroCarouselConfig }).config;
+      expect(config.slides).toHaveLength(1);
+      expect(config.slides[0].heading).toBe("Slide one");
+      expect(config.slides[0].cta_href).toBe("");
+      expect(config.slides[0].video_url).toBe("https://cdn.example.com/a.mp4");
+      expect(config.slides[0].background).toBe("");
+      expect(config.slides[0].theme).toBe("dark");
+      expect(config.autoplay).toBe(true);
+      expect(config.interval_seconds).toBe(15);
+    });
+
+    it("drops empty slides on publish and errors when none remain", () => {
+      const empty = { heading: "", image_url: "", video_url: "" };
+      expect(validateConfig("hero_carousel", { slides: [empty] })).toEqual({
+        error: "Add at least one slide with a headline, image or video.",
+      });
+      // Draft keeps the empty row so the editor doesn't lose it mid-edit.
+      const draft = validateConfig(
+        "hero_carousel",
+        { slides: [empty] },
+        "draft",
+      );
+      expect(
+        (draft as { config: HeroCarouselConfig }).config.slides,
+      ).toHaveLength(1);
+    });
+
+    it("caps the slide count", () => {
+      const slides = Array.from({ length: MAX_HERO_SLIDES + 1 }, () => ({
+        heading: "s",
+      }));
+      expect(validateConfig("hero_carousel", { slides })).toEqual({
+        error: `At most ${MAX_HERO_SLIDES} slides.`,
+      });
     });
   });
 

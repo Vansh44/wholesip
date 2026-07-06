@@ -16,6 +16,7 @@
 
 export type HomepageSectionType =
   | "hero"
+  | "hero_carousel"
   | "featured_products"
   | "shop_by_category"
   | "promo_banner"
@@ -28,6 +29,7 @@ export type HomepageSectionType =
 
 export const HOMEPAGE_SECTION_TYPES: HomepageSectionType[] = [
   "hero",
+  "hero_carousel",
   "featured_products",
   "shop_by_category",
   "promo_banner",
@@ -101,6 +103,10 @@ export interface HeroConfig {
   cta_label: string;
   cta_href: string;
   image_url: string;
+  /** Optional video (uploaded file or direct mp4/webm URL). When set it plays
+   *  in place of the image — muted, looping, autoplay — with `image_url` as
+   *  the poster frame. safeHref-validated (http(s)/relative only). */
+  video_url: string;
   /** Optional floating promo pill ("51% off this week"). */
   badge_text: string;
   /** Strict colour for the hero field; "" = theme surface. */
@@ -108,6 +114,34 @@ export interface HeroConfig {
   /** Text colour on that field: "dark" ink (light bg) or "light" (dark bg). */
   theme: BannerTheme;
   alignment: "left" | "center";
+}
+
+/**
+ * One slide of the hero carousel — a full-width media banner (photo or video)
+ * with overlaid copy. Media covers the slide; `background` (strict colour)
+ * shows where there is no media. Same field rules as HeroConfig.
+ */
+export interface HeroSlide {
+  heading: string;
+  subheading: string;
+  cta_label: string;
+  cta_href: string;
+  image_url: string;
+  /** Video file URL — plays muted/looping instead of the image. */
+  video_url: string;
+  background: string;
+  theme: BannerTheme;
+}
+
+/**
+ * Auto-playing hero slideshow — multiple photo/video banners with dot + arrow
+ * navigation. Rendered by a client component (hero-carousel-section.tsx).
+ */
+export interface HeroCarouselConfig {
+  slides: HeroSlide[];
+  autoplay: boolean;
+  /** Seconds per slide, clamped 2–15. */
+  interval_seconds: number;
 }
 
 /** Icon catalog for USP items — fixed set so the renderer can map names to
@@ -243,11 +277,13 @@ export type AnySectionConfig =
   | FaqAccordionConfig
   | LatestBlogsConfig
   | RichTextConfig
-  | CustomCodeConfig;
+  | CustomCodeConfig
+  | HeroCarouselConfig;
 
 // Discriminated union pairing a type with its config (handy for renderers).
 export type HomepageSectionConfig =
   | { type: "hero"; config: HeroConfig }
+  | { type: "hero_carousel"; config: HeroCarouselConfig }
   | { type: "featured_products"; config: FeaturedProductsConfig }
   | { type: "shop_by_category"; config: ShopByCategoryConfig }
   | { type: "promo_banner"; config: PromoBannerConfig }
@@ -273,6 +309,7 @@ export interface HomepageSection {
 
 export const EMPTY_CONFIG: {
   hero: HeroConfig;
+  hero_carousel: HeroCarouselConfig;
   featured_products: FeaturedProductsConfig;
   shop_by_category: ShopByCategoryConfig;
   promo_banner: PromoBannerConfig;
@@ -290,10 +327,27 @@ export const EMPTY_CONFIG: {
     cta_label: "Shop now",
     cta_href: "/shop",
     image_url: "",
+    video_url: "",
     badge_text: "",
     background: "",
     theme: "dark",
     alignment: "left",
+  },
+  hero_carousel: {
+    slides: [
+      {
+        heading: "Welcome to our store",
+        subheading: "",
+        cta_label: "Shop now",
+        cta_href: "/shop",
+        image_url: "",
+        video_url: "",
+        background: "",
+        theme: "dark",
+      },
+    ],
+    autoplay: true,
+    interval_seconds: 5,
   },
   featured_products: {
     heading: "Bestsellers",
@@ -364,11 +418,28 @@ export const EMPTY_CONFIG: {
 
 // --- Display metadata (type chooser + row summaries) -----------------------
 
+export type SectionCategory =
+  | "essentials"
+  | "commerce"
+  | "content"
+  | "advanced";
+
+export const SECTION_CATEGORY_LABELS: Record<SectionCategory, string> = {
+  essentials: "Essentials",
+  commerce: "Commerce",
+  content: "Content",
+  advanced: "Advanced",
+};
+
 export interface SectionTypeMeta {
   label: string;
   description: string;
   /** lucide icon name, resolved by the dashboard view. */
   icon: string;
+  /** Section-library grouping. */
+  category: SectionCategory;
+  /** Extra search terms for the section library (label + description match too). */
+  keywords: string[];
 }
 
 export const SECTION_TYPE_META: Record<HomepageSectionType, SectionTypeMeta> = {
@@ -377,55 +448,91 @@ export const SECTION_TYPE_META: Record<HomepageSectionType, SectionTypeMeta> = {
     description:
       "The big opening block — headline, button and image on a colour field.",
     icon: "hero",
+    category: "essentials",
+    keywords: ["banner", "header", "headline", "cover", "splash", "cta"],
+  },
+  hero_carousel: {
+    label: "Hero Carousel",
+    description:
+      "Auto-playing slideshow of photo or video banners with overlaid text.",
+    icon: "hero",
+    category: "essentials",
+    keywords: [
+      "slider",
+      "slideshow",
+      "carousel",
+      "video",
+      "banners",
+      "rotating",
+      "slides",
+    ],
   },
   featured_products: {
     label: "Featured Products",
     description:
       "A row of product cards (featured, hand-picked, or a category).",
     icon: "products",
+    category: "commerce",
+    keywords: ["shop", "cards", "carousel", "bestsellers", "collection"],
   },
   shop_by_category: {
     label: "Shop by Category",
     description: "Tiles linking to your categories.",
     icon: "categories",
+    category: "commerce",
+    keywords: ["collections", "browse", "circles", "departments"],
   },
   promo_banner: {
     label: "Promo Banner",
     description: "A full-width image banner with heading, text and a button.",
     icon: "marketing",
+    category: "commerce",
+    keywords: ["sale", "offer", "campaign", "announcement", "cta"],
   },
   tile_grid: {
     label: "Tile Grid",
     description:
       "Linked colour or image tiles — offers, collections, mini banners.",
     icon: "tiles",
+    category: "essentials",
+    keywords: ["cards", "links", "grid", "offers", "collage"],
   },
   usp_bar: {
     label: "USP Bar",
     description:
       "A row of icon + label promises (delivery, returns, quality…).",
     icon: "usp",
+    category: "essentials",
+    keywords: ["benefits", "trust", "badges", "shipping", "guarantee"],
   },
   faq_accordion: {
     label: "FAQ Accordion",
     description: "Expandable question/answer list with optional filters.",
     icon: "faq",
+    category: "content",
+    keywords: ["questions", "answers", "help", "support", "collapse"],
   },
   latest_blogs: {
     label: "Blog Posts",
     description: "Latest or hand-picked blog posts.",
     icon: "blogs",
+    category: "content",
+    keywords: ["articles", "news", "stories", "posts"],
   },
   rich_text: {
     label: "Rich Text",
     description: "Free-form formatted text — headings, paragraphs, images.",
     icon: "rich_text",
+    category: "content",
+    keywords: ["paragraph", "editor", "seo", "copy", "about"],
   },
   custom_code: {
     label: "Custom Code",
     description:
       "Your own HTML, CSS and JavaScript, rendered in a safe sandbox.",
     icon: "custom_code",
+    category: "advanced",
+    keywords: ["html", "css", "javascript", "embed", "widget", "iframe"],
   },
 };
 
@@ -435,6 +542,7 @@ export const LIMIT_MAX = 12;
 // Item caps for list-shaped sections.
 export const MAX_USP_ITEMS = 6;
 export const MAX_TILES = 8;
+export const MAX_HERO_SLIDES = 8;
 export const MAX_FAQ_ITEMS = 30;
 export const FAQ_ANSWER_MAX_CHARS = 2000;
 
@@ -577,10 +685,51 @@ export function validateConfig(
       cta_label: str(input.cta_label),
       cta_href: safeHref(input.cta_href),
       image_url,
+      video_url: safeHref(input.video_url),
       badge_text: str(input.badge_text),
       background: safeColor(input.background),
       theme: textTheme(input.theme, "dark"),
       alignment: input.alignment === "center" ? "center" : "left",
+    };
+    return { config };
+  }
+
+  if (type === "hero_carousel") {
+    const rawSlides = Array.isArray(input.slides) ? input.slides : [];
+    if (rawSlides.length > MAX_HERO_SLIDES) {
+      return { error: `At most ${MAX_HERO_SLIDES} slides.` };
+    }
+    const slides: HeroSlide[] = [];
+    for (const rawSlide of rawSlides) {
+      const s = (rawSlide ?? {}) as Record<string, unknown>;
+      const slide: HeroSlide = {
+        heading: str(s.heading).slice(0, 160),
+        subheading: str(s.subheading).slice(0, 300),
+        cta_label: str(s.cta_label).slice(0, 60),
+        cta_href: safeHref(s.cta_href),
+        image_url: str(s.image_url),
+        video_url: safeHref(s.video_url),
+        background: safeColor(s.background),
+        theme: textTheme(s.theme, "dark"),
+      };
+      // Drop slides with nothing to show (draft keeps them so the editor
+      // doesn't lose a row mid-edit).
+      if (strict && !slide.heading && !slide.image_url && !slide.video_url)
+        continue;
+      slides.push(slide);
+    }
+    if (strict && slides.length === 0) {
+      return {
+        error: "Add at least one slide with a headline, image or video.",
+      };
+    }
+    const rawInterval = Number(input.interval_seconds);
+    const config: HeroCarouselConfig = {
+      slides,
+      autoplay: input.autoplay !== false,
+      interval_seconds: Number.isFinite(rawInterval)
+        ? Math.min(15, Math.max(2, Math.trunc(rawInterval)))
+        : 5,
     };
     return { config };
   }
@@ -822,6 +971,11 @@ export function summarizeSection(section: {
     case "hero": {
       const h = c as HeroConfig;
       return `Hero · ${h.heading?.trim() || "(no headline)"} · ${h.variant}`;
+    }
+    case "hero_carousel": {
+      const hc = c as HeroCarouselConfig;
+      const first = hc.slides[0]?.heading?.trim();
+      return `Carousel · ${hc.slides.length} slide${hc.slides.length === 1 ? "" : "s"}${first ? ` · ${first}` : ""}`;
     }
     case "usp_bar": {
       const u = c as UspBarConfig;

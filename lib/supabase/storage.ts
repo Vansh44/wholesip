@@ -79,6 +79,59 @@ export async function uploadImage(file: File, options: UploadOptions = {}) {
   return result.url;
 }
 
+const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
+
+/**
+ * Uploads a video and returns its public URL.
+ *
+ * Videos are too large to proxy through a serverless route (Vercel caps
+ * request bodies ~4.5 MB), so this uses the signed-URL flow: the server
+ * (/api/upload/sign-video) authenticates + validates and mints a one-time
+ * signed upload URL; the file then goes DIRECTLY to Supabase Storage.
+ */
+export async function uploadVideo(file: File, options: UploadOptions = {}) {
+  const { folder = "", bucketName = "media" } = options;
+
+  if (!ALLOWED_VIDEO_TYPES.includes(file.type)) {
+    throw new Error(
+      `Unsupported video type: ${file.type || "unknown"}. Use MP4 or WebM.`,
+    );
+  }
+  if (file.size > MAX_VIDEO_BYTES) {
+    throw new Error(
+      `Video too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is ${MAX_VIDEO_BYTES / 1024 / 1024} MB.`,
+    );
+  }
+
+  const signRes = await fetch("/api/upload/sign-video", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: file.type, size: file.size, folder }),
+  });
+  const signed = (await signRes.json().catch(() => ({}))) as {
+    path?: string;
+    token?: string;
+    publicUrl?: string;
+    error?: string;
+  };
+  if (!signRes.ok || !signed.path || !signed.token || !signed.publicUrl) {
+    throw new Error(signed.error || `Upload failed (${signRes.status}).`);
+  }
+
+  const supabase = createClient();
+  const { error } = await supabase.storage
+    .from(bucketName)
+    .uploadToSignedUrl(signed.path, signed.token, file, {
+      contentType: file.type,
+      cacheControl: "3600",
+    });
+  if (error) {
+    throw new Error(`Upload failed: ${error.message}`);
+  }
+  return signed.publicUrl;
+}
+
 /**
  * Gets the public URL for a file in Supabase Storage
  * @param path The path to the file in the bucket

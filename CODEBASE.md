@@ -106,7 +106,8 @@ wholesip/
 │   │       │                  # page-section-renderer, custom-code-frame (sandboxed iframe),
 │   │       │                  # custom-code-section, rich-text-section, hero-section,
 │   │       │                  # usp-bar-section, tile-grid-section, faq-accordion-section,
-│   │       │                  # preview-bridge (§11)
+│   │       │                  # preview-bridge, draft-canvas (client-side instant
+│   │       │                  # builder preview, §11), builder-overlay
 │   │       ├── brand-provider.tsx   # Injects per-store branding CSS vars
 │   │       ├── menu-provider.tsx    # Supplies per-store header/footer nav (store_menus)
 │   │       ├── shop-card.tsx / share-buttons.tsx
@@ -130,9 +131,12 @@ wholesip/
 │   │   ├── navigation/        # ★ Menu builder (§11): edit header + footer nav (store_menus)
 │   │   ├── builder/           # ★ Website Builder full-tab experience (see §11): pages list
 │   │   │                      # (incl. the pinned Home = slug "") + live preview iframe +
-│   │   │                      # per-section editing. builder-client,
-│   │   │                      # pages-panel, sections-panel, section-form (shared editor forms),
-│   │   │                      # code-editor(+-lazy) (CodeMirror), builder.css
+│   │   │                      # per-section editing. builder-client, outline-panel,
+│   │   │                      # inspector-panel, section-form + field-group (shared editor
+│   │   │                      # forms), section-library + section-thumbs (visual add-section
+│   │   │                      # picker), use-autosave, use-history (undo/redo),
+│   │   │                      # use-builder-shortcuts, code-editor(+-lazy) (CodeMirror),
+│   │   │                      # builder.css (tokenised on --dash-*)
 │   │   │   └── settings/      # Website settings ("Website" registry group, e.g.
 │   │   │                      # pages.customCode) — linked from the builder top bar
 │   │   ├── marketing/coupons/ # coupon CRUD + coupon email campaigns
@@ -178,7 +182,10 @@ wholesip/
 │       ├── og/                # Dynamic branded OG card (ImageResponse; ?d=JSON
 │       │                      # {title,subtitle,color}) — default share image for
 │       │                      # homepage/custom pages/platform (lib/seo/og-card.ts)
-│       └── upload/            # File upload → Supabase Storage
+│       └── upload/            # Image upload → Supabase Storage (sharp → WebP);
+│           └── sign-video/    # signed-URL minting for VIDEO uploads (≤50MB,
+│                              # client uploads DIRECTLY to storage — serverless
+│                              # routes can't proxy large bodies)
 │
 ├── lib/
 │   ├── store/                 # ★ Tenancy (see §3): host.ts, resolve.ts, brand.ts
@@ -198,8 +205,9 @@ wholesip/
 │   ├── sections/              # ★ Page-section registry (see §11): re-exports homepage
 │   │                          # section-types + adds page helpers (PageSectionItem,
 │   │                          # validateSections, RESERVED_PAGE_SLUGS, validatePageSlug),
-│   │                          # resolve-data.ts (batched product/category/blog resolution
-│   │                          # shared by homepage / [pageSlug] / preview). Tested (drift test).
+│   │                          # resolve-data.ts (batched fetch, server) + map-data.ts
+│   │                          # (the PURE per-section resolution — shared by the server
+│   │                          # render AND the builder's client DraftCanvas). Tested.
 │   ├── pages/                 # ★ preview.ts — uncached, cookie-authenticated draft loader
 │   │                          # for the builder preview (getManagerUserId("builder") gate)
 │   ├── seo/                   # ★ schema.ts — pure JSON-LD builders (productSchema/
@@ -316,16 +324,21 @@ wholesip/
 11. **Website Builder — pages & custom code are per-store, dashboard-editable.**
     The storefront itself is a per-store artifact, not hardcoded: - **Section registry**: `lib/homepage/section-types.ts` is the single typed
     section schema (config types, `EMPTY_CONFIG`, `META`, `validateConfig`),
-    shared by the homepage AND custom pages. Ten block types: `hero`
+    shared by the homepage AND custom pages. Eleven block types: `hero`
     (banner/split/minimal variants — first-class hero, replaces the old
-    custom_code hero hack), `featured_products`, `shop_by_category` (with a
+    custom_code hero hack; optional `video_url` plays muted/looping in place
+    of the image with the image as poster), `hero_carousel` (auto-playing
+    photo/video slideshow — `slides[]` of HeroSlide, dot + arrow nav,
+    client-rendered `hero-carousel-section.tsx`), `featured_products`,
+    `shop_by_category` (with a
     `display: circles|cards` tile-shape variant), `promo_banner`, `tile_grid`
     (linked colour/image tiles — offers, collections, 2-up mini banners),
     `usp_bar` (fixed icon catalog `USP_ICONS` + label strip), `faq_accordion`
     (expandable Q/A with optional category-filter pills; plain-text answers),
     `latest_blogs`, `rich_text` (inline sanitized HTML, SEO-friendly) and
-    `custom_code` (merchant HTML/CSS/JS). Hero/tile `background` fields are
-    strict colours (`safeColor`) because they render into inline style attrs.
+    `custom_code` (merchant HTML/CSS/JS). Hero/tile/slide `background` fields
+    are strict colours (`safeColor`) because they render into inline style
+    attrs; `video_url` fields are `safeHref`-validated.
     `lib/sections/registry.ts` re-exports it and adds page-level helpers:
     `PageSectionItem`, `validateSections`, `RESERVED_PAGE_SLUGS`,
     `validatePageSlug`. - **Custom pages** live in `store_pages` (draft `sections` jsonb +
@@ -353,33 +366,62 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     model). Custom-code availability is gated by the `pages.customCode` setting
     (registry, section `builder`), enforced **server-side** in `page-actions.ts`
     (all sections — homepage + custom pages — now save through it); admins
-    toggle it at `/dashboard/builder/settings`. - **Builder v2 UI** at `/dashboard/builder` (permission section `builder`,
+    toggle it at `/dashboard/builder/settings`. - **Builder v3 UI** at `/dashboard/builder` (permission section `builder`,
     group Content; sidebar link opens a new tab; `fixed inset-0` overlay at
-    `z-index:40`, below the shared `z-50` dialog layer). Unizap-style canvas
-    editing: LEFT `outline-panel.tsx` (page-switcher dropdown, Header/Footer
-    rows → `/dashboard/navigation`, dnd-kit-sortable section outline, Add
-    Section); CENTER preview iframe (`/{slug}?preview=1`) with viewport
-    toggles (desktop/tablet/mobile widths) and a **click-to-edit canvas
-    overlay** (`app/(storefront)/components/sections/builder-overlay.tsx` —
-    measured hit-layer, NOT event delegation, because sandboxed custom_code
-    iframes swallow clicks; MutationObserver+ResizeObserver re-scan survives
-    router.refresh(); postMessage protocol sm-select / sm-hover / sm-add-at
-    {afterId} / sm-visible / sm-highlight / sm-scroll-to, extending the
-    existing sm-preview-refresh/ready); RIGHT `inspector-panel.tsx` (tabs:
-    Content = shared `section-form.tsx` forms; Style = shared per-section
-    `style` {background,padding_y,width,anchor} applied by
-    `section-shell.tsx`, the root element of EVERY section — strict color
-    validation because it renders into an inline style attr; Advanced =
-    anchor/duplicate/delete; page settings + delete when nothing selected).
-    **Autosave replaces Save-draft** (`use-autosave.ts`: 600ms debounce for
-    content, immediate for structural ops, single-flight latest-wins chain,
-    stale-tab token from `savePageDraft`'s returned `updated_at`, hard-block
-    dialog on stale, beforeunload while dirty; preview refresh pings coalesce
-    ≥1200ms). Validation is split: `validateConfig/validateSections` take a
-    mode — "draft" skips completeness (autosave never fails mid-edit),
-    "publish" is strict (publishPage + applyTheme). Publish stays explicit,
-    with its own token guard. custom_code edits in a wide dialog hosting the
-    lazy CodeMirror editors (`code-editor-lazy.tsx`). - **Homepage (Phase 4a, done)**: the storefront homepage is the `store_pages`
+    `z-index:40`, below the shared `z-50` dialog layer; all chrome tokenised
+    on the dashboard `--dash-*` vars via `--b-*` aliases in `builder.css`).
+    Framer/Shopify-style canvas editing: LEFT `outline-panel.tsx`
+    (page-switcher dropdown, Header/Footer rows → `/dashboard/navigation`,
+    dnd-kit-sortable section outline; collapsible to a 52px icon rail —
+    `is-left-collapsed` sets `--b-left`, persisted in localStorage); CENTER
+    preview iframe (`/{slug}?preview=1`, viewport toggles) that is **REUSED
+    across page switches** (`contentWindow.location.replace` + a translucent
+    veil until load/`sm-preview-ready` — never keyed/remounted, no blank
+    flash) with the **click-to-edit canvas overlay**
+    (`app/(storefront)/components/sections/builder-overlay.tsx` — measured
+    hit-layer, NOT event delegation, because sandboxed custom_code iframes
+    swallow clicks; MutationObserver+ResizeObserver re-scan survives DOM
+    replacement; postMessage protocol sm-select / sm-hover / sm-add-at
+    {afterId} / sm-visible / sm-highlight / sm-scroll-to, extending
+    sm-preview-refresh/ready); RIGHT `inspector-panel.tsx` (sticky
+    header+tabs, only the body scrolls; tabs: Content = shared
+    `section-form.tsx` forms folded into `field-group.tsx` disclosures;
+    Style = preset chips + per-section `style`
+    {background,padding_y,width,anchor} applied by `section-shell.tsx` —
+    strict color validation because it renders into an inline style attr;
+    Advanced = anchor/duplicate/delete; an idle state with a shortcut
+    cheatsheet when nothing is selected). Page settings (title/slug/SEO/
+    delete) moved to a topbar-triggered z-50 dialog (`PageSettingsForm`).
+    **Instant preview**: preview mode renders sections CLIENT-side in
+    `draft-canvas.tsx` — the builder posts `sm-draft {sections}` on every
+    mutation (rAF-throttled; ~500ms for custom_code so the sandbox doesn't
+    remount per keystroke) and the canvas re-renders with
+    `lib/sections/map-data.ts` (the pure resolver, fed full dataset
+    snapshots server-passed at preview load) — edits paint in <100ms with
+    zero RSC round-trips; `sm-preview-refresh` (router.refresh) remains only
+    for publish + slug renames. **Add-section library**
+    (`section-library.tsx`): a left slide-over with search (label/
+    description/`keywords` in `SECTION_TYPE_META`, which also gained
+    `category`), grouped SVG mini-preview cards (`section-thumbs.tsx`),
+    ↑/↓/Enter keyboard nav. **Undo/redo** (`use-history.ts`): pre-mutation
+    snapshots recorded in `setSections`, 50-entry cap, 800ms coalescing per
+    section for typing bursts; undo/redo re-save through the autosave chain.
+    **Shortcuts** (`use-builder-shortcuts.ts`): ⌘Z/⇧⌘Z/⌘Y, ⌘S save-now, Esc
+    (close library → deselect), ↑/↓ outline nav, ⌘D duplicate, ⌫ delete
+    (confirm dialog); suspended while dialogs are open; never intercepts
+    inside CodeMirror/TipTap. **Autosave** (`use-autosave.ts`: 350ms debounce
+    for content, immediate for structural ops, single-flight latest-wins
+    chain, stale-tab token from `savePageDraft`'s returned `updated_at`,
+    beforeunload while dirty). The stale-tab block now offers three ways out:
+    reload (their version), copy-my-changes (sections → clipboard JSON), or
+    take-over (`unblock()` — re-pulls a fresh token, local sections win).
+    Validation is split: `validateConfig/validateSections` take a mode —
+    "draft" skips completeness (autosave never fails mid-edit), "publish" is
+    strict (publishPage + applyTheme). Publish stays explicit, with its own
+    token guard. custom_code edits in a wide dialog hosting the lazy
+    CodeMirror editors (`code-editor-lazy.tsx`). **Responsive**: ≥1200px
+    3-panel; 768–1199px the inspector becomes a fixed right sheet (z-45,
+    slides in on selection); <768px a "needs a larger screen" notice. - **Homepage (Phase 4a, done)**: the storefront homepage is the `store_pages`
     row with slug `""` (the "homepage sentinel"). `app/(storefront)/page.tsx`
     reads it (published + `?preview=1` draft) exactly like `[pageSlug]`. It's
     pinned first in the builder as "Home" (`ensureHomepage` creates it on demand;
