@@ -17,18 +17,20 @@ export function videoEmbedUrl(url: string): string | null {
   const yt = url.match(YT_RE);
   if (yt) {
     const id = yt[1];
-    // playlist=id is YouTube's required trick for looping a single video.
+    // Autoplay MUTED (browsers block autoplay-with-sound) but keep the player
+    // CONTROLS visible so a visitor can unmute and hear the audio. playlist=id
+    // is YouTube's required trick for looping a single video.
     return (
       `https://www.youtube-nocookie.com/embed/${id}` +
-      `?autoplay=1&mute=1&controls=0&loop=1&playlist=${id}` +
-      `&playsinline=1&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1`
+      `?autoplay=1&mute=1&loop=1&playlist=${id}&playsinline=1&rel=0`
     );
   }
 
   const vimeo = url.match(VIMEO_RE);
   if (vimeo) {
-    // background=1 = Vimeo's chrome-less autoplay/muted/loop mode.
-    return `https://player.vimeo.com/video/${vimeo[1]}?autoplay=1&muted=1&loop=1&background=1`;
+    // Autoplay muted, looping, with controls (no background=1 — that mode
+    // strips the unmute control, so the visitor could never hear it).
+    return `https://player.vimeo.com/video/${vimeo[1]}?autoplay=1&muted=1&loop=1`;
   }
 
   return null;

@@ -208,15 +208,6 @@ export function InspectorPanel({
   );
 }
 
-function ShortcutRow({ keys, label }: { keys: string; label: string }) {
-  return (
-    <div className="sm-builder-shortcut">
-      <kbd>{keys}</kbd>
-      <span>{label}</span>
-    </div>
-  );
-}
-
 function TabButton({
   active,
   onClick,

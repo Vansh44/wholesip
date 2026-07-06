@@ -9,6 +9,15 @@
   padding: clamp(40px, 6vw, 72px) 0;
 }
 
+/* The header is position:fixed (takes no layout space). The classic theme
+   floats it TRANSPARENT over the page, so sections may start at the top —
+   but the "market" variant is a solid opaque bar (10vh tall, see
+   Header.module.css): builder pages must clear it or the first section
+   starts underneath. 10vh = the bar itself + a small breathing gap. */
+.sm-header-market .home-sections {
+  padding-top: calc(10vh + clamp(16px, 2.5vw, 28px));
+}
+
 .home-section {
   width: 100%;
   padding-inline: clamp(20px, 5vw, 64px);
@@ -1008,16 +1017,16 @@
   object-fit: cover;
 }
 
-/* YouTube/Vimeo background embeds. The iframe is 16:9 and can't object-fit,
-   so we oversize it to COVER its box using container-query units: at least
-   full width AND full height, whichever dominates, centred. pointer-events
-   stay off — it's a background, the player chrome is disabled anyway. */
+/* YouTube/Vimeo embeds. Unlike an uploaded file, a YouTube/Vimeo iframe always
+   carries player chrome (title, controls, end cards) and is locked to 16:9 —
+   it cannot be a seamless background video. So we render it as a real, playable
+   16:9 player CONTAINED in the media box (whole frame visible, never zoom-
+   cropped), vertically centred, letterboxed against the slide background. */
 .home-video-embed-wrap {
   position: absolute;
   inset: 0;
   overflow: hidden;
   container-type: size;
-  pointer-events: none;
   z-index: 0;
 }
 .home-video-embed {
@@ -1025,8 +1034,9 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: max(100cqw, 177.78cqh);
-  height: max(100cqh, 56.25cqw);
+  /* contain: fit fully inside the box, keeping 16:9 */
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
   border: 0;
 }
 
