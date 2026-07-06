@@ -258,6 +258,8 @@ wholesip/
 │   │                          # customer INSERT policy by design — placeOrder writes with
 │   │                          # the service role; customers/admins get SELECT/manage (convention #12).
 │   ├── coupons_storefront_visibility.sql  # coupons.show_on_storefront flag (§storefront coupons)
+│   ├── coupon_usage_rpc.sql   # ★ increment_/decrement_coupon_usage: atomic used_count
+│   │                          # reserve/release (enforces max_uses under concurrency)
 │   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
 │   ├── store_menus.sql        # ★ per-store header/footer nav (+ RLS + WholeSip seed) — §11
 │   ├── homepage_to_store_pages.sql  # Phase 4a data migration: homepage_sections → slug ""
@@ -537,7 +539,13 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
       `.eq("store_id", …)`), so another store's product can't be smuggled in and
       the client's claimed price/total is ignored. Coupons are re-validated via
       `validateCoupon` (min-order/date/usage/group checks) and the discount is
-      recomputed + rounded to match the cart, then `used_count` is incremented.
+      recomputed + rounded to match the cart. A coupon use is then **reserved
+      atomically BEFORE the order is created** via the `increment_coupon_usage`
+      RPC (`supabase/coupon_usage_rpc.sql`) — a single conditional UPDATE that
+      returns false when `max_uses` is already hit, so the cap can never be
+      exceeded under concurrent checkouts. The reservation is released
+      (`decrement_coupon_usage`) if the order then fails to persist; a transient
+      RPC error fails open (never blocks a sale over the counter).
     - **Service-role writes**: `orders`/`order_items` have **no customer INSERT
       RLS policy** by design; the writes run with `createAdminClient()` (service
       role) _after_ all the above validation. Customers get RLS `SELECT` on their

@@ -206,12 +206,15 @@ export async function placeOrder(
   //    the stored total matches what the cart showed the shopper (CartProvider
   //    rounds identically).
   let discount = 0;
+  let couponApplied = false;
+  const couponCodeNormalized = couponCode ? normalizeCode(couponCode) : null;
   if (couponCode) {
     const validation = await validateCoupon(couponCode, subtotal);
     if (validation.error) {
       return { error: `Coupon error: ${validation.error}` };
     }
     if (validation.coupon) {
+      couponApplied = true;
       const raw =
         validation.coupon.discountType === "fixed"
           ? validation.coupon.discountValue
@@ -240,6 +243,36 @@ export async function placeOrder(
   };
   const notes = cleanField(form.notes, MAX_NOTES_LEN) || null;
 
+  // 3b. Reserve a coupon use ATOMICALLY, before creating the order, so a
+  //     max_uses cap can never be exceeded even under simultaneous checkouts
+  //     (increment_coupon_usage does a single conditional UPDATE and returns
+  //     false when the cap is already hit). We release it below if the order
+  //     then fails to persist. A transient RPC error fails OPEN — we don't block
+  //     a paying customer over the usage counter (validation already passed).
+  let couponReserved = false;
+  if (couponApplied && couponCodeNormalized) {
+    const { data: reserved, error: rpcError } = await admin.rpc(
+      "increment_coupon_usage",
+      { p_code: couponCodeNormalized, p_store_id: storeId },
+    );
+    if (rpcError) {
+      console.error("increment_coupon_usage:", rpcError.message);
+    } else if (reserved === false) {
+      return { error: "This coupon has reached its usage limit." };
+    } else {
+      couponReserved = true;
+    }
+  }
+
+  const releaseCoupon = async () => {
+    if (couponReserved && couponCodeNormalized) {
+      await admin.rpc("decrement_coupon_usage", {
+        p_code: couponCodeNormalized,
+        p_store_id: storeId,
+      });
+    }
+  };
+
   // 4. Create the order.
   const { data: order, error: orderError } = await admin
     .from("orders")
@@ -265,12 +298,13 @@ export async function placeOrder(
 
   if (orderError || !order) {
     console.error("Order creation error:", orderError);
+    await releaseCoupon(); // give the reserved coupon use back
     return { error: "Failed to create order. Please try again." };
   }
 
-  // 5. Create order items. If this fails, roll back the order row so we don't
-  //    leave an orphan order with no line items (there is no cross-statement
-  //    transaction over PostgREST — a DB RPC would make this atomic).
+  // 5. Create order items. If this fails, roll back the order row (and release
+  //    the reserved coupon use) so we don't leave an orphan order (there is no
+  //    cross-statement transaction over PostgREST).
   const orderItemsToInsert = validItems.map((item) => ({
     ...item,
     order_id: order.id,
@@ -283,26 +317,8 @@ export async function placeOrder(
   if (itemsError) {
     console.error("Order items error:", itemsError);
     await admin.from("orders").delete().eq("id", order.id);
+    await releaseCoupon();
     return { error: "Failed to save order items. Please try again." };
-  }
-
-  // 6. Best-effort coupon usage increment so max_uses is actually enforced.
-  //    Read-modify-write here has a small race under concurrency; an atomic
-  //    RPC (used_count = used_count + 1) would be the airtight version.
-  if (couponCode && discount > 0) {
-    const code = normalizeCode(couponCode);
-    const { data: couponRow } = await admin
-      .from("coupons")
-      .select("id, used_count")
-      .eq("code", code)
-      .eq("store_id", storeId)
-      .maybeSingle();
-    if (couponRow) {
-      await admin
-        .from("coupons")
-        .update({ used_count: (couponRow.used_count ?? 0) + 1 })
-        .eq("id", couponRow.id);
-    }
   }
 
   return { success: true, orderId: order.id };

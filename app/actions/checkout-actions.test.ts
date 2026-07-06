@@ -162,6 +162,8 @@ describe("placeOrder", () => {
       },
     } as any);
 
+    admin.rpc.mockResolvedValue({ data: true, error: null });
+
     const result = await placeOrder(validForm, [oneItem()], "SAVE10");
     expect("success" in result && result.success).toBe(true);
 
@@ -171,9 +173,52 @@ describe("placeOrder", () => {
     expect(inserted.total).toBe(180);
     expect(inserted.applied_coupon_code).toBe("SAVE10");
 
-    // used_count bumped 0 -> 1.
-    expect(admin._tables.coupons.update).toHaveBeenCalledWith({
-      used_count: 1,
+    // Usage reserved atomically via the RPC (not a read-modify-write).
+    expect(admin.rpc).toHaveBeenCalledWith("increment_coupon_usage", {
+      p_code: "SAVE10",
+      p_store_id: STORE,
+    });
+  });
+
+  it("refuses checkout when the coupon usage cap was hit concurrently", async () => {
+    vi.mocked(validateCoupon).mockResolvedValue({
+      coupon: {
+        code: "SAVE10",
+        discountType: "percentage",
+        discountValue: 10,
+        minOrderAmount: 0,
+      },
+    } as any);
+    // The atomic reserve returns false → the last use was taken by another order.
+    admin.rpc.mockResolvedValue({ data: false, error: null });
+
+    const result = await placeOrder(validForm, [oneItem()], "SAVE10");
+    expect("error" in result && result.error).toMatch(/usage limit/i);
+    expect(admin._tables.orders.insert).not.toHaveBeenCalled();
+  });
+
+  it("releases the reserved coupon use when the order items fail to save", async () => {
+    vi.mocked(validateCoupon).mockResolvedValue({
+      coupon: {
+        code: "SAVE10",
+        discountType: "percentage",
+        discountValue: 10,
+        minOrderAmount: 0,
+      },
+    } as any);
+    admin = makeAdmin({
+      order_items: makeChain(undefined, { error: { message: "boom" } }),
+    });
+    admin.rpc.mockResolvedValue({ data: true, error: null });
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+
+    const result = await placeOrder(validForm, [oneItem()], "SAVE10");
+    expect("error" in result && result.error).toMatch(/try again/i);
+    expect(admin._tables.orders.delete).toHaveBeenCalled();
+    // Reserved use handed back atomically.
+    expect(admin.rpc).toHaveBeenCalledWith("decrement_coupon_usage", {
+      p_code: "SAVE10",
+      p_store_id: STORE,
     });
   });
 
