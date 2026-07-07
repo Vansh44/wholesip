@@ -567,6 +567,8 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
       own-row RLS) prefill the default and are picked from cards so the address
       isn't retyped each order.
 
+13. **Inventory System**. Per-store stock tracking. Products and variants have `track_inventory` (bool), `stock` (int), `low_stock_threshold` (int), `allow_backorder` (bool), and `sku` (text, products only). Stock edits go through `supabase/inventory_rpc.sql` (`reserve_stock`, `release_stock`, `adjust_stock`) to ensure atomic correctness and generate an append-only ledger in the `stock_movements` table. The storefront reads these fields to display 'Sold Out' or 'Only X left!' badges on product cards and detail pages, and the quick-add button disables itself for out-of-stock items. Checkout (`checkout-actions.ts`) calls `reserve_stock` before placing an order, and `order-actions.ts` calls `release_stock` on cancellation. Store admins manage inventory at `/dashboard/inventory` (list view, history drawer, bulk adjustments) and settings at `/dashboard/inventory/settings`.
+
 ## 6. Commands
 
 ```bash

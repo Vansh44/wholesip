@@ -432,6 +432,8 @@ describe("blog-actions", () => {
         "blogs.requireApproval": true,
         "pages.customCode": true,
         "marketing.showAllCoupons": false,
+        "inventory.simpleTrackDefault": false,
+        "inventory.lowStockThreshold": 5,
       });
       const result = await submitCustomerBlog(customerForm);
       expect(result.error).toMatch(/disabled/i);
@@ -447,6 +449,8 @@ describe("blog-actions", () => {
         "blogs.requireApproval": false,
         "pages.customCode": true,
         "marketing.showAllCoupons": false,
+        "inventory.simpleTrackDefault": false,
+        "inventory.lowStockThreshold": 5,
       });
       const result = await submitCustomerBlog(customerForm);
       expect(result.success).toBe(true);

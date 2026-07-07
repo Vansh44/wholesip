@@ -34,7 +34,7 @@ const getProduct = cache(
     const { data } = await supabase
       .from("products")
       .select(
-        "id, name, slug, description, category_id, base_price, selling_price, image_url, images, status, seo_title, seo_description, category:categories(id, name, slug, status), variants:product_variants(*)",
+        "id, name, slug, description, category_id, base_price, selling_price, image_url, images, status, seo_title, seo_description, track_inventory, stock, low_stock_threshold, allow_backorder, category:categories(id, name, slug, status), variants:product_variants(*)",
       )
       .eq("store_id", storeId)
       .eq("slug", slug)
@@ -66,7 +66,7 @@ async function getRelated(
   const { data } = await supabase
     .from("products")
     .select(
-      "id, name, slug, base_price, selling_price, image_url, card_color, featured, category:categories(name), variants:product_variants(base_price, selling_price, special_price, sort_order)",
+      "id, name, slug, base_price, selling_price, image_url, card_color, featured, track_inventory, stock, low_stock_threshold, allow_backorder, category:categories(name), variants:product_variants(base_price, selling_price, special_price, sort_order, track_inventory, stock, low_stock_threshold, allow_backorder)",
     )
     .eq("store_id", storeId)
     .eq("status", "published")
@@ -175,9 +175,18 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const prices = variantPrices.length
     ? variantPrices
     : [product.selling_price > 0 ? product.selling_price : product.base_price];
-  const inStock = product.variants.length
-    ? product.variants.some((v) => v.stock > 0)
-    : true;
+  let inStock = true;
+  if (product.variants.length > 0) {
+    inStock = !product.variants.every(
+      (v) => v.track_inventory && !v.allow_backorder && v.stock <= 0,
+    );
+  } else {
+    inStock = !(
+      product.track_inventory &&
+      !product.allow_backorder &&
+      product.stock <= 0
+    );
+  }
   const ratingCount = reviews.length;
   const ratingValue = ratingCount
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / ratingCount

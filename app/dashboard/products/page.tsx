@@ -62,6 +62,11 @@ export interface Product {
   seo_title: string | null;
   seo_description: string | null;
   published_at: string | null;
+  track_inventory: boolean;
+  stock: number;
+  low_stock_threshold: number | null;
+  allow_backorder: boolean;
+  sku: string | null;
   created_at: string;
   updated_at: string;
   // Joined

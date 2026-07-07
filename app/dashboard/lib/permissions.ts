@@ -108,8 +108,6 @@ export const SECTIONS: DashboardSection[] = [
     icon: "inventory",
     group: "Workspace",
     actions: ["view", "manage"],
-    badge: "3",
-    badgeTone: "amber",
   },
   {
     key: "analytics",

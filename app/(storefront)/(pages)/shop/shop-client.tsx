@@ -17,11 +17,19 @@ export interface ShopProduct {
   sort_order: number;
   card_color: string | null;
   category?: string | null;
+  track_inventory: boolean;
+  stock: number;
+  low_stock_threshold: number | null;
+  allow_backorder: boolean;
   variants: {
     base_price: number;
     selling_price: number;
     special_price?: number | null;
     sort_order?: number;
+    track_inventory: boolean;
+    stock: number;
+    low_stock_threshold: number | null;
+    allow_backorder: boolean;
   }[];
 }
 

@@ -42,6 +42,10 @@ export interface ProductCardRow {
   featured: boolean;
   sort_order: number;
   card_color: string | null;
+  track_inventory: boolean;
+  stock: number;
+  low_stock_threshold: number | null;
+  allow_backorder: boolean;
   /** Resolved category name (flattened from the joined categories row). */
   category: string | null;
   variants: {
@@ -49,6 +53,10 @@ export interface ProductCardRow {
     selling_price: number;
     special_price: number | null;
     sort_order: number;
+    track_inventory: boolean;
+    stock: number;
+    low_stock_threshold: number | null;
+    allow_backorder: boolean;
   }[];
 }
 
@@ -77,7 +85,7 @@ export interface BlogCardRow {
 // Columns the shop + homepage product cards actually render. Deliberately NOT
 // `*` / `variants(*)` — we only need pricing-relevant variant fields.
 const PRODUCT_CARD_COLUMNS =
-  "id, name, slug, description, category_id, base_price, selling_price, image_url, status, featured, sort_order, card_color, category:categories(name), variants:product_variants(base_price, selling_price, special_price, sort_order)";
+  "id, name, slug, description, category_id, base_price, selling_price, image_url, status, featured, sort_order, card_color, track_inventory, stock, low_stock_threshold, allow_backorder, category:categories(name), variants:product_variants(base_price, selling_price, special_price, sort_order, track_inventory, stock, low_stock_threshold, allow_backorder)";
 
 // Blog card columns — crucially excludes `content` (full article HTML), which
 // the listing/cards never render but `select('*')` used to ship for every post.

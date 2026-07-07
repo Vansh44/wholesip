@@ -9,8 +9,11 @@ vi.mock("@/app/dashboard/lib/access", () => ({
   getActingStoreId: vi.fn(async () => STORE),
 }));
 
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+
 import { getOrders, updateOrderStatus } from "./order-actions";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { makeChain, makeSupabase } from "./_test-helpers";
 
@@ -22,13 +25,25 @@ describe("order-actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     supabase = makeSupabase({
-      orders: makeChain(undefined, {
-        data: [{ id: "o1", total: 100 }],
-        count: 3,
+      orders: makeChain(
+        { data: { id: "o1", status: "pending" }, error: null },
+        {
+          data: [{ id: "o1", total: 100 }],
+          count: 3,
+          error: null,
+        },
+      ),
+      order_items: makeChain(undefined, {
+        data: [{ product_id: "p1", variant_id: "v1", quantity: 2 }],
         error: null,
       }),
     });
     vi.mocked(createClient).mockResolvedValue(supabase);
+
+    const admin = {
+      rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
+    };
+    vi.mocked(createAdminClient).mockReturnValue(admin as any);
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
   });
 
@@ -106,6 +121,33 @@ describe("order-actions", () => {
         "store_id",
         STORE,
       );
+    });
+
+    it("releases stock when an order is cancelled", async () => {
+      const result = await updateOrderStatus("o1", "cancelled");
+      expect(result.success).toBe(true);
+
+      const admin = vi.mocked(createAdminClient)();
+      expect(admin.rpc).toHaveBeenCalledWith("release_stock", {
+        p_store: STORE,
+        p_product: "p1",
+        p_variant: "v1",
+        p_qty: 2,
+        p_order: "o1",
+        p_reason: "order_cancelled",
+      });
+    });
+
+    it("does not double-release stock if order is already cancelled", async () => {
+      supabase._tables.orders = makeChain(
+        { data: { id: "o1", status: "cancelled" }, error: null },
+        undefined,
+      );
+      const result = await updateOrderStatus("o1", "cancelled");
+      expect(result.success).toBe(true);
+
+      const admin = vi.mocked(createAdminClient)();
+      expect(admin.rpc).not.toHaveBeenCalled();
     });
   });
 });

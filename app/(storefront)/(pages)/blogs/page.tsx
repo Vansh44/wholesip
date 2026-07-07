@@ -67,7 +67,7 @@ export default async function BlogsPage() {
         blogs={publishedBlogs}
         categories={categories}
         allTags={allTags}
-        allowSubmissions={allowSubmissions}
+        allowSubmissions={Boolean(allowSubmissions)}
       />
     </main>
   );

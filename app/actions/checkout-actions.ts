@@ -243,7 +243,55 @@ export async function placeOrder(
   };
   const notes = cleanField(form.notes, MAX_NOTES_LEN) || null;
 
-  // 3b. Reserve a coupon use ATOMICALLY, before creating the order, so a
+  // 3b. Reserve stock ATOMICALLY for each item. We generate the order ID now
+  //     so the stock ledger can reference it. If any item fails to reserve,
+  //     we rollback all prior reservations and fail the checkout.
+  const orderId = crypto.randomUUID();
+  const reservedStockItems: Array<{
+    product_id: string;
+    variant_id: string | null;
+    qty: number;
+  }> = [];
+
+  const releaseStock = async () => {
+    for (const r of reservedStockItems) {
+      await admin.rpc("release_stock", {
+        p_store: storeId,
+        p_product: r.product_id,
+        p_variant: r.variant_id,
+        p_qty: r.qty,
+        p_order: orderId,
+        p_reason: "checkout_failed",
+      });
+    }
+  };
+
+  for (const item of validItems) {
+    const { data: reserved, error: reserveError } = await admin.rpc(
+      "reserve_stock",
+      {
+        p_store: storeId,
+        p_product: item.product_id,
+        p_variant: item.variant_id,
+        p_qty: item.quantity,
+        p_order: orderId,
+      },
+    );
+
+    if (reserveError || !reserved) {
+      await releaseStock();
+      return {
+        error: `Not enough stock for ${item.variant_name || item.name}.`,
+      };
+    }
+    reservedStockItems.push({
+      product_id: item.product_id,
+      variant_id: item.variant_id,
+      qty: item.quantity,
+    });
+  }
+
+  // 3c. Reserve a coupon use ATOMICALLY, before creating the order, so a
   //     max_uses cap can never be exceeded even under simultaneous checkouts
   //     (increment_coupon_usage does a single conditional UPDATE and returns
   //     false when the cap is already hit). We release it below if the order
@@ -258,6 +306,7 @@ export async function placeOrder(
     if (rpcError) {
       console.error("increment_coupon_usage:", rpcError.message);
     } else if (reserved === false) {
+      await releaseStock();
       return { error: "This coupon has reached its usage limit." };
     } else {
       couponReserved = true;
@@ -277,6 +326,7 @@ export async function placeOrder(
   const { data: order, error: orderError } = await admin
     .from("orders")
     .insert({
+      id: orderId,
       store_id: storeId,
       customer_id: user.id,
       status: "pending",
@@ -299,6 +349,7 @@ export async function placeOrder(
   if (orderError || !order) {
     console.error("Order creation error:", orderError);
     await releaseCoupon(); // give the reserved coupon use back
+    await releaseStock(); // return the reserved stock
     return { error: "Failed to create order. Please try again." };
   }
 
@@ -318,6 +369,7 @@ export async function placeOrder(
     console.error("Order items error:", itemsError);
     await admin.from("orders").delete().eq("id", order.id);
     await releaseCoupon();
+    await releaseStock();
     return { error: "Failed to save order items. Please try again." };
   }
 

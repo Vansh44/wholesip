@@ -196,9 +196,9 @@ describe("product-actions", () => {
       expect(insert.selling_price).toBe(100);
     });
 
-    // Variant insertion path — verifies the second .from() call hits the
-    // variants table after the product row succeeds.
-    it("inserts variants after product is created", async () => {
+    // Variant reconcile path — verifies that after the product row succeeds,
+    // the reconcile fetches existing variant ids, updates/inserts/deletes.
+    it("reconciles variants after product is created", async () => {
       await createProduct({
         ...validForm,
         variants: [
@@ -213,8 +213,8 @@ describe("product-actions", () => {
           },
         ],
       });
-      // product_variants.delete was called (to clear), then insert.
-      expect(supabase._tables.product_variants.delete).toHaveBeenCalled();
+      // Reconcile: select existing ids, then insert new (no existing for create).
+      expect(supabase._tables.product_variants.select).toHaveBeenCalled();
       expect(supabase._tables.product_variants.insert).toHaveBeenCalled();
     });
 
@@ -303,6 +303,38 @@ describe("product-actions", () => {
         supabase._tables.product_variants.insert.mock.calls[0][0];
       expect(inserted[0].special_price).toBeNull();
       expect(inserted[1].special_price).toBeNull();
+    });
+
+    // Reconcile preserves variant id through sanitizeVariants.
+    it("preserves variant id for existing variants in reconcile", async () => {
+      // Simulate editing a product that has existing variants.
+      supabase._tables.product_variants = makeChain(
+        { data: null, error: null },
+        { data: [{ id: "v-existing" }], error: null },
+      );
+      await createProduct({
+        ...validForm,
+        variants: [
+          {
+            id: "v-existing",
+            name: "Existing",
+            base_price: 100,
+            selling_price: 80,
+            special_price: null,
+            stock: 5,
+            sku: "EX",
+            images: [],
+          },
+        ],
+      });
+      // Should have called update (not insert) for the existing variant,
+      // and the update should NOT include 'stock' (stock is never overwritten).
+      expect(supabase._tables.product_variants.update).toHaveBeenCalled();
+      const updateArg =
+        supabase._tables.product_variants.update.mock.calls[0][0];
+      expect(updateArg).not.toHaveProperty("stock");
+      expect(updateArg).not.toHaveProperty("id");
+      expect(updateArg.name).toBe("Existing");
     });
   });
 

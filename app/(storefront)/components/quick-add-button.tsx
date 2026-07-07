@@ -16,8 +16,18 @@ export function QuickAddButton({ product }: { product: ShopCardProduct }) {
   const { addItem } = useCart();
   const pr = effectivePricing(product);
 
+  let isOutOfStock = false;
+  if (product.variants && product.variants.length > 0) {
+    isOutOfStock = product.variants.every(
+      (v) => v.track_inventory && !v.allow_backorder && v.stock <= 0,
+    );
+  } else {
+    isOutOfStock =
+      product.track_inventory && !product.allow_backorder && product.stock <= 0;
+  }
+
   const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (pr.hasVariants) return; // bubble to the card link → detail page
+    if (pr.hasVariants || isOutOfStock) return; // bubble to the card link → detail page
     e.preventDefault();
     e.stopPropagation();
     addItem({
@@ -49,10 +59,16 @@ export function QuickAddButton({ product }: { product: ShopCardProduct }) {
       aria-label={
         pr.hasVariants
           ? `Choose options for ${product.name}`
-          : `Add ${product.name} to cart`
+          : isOutOfStock
+            ? `${product.name} is out of stock`
+            : `Add ${product.name} to cart`
       }
+      style={{
+        opacity: isOutOfStock && !pr.hasVariants ? 0.5 : 1,
+        cursor: isOutOfStock && !pr.hasVariants ? "not-allowed" : "pointer",
+      }}
     >
-      + Add
+      {isOutOfStock && !pr.hasVariants ? "Sold Out" : "+ Add"}
     </div>
   );
 }

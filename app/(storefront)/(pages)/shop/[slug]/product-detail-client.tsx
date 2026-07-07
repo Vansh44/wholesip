@@ -29,10 +29,13 @@ export interface DetailVariant {
   // NULL when no sale price is set; otherwise overrides selling_price and
   // triggers the "best value" tag badge on the chip.
   special_price: number | null;
-  stock: number;
   sku: string | null;
   images: string[] | null;
   sort_order: number;
+  track_inventory: boolean;
+  stock: number;
+  low_stock_threshold: number | null;
+  allow_backorder: boolean;
 }
 
 export interface DetailProduct {
@@ -48,6 +51,10 @@ export interface DetailProduct {
   seo_title: string | null;
   seo_description: string | null;
   category: { id: string; name: string; slug: string; status: string } | null;
+  track_inventory: boolean;
+  stock: number;
+  low_stock_threshold: number | null;
+  allow_backorder: boolean;
   variants: DetailVariant[];
 }
 
@@ -132,7 +139,38 @@ export default function ProductDetailClient({
     ? variantSellingWithFallback(selectedVariant)
     : sellingOf(product.base_price, product.selling_price);
   const discount = discountPercent(base, selling);
-  const outOfStock = selectedVariant ? selectedVariant.stock <= 0 : false;
+
+  let outOfStock = false;
+  let isLowStock = false;
+  let lowStockAmount = 0;
+
+  if (selectedVariant) {
+    outOfStock =
+      selectedVariant.track_inventory &&
+      !selectedVariant.allow_backorder &&
+      selectedVariant.stock <= 0;
+    if (
+      selectedVariant.track_inventory &&
+      selectedVariant.stock > 0 &&
+      selectedVariant.low_stock_threshold &&
+      selectedVariant.stock <= selectedVariant.low_stock_threshold
+    ) {
+      isLowStock = true;
+      lowStockAmount = selectedVariant.stock;
+    }
+  } else {
+    outOfStock =
+      product.track_inventory && !product.allow_backorder && product.stock <= 0;
+    if (
+      product.track_inventory &&
+      product.stock > 0 &&
+      product.low_stock_threshold &&
+      product.stock <= product.low_stock_threshold
+    ) {
+      isLowStock = true;
+      lowStockAmount = product.stock;
+    }
+  }
 
   // Close the zoom overlay with Escape.
   useEffect(() => {
@@ -320,6 +358,17 @@ export default function ProductDetailClient({
           {product.category && product.category.status === "active" && (
             <span className="pdp-category">{product.category.name}</span>
           )}
+
+          {outOfStock ? (
+            <div className="mb-2 inline-block text-xs font-bold uppercase tracking-wider bg-zinc-200 text-zinc-600 px-2 py-1 rounded-sm">
+              Sold Out
+            </div>
+          ) : isLowStock ? (
+            <div className="mb-2 inline-block text-xs font-bold uppercase tracking-wider bg-orange-100 text-orange-700 px-2 py-1 rounded-sm">
+              Only {lowStockAmount} left in stock!
+            </div>
+          ) : null}
+
           <h1 className="pdp-name">{product.name}</h1>
 
           <a href="#reviews" className="pdp-rating-top">
@@ -353,7 +402,8 @@ export default function ProductDetailClient({
               <label className="pdp-variants-label">Options</label>
               <div className="pdp-variant-options">
                 {product.variants.map((v) => {
-                  const disabled = v.stock <= 0;
+                  const disabled =
+                    v.track_inventory && !v.allow_backorder && v.stock <= 0;
                   const hasSale = hasSpecialPrice(v);
                   const vSelling = variantSellingWithFallback(v);
                   // Show the struck-through original only when it's genuinely

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getActingStoreId, getManagerUserId } from "@/app/dashboard/lib/access";
 import { DASHBOARD_PAGE_SIZE } from "@/app/dashboard/lib/list-params";
 
@@ -94,6 +95,39 @@ export async function updateOrderStatus(
   const updateData: Record<string, string> = { status };
   if (paymentStatus) {
     updateData.payment_status = paymentStatus;
+  }
+
+  // If cancelling, check if we need to restock.
+  if (status === "cancelled") {
+    const { data: currentOrder, error: readError } = await supabase
+      .from("orders")
+      .select("status")
+      .eq("id", orderId)
+      .eq("store_id", storeId)
+      .single();
+
+    if (readError || !currentOrder) return { error: "Order not found" };
+
+    if (currentOrder.status !== "cancelled") {
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("product_id, variant_id, quantity")
+        .eq("order_id", orderId);
+
+      if (items && items.length > 0) {
+        const admin = createAdminClient();
+        for (const item of items) {
+          await admin.rpc("release_stock", {
+            p_store: storeId,
+            p_product: item.product_id,
+            p_variant: item.variant_id,
+            p_qty: item.quantity,
+            p_order: orderId,
+            p_reason: "order_cancelled",
+          });
+        }
+      }
+    }
   }
 
   const { error } = await supabase

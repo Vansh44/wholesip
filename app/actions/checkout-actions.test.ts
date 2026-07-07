@@ -56,7 +56,7 @@ function oneItem(overrides: Partial<CartItem> = {}): CartItem {
 // chain; products/order_items resolve when awaited, orders/coupons via single/
 // maybeSingle.
 function makeAdmin(overrides: Record<string, any> = {}) {
-  return makeSupabase({
+  const s = makeSupabase({
     products: makeChain(undefined, {
       data: [{ id: "p1", name: "Prod", selling_price: 100, store_id: STORE }],
       error: null,
@@ -75,6 +75,9 @@ function makeAdmin(overrides: Record<string, any> = {}) {
     ),
     ...overrides,
   });
+  // Default rpc mock so both reserve_stock and increment_coupon_usage pass.
+  s.rpc = vi.fn().mockResolvedValue({ data: true, error: null });
+  return s;
 }
 
 describe("placeOrder", () => {
@@ -162,8 +165,6 @@ describe("placeOrder", () => {
       },
     } as any);
 
-    admin.rpc.mockResolvedValue({ data: true, error: null });
-
     const result = await placeOrder(validForm, [oneItem()], "SAVE10");
     expect("success" in result && result.success).toBe(true);
 
@@ -190,7 +191,12 @@ describe("placeOrder", () => {
       },
     } as any);
     // The atomic reserve returns false → the last use was taken by another order.
-    admin.rpc.mockResolvedValue({ data: false, error: null });
+    // Must only mock for the coupon RPC, so stock reservation still succeeds.
+    admin.rpc.mockImplementation((name: string) => {
+      if (name === "increment_coupon_usage")
+        return Promise.resolve({ data: false, error: null });
+      return Promise.resolve({ data: true, error: null });
+    });
 
     const result = await placeOrder(validForm, [oneItem()], "SAVE10");
     expect("error" in result && result.error).toMatch(/usage limit/i);
@@ -209,7 +215,6 @@ describe("placeOrder", () => {
     admin = makeAdmin({
       order_items: makeChain(undefined, { error: { message: "boom" } }),
     });
-    admin.rpc.mockResolvedValue({ data: true, error: null });
     vi.mocked(createAdminClient).mockReturnValue(admin);
 
     const result = await placeOrder(validForm, [oneItem()], "SAVE10");
@@ -242,5 +247,35 @@ describe("placeOrder", () => {
     // Orphan order deleted.
     expect(admin._tables.orders.delete).toHaveBeenCalled();
     expect(admin._tables.orders.eq).toHaveBeenCalledWith("id", "order-1");
+  });
+
+  it("fails checkout if stock cannot be reserved and rolls back any prior reservations", async () => {
+    // We simulate 2 items. The first item reserves successfully, the second fails.
+    admin.rpc.mockImplementation((name: string, args: any) => {
+      if (name === "reserve_stock") {
+        if (args.p_product === "p2") {
+          return Promise.resolve({ data: false, error: null });
+        }
+        return Promise.resolve({ data: true, error: null });
+      }
+      return Promise.resolve({ data: true, error: null });
+    });
+
+    const result = await placeOrder(validForm, [
+      oneItem({ productId: "p1" }),
+      oneItem({ productId: "p2", name: "Product 2" }),
+    ]);
+
+    expect("error" in result && result.error).toMatch(
+      /not enough stock for Product 2/i,
+    );
+    // Should have called release_stock for the first item that succeeded.
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "release_stock",
+      expect.objectContaining({
+        p_product: "p1",
+        p_reason: "checkout_failed",
+      }),
+    );
   });
 });

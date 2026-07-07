@@ -48,6 +48,8 @@ export const SETTING_KEYS = [
   "blogs.requireApproval",
   "pages.customCode",
   "marketing.showAllCoupons",
+  "inventory.simpleTrackDefault",
+  "inventory.lowStockThreshold",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
@@ -61,13 +63,17 @@ export interface SettingDef {
   /** Dashboard permission section that governs this setting (permissions.ts).
    *  Viewing/saving it requires view/manage on this section. */
   section: string;
-  type: "boolean";
-  defaultValue: boolean;
+  type: "boolean" | "number";
+  defaultValue: boolean | number;
   /** Minimum plan required to change this setting (locked to default below). */
   minPlan?: Plan;
   /** Another boolean setting this one only applies under (UI dims it when the
    *  parent is off; consumers must check the parent themselves). */
   dependsOn?: SettingKey;
+  /** For number types: minimum allowed value */
+  min?: number;
+  /** For number types: maximum allowed value */
+  max?: number;
 }
 
 export const SETTINGS: readonly SettingDef[] = [
@@ -113,6 +119,28 @@ export const SETTINGS: readonly SettingDef[] = [
     type: "boolean",
     defaultValue: false,
   },
+  {
+    key: "inventory.simpleTrackDefault",
+    label: "Track inventory for new simple products",
+    description:
+      "By default, new simple products (without variants) will have inventory tracking enabled.",
+    group: "Inventory",
+    section: "inventory",
+    type: "boolean",
+    defaultValue: false,
+  },
+  {
+    key: "inventory.lowStockThreshold",
+    label: "Store-wide low stock threshold",
+    description:
+      "When an item's stock falls to or below this number, it will be marked as 'Low Stock' unless overridden at the product level.",
+    group: "Inventory",
+    section: "inventory",
+    type: "number",
+    defaultValue: 5,
+    min: 0,
+    max: 1000,
+  },
 ];
 
 const SETTING_BY_KEY = new Map(SETTINGS.map((s) => [s.key, s]));
@@ -122,7 +150,7 @@ export function getSettingDef(key: string): SettingDef | undefined {
 }
 
 /** Resolved values for every setting in the catalog. */
-export type StoreSettingValues = Record<SettingKey, boolean>;
+export type StoreSettingValues = Record<SettingKey, boolean | number>;
 
 /**
  * Resolve a store's feature settings from its raw settings jsonb + plan:
@@ -139,10 +167,20 @@ export function resolveStoreSettings(
   const out = {} as StoreSettingValues;
   for (const def of SETTINGS) {
     const stored = overrides[def.key];
-    out[def.key] =
-      planAllows(p, def.minPlan) && typeof stored === "boolean"
-        ? stored
-        : def.defaultValue;
+    if (planAllows(p, def.minPlan)) {
+      if (def.type === "boolean" && typeof stored === "boolean") {
+        out[def.key] = stored;
+        continue;
+      }
+      if (def.type === "number" && typeof stored === "number") {
+        out[def.key] = Math.max(
+          def.min ?? -Infinity,
+          Math.min(def.max ?? Infinity, stored),
+        );
+        continue;
+      }
+    }
+    out[def.key] = def.defaultValue;
   }
   return out;
 }

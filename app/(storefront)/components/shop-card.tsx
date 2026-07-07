@@ -8,8 +8,7 @@ import { QuickAddButton } from "./quick-add-button";
 // (Per-product colour is the source of truth.)
 export const DEFAULT_CARD_BG = "#f4f2ee";
 
-// The data a card needs: display fields + whatever effectivePricing reads.
-export type ShopCardProduct = PricedLike & {
+export type ShopCardProduct = Omit<PricedLike, "variants"> & {
   id: string;
   name: string;
   slug: string;
@@ -18,12 +17,48 @@ export type ShopCardProduct = PricedLike & {
   card_color?: string | null;
   /** Resolved category name; shown as an eyebrow label when present. */
   category?: string | null;
+  track_inventory: boolean;
+  stock: number;
+  low_stock_threshold: number | null;
+  allow_backorder: boolean;
+  variants?: {
+    base_price: number;
+    selling_price: number;
+    special_price?: number | null;
+    sort_order?: number;
+    track_inventory: boolean;
+    stock: number;
+    low_stock_threshold: number | null;
+    allow_backorder: boolean;
+  }[];
 };
 
 // Single source of truth for the storefront product card — used by the shop
 // grid and the homepage "featured products" section so styling stays in sync.
 export function ShopCard({ product: p }: { product: ShopCardProduct }) {
   const pr = effectivePricing(p);
+
+  let isOutOfStock = false;
+  let isLowStock = false;
+  let lowStockAmount = 0;
+
+  if (p.variants && p.variants.length > 0) {
+    isOutOfStock = p.variants.every(
+      (v) => v.track_inventory && !v.allow_backorder && v.stock <= 0,
+    );
+  } else {
+    isOutOfStock = p.track_inventory && !p.allow_backorder && p.stock <= 0;
+    if (
+      p.track_inventory &&
+      p.stock > 0 &&
+      p.low_stock_threshold &&
+      p.stock <= p.low_stock_threshold
+    ) {
+      isLowStock = true;
+      lowStockAmount = p.stock;
+    }
+  }
+
   return (
     <Link
       href={`/shop/${p.slug}`}
@@ -49,8 +84,23 @@ export function ShopCard({ product: p }: { product: ShopCardProduct }) {
       </div>
 
       <div className="shop-card-body">
-        {p.category && <span className="shop-card-cat">{p.category}</span>}
-        <h3 className="shop-card-name">{p.name}</h3>
+        <div className="flex items-start justify-between">
+          <div className="min-w-0">
+            {p.category && <span className="shop-card-cat">{p.category}</span>}
+            <h3 className="shop-card-name">{p.name}</h3>
+          </div>
+          <div className="shrink-0 ml-2 flex flex-col items-end gap-1">
+            {isOutOfStock ? (
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-zinc-200 text-zinc-600 px-1.5 py-0.5 rounded-sm">
+                Sold Out
+              </span>
+            ) : isLowStock ? (
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-sm">
+                Only {lowStockAmount} left!
+              </span>
+            ) : null}
+          </div>
+        </div>
         <div className="shop-card-price">
           {pr.hasVariants && <span className="shop-card-from">from </span>}
           <span className="shop-card-sell">{formatPrice(pr.selling)}</span>

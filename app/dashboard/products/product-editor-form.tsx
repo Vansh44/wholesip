@@ -53,6 +53,10 @@ const EMPTY: ProductFormData = {
   seo_title: "",
   seo_description: "",
   variants: [],
+  track_inventory: false,
+  allow_backorder: false,
+  low_stock_threshold: null,
+  sku: "",
 };
 
 function toForm(product: Product): ProductFormData {
@@ -71,7 +75,12 @@ function toForm(product: Product): ProductFormData {
     card_color: product.card_color ?? "",
     seo_title: product.seo_title ?? "",
     seo_description: product.seo_description ?? "",
+    track_inventory: product.track_inventory,
+    allow_backorder: product.allow_backorder,
+    low_stock_threshold: product.low_stock_threshold,
+    sku: product.sku ?? "",
     variants: (product.variants ?? []).map((v) => ({
+      id: v.id, // preserve DB id for reconcile (stable variant ids)
       name: v.name,
       base_price: v.base_price,
       selling_price: v.selling_price,
@@ -593,6 +602,90 @@ export function ProductEditorForm({
             onUploadSuccess={addGalleryImage}
           />
         </div>
+
+        {/* Simple Product Inventory (only shown if no variants) */}
+        {form.variants.length === 0 && (
+          <div className="rounded-md border border-[#e5e7eb] p-3 space-y-4 bg-gray-50/50">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-[#6b7280]">
+              Inventory
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>SKU</label>
+                <input
+                  className={fieldClass}
+                  value={form.sku ?? ""}
+                  onChange={(e) => set("sku", e.target.value)}
+                  placeholder="e.g. ALM-500"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Stock (Simple Product)</label>
+                <div className="flex items-center gap-2 text-sm">
+                  {product ? (
+                    <>
+                      <span className="font-semibold">{product.stock}</span>
+                      <span className="text-dim">in stock</span>
+                      <Link
+                        href={`/dashboard/inventory?q=${encodeURIComponent(product.name)}`}
+                        className="ml-auto text-xs text-indigo-600 hover:underline"
+                        target="_blank"
+                      >
+                        Manage in Inventory &rarr;
+                      </Link>
+                    </>
+                  ) : (
+                    <span className="text-dim italic">
+                      Save product first to set stock.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-[#1f2937]">
+                <input
+                  type="checkbox"
+                  checked={form.track_inventory}
+                  onChange={(e) => set("track_inventory", e.target.checked)}
+                  className="h-4 w-4 accent-[#4f46e5]"
+                />
+                Track inventory
+              </label>
+
+              {form.track_inventory && (
+                <div className="ml-6 space-y-3 pl-3 border-l-2 border-indigo-100">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-[#1f2937]">
+                    <input
+                      type="checkbox"
+                      checked={form.allow_backorder}
+                      onChange={(e) => set("allow_backorder", e.target.checked)}
+                      className="h-4 w-4 accent-[#4f46e5]"
+                    />
+                    Allow backorders (sell when out of stock)
+                  </label>
+                  <div>
+                    <label className={labelClass}>
+                      Low stock alert threshold
+                    </label>
+                    <NumberField
+                      className={`${fieldClass} max-w-[120px]`}
+                      value={form.low_stock_threshold ?? 0}
+                      onValueChange={(n) =>
+                        set("low_stock_threshold", n > 0 ? n : null)
+                      }
+                    />
+                    <p className="mt-1 text-[11px] text-[#9ca3af]">
+                      Leave 0 to use store default.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Variants */}
         <div>

@@ -130,7 +130,7 @@ export default async function CouponsPage({
       page={page}
       pageSize={pageSize}
       query={q}
-      showAllCoupons={showAllCoupons}
+      showAllCoupons={Boolean(showAllCoupons)}
     />
   );
 }
