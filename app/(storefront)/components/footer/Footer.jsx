@@ -238,7 +238,20 @@ export default function Footer() {
         </div>
       </div>
       <div className={styles.credit}>
-        <strong>{creditLine}</strong>
+        {creditLine === "Powered by Storemink" ? (
+          <>
+            <strong>Powered by</strong>
+            <img
+              src="/icon.svg"
+              alt="StoreMink"
+              className={styles.creditLogo}
+              aria-hidden="true"
+            />
+            <strong>Storemink</strong>
+          </>
+        ) : (
+          <strong>{creditLine}</strong>
+        )}
       </div>
     </footer>
   );

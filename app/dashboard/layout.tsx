@@ -72,7 +72,7 @@ export default async function DashboardLayout({
           </p>
           <Link
             href="/auth/login"
-            className="inline-block rounded-lg bg-[#111827] px-5 py-2.5 text-sm font-semibold text-white"
+            className="inline-block rounded-lg bg-[#E5E4E2] hover:bg-[#CFCFCF] px-5 py-2.5 text-sm font-semibold text-[#ffffff] transition-colors duration-200"
           >
             Switch account
           </Link>

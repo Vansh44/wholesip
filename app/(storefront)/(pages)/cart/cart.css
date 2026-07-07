@@ -683,3 +683,16 @@
     margin-top: 4px;
   }
 }
+
+/* The market header reserves space on the root itself; remove double padding */
+.sm-header-market.storefront-root .cart-main,
+.sm-header-market.storefront-root .gcart-main {
+  padding-top: 32px;
+}
+
+@media (min-width: 768px) {
+  .sm-header-market.storefront-root .cart-main,
+  .sm-header-market.storefront-root .gcart-main {
+    padding-top: 48px;
+  }
+}

@@ -330,6 +330,11 @@
   }
 }
 
+/* The market header reserves space on the root itself; remove double padding */
+.sm-header-market.storefront-root .shop-listing {
+  padding-top: 0;
+}
+
 /* Full-width container — no floating card, edge to edge */
 .shop-panel {
   width: 100%;
