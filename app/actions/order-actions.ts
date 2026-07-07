@@ -97,18 +97,28 @@ export async function updateOrderStatus(
     updateData.payment_status = paymentStatus;
   }
 
-  // If cancelling, check if we need to restock.
+  // If cancelling, restock the order's stock EXACTLY ONCE. We atomically
+  // "claim" the release by flipping stock_status 'reserved' → 'released' in a
+  // single conditional UPDATE, then release only if this call won the claim:
+  //   - Legacy / never-reserved orders are stuck at 'none' → claim matches
+  //     nothing → no phantom restock (finding #2).
+  //   - An already-cancelled order (or one reinstated after a cancel) is
+  //     'released' → claim matches nothing → no double restock (finding #3).
+  //   - Two concurrent cancels → only one UPDATE flips the row → one release.
+  // The release itself never blocks the status change (fails open); the ledger
+  // is best-effort, the status update is the source of truth.
   if (status === "cancelled") {
-    const { data: currentOrder, error: readError } = await supabase
+    const { data: claimed, error: claimError } = await supabase
       .from("orders")
-      .select("status")
+      .update({ stock_status: "released" })
       .eq("id", orderId)
       .eq("store_id", storeId)
-      .single();
+      .eq("stock_status", "reserved")
+      .select("id");
 
-    if (readError || !currentOrder) return { error: "Order not found" };
-
-    if (currentOrder.status !== "cancelled") {
+    if (claimError) {
+      console.error("stock release claim:", claimError.message);
+    } else if (claimed && claimed.length > 0) {
       const { data: items } = await supabase
         .from("order_items")
         .select("product_id, variant_id, quantity")

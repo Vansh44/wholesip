@@ -139,4 +139,10 @@ describe("mapSectionData", () => {
     expect(out.categoriesBySection.size).toBe(0);
     expect(out.blogsBySection.size).toBe(0);
   });
+
+  it("threads the store low-stock threshold through (default 0 when omitted)", () => {
+    expect(mapSectionData([], datasets, 7).storeLowStockThreshold).toBe(7);
+    // The builder's client draft canvas omits it → per-SKU thresholds only.
+    expect(mapSectionData([], datasets).storeLowStockThreshold).toBe(0);
+  });
 });

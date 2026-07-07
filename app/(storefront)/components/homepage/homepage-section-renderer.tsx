@@ -47,6 +47,9 @@ export interface ResolvedData {
   productsBySection: Map<string, ShopCardProduct[]>;
   categoriesBySection: Map<string, CategoryTile[]>;
   blogsBySection: Map<string, BlogCardData[]>;
+  // Store-wide default low-stock threshold (inventory.lowStockThreshold) so the
+  // featured-products cards render the same "Only X left" badge as the shop grid.
+  storeLowStockThreshold: number;
 }
 
 export function HomepageSectionRenderer({
@@ -88,6 +91,7 @@ export function HomepageSectionRenderer({
           {...shell}
           config={section.config as FeaturedProductsConfig}
           products={resolved.productsBySection.get(section.id) ?? []}
+          storeLowStockThreshold={resolved.storeLowStockThreshold}
         />
       );
     case "shop_by_category":

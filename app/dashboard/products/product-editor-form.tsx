@@ -35,6 +35,10 @@ type Props = {
   colors: CardColorOption[];
   onClose: () => void;
   onSaved: () => void;
+  // Store default for NEW simple products (inventory.simpleTrackDefault). Only
+  // seeds the initial checkbox when creating; ignored when editing an existing
+  // product (its own value wins).
+  defaultTrackInventory?: boolean;
 };
 
 const EMPTY: ProductFormData = {
@@ -180,9 +184,12 @@ export function ProductEditorForm({
   colors,
   onClose,
   onSaved,
+  defaultTrackInventory = false,
 }: Props) {
   const [form, setForm] = useState<ProductFormData>(() =>
-    product ? toForm(product) : EMPTY,
+    product
+      ? toForm(product)
+      : { ...EMPTY, track_inventory: defaultTrackInventory },
   );
   const [isPending, startTransition] = useTransition();
   const [isGenerating, setIsGenerating] = useState(false);

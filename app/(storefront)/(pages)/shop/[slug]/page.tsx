@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
 import { requireStorefrontStoreId } from "@/lib/store/resolve";
 import { getStorefrontLayout } from "@/lib/store/storefront-layout";
+import { getStoreSetting } from "@/lib/settings/resolve";
 import { getStoreBrand } from "@/lib/store/brand";
 import { getStoreUrl } from "@/lib/site";
 import { getOgImageUrl } from "@/lib/og-image";
@@ -156,13 +157,15 @@ export default async function ProductDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const [related, reviews, layout, brand, siteUrl] = await Promise.all([
-    getRelated(product.category_id, product.id, storeId),
-    getReviews(product.id, storeId),
-    getStorefrontLayout(),
-    getStoreBrand(),
-    getStoreUrl(),
-  ]);
+  const [related, reviews, layout, brand, siteUrl, lowStockThreshold] =
+    await Promise.all([
+      getRelated(product.category_id, product.id, storeId),
+      getReviews(product.id, storeId),
+      getStorefrontLayout(),
+      getStoreBrand(),
+      getStoreUrl(),
+      getStoreSetting("inventory.lowStockThreshold"),
+    ]);
 
   // Product / Breadcrumb JSON-LD (rich results: price, availability, stars).
   // Effective per-variant selling prices → an Offer (single price) or
@@ -226,6 +229,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
         related={related}
         reviews={reviews}
         grocery={layout.storefront === "grocery"}
+        storeLowStockThreshold={lowStockThreshold as number}
       />
     </>
   );

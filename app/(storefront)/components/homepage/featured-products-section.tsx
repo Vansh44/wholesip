@@ -14,11 +14,13 @@ export function FeaturedProductsSection({
   style,
   config,
   products,
+  storeLowStockThreshold = 0,
 }: {
   sectionId: string;
   style?: SectionStyle;
   config: FeaturedProductsConfig;
   products: ShopCardProduct[];
+  storeLowStockThreshold?: number;
 }) {
   if (products.length === 0) return null;
 
@@ -40,7 +42,11 @@ export function FeaturedProductsSection({
         arrowClass="home-product-arrow"
       >
         {products.map((p) => (
-          <ShopCard key={p.id} product={p} />
+          <ShopCard
+            key={p.id}
+            product={p}
+            storeLowStockThreshold={storeLowStockThreshold}
+          />
         ))}
       </HorizontalCarousel>
     </SectionShell>

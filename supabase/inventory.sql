@@ -62,3 +62,25 @@ ALTER TABLE stock_movements ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Store admins can read stock_movements" ON public.stock_movements;
 CREATE POLICY "Store admins can read stock_movements" ON public.stock_movements FOR SELECT TO public
   USING ((SELECT is_store_admin(store_id)));
+
+-- -------------------------------------------------------------
+-- 6. Orders — stock reservation lifecycle
+--    Tracks whether an order has taken stock and whether that stock
+--    has been returned, so cancellation restocks EXACTLY ONCE and
+--    only for orders that actually reserved stock:
+--      'none'     — never reserved (legacy orders, or created before
+--                   this system existed) → cancelling them NEVER
+--                   inflates stock.
+--      'reserved' — stock decremented at checkout, awaiting
+--                   fulfilment or cancellation.
+--      'released' — stock returned (order cancelled / refunded).
+--    checkout sets 'reserved'; the cancel path claims the
+--    'reserved' → 'released' transition with a single conditional
+--    UPDATE, so a re-cancel (or a concurrent double-cancel) can't
+--    restock twice. NOTE: reinstating a cancelled order does NOT
+--    auto re-reserve stock — an admin must adjust it in Inventory.
+-- -------------------------------------------------------------
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS stock_status text NOT NULL DEFAULT 'none';
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_stock_status_check;
+ALTER TABLE orders ADD CONSTRAINT orders_stock_status_check
+  CHECK (stock_status IN ('none', 'reserved', 'released'));

@@ -5,6 +5,7 @@ import {
 } from "@/lib/storefront/queries";
 import { requireStorefrontStoreId } from "@/lib/store/resolve";
 import { getStorefrontLayout } from "@/lib/store/storefront-layout";
+import { getStoreSetting } from "@/lib/settings/resolve";
 import { getStoreBrand } from "@/lib/store/brand";
 import ShopClient, { type ShopProduct, type ShopCategory } from "./shop-client";
 import "./shop.css";
@@ -45,10 +46,11 @@ export default async function ShopPage({
   const { category: initialCategorySlug, q: initialQuery } = await searchParams;
   const storeId = await requireStorefrontStoreId();
 
-  const [products, categories, layout] = await Promise.all([
+  const [products, categories, layout, lowStockThreshold] = await Promise.all([
     getPublishedProducts(storeId),
     getActiveCategories(storeId),
     getStorefrontLayout(),
+    getStoreSetting("inventory.lowStockThreshold"),
   ]);
 
   const shopProducts = products as unknown as ShopProduct[];
@@ -61,6 +63,7 @@ export default async function ShopPage({
       initialCategorySlug={initialCategorySlug}
       initialQuery={initialQuery}
       grocery={layout.storefront === "grocery"}
+      storeLowStockThreshold={lowStockThreshold as number}
     />
   );
 }

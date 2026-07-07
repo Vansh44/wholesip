@@ -17,6 +17,7 @@ type Props = {
   colors: CardColorOption[];
   onClose: () => void;
   onSaved: () => void;
+  defaultTrackInventory?: boolean;
 };
 
 // Thin Dialog wrapper around the shared ProductEditorForm. Used for the "New
@@ -28,6 +29,7 @@ export function ProductEditorDialog({
   colors,
   onClose,
   onSaved,
+  defaultTrackInventory = false,
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -44,6 +46,7 @@ export function ProductEditorDialog({
           colors={colors}
           onClose={onClose}
           onSaved={onSaved}
+          defaultTrackInventory={defaultTrackInventory}
         />
       </DialogContent>
     </Dialog>

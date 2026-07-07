@@ -4,9 +4,10 @@ import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
-import { DASHBOARD_PAGE_SIZE, ilikeOr } from "@/app/dashboard/lib/list-params";
+import { DASHBOARD_PAGE_SIZE } from "@/app/dashboard/lib/list-params";
 import { TAGS } from "@/lib/storefront/tags";
 import { resolveStoreSettings } from "@/lib/settings/registry";
+import { inventoryStatus } from "@/lib/inventory/status";
 
 export interface SkuRow {
   id: string; // "p-uuid" or "v-uuid"
@@ -49,9 +50,20 @@ export async function getInventory({
   filter?: InventoryFilter;
   q?: string;
   categoryId?: string;
-}): Promise<{ rows: SkuRow[]; total: number; error?: string }> {
+}): Promise<{
+  rows: SkuRow[];
+  total: number;
+  lowStockThreshold: number;
+  error?: string;
+}> {
   const userId = await getManagerUserId("inventory");
-  if (!userId) return { rows: [], total: 0, error: "Not authenticated" };
+  if (!userId)
+    return {
+      rows: [],
+      total: 0,
+      lowStockThreshold: 5,
+      error: "Not authenticated",
+    };
 
   const storeId = await getActingStoreId();
   const supabase = await createClient();
@@ -90,12 +102,13 @@ export async function getInventory({
     variantsQuery = variantsQuery.eq("product.category_id", categoryId);
   }
 
-  if (q) {
-    productsQuery = productsQuery.or(ilikeOr(["name", "sku"], q));
-    variantsQuery = variantsQuery.or(
-      `name.ilike.%${q}%,sku.ilike.%${q}%,product.name.ilike.%${q}%`,
-    );
-  }
+  // NOTE: search (q) is applied in-memory below, NOT as a PostgREST `.or()`
+  // filter. This action already fetches every row for the store and paginates
+  // in memory, and a raw `.or()` string breaks on product names with PostgREST
+  // control characters — e.g. "Fresh Orange Juice (1 L)" makes the parentheses
+  // part of the filter grammar → "failed to parse logic tree". In-memory
+  // matching is punctuation-safe and injection-proof (no string is ever
+  // interpolated into a filter).
 
   const [productsRes, variantsRes] = await Promise.all([
     productsQuery,
@@ -103,9 +116,19 @@ export async function getInventory({
   ]);
 
   if (productsRes.error)
-    return { rows: [], total: 0, error: productsRes.error.message };
+    return {
+      rows: [],
+      total: 0,
+      lowStockThreshold: defaultLowThreshold,
+      error: productsRes.error.message,
+    };
   if (variantsRes.error)
-    return { rows: [], total: 0, error: variantsRes.error.message };
+    return {
+      rows: [],
+      total: 0,
+      lowStockThreshold: defaultLowThreshold,
+      error: variantsRes.error.message,
+    };
 
   // Identify simple products by finding products that have no variants
   const variantProductIds = new Set(variantsRes.data.map((v) => v.product_id));
@@ -116,17 +139,7 @@ export async function getInventory({
   let allRows: SkuRow[] = [];
 
   for (const p of simpleProducts) {
-    const threshold = p.low_stock_threshold ?? defaultLowThreshold;
-    const isUntracked = !p.track_inventory;
-    const isOut = p.stock <= 0;
-    const isLow = p.stock <= threshold;
-    const status = isUntracked
-      ? "untracked"
-      : isOut
-        ? "out"
-        : isLow
-          ? "low"
-          : "in";
+    const status = inventoryStatus(p, defaultLowThreshold);
 
     allRows.push({
       id: `p-${p.id}`,
@@ -146,17 +159,7 @@ export async function getInventory({
   }
 
   for (const v of variantsRes.data) {
-    const threshold = v.low_stock_threshold ?? defaultLowThreshold;
-    const isUntracked = !v.track_inventory;
-    const isOut = v.stock <= 0;
-    const isLow = v.stock <= threshold;
-    const status = isUntracked
-      ? "untracked"
-      : isOut
-        ? "out"
-        : isLow
-          ? "low"
-          : "in";
+    const status = inventoryStatus(v, defaultLowThreshold);
 
     allRows.push({
       id: `v-${v.id}`,
@@ -175,7 +178,19 @@ export async function getInventory({
     });
   }
 
-  // Filter
+  // Search — in-memory match on product name, variant name, or SKU. Safe for any
+  // punctuation the merchant uses in names (see the note above).
+  const term = q.trim().toLowerCase().slice(0, 200);
+  if (term) {
+    allRows = allRows.filter(
+      (r) =>
+        r.name.toLowerCase().includes(term) ||
+        (r.variantName?.toLowerCase().includes(term) ?? false) ||
+        (r.sku?.toLowerCase().includes(term) ?? false),
+    );
+  }
+
+  // Status filter
   if (filter === "low") allRows = allRows.filter((r) => r.status === "low");
   if (filter === "out") allRows = allRows.filter((r) => r.status === "out");
 
@@ -190,7 +205,7 @@ export async function getInventory({
   const start = (p - 1) * pageSize;
   const rows = allRows.slice(start, start + pageSize);
 
-  return { rows, total };
+  return { rows, total, lowStockThreshold: defaultLowThreshold };
 }
 
 export async function adjustStock(
@@ -255,6 +270,10 @@ export async function setStock(
   return adjustStock(productId, variantId, delta, "correction", note);
 }
 
+// Guard against an unbounded fan-out of concurrent RPCs (the UI only ever sends
+// the selected visible rows, ≤ one page).
+const MAX_BULK_ITEMS = 500;
+
 export async function bulkAdjust(
   items: {
     productId: string;
@@ -265,27 +284,85 @@ export async function bulkAdjust(
 ): Promise<{ success?: boolean; error?: string }> {
   const userId = await getManagerUserId("inventory");
   if (!userId) return { error: "Not authenticated" };
+  if (items.length === 0) return { success: true };
+  if (items.length > MAX_BULK_ITEMS) return { error: "Too many items." };
 
+  const storeId = await getActingStoreId();
+  const admin = createAdminClient();
+
+  // "Set" items need each SKU's current balance to compute a delta. Batch-read
+  // them in ONE query per table instead of a round-trip per item (the previous
+  // implementation went through setStock → a SELECT + an RPC + a cache bust for
+  // every single item).
+  const setItems = items.filter((i) => i.set !== undefined);
+  const currentStock = new Map<string, number>(); // key: variantId || productId
+  if (setItems.length > 0) {
+    const productIds = setItems
+      .filter((i) => !i.variantId)
+      .map((i) => i.productId);
+    const variantIds = setItems
+      .filter((i) => i.variantId)
+      .map((i) => i.variantId!);
+    const [prodRes, varRes] = await Promise.all([
+      productIds.length
+        ? admin
+            .from("products")
+            .select("id, stock")
+            .eq("store_id", storeId)
+            .in("id", productIds)
+        : Promise.resolve({ data: [], error: null }),
+      variantIds.length
+        ? admin
+            .from("product_variants")
+            .select("id, stock")
+            .eq("store_id", storeId)
+            .in("id", variantIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (prodRes.error) return { error: prodRes.error.message };
+    if (varRes.error) return { error: varRes.error.message };
+    for (const r of prodRes.data ?? []) currentStock.set(r.id, r.stock);
+    for (const r of varRes.data ?? []) currentStock.set(r.id, r.stock);
+  }
+
+  // Resolve each item to a concrete delta, skipping no-ops and unknown SKUs.
+  const ops: { item: (typeof items)[number]; delta: number; reason: string }[] =
+    [];
   for (const item of items) {
     if (item.set !== undefined) {
-      const res = await setStock(
-        item.productId,
-        item.variantId,
-        item.set,
-        "bulk update",
-      );
-      if (res.error) return { error: res.error };
-    } else if (item.delta !== undefined) {
-      const res = await adjustStock(
-        item.productId,
-        item.variantId,
-        item.delta,
-        "bulk update",
-      );
-      if (res.error) return { error: res.error };
+      const current = currentStock.get(item.variantId || item.productId);
+      if (current === undefined) continue; // not found / not this store
+      const delta = item.set - current;
+      if (delta !== 0) ops.push({ item, delta, reason: "correction" });
+    } else if (item.delta !== undefined && item.delta !== 0) {
+      ops.push({ item, delta: item.delta, reason: "adjustment" });
     }
   }
 
+  if (ops.length === 0) return { success: true };
+
+  // Fire the atomic RPCs concurrently (each is an independent, row-locked UPDATE
+  // on a distinct SKU) rather than sequentially.
+  const results = await Promise.all(
+    ops.map((op) =>
+      admin.rpc("adjust_stock", {
+        p_store: storeId,
+        p_product: op.item.productId,
+        p_variant: op.item.variantId || null,
+        p_delta: op.delta,
+        p_reason: op.reason,
+        p_note: "Bulk update",
+        p_actor: userId,
+      }),
+    ),
+  );
+
+  // Bust the shared product cache ONCE for the whole batch, not per item. Some
+  // ops may have succeeded even if one failed, so revalidate regardless.
+  revalidateTag(TAGS.products, "max");
+
+  const failed = results.find((r) => r.error);
+  if (failed?.error) return { error: failed.error.message };
   return { success: true };
 }
 

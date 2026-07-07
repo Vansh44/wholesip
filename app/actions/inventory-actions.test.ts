@@ -111,6 +111,40 @@ describe("inventory-actions", () => {
       expect(variant).toBeDefined();
       expect(variant?.status).toBe("low"); // 2 <= 5
     });
+
+    it("searches in memory, tolerating names with PostgREST control chars", async () => {
+      // A raw `.or()` filter would choke on the parentheses ("failed to parse
+      // logic tree"); in-memory matching handles them and never over-fetches.
+      supabase._tables.products = makeChain(null, {
+        data: [
+          {
+            id: "p1",
+            name: "Fresh Orange Juice (1 L) (Sample)",
+            stock: 3,
+            track_inventory: true,
+            low_stock_threshold: null,
+          },
+          {
+            id: "p2",
+            name: "Basmati Rice",
+            stock: 10,
+            track_inventory: true,
+            low_stock_threshold: null,
+          },
+        ],
+        error: null,
+      });
+      supabase._tables.product_variants = makeChain(null, {
+        data: [],
+        error: null,
+      });
+
+      const res = await getInventory({ q: "Fresh Orange Juice (1 L)" });
+      expect(res.error).toBeUndefined();
+      expect(res.rows.map((r) => r.name)).toEqual([
+        "Fresh Orange Juice (1 L) (Sample)",
+      ]);
+    });
   });
 
   describe("adjustStock", () => {
@@ -164,13 +198,48 @@ describe("inventory-actions", () => {
   });
 
   describe("bulkAdjust", () => {
-    it("processes multiple items", async () => {
+    it("batch-reads current stock, fires one RPC per change, revalidates once", async () => {
+      // Batch read for the "set" item resolves the variant's current stock (5).
+      admin._tables.product_variants = makeChain(
+        { data: { stock: 5 }, error: null },
+        { data: [{ id: "v1", stock: 5 }], error: null },
+      );
+
       const res = await bulkAdjust([
         { productId: "p1", delta: 10 },
         { productId: "p1", variantId: "v1", set: 10 },
       ]);
       expect(res.success).toBe(true);
       expect(admin.rpc).toHaveBeenCalledTimes(2);
+      // "set 10" against current 5 → delta 5.
+      expect(admin.rpc).toHaveBeenCalledWith(
+        "adjust_stock",
+        expect.objectContaining({ p_variant: "v1", p_delta: 5 }),
+      );
+      // The whole batch busts the product cache exactly once (not per item).
+      expect(revalidateTag).toHaveBeenCalledTimes(1);
+    });
+
+    it("skips no-op sets without calling the RPC", async () => {
+      admin._tables.product_variants = makeChain(
+        { data: { stock: 10 }, error: null },
+        { data: [{ id: "v1", stock: 10 }], error: null },
+      );
+      const res = await bulkAdjust([
+        { productId: "p1", variantId: "v1", set: 10 },
+      ]);
+      expect(res.success).toBe(true);
+      expect(admin.rpc).not.toHaveBeenCalled();
+    });
+
+    it("rejects an oversized batch", async () => {
+      const many = Array.from({ length: 501 }, (_, i) => ({
+        productId: `p${i}`,
+        delta: 1,
+      }));
+      const res = await bulkAdjust(many);
+      expect(res.error).toMatch(/too many/i);
+      expect(admin.rpc).not.toHaveBeenCalled();
     });
   });
 

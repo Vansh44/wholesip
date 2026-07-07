@@ -153,6 +153,8 @@ describe("placeOrder", () => {
     expect(inserted.total).toBe(200);
     expect(inserted.store_id).toBe(STORE);
     expect(inserted.customer_id).toBe("user-1");
+    // Marked so cancellation restocks it exactly once (order-actions claim).
+    expect(inserted.stock_status).toBe("reserved");
   });
 
   it("applies a validated coupon, rounds the discount, and increments usage", async () => {
@@ -287,6 +289,46 @@ describe("placeOrder", () => {
         p_product: "p1",
         p_reason: "checkout_failed",
       }),
+    );
+  });
+
+  // Regression guard for the stock_movements.order_id foreign key. reserve_stock
+  // writes a ledger row referencing the order, so the order row MUST be inserted
+  // BEFORE any stock is reserved. We simulate the FK by failing reserve_stock
+  // until the order has been inserted: the previous "reserve before insert"
+  // ordering trips it and aborts every tracked-SKU checkout. A fully-mocked rpc
+  // (as the other tests use) can't catch this, so we model the constraint here.
+  it("creates the order before reserving stock (stock_movements FK ordering)", async () => {
+    let orderInserted = false;
+    const ordersChain = admin._tables.orders;
+    ordersChain.insert = vi.fn(() => {
+      orderInserted = true;
+      return ordersChain;
+    });
+
+    admin.rpc.mockImplementation((name: string) => {
+      // Mirror Postgres rejecting a stock_movements row whose order_id has no
+      // matching orders row yet.
+      if (name === "reserve_stock" && !orderInserted) {
+        return Promise.resolve({
+          data: null,
+          error: {
+            message:
+              'insert or update on table "stock_movements" violates foreign key constraint "stock_movements_order_id_fkey"',
+          },
+        });
+      }
+      return Promise.resolve({ data: true, error: null });
+    });
+
+    const result = await placeOrder(validForm, [oneItem()]);
+
+    expect("success" in result && result.success).toBe(true);
+    expect(orderInserted).toBe(true);
+    // reserve_stock succeeded only because the order row already existed.
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "reserve_stock",
+      expect.objectContaining({ p_product: "p1", p_qty: 2 }),
     );
   });
 });

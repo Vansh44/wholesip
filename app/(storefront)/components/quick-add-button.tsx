@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 import { useCart } from "./cart/CartProvider";
 import { effectivePricing } from "@/lib/pricing";
+import { productIsSoldOut } from "@/lib/inventory/status";
 import type { ShopCardProduct } from "./shop-card";
 
 // The "+ Add" button on product cards (theme layout.card = "quick_add").
@@ -16,15 +17,7 @@ export function QuickAddButton({ product }: { product: ShopCardProduct }) {
   const { addItem } = useCart();
   const pr = effectivePricing(product);
 
-  let isOutOfStock = false;
-  if (product.variants && product.variants.length > 0) {
-    isOutOfStock = product.variants.every(
-      (v) => v.track_inventory && !v.allow_backorder && v.stock <= 0,
-    );
-  } else {
-    isOutOfStock =
-      product.track_inventory && !product.allow_backorder && product.stock <= 0;
-  }
+  const isOutOfStock = productIsSoldOut(product.variants ?? [], product);
 
   const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (pr.hasVariants || isOutOfStock) return; // bubble to the card link → detail page

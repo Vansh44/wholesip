@@ -3,6 +3,7 @@ import {
   getActiveCategories,
   getPublishedBlogCards,
 } from "@/lib/storefront/queries";
+import { getStoreSetting } from "@/lib/settings/resolve";
 import {
   mapSectionData,
   type SectionDatasets,
@@ -57,6 +58,9 @@ export async function resolveSectionData(
   sections: RenderableSection[],
   storeId: string,
 ): Promise<ResolvedData> {
-  const datasets = await fetchSectionDatasets(sections, storeId);
-  return mapSectionData(sections, datasets);
+  const [datasets, lowStockThreshold] = await Promise.all([
+    fetchSectionDatasets(sections, storeId),
+    getStoreSetting("inventory.lowStockThreshold"),
+  ]);
+  return mapSectionData(sections, datasets, lowStockThreshold as number);
 }

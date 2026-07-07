@@ -123,9 +123,25 @@ describe("order-actions", () => {
       );
     });
 
-    it("releases stock when an order is cancelled", async () => {
+    it("restocks a reserved order exactly once when cancelled", async () => {
+      // Order is 'reserved', so the conditional claim UPDATE matches one row.
+      supabase._tables.orders = makeChain(undefined, {
+        data: [{ id: "o1" }],
+        error: null,
+      });
+
       const result = await updateOrderStatus("o1", "cancelled");
       expect(result.success).toBe(true);
+
+      // The release is claimed atomically: stock_status flips reserved→released
+      // in a single conditional UPDATE, so it can never fire twice.
+      expect(supabase._tables.orders.update).toHaveBeenCalledWith({
+        stock_status: "released",
+      });
+      expect(supabase._tables.orders.eq).toHaveBeenCalledWith(
+        "stock_status",
+        "reserved",
+      );
 
       const admin = vi.mocked(createAdminClient)();
       expect(admin.rpc).toHaveBeenCalledWith("release_stock", {
@@ -138,11 +154,12 @@ describe("order-actions", () => {
       });
     });
 
-    it("does not double-release stock if order is already cancelled", async () => {
-      supabase._tables.orders = makeChain(
-        { data: { id: "o1", status: "cancelled" }, error: null },
-        undefined,
-      );
+    it("does not restock an order whose stock was never reserved or already released", async () => {
+      // stock_status is not 'reserved' (a legacy 'none' order, or one already
+      // 'released' by a prior cancel/reinstate), so the claim UPDATE matches no
+      // row — guards both the phantom restock (#2) and the double restock (#3).
+      supabase._tables.orders = makeChain(undefined, { data: [], error: null });
+
       const result = await updateOrderStatus("o1", "cancelled");
       expect(result.success).toBe(true);
 

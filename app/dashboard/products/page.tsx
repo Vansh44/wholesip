@@ -8,6 +8,7 @@ import {
   sanitizeSearch,
 } from "../lib/list-params";
 import { ProductsManagementView } from "./products-management-view";
+import { resolveStoreSettings } from "@/lib/settings/registry";
 
 export type ProductFilter = "all" | "published" | "drafts" | "featured";
 const PRODUCT_FILTERS: ProductFilter[] = [
@@ -142,6 +143,7 @@ export default async function ProductsPage({
     { data: products, error, count },
     { data: categories },
     { data: colors },
+    { data: storeRow },
     allRes,
     publishedRes,
     draftsRes,
@@ -160,11 +162,21 @@ export default async function ProductsPage({
       .eq("store_id", storeId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
+    supabase.from("stores").select("settings, plan").eq("id", storeId).single(),
     countQuery(),
     countQuery().eq("status", "published"),
     countQuery().eq("status", "draft"),
     countQuery().eq("featured", true),
   ]);
+
+  // Store default for the "track inventory" checkbox on NEW simple products.
+  const settings = resolveStoreSettings(
+    storeRow?.settings as Record<string, unknown>,
+    storeRow?.plan,
+  );
+  const defaultTrackInventory = Boolean(
+    settings["inventory.simpleTrackDefault"],
+  );
 
   const counts: ProductCounts = {
     all: allRes.count ?? 0,
@@ -203,6 +215,7 @@ export default async function ProductsPage({
       query={q}
       filter={filter}
       categoryFilter={categoryFilter}
+      defaultTrackInventory={defaultTrackInventory}
     />
   );
 }

@@ -12,6 +12,11 @@ import {
   hasSpecialPrice,
   variantEffectiveSelling,
 } from "@/lib/pricing";
+import {
+  isSoldOut,
+  lowStockLeft,
+  maxPurchasable,
+} from "@/lib/inventory/status";
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
 import { ShareButtons } from "@/app/(storefront)/components/share-buttons";
 import { RelatedProducts, type RelatedProduct } from "./related-products";
@@ -80,11 +85,15 @@ export default function ProductDetailClient({
   related,
   reviews,
   grocery = false,
+  storeLowStockThreshold = 0,
 }: {
   product: DetailProduct;
   related: RelatedProduct[];
   reviews: ProductReview[];
   grocery?: boolean;
+  // Store-wide default (inventory.lowStockThreshold), resolved by the page; a
+  // per-SKU threshold overrides it. Drives the "Only X left" badge.
+  storeLowStockThreshold?: number;
 }) {
   const router = useRouter();
   const { addItem } = useCart();
@@ -140,37 +149,15 @@ export default function ProductDetailClient({
     : sellingOf(product.base_price, product.selling_price);
   const discount = discountPercent(base, selling);
 
-  let outOfStock = false;
-  let isLowStock = false;
-  let lowStockAmount = 0;
-
-  if (selectedVariant) {
-    outOfStock =
-      selectedVariant.track_inventory &&
-      !selectedVariant.allow_backorder &&
-      selectedVariant.stock <= 0;
-    if (
-      selectedVariant.track_inventory &&
-      selectedVariant.stock > 0 &&
-      selectedVariant.low_stock_threshold &&
-      selectedVariant.stock <= selectedVariant.low_stock_threshold
-    ) {
-      isLowStock = true;
-      lowStockAmount = selectedVariant.stock;
-    }
-  } else {
-    outOfStock =
-      product.track_inventory && !product.allow_backorder && product.stock <= 0;
-    if (
-      product.track_inventory &&
-      product.stock > 0 &&
-      product.low_stock_threshold &&
-      product.stock <= product.low_stock_threshold
-    ) {
-      isLowStock = true;
-      lowStockAmount = product.stock;
-    }
-  }
+  // Sell against the selected variant when present, else the simple product.
+  // Shared resolver so the PDP, cards, and dashboard agree; "Only X left" now
+  // honours the store-wide default threshold, not just a per-SKU override.
+  const sellableSku = selectedVariant ?? product;
+  const outOfStock = isSoldOut(sellableSku);
+  const lowStockAmount = outOfStock
+    ? null
+    : lowStockLeft(sellableSku, storeLowStockThreshold);
+  const isLowStock = lowStockAmount !== null;
 
   // Close the zoom overlay with Escape.
   useEffect(() => {
@@ -182,12 +169,14 @@ export default function ProductDetailClient({
     return () => window.removeEventListener("keydown", onKey);
   }, [zoomOpen]);
 
-  // Cap quantity at available stock when a variant tracks it, and clamp the
-  // chosen quantity to it at render time (so switching variants can't leave a
-  // stale over-stock value) — no effect needed.
-  const maxQty =
-    selectedVariant && selectedVariant.stock > 0 ? selectedVariant.stock : 99;
-  const qty = Math.min(Math.max(1, quantity), maxQty);
+  // Cap quantity at what the shopper can actually buy — the sellable SKU's
+  // stock when it's tracked and non-backorderable, else a UI ceiling. Covers
+  // simple products too (previously only variants were capped) and never wrongly
+  // caps an untracked/backorderable SKU. Clamped at render so switching variants
+  // can't leave a stale over-stock value; floored at 1 for display (the add
+  // buttons are disabled when out of stock).
+  const maxQty = maxPurchasable(sellableSku);
+  const qty = Math.min(Math.max(1, quantity), Math.max(1, maxQty));
 
   // Aggregate rating for the summary shown near the title.
   const reviewCount = reviews.length;
@@ -256,7 +245,11 @@ export default function ProductDetailClient({
           reviews={reviews}
         />
 
-        <RelatedProducts products={related} grocery />
+        <RelatedProducts
+          products={related}
+          grocery
+          storeLowStockThreshold={storeLowStockThreshold}
+        />
 
         {zoomOpen && activeImg && (
           <div
@@ -504,7 +497,10 @@ export default function ProductDetailClient({
       />
 
       {/* You may also like */}
-      <RelatedProducts products={related} />
+      <RelatedProducts
+        products={related}
+        storeLowStockThreshold={storeLowStockThreshold}
+      />
 
       {/* Zoom lightbox */}
       {zoomOpen && activeImg && (

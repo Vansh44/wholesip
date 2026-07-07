@@ -71,6 +71,7 @@ type Props = {
   query: string;
   filter: ProductFilter;
   categoryFilter: string;
+  defaultTrackInventory?: boolean;
 };
 
 export function ProductsManagementView({
@@ -85,6 +86,7 @@ export function ProductsManagementView({
   query,
   filter,
   categoryFilter,
+  defaultTrackInventory = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -668,6 +670,7 @@ export function ProductsManagementView({
           colors={colors}
           onClose={closeEditor}
           onSaved={handleSaved}
+          defaultTrackInventory={defaultTrackInventory}
         />
       )}
     </div>

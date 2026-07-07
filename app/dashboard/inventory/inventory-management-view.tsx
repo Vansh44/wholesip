@@ -27,6 +27,7 @@ import {
   type SkuRow,
   type InventoryFilter,
 } from "@/app/actions/inventory-actions";
+import { inventoryStatus } from "@/lib/inventory/status";
 import { useRowSelection } from "@/app/dashboard/lib/use-row-selection";
 import {
   BulkActionBar,
@@ -46,6 +47,7 @@ type Props = {
   query: string;
   filter: InventoryFilter;
   categoryFilter: string;
+  storeLowStockThreshold: number;
 };
 
 export function InventoryManagementView({
@@ -58,6 +60,7 @@ export function InventoryManagementView({
   query,
   filter,
   categoryFilter,
+  storeLowStockThreshold,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -123,6 +126,20 @@ export function InventoryManagementView({
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [bulkValue, setBulkValue] = useState<number>(0);
 
+  // Optimistic status for a row at a hypothetical stock level — uses the SAME
+  // resolver as the server (getInventory) so the optimistic pill matches what a
+  // refresh will show, including the store-wide default threshold fallback.
+  const optimisticStatus = (r: SkuRow, newStock: number): SkuRow["status"] =>
+    inventoryStatus(
+      {
+        track_inventory: r.trackInventory,
+        stock: newStock,
+        low_stock_threshold: r.lowStockThreshold,
+        allow_backorder: r.allowBackorder,
+      },
+      storeLowStockThreshold,
+    );
+
   const handleAdjustSubmit = () => {
     const target = adjustModal.row;
     if (!target) return;
@@ -139,12 +156,7 @@ export function InventoryManagementView({
             return {
               ...r,
               stock: newStock,
-              status:
-                newStock <= 0
-                  ? "out"
-                  : r.lowStockThreshold && newStock <= r.lowStockThreshold
-                    ? "low"
-                    : "in",
+              status: optimisticStatus(r, newStock),
             };
           }
           return r;
@@ -187,12 +199,7 @@ export function InventoryManagementView({
             return {
               ...r,
               stock: val,
-              status:
-                val <= 0
-                  ? "out"
-                  : r.lowStockThreshold && val <= r.lowStockThreshold
-                    ? "low"
-                    : "in",
+              status: optimisticStatus(r, val),
             };
           }
           return r;

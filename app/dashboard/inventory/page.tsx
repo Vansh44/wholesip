@@ -1,10 +1,5 @@
 import { requireSectionAccess, getActingStoreId } from "../lib/access";
-import {
-  DASHBOARD_PAGE_SIZE,
-  pickPage,
-  pickParam,
-  sanitizeSearch,
-} from "../lib/list-params";
+import { DASHBOARD_PAGE_SIZE, pickPage, pickParam } from "../lib/list-params";
 import {
   getInventory,
   type InventoryFilter,
@@ -24,7 +19,10 @@ export default async function InventoryPage({
 
   const sp = await searchParams;
   const page = pickPage(sp.page);
-  const q = sanitizeSearch(pickParam(sp.q));
+  // Raw query on purpose — getInventory searches in memory (punctuation-safe),
+  // so stripping control chars here would stop names like "Fresh Orange Juice
+  // (1 L)" from matching themselves.
+  const q = pickParam(sp.q);
   const categoryId = pickParam(sp.category) || "all";
   const filterParam = pickParam(sp.filter) as InventoryFilter;
   const filter = INVENTORY_FILTERS.includes(filterParam) ? filterParam : "all";
@@ -73,6 +71,7 @@ export default async function InventoryPage({
       query={q}
       filter={filter}
       categoryFilter={categoryId}
+      storeLowStockThreshold={inventoryRes.lowStockThreshold}
     />
   );
 }

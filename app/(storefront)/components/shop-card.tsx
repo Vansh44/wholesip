@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 import { effectivePricing, formatPrice, type PricedLike } from "@/lib/pricing";
+import { productIsSoldOut, productLowStockLeft } from "@/lib/inventory/status";
 import { QuickAddButton } from "./quick-add-button";
 
 // Card background falls back to this when a product has no card_color set.
@@ -35,29 +36,25 @@ export type ShopCardProduct = Omit<PricedLike, "variants"> & {
 
 // Single source of truth for the storefront product card — used by the shop
 // grid and the homepage "featured products" section so styling stays in sync.
-export function ShopCard({ product: p }: { product: ShopCardProduct }) {
+// `storeLowStockThreshold` is the store-wide default (inventory.lowStockThreshold)
+// resolved per request by the rendering page; a per-SKU threshold overrides it.
+export function ShopCard({
+  product: p,
+  storeLowStockThreshold = 0,
+}: {
+  product: ShopCardProduct;
+  storeLowStockThreshold?: number;
+}) {
   const pr = effectivePricing(p);
 
-  let isOutOfStock = false;
-  let isLowStock = false;
-  let lowStockAmount = 0;
-
-  if (p.variants && p.variants.length > 0) {
-    isOutOfStock = p.variants.every(
-      (v) => v.track_inventory && !v.allow_backorder && v.stock <= 0,
-    );
-  } else {
-    isOutOfStock = p.track_inventory && !p.allow_backorder && p.stock <= 0;
-    if (
-      p.track_inventory &&
-      p.stock > 0 &&
-      p.low_stock_threshold &&
-      p.stock <= p.low_stock_threshold
-    ) {
-      isLowStock = true;
-      lowStockAmount = p.stock;
-    }
-  }
+  // Stock status via the shared resolver so cards, the detail page, and the
+  // dashboard agree (sold-out wins over low; low uses the effective threshold).
+  const variants = p.variants ?? [];
+  const isOutOfStock = productIsSoldOut(variants, p);
+  const lowStockAmount = isOutOfStock
+    ? null
+    : productLowStockLeft(variants, p, storeLowStockThreshold);
+  const isLowStock = lowStockAmount !== null;
 
   return (
     <Link

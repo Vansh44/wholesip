@@ -32,6 +32,10 @@ export interface SectionDatasets {
 export function mapSectionData(
   sections: RenderableSection[],
   datasets: SectionDatasets,
+  // Store-wide default low-stock threshold, threaded through to the cards so the
+  // featured-products badges match the shop grid. The builder's client draft
+  // canvas may omit it (admin preview) — 0 means "per-SKU thresholds only".
+  storeLowStockThreshold = 0,
 ): ResolvedData {
   const allProducts = datasets.products;
   const allCategories = datasets.categories;
@@ -92,5 +96,10 @@ export function mapSectionData(
     }
   }
 
-  return { productsBySection, categoriesBySection, blogsBySection };
+  return {
+    productsBySection,
+    categoriesBySection,
+    blogsBySection,
+    storeLowStockThreshold,
+  };
 }

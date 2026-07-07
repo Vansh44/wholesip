@@ -243,60 +243,20 @@ export async function placeOrder(
   };
   const notes = cleanField(form.notes, MAX_NOTES_LEN) || null;
 
-  // 3b. Reserve stock ATOMICALLY for each item. We generate the order ID now
-  //     so the stock ledger can reference it. If any item fails to reserve,
-  //     we rollback all prior reservations and fail the checkout.
+  // The order id is generated up front so the order row and its stock-ledger
+  // movements share it. What follows is a reserve → create → reserve → rollback
+  // flow. There is NO cross-statement transaction over PostgREST, so every
+  // failure path unwinds each step that already succeeded, in reverse order.
   const orderId = crypto.randomUUID();
-  const reservedStockItems: Array<{
-    product_id: string;
-    variant_id: string | null;
-    qty: number;
-  }> = [];
 
-  const releaseStock = async () => {
-    for (const r of reservedStockItems) {
-      await admin.rpc("release_stock", {
-        p_store: storeId,
-        p_product: r.product_id,
-        p_variant: r.variant_id,
-        p_qty: r.qty,
-        p_order: orderId,
-        p_reason: "checkout_failed",
-      });
-    }
-  };
-
-  for (const item of validItems) {
-    const { data: reserved, error: reserveError } = await admin.rpc(
-      "reserve_stock",
-      {
-        p_store: storeId,
-        p_product: item.product_id,
-        p_variant: item.variant_id,
-        p_qty: item.quantity,
-        p_order: orderId,
-      },
-    );
-
-    if (reserveError || !reserved) {
-      await releaseStock();
-      return {
-        error: `Not enough stock for ${item.variant_name || item.name}.`,
-      };
-    }
-    reservedStockItems.push({
-      product_id: item.product_id,
-      variant_id: item.variant_id,
-      qty: item.quantity,
-    });
-  }
-
-  // 3c. Reserve a coupon use ATOMICALLY, before creating the order, so a
+  // 3b. Reserve a coupon use ATOMICALLY, before creating the order, so a
   //     max_uses cap can never be exceeded even under simultaneous checkouts
   //     (increment_coupon_usage does a single conditional UPDATE and returns
-  //     false when the cap is already hit). We release it below if the order
-  //     then fails to persist. A transient RPC error fails OPEN — we don't block
-  //     a paying customer over the usage counter (validation already passed).
+  //     false when the cap is already hit). This touches only the `coupons`
+  //     table (no FK to `orders`), so it can safely run before the order exists;
+  //     we release it below if a later step fails. A transient RPC error fails
+  //     OPEN — we don't block a paying customer over the usage counter
+  //     (validation already passed).
   let couponReserved = false;
   if (couponApplied && couponCodeNormalized) {
     const { data: reserved, error: rpcError } = await admin.rpc(
@@ -306,7 +266,6 @@ export async function placeOrder(
     if (rpcError) {
       console.error("increment_coupon_usage:", rpcError.message);
     } else if (reserved === false) {
-      await releaseStock();
       return { error: "This coupon has reached its usage limit." };
     } else {
       couponReserved = true;
@@ -322,7 +281,12 @@ export async function placeOrder(
     }
   };
 
-  // 4. Create the order.
+  // 4. Create the order BEFORE reserving stock. Each stock reservation writes a
+  //    `stock_movements` row whose `order_id` references `orders(id)`, so the
+  //    order row must already exist — otherwise the ledger insert violates that
+  //    foreign key and every tracked-SKU checkout fails. We pass the
+  //    pre-generated id so the sale movements carry the real order id from the
+  //    start.
   const { data: order, error: orderError } = await admin
     .from("orders")
     .insert({
@@ -342,6 +306,11 @@ export async function placeOrder(
       currency: "INR",
       applied_coupon_code: couponCode || null,
       notes,
+      // This order goes through the reserve flow below; mark it so that
+      // cancellation restocks it exactly once (and never restocks legacy
+      // orders, which stay 'none'). If the reserve loop fails, the order row
+      // is deleted, so this value only ever persists on a fully-reserved order.
+      stock_status: "reserved",
     })
     .select("id")
     .single();
@@ -349,13 +318,64 @@ export async function placeOrder(
   if (orderError || !order) {
     console.error("Order creation error:", orderError);
     await releaseCoupon(); // give the reserved coupon use back
-    await releaseStock(); // return the reserved stock
     return { error: "Failed to create order. Please try again." };
   }
 
-  // 5. Create order items. If this fails, roll back the order row (and release
-  //    the reserved coupon use) so we don't leave an orphan order (there is no
-  //    cross-statement transaction over PostgREST).
+  // 4b. Reserve stock ATOMICALLY for each line, now that the order row exists so
+  //     the ledger's order_id FK is satisfied. If any line would oversell, roll
+  //     everything back. IMPORTANT: release stock BEFORE deleting the order — the
+  //     order row must still exist for the release movements to be written
+  //     (deleting it SET NULLs their order_id afterwards).
+  const reservedStockItems: Array<{
+    product_id: string;
+    variant_id: string | null;
+    qty: number;
+  }> = [];
+
+  const releaseStock = async () => {
+    for (const r of reservedStockItems) {
+      await admin.rpc("release_stock", {
+        p_store: storeId,
+        p_product: r.product_id,
+        p_variant: r.variant_id,
+        p_qty: r.qty,
+        p_order: order.id,
+        p_reason: "checkout_failed",
+      });
+    }
+  };
+
+  for (const item of validItems) {
+    const { data: reserved, error: reserveError } = await admin.rpc(
+      "reserve_stock",
+      {
+        p_store: storeId,
+        p_product: item.product_id,
+        p_variant: item.variant_id,
+        p_qty: item.quantity,
+        p_order: order.id,
+      },
+    );
+
+    if (reserveError || !reserved) {
+      await releaseStock();
+      await admin.from("orders").delete().eq("id", order.id);
+      await releaseCoupon();
+      return {
+        error: `Not enough stock for ${item.variant_name || item.name}.`,
+      };
+    }
+    reservedStockItems.push({
+      product_id: item.product_id,
+      variant_id: item.variant_id,
+      qty: item.quantity,
+    });
+  }
+
+  // 5. Create order items. If this fails, roll back everything: release the
+  //    reserved stock (order still present so the movements write), then delete
+  //    the order, then give the coupon use back — no orphan order is left behind
+  //    (there is no cross-statement transaction over PostgREST).
   const orderItemsToInsert = validItems.map((item) => ({
     ...item,
     order_id: order.id,
@@ -367,9 +387,9 @@ export async function placeOrder(
 
   if (itemsError) {
     console.error("Order items error:", itemsError);
+    await releaseStock();
     await admin.from("orders").delete().eq("id", order.id);
     await releaseCoupon();
-    await releaseStock();
     return { error: "Failed to save order items. Please try again." };
   }
 
