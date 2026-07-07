@@ -38,6 +38,16 @@
   margin-top: calc(-1 * clamp(40px, 6vw, 72px));
 }
 
+/* The market header reserves space on the root itself; remove double padding */
+.sm-header-market.storefront-root .home-sections {
+  padding-top: clamp(16px, 2.5vw, 32px);
+}
+.sm-header-market.storefront-root
+  .home-sections
+  > .home-custom-code:first-child {
+  margin-top: calc(-1 * clamp(16px, 2.5vw, 32px));
+}
+
 /* ---- Shared per-section style (SectionShell / builder Style tab) ---- */
 .home-section.is-fullbleed {
   padding-inline: 0;
