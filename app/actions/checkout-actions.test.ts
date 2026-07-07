@@ -251,6 +251,17 @@ describe("placeOrder", () => {
 
   it("fails checkout if stock cannot be reserved and rolls back any prior reservations", async () => {
     // We simulate 2 items. The first item reserves successfully, the second fails.
+    admin = makeAdmin({
+      products: makeChain(undefined, {
+        data: [
+          { id: "p1", name: "Prod", selling_price: 100, store_id: STORE },
+          { id: "p2", name: "Product 2", selling_price: 150, store_id: STORE },
+        ],
+        error: null,
+      }),
+    });
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+
     admin.rpc.mockImplementation((name: string, args: any) => {
       if (name === "reserve_stock") {
         if (args.p_product === "p2") {

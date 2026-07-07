@@ -134,7 +134,7 @@ describe("inventory-actions", () => {
         p_note: "test",
         p_actor: "user-1",
       });
-      expect(revalidateTag).toHaveBeenCalledWith(TAGS.products);
+      expect(revalidateTag).toHaveBeenCalledWith(TAGS.products, "max");
     });
   });
 
