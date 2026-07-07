@@ -46,6 +46,7 @@ function initialForm(coupon: Coupon | null): CouponFormData {
       valid_from: "",
       valid_until: "",
       status: "active",
+      show_on_storefront: false,
       restricted_group_ids: [],
     };
   }
@@ -59,6 +60,7 @@ function initialForm(coupon: Coupon | null): CouponFormData {
     valid_from: toDateInput(coupon.valid_from),
     valid_until: toDateInput(coupon.valid_until),
     status: coupon.status,
+    show_on_storefront: coupon.show_on_storefront ?? false,
     restricted_group_ids: coupon.restricted_group_ids ?? [],
   };
 }
@@ -228,6 +230,23 @@ export function CouponForm({ coupon, groups }: Props) {
               <option value="active">Active</option>
               <option value="disabled">Disabled</option>
             </select>
+          </div>
+
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-[#1f2937]">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-[#d1d5db] text-[#4f46e5] focus:ring-[#4f46e5]"
+                checked={form.show_on_storefront}
+                onChange={(e) => set("show_on_storefront", e.target.checked)}
+              />
+              Show on Storefront
+            </label>
+            <p className="mt-1 text-[11px] text-[#9ca3af] ml-6">
+              If checked, this coupon will be shown as an option in the
+              shopper&apos;s cart. (This is overridden if the global &quot;Show
+              all coupons&quot; setting is on).
+            </p>
           </div>
 
           <div>

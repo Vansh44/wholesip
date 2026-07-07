@@ -78,7 +78,7 @@ export default async function PlatformDashboardLayout({
         </div>
       </MobileNavProvider>
 
-      <Toaster richColors position="top-right" />
+      <Toaster richColors />
     </div>
   );
 }

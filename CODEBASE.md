@@ -86,10 +86,12 @@ wholesip/
 │   │   ├── (pages)/           # Customer-facing pages:
 │   │   │   ├── shop/          #   product listing + [slug] product detail (reviews, related)
 │   │   │   ├── cart/          #   cart page (CartProvider-driven)
+│   │   │   ├── checkout/      #   COD checkout (auth-gated client page → placeOrder) +
+│   │   │   │                  #   success/ order-confirmation page. RESERVED slug.
 │   │   │   ├── blogs/         #   blog listing, [slug] detail (comments/reactions),
 │   │   │   │                  #   write/ (TipTap customer blog editor), my-submissions/
 │   │   │   ├── enquiries/     #   enquiry form (tested)
-│   │   │   ├── profile/       #   customer profile
+│   │   │   ├── profile/       #   customer profile (personal info + address-book card)
 │   │   │   └── [pageSlug]/    #   ★ ALL content pages from store_pages (see §11): merchant
 │   │   │                      #   custom pages AND the former hardcoded static pages
 │   │   │                      #   (our-story, faqs, …) — retired in Phase 4b, now editable
@@ -125,6 +127,7 @@ wholesip/
 │   │   ├── lib/               # access.ts, permissions.ts (role → allowed nav/actions),
 │   │   │                      # list-params.ts, use-row-selection.ts
 │   │   ├── products/          # CRUD + @modal intercepted route for quick edit
+│   │   ├── orders/            # Orders list (server-paginated) — reads order-actions
 │   │   ├── categories/ colors/ blogs/ media/   # content management
 │   │   │   └── blogs/settings/  # blog feature toggles + per-store categories/tags manager
 │   │   │   (homepage editor RETIRED in Phase 4a — the homepage is now edited in builder/)
@@ -173,6 +176,15 @@ wholesip/
 │   │   │                      # updatePageMeta/savePageDraft/publishPage/unpublishPage/
 │   │   │                      # deletePage/ensureHomepage, gated builder, service-role
 │   │   ├── menu-actions.ts    # ★ Per-store nav read/save (see §11 menu builder, store_menus)
+│   │   ├── checkout-actions.ts # ★ placeOrder (COD): re-prices from DB, store-scoped by
+│   │   │                      # host, re-validates coupon, rate-limited, SERVICE-ROLE
+│   │   │                      # writes (no customer INSERT policy — see convention #12). Tested.
+│   │   ├── order-actions.ts   # ★ getOrders (paginated) + updateOrderStatus (allowlisted
+│   │   │                      # status/payment_status, store-scoped). Tested.
+│   │   ├── address-actions.ts # ★ Customer saved-address book (own-row RLS, tested):
+│   │   │                      # getMyAddresses, saveAddress (checkout dedup+default),
+│   │   │                      # upsertAddress (profile add/edit), setDefaultAddress,
+│   │   │                      # deleteAddress. Prefills checkout + /profile address book.
 │   │   ├── platform.ts        # Platform-admin actions
 │   │   └── _test-helpers.ts   # Shared mocks for action tests (co-located *.test.ts)
 │   │
@@ -246,6 +258,13 @@ wholesip/
 │   ├── *_table.sql            # blogs, coupons, enquiries, roles, users, user_groups,
 │   │                          # product_reviews, email_campaigns, rate_limits, card_colors,
 │   │                          # blog_comments/likes… (homepage_sections DEPRECATED — Phase 4a)
+│   ├── orders_table.sql       # ★ orders + order_items (+ RLS + updated_at trigger). NO
+│   │                          # customer INSERT policy by design — placeOrder writes with
+│   │                          # the service role; customers/admins get SELECT/manage (convention #12).
+│   ├── coupons_storefront_visibility.sql  # coupons.show_on_storefront flag (§storefront coupons)
+│   ├── customer_addresses.sql # ★ saved shipping addresses (own-row RLS) — checkout book
+│   ├── coupon_usage_rpc.sql   # ★ increment_/decrement_coupon_usage: atomic used_count
+│   │                          # reserve/release (enforces max_uses under concurrency)
 │   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
 │   ├── store_menus.sql        # ★ per-store header/footer nav (+ RLS + WholeSip seed) — §11
 │   ├── homepage_to_store_pages.sql  # Phase 4a data migration: homepage_sections → slug ""
@@ -305,7 +324,9 @@ wholesip/
    `blogs.customerSubmissions`, `blogs.requireApproval` (rendered at
    `/dashboard/blogs/settings`) and `pages.customCode` (rendered at
    `/dashboard/builder/settings`); both pages share the
-   `dashboard/components/feature-toggles.tsx` card.
+   `dashboard/components/feature-toggles.tsx` card. `marketing.showAllCoupons`
+   (section `marketing`) is another consumer: when on, the storefront cart shows
+   all active coupons; otherwise only those with `coupons.show_on_storefront`.
    **⚠ `stores.settings` (which holds `features`) is ANON-READABLE** — the
    "Read stores" RLS policy (`multitenant_03_rls.sql`) grants `SELECT` on every
    active store to `anon`, and the storefront reads it with the public client.
@@ -509,6 +530,43 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     pages, and menus are all migrated. Remaining WholeSip cleanup (config/site.ts,
     brand/) continues opportunistically.
 
+12. **Checkout & orders security model (COD).** A signed-in shopper places an
+    order from `/checkout`; `placeOrder` (`app/actions/checkout-actions.ts`) is
+    the trust boundary and layers its defenses in order:
+    - **Auth**: `supabase.auth.getUser()` on the cookie client — anonymous is
+      rejected. **Rate limit**: `rateLimit("checkout:{userId}")` (Postgres,
+      cross-instance, fails open) throttles spam/double-submit.
+    - **Input validation**: line-item count, per-line integer quantity, and all
+      required address fields are validated server-side (the form's `required`
+      attr is only a UX hint); stored address values are trimmed + length-capped.
+    - **Never trust client prices**: item prices are re-read from `products`/
+      `product_variants` **scoped to the host store** (`getCurrentStoreId()` +
+      `.eq("store_id", …)`), so another store's product can't be smuggled in and
+      the client's claimed price/total is ignored. Coupons are re-validated via
+      `validateCoupon` (min-order/date/usage/group checks) and the discount is
+      recomputed + rounded to match the cart. A coupon use is then **reserved
+      atomically BEFORE the order is created** via the `increment_coupon_usage`
+      RPC (`supabase/coupon_usage_rpc.sql`) — a single conditional UPDATE that
+      returns false when `max_uses` is already hit, so the cap can never be
+      exceeded under concurrent checkouts. The reservation is released
+      (`decrement_coupon_usage`) if the order then fails to persist; a transient
+      RPC error fails open (never blocks a sale over the counter).
+    - **Service-role writes**: `orders`/`order_items` have **no customer INSERT
+      RLS policy** by design; the writes run with `createAdminClient()` (service
+      role) _after_ all the above validation. Customers get RLS `SELECT` on their
+      own orders; store admins get `FOR ALL`. On an items-insert failure the
+      order row is deleted (best-effort rollback — no cross-statement txn over
+      PostgREST). **If you ever move checkout off the service-role client, add a
+      customer INSERT policy first** (see the note in `orders_table.sql`).
+    - **Dashboard reads/writes**: `order-actions.ts` gates on
+      `getManagerUserId("orders")`, scopes every query by `store_id`, paginates
+      `getOrders`, and allowlists `status`/`payment_status` in `updateOrderStatus`.
+    - **Checkout UX**: the `/checkout` page opens the auth modal IN PLACE when
+      signed out (no redirect) so a signed-in shopper lands straight on the form.
+      Saved addresses (`address-actions.ts` + `supabase/customer_addresses.sql`,
+      own-row RLS) prefill the default and are picked from cards so the address
+      isn't retyped each order.
+
 ## 6. Commands
 
 ```bash
@@ -576,9 +634,13 @@ Legacy WholeSip fallback remains until all traffic moves to real store hosts.
   business category + free/paid, preview, plan-gated — e.g. "For STARTER and
   above"). Multiple visual templates are a planned core feature; today there is
   one storefront with per-store branding.
-- **Deliberately later phases** (not built yet, by choice): orders + checkout +
-  payments (BYO gateway — merchant connects own Razorpay/Cashfree), merchant
-  subscription billing for StoreMink plans.
+- **Checkout (COD, built)**: a signed-in shopper places a Cash-on-Delivery order
+  from `/checkout` → `placeOrder` (`app/actions/checkout-actions.ts`), stored in
+  `orders`/`order_items` (`supabase/orders_table.sql`) and listed at
+  `/dashboard/orders`. See convention #12 for the checkout security model.
+- **Deliberately later phases** (not built yet, by choice): online **payments**
+  (BYO gateway — merchant connects own Razorpay/Cashfree; checkout is COD-only
+  for now), merchant subscription billing for StoreMink plans.
 - **WholeSip cleanup is ongoing**: the product started as the WholeSip site and
   was converted into StoreMink; remaining WholeSip traces (`config/site.ts`,
   `brand/`, repo name) are being removed gradually as features become

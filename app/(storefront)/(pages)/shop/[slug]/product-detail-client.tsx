@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   discountPercent,
   formatPrice,
@@ -79,7 +80,7 @@ export default function ProductDetailClient({
   grocery?: boolean;
 }) {
   const router = useRouter();
-  const { addItem, openCart } = useCart();
+  const { addItem } = useCart();
   const hasVariants = product.variants.length > 0;
   const [variantId, setVariantId] = useState<string | null>(
     hasVariants ? product.variants[0].id : null,
@@ -177,7 +178,7 @@ export default function ProductDetailClient({
   const handleAddToCart = () => {
     if (outOfStock) return;
     addToCart();
-    openCart();
+    toast.success(`${product.name} added to cart`, { duration: 1800 });
   };
 
   const handleBuyNow = () => {

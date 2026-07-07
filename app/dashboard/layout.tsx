@@ -133,7 +133,7 @@ export default async function DashboardLayout({
         </div>
       </MobileNavProvider>
 
-      <Toaster richColors position="top-right" />
+      <Toaster richColors />
     </div>
   );
 }

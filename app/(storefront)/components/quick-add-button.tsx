@@ -16,7 +16,7 @@ export function QuickAddButton({ product }: { product: ShopCardProduct }) {
   const { addItem } = useCart();
   const pr = effectivePricing(product);
 
-  const onClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (pr.hasVariants) return; // bubble to the card link → detail page
     e.preventDefault();
     e.stopPropagation();
@@ -31,14 +31,21 @@ export function QuickAddButton({ product }: { product: ShopCardProduct }) {
       image: product.image_url,
       category: product.category ?? null,
     });
-    toast.success(`${product.name} added to cart`);
+    toast.success(`${product.name} added to cart`, { duration: 1800 });
   };
 
   return (
-    <button
-      type="button"
-      className="shop-card-add"
+    <div
+      role="button"
+      tabIndex={0}
+      className="shop-card-add flex items-center justify-center cursor-pointer"
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick(e as unknown as React.MouseEvent<HTMLDivElement>);
+        }
+      }}
       aria-label={
         pr.hasVariants
           ? `Choose options for ${product.name}`
@@ -46,6 +53,6 @@ export function QuickAddButton({ product }: { product: ShopCardProduct }) {
       }
     >
       + Add
-    </button>
+    </div>
   );
 }

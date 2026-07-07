@@ -31,7 +31,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { deleteCoupon } from "@/app/actions/coupon-actions";
+import { Switch } from "@/components/ui/switch";
+import {
+  deleteCoupon,
+  toggleCouponVisibility,
+} from "@/app/actions/coupon-actions";
+import { saveStoreSettings } from "@/app/actions/store-settings";
 import type { Coupon, CouponGroup } from "./page";
 
 const BASE = "/dashboard/marketing/coupons";
@@ -44,6 +49,7 @@ type Props = {
   page: number;
   pageSize: number;
   query: string;
+  showAllCoupons?: boolean;
 };
 
 function formatDiscount(c: Coupon): string {
@@ -77,6 +83,7 @@ export function CouponsManagementView({
   page,
   pageSize,
   query,
+  showAllCoupons = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -130,15 +137,37 @@ export function CouponsManagementView({
           <h1>Coupons</h1>
           <p>Create and manage storefront discount codes</p>
         </div>
-        {canManage && (
-          <Link
-            href={`${BASE}/new`}
-            className="dash-btn dash-btn-primary shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-            New coupon
-          </Link>
-        )}
+        <div className="flex items-center gap-4 shrink-0">
+          {canManage && (
+            <label className="flex items-center gap-2 text-sm font-medium text-[#1f2937]">
+              <Switch
+                checked={showAllCoupons}
+                onCheckedChange={(checked) => {
+                  startTransition(async () => {
+                    const result = await saveStoreSettings({
+                      "marketing.showAllCoupons": checked,
+                    });
+                    if (result.error) toast.error(result.error);
+                    else
+                      toast.success(
+                        checked
+                          ? "All coupons shown on storefront"
+                          : "Storefront coupon discovery disabled",
+                      );
+                  });
+                }}
+                disabled={isPending}
+              />
+              Show all on storefront
+            </label>
+          )}
+          {canManage && (
+            <Link href={`${BASE}/new`} className="dash-btn dash-btn-primary">
+              <Plus className="h-4 w-4" />
+              New coupon
+            </Link>
+          )}
+        </div>
       </header>
 
       <div className="dash-toolbar">
@@ -196,6 +225,7 @@ export function CouponsManagementView({
                 <th>Usage</th>
                 <th>Validity</th>
                 <th>Status</th>
+                <th>Storefront</th>
                 {canManage && <th>Actions</th>}
               </tr>
             </thead>
@@ -252,6 +282,22 @@ export function CouponsManagementView({
                             ? "Expired"
                             : "Active"}
                       </span>
+                    </td>
+                    <td>
+                      <Switch
+                        checked={c.show_on_storefront}
+                        onCheckedChange={(checked) => {
+                          startTransition(async () => {
+                            const result = await toggleCouponVisibility(
+                              c.id,
+                              checked,
+                            );
+                            if (result.error) toast.error(result.error);
+                            else toast.success("Storefront visibility updated");
+                          });
+                        }}
+                        disabled={isPending || !canManage}
+                      />
                     </td>
                     {canManage && (
                       <td>

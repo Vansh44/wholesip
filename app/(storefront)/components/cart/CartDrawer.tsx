@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+
 import { formatPrice } from "@/lib/pricing";
 import { useCart, lineKey } from "./CartProvider";
 import CouponField from "./CouponField";
@@ -222,7 +222,10 @@ export default function CartDrawer() {
                 </button>
                 <button
                   className={styles.checkoutBtn}
-                  onClick={() => toast.info("Checkout is coming soon!")}
+                  onClick={() => {
+                    closeCart();
+                    router.push("/checkout");
+                  }}
                 >
                   Checkout
                 </button>

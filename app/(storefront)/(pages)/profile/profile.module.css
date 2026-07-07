@@ -151,6 +151,180 @@
   border: 1px solid color-mix(in srgb, var(--wholesip-error) 28%, transparent);
 }
 
+/* ---- Address book ---- */
+.addrList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.addrItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--wholesip-border);
+  border-radius: var(--wholesip-radius-control);
+  background: var(--wholesip-cream-deep);
+}
+
+.addrInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.addrName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--wholesip-ink);
+}
+
+.addrBadge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--wholesip-accent);
+  color: var(--wholesip-on-accent);
+}
+
+.addrText {
+  font-size: 13px;
+  color: var(--wholesip-ink-soft);
+  line-height: 1.5;
+}
+
+.addrActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.addrBtn,
+.addrBtnDanger {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: var(--wholesip-radius-sm);
+  border: 1px solid var(--wholesip-border);
+  background: var(--wholesip-surface);
+  color: var(--wholesip-ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.addrBtn:hover:not(:disabled) {
+  background: var(--wholesip-cream);
+}
+
+.addrBtnDanger {
+  color: var(--wholesip-error);
+  border-color: color-mix(in srgb, var(--wholesip-error) 30%, transparent);
+}
+
+.addrBtnDanger:hover:not(:disabled) {
+  background: var(--wholesip-error-soft);
+}
+
+.addrBtn:disabled,
+.addrBtnDanger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.addrAddBtn {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--wholesip-radius-control);
+  border: 1.5px dashed var(--wholesip-border);
+  background: transparent;
+  color: var(--wholesip-ink-soft);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-outfit), sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.addrAddBtn:hover {
+  border-color: var(--wholesip-ink-soft);
+  color: var(--wholesip-ink);
+}
+
+.addrTwoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.addrFormActions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.addrSaveBtn {
+  padding: 12px 24px;
+  border-radius: var(--wholesip-radius-control);
+  background: var(--wholesip-accent);
+  color: var(--wholesip-on-accent);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-outfit), sans-serif;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.addrSaveBtn:hover:not(:disabled) {
+  background: var(--wholesip-accent-deep);
+}
+
+.cancelBtn {
+  padding: 12px 24px;
+  border-radius: var(--wholesip-radius-control);
+  background: transparent;
+  color: var(--wholesip-ink-soft);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-outfit), sans-serif;
+  border: 1px solid var(--wholesip-border);
+  cursor: pointer;
+}
+
+.addrSaveBtn:disabled,
+.cancelBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .addrTwoCol {
+    grid-template-columns: 1fr;
+  }
+
+  .addrItem {
+    flex-direction: column;
+  }
+
+  .addrActions {
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 900px) {
   .grid {
     grid-template-columns: 1fr;

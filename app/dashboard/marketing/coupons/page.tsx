@@ -8,6 +8,7 @@ import {
   sanitizeSearch,
 } from "../../lib/list-params";
 import { CouponsManagementView } from "./coupons-management-view";
+import { getStoreSettingsForEditor } from "@/app/actions/store-settings";
 
 export interface Coupon {
   id: string;
@@ -21,6 +22,7 @@ export interface Coupon {
   status: "active" | "disabled";
   valid_from: string | null;
   valid_until: string | null;
+  show_on_storefront: boolean;
   created_at: string;
   updated_at: string;
   /** Groups this coupon is restricted to. Empty = public (anyone can apply). */
@@ -114,6 +116,11 @@ export default async function CouponsPage({
     restricted_group_ids: linksByCoupon.get(c.id as string) ?? [],
   }));
 
+  // Fetch store settings for the master toggle
+  const { settings } = await getStoreSettingsForEditor("Marketing");
+  const showAllCoupons =
+    settings.find((s) => s.key === "marketing.showAllCoupons")?.value ?? false;
+
   return (
     <CouponsManagementView
       coupons={enriched}
@@ -123,6 +130,7 @@ export default async function CouponsPage({
       page={page}
       pageSize={pageSize}
       query={q}
+      showAllCoupons={showAllCoupons}
     />
   );
 }

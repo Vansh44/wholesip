@@ -102,7 +102,7 @@ export default async function StorefrontLayout({
         </BrandProvider>
         <AuthModal />
         <CartDrawer />
-        <Toaster richColors position="top-right" />
+        <Toaster richColors />
       </CartProvider>
     </AuthProvider>
   );

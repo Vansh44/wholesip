@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -44,6 +44,52 @@ export function DashboardSidebar({
   const { open, setOpen } = useMobileNav();
   const allItems = groups.flatMap((g) => g.items);
 
+  const [sidebarWidth, setSidebarWidth] = useState(248);
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("sm-sidebar-width");
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed) && parsed >= 200 && parsed <= 400) {
+        requestAnimationFrame(() => setSidebarWidth(parsed));
+      }
+    }
+  }, []);
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      let newWidth = e.clientX;
+      if (newWidth < 200) newWidth = 200;
+      if (newWidth > 400) newWidth = 400;
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      setIsResizing(false);
+      let finalWidth = e.clientX;
+      if (finalWidth < 200) finalWidth = 200;
+      if (finalWidth > 400) finalWidth = 400;
+      localStorage.setItem("sm-sidebar-width", String(finalWidth));
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
+
   const activeSection =
     allItems.find((it) => matches(pathname, it.href)) ??
     allItems.find((it) => it.href === "/dashboard") ??
@@ -67,12 +113,19 @@ export function DashboardSidebar({
       />
 
       <aside
+        ref={sidebarRef}
         className={`dash-sidebar shrink-0 ${open ? "dash-sidebar--open" : ""}`}
+        style={{ width: open ? undefined : sidebarWidth }}
       >
+        <div
+          className={`dash-sidebar-resizer ${isResizing ? "is-resizing" : ""}`}
+          onMouseDown={startResizing}
+          aria-hidden="true"
+        />
         {/* Single drill-down column. By default it shows the grouped top-level
             nav. Inside a section that has sub-(pages), the top-level nav is
             replaced by a "Back" link + that section's sub-pages. */}
-        <div className="dash-primary">
+        <div className="dash-primary" style={{ width: "100%" }}>
           <div className="dash-brand-row" style={{ justifyContent: "center" }}>
             <Link
               href="/dashboard"

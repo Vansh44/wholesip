@@ -53,7 +53,7 @@
 
 .newsletterBar {
   background: var(--wholesip-cream-deep);
-  padding: 42px 64px;
+  padding: 24px 64px;
   border-bottom: 1px solid var(--wholesip-border);
 }
 
@@ -164,10 +164,10 @@
 .mainGrid {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 72px 64px 56px;
+  padding: 40px 64px 32px;
   display: grid;
   grid-template-columns: 2fr 1fr 1fr 1fr;
-  gap: 56px;
+  gap: 32px;
 }
 
 /* ============================================
@@ -299,7 +299,7 @@
 .bottomSection {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 32px 64px 40px;
+  padding: 24px 64px 24px;
   border-top: 1px solid var(--wholesip-border);
 }
 

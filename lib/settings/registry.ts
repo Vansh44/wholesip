@@ -47,6 +47,7 @@ export const SETTING_KEYS = [
   "blogs.customerSubmissions",
   "blogs.requireApproval",
   "pages.customCode",
+  "marketing.showAllCoupons",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
@@ -101,6 +102,16 @@ export const SETTINGS: readonly SettingDef[] = [
     type: "boolean",
     defaultValue: true,
     // minPlan intentionally unset for now — gate to a paid plan when billing ships.
+  },
+  {
+    key: "marketing.showAllCoupons",
+    label: "Show all active coupons on storefront",
+    description:
+      "If enabled, all active coupons will be displayed to shoppers in the cart, overriding individual coupon visibility settings.",
+    group: "Marketing",
+    section: "marketing",
+    type: "boolean",
+    defaultValue: false,
   },
 ];
 

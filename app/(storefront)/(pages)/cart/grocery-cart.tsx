@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ImageIcon } from "lucide-react";
-import { toast } from "sonner";
+
 import { formatPrice } from "@/lib/pricing";
 import {
   useCart,
@@ -133,12 +133,12 @@ export function GroceryCart() {
             <span>{formatPrice(grandTotal)}</span>
           </div>
 
-          <button
-            className="gcart-checkout-btn"
-            onClick={() => toast.info("Checkout is coming soon!")}
+          <Link
+            href="/checkout"
+            className="gcart-checkout-btn block text-center"
           >
             Proceed to checkout
-          </button>
+          </Link>
           <Link href="/shop" className="gcart-continue">
             ← Continue shopping
           </Link>

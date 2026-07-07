@@ -115,3 +115,72 @@
   background: rgba(var(--wholesip-shadow-rgb), 0.08);
   color: var(--wholesip-ink);
 }
+
+/* Available Coupons */
+.availableCoupons {
+  margin-top: 12px;
+}
+
+.availableTitle {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--wholesip-ink-soft);
+  margin-bottom: 6px;
+}
+
+.availableList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.availableItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--wholesip-border);
+  border-radius: 9px;
+  padding: 8px 12px;
+  background: var(--wholesip-cream);
+}
+
+.availableInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.availableCode {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--wholesip-ink);
+  letter-spacing: 0.02em;
+}
+
+.availableDesc {
+  font-size: 0.75rem;
+  color: var(--wholesip-ink-soft);
+}
+
+.availableApplyBtn {
+  border: none;
+  background: transparent;
+  color: var(--wholesip-ink);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.availableApplyBtn:hover:not(:disabled) {
+  background: rgba(var(--wholesip-shadow-rgb), 0.06);
+}
+
+.availableApplyBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
