@@ -7,6 +7,13 @@
    ============================================================ */
 
 .storefront-root {
+  /* Flex column so the footer's `margin-top: auto` (Footer.module.css) actually
+     sticks it to the bottom on short pages — otherwise the footer floats right
+     under a near-empty <main> with a large blank cream area below it, reading as
+     an oversized footer. The fixed header is position:fixed, so it's out of flow
+     and not a flex item. */
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   background: var(--wholesip-cream);
   color: var(--wholesip-ink);
@@ -21,6 +28,19 @@
     var(--brand-primary, #17130f) 86%,
     #000
   );
+}
+
+/* The "market" header (theme layout.header = "market") is a SOLID, opaque bar
+   pinned with position:fixed at 10vh tall (see Header.module.css) — it takes no
+   layout space, so every page must reserve its height or content slides under
+   it. Reserve it once here on the root wrapper so it holds for EVERY page
+   regardless of content: custom pages, empty pages, and the footer's newsletter
+   banner (none of which live inside .home-sections). The classic theme keeps
+   its transparent header floating over the hero, so it's intentionally excluded.
+   (border-box is global, so the header's total height == its 10vh.) */
+.storefront-root.sm-header-market {
+  --sm-header-h: 10vh;
+  padding-top: var(--sm-header-h);
 }
 
 /* Default link colour inside the storefront (Header/Footer override locally) */

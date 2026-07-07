@@ -10,13 +10,12 @@
 }
 
 /* The header is position:fixed (takes no layout space). The classic theme
-   floats it TRANSPARENT over the page, so sections may start at the top —
-   but the "market" variant is a solid opaque bar (10vh tall, see
-   Header.module.css): builder pages must clear it or the first section
-   starts underneath. 10vh = the bar itself + a small breathing gap. */
-.sm-header-market .home-sections {
-  padding-top: calc(10vh + clamp(16px, 2.5vw, 28px));
-}
+   floats it TRANSPARENT over the page, so sections may start at the top. The
+   solid "market" header's height is reserved once on .storefront-root
+   (.sm-header-market in storefront-theme.css) so it clears EVERY page, not just
+   ones with sections — so no per-section clearance is needed here. The base
+   .home-sections padding above provides the breathing gap below the bar, and a
+   leading full-bleed hero cancels it (rule below) to sit flush under the bar. */
 
 .home-section {
   width: 100%;
