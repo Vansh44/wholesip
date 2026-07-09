@@ -18,9 +18,9 @@ export function ProductEditPanel({
   const router = useRouter();
   const toList = () => router.push("/dashboard/products");
   return (
-    <div className="dash-card" style={{ padding: 24 }}>
+    <div>
       <h1
-        className="text-lg font-semibold"
+        className="text-xl font-semibold"
         style={{ color: "var(--dash-text)" }}
       >
         Edit Product

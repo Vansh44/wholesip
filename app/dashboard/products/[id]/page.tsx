@@ -18,7 +18,7 @@ export default async function ProductEditPage({
 
   return (
     <div className="dash-page-enter">
-      <div style={{ maxWidth: 680, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ marginBottom: 12 }}>
           <Link
             href="/dashboard/products"

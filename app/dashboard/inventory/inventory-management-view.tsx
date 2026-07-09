@@ -4,13 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Image from "next/image";
-import { ImageIcon, History, Search, PackageMinus, Edit2 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ImageIcon, Search, PackageMinus, Edit2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +30,7 @@ import {
 } from "@/app/dashboard/components/bulk-actions";
 import { ListPagination } from "@/app/dashboard/components/list-pagination";
 import { InventoryHistoryDrawer } from "./inventory-history-drawer";
+import { InventoryEditDrawer } from "./inventory-edit-drawer";
 
 type Props = {
   rows: SkuRow[];
@@ -75,13 +70,8 @@ export function InventoryManagementView({
   }, [initialRows]);
 
   const [activeHistory, setActiveHistory] = useState<SkuRow | null>(null);
-
-  // Modals state
-  const [adjustModal, setAdjustModal] = useState<{
-    row: SkuRow | null;
-    type: "set" | "restock";
-  }>({ row: null, type: "set" });
-  const [adjustValue, setAdjustValue] = useState<number>(0);
+  // Row-click opens the quick edit slide-over on the right.
+  const [editSku, setEditSku] = useState<SkuRow | null>(null);
 
   const hrefFor = (next: {
     q?: string;
@@ -140,35 +130,25 @@ export function InventoryManagementView({
       storeLowStockThreshold,
     );
 
-  const handleAdjustSubmit = () => {
-    const target = adjustModal.row;
-    if (!target) return;
-
-    const val = adjustValue;
-    const isSet = adjustModal.type === "set";
-
+  // Save a new absolute stock level for one SKU. Optimistically updates the row
+  // and closes the drawer immediately (feels instant), then reconciles with the
+  // server and reverts on error. Shared by the edit drawer.
+  const applyStock = (target: SkuRow, newStock: number, reason: string) => {
     startTransition(async () => {
-      // Optimistic
       setRows((prev) =>
-        prev.map((r) => {
-          if (r.id === target.id) {
-            const newStock = isSet ? val : r.stock + val;
-            return {
-              ...r,
-              stock: newStock,
-              status: optimisticStatus(r, newStock),
-            };
-          }
-          return r;
-        }),
+        prev.map((r) =>
+          r.id === target.id
+            ? { ...r, stock: newStock, status: optimisticStatus(r, newStock) }
+            : r,
+        ),
       );
-      setAdjustModal({ row: null, type: "set" });
+      setEditSku(null);
 
       const res = await setStock(
         target.productId,
         target.variantId,
-        isSet ? val : target.stock + val,
-        isSet ? "Set stock manually" : "Restock",
+        newStock,
+        reason,
       );
 
       if (res.error) {
@@ -226,7 +206,10 @@ export function InventoryManagementView({
   ];
 
   return (
-    <div className="dash-page-enter">
+    <div
+      className="dash-page-enter"
+      style={{ display: "flex", flexDirection: "column", minHeight: "100%" }}
+    >
       <header className="dash-page-header row">
         <div>
           <h1>Inventory</h1>
@@ -273,7 +256,7 @@ export function InventoryManagementView({
         </div>
       </div>
 
-      <div className="dash-card">
+      <div className="dash-card" style={{ flex: "1 0 auto" }}>
         <div className="dash-card-header">
           <div>
             <div className="dash-card-title">Stock</div>
@@ -319,10 +302,14 @@ export function InventoryManagementView({
               {rows.map((r) => (
                 <tr
                   key={r.id}
-                  className={`${selection.isSelected(r.id) ? " is-selected" : ""} ${r.status === "low" ? "bg-amber-50/50 dark:bg-amber-900/10" : ""}`}
+                  onClick={() => setEditSku(r)}
+                  className={`cursor-pointer ${selection.isSelected(r.id) ? " is-selected" : ""} ${r.status === "low" ? "bg-amber-50/50 dark:bg-amber-900/10" : ""}`}
                 >
                   {canManage && (
-                    <td className="dash-checkbox-cell">
+                    <td
+                      className="dash-checkbox-cell"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <RowCheckbox
                         checked={selection.isSelected(r.id)}
                         onToggle={() => selection.toggle(r.id)}
@@ -390,36 +377,17 @@ export function InventoryManagementView({
                   </td>
                   {canManage && (
                     <td>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="dash-btn dash-btn-ghost h-8 px-2 text-xs">
-                          <Edit2 className="h-3.5 w-3.5 mr-1" />
-                          Update
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            disabled={!r.trackInventory}
-                            onClick={() => {
-                              setAdjustValue(r.stock);
-                              setAdjustModal({ row: r, type: "set" });
-                            }}
-                          >
-                            Set stock...
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            disabled={!r.trackInventory}
-                            onClick={() => {
-                              setAdjustValue(0);
-                              setAdjustModal({ row: r, type: "restock" });
-                            }}
-                          >
-                            Adjust stock...
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setActiveHistory(r)}>
-                            <History className="mr-2 h-4 w-4" />
-                            View history
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <button
+                        type="button"
+                        className="dash-btn dash-btn-ghost h-8 px-2 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditSku(r);
+                        }}
+                      >
+                        <Edit2 className="mr-1 h-3.5 w-3.5" />
+                        Edit
+                      </button>
                     </td>
                   )}
                 </tr>
@@ -458,58 +426,6 @@ export function InventoryManagementView({
         </BulkActionBar>
       )}
 
-      {/* Adjust Modal */}
-      <Dialog
-        open={adjustModal.row !== null}
-        onOpenChange={(open) =>
-          !open && setAdjustModal({ row: null, type: "set" })
-        }
-      >
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>
-              {adjustModal.type === "set" ? "Set stock" : "Adjust stock"} for{" "}
-              {adjustModal.row?.name}
-              {adjustModal.row?.variantName
-                ? ` (${adjustModal.row.variantName})`
-                : ""}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">
-                {adjustModal.type === "set"
-                  ? "New stock level"
-                  : "Adjustment amount (+ or -)"}
-              </label>
-              <NumberField
-                value={adjustValue}
-                onValueChange={setAdjustValue}
-                className="w-full"
-              />
-            </div>
-            {adjustModal.type === "restock" && (
-              <p className="text-sm text-dim">
-                Current stock: {adjustModal.row?.stock}. New stock will be{" "}
-                {Math.max(0, (adjustModal.row?.stock || 0) + adjustValue)}.
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setAdjustModal({ row: null, type: "set" })}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleAdjustSubmit} disabled={isPending}>
-              {isPending ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Bulk Modal */}
       <Dialog
         open={bulkModalOpen}
@@ -547,6 +463,20 @@ export function InventoryManagementView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {editSku && (
+        <InventoryEditDrawer
+          open={!!editSku}
+          onOpenChange={(open) => !open && setEditSku(null)}
+          sku={editSku}
+          onSave={applyStock}
+          onViewHistory={(s) => {
+            setEditSku(null);
+            setActiveHistory(s);
+          }}
+          isPending={isPending}
+        />
+      )}
 
       {activeHistory && (
         <InventoryHistoryDrawer
