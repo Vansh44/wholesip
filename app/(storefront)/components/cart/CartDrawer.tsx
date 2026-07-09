@@ -7,6 +7,7 @@ import { ImageIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { formatPrice } from "@/lib/pricing";
+import { cartLineMax } from "@/lib/inventory/status";
 import { useCart, lineKey } from "./CartProvider";
 import CouponField from "./CouponField";
 import styles from "./CartDrawer.module.css";
@@ -104,6 +105,8 @@ export default function CartDrawer() {
             <ul className={styles.items}>
               {items.map((item) => {
                 const key = lineKey(item.productId, item.variantId);
+                const max = cartLineMax(item);
+                const atMax = item.quantity >= max;
                 return (
                   <li key={key} className={styles.item}>
                     <Link
@@ -156,6 +159,7 @@ export default function CartDrawer() {
                             type="button"
                             className={styles.stepperBtn}
                             onClick={() => setQuantity(key, item.quantity + 1)}
+                            disabled={atMax}
                             aria-label="Increase quantity"
                           >
                             +
@@ -165,6 +169,11 @@ export default function CartDrawer() {
                           {formatPrice(item.price * item.quantity)}
                         </span>
                       </div>
+                      {atMax && (
+                        <span className={styles.itemMax}>
+                          Max available: {max}
+                        </span>
+                      )}
                     </div>
 
                     <button

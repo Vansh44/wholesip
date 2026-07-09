@@ -30,9 +30,11 @@ export interface RelatedProduct {
 export function RelatedProducts({
   products,
   grocery = false,
+  storeLowStockThreshold = 0,
 }: {
   products: RelatedProduct[];
   grocery?: boolean;
+  storeLowStockThreshold?: number;
 }) {
   if (!products || products.length === 0) return null;
 
@@ -47,7 +49,11 @@ export function RelatedProducts({
         arrowClass="home-product-arrow"
       >
         {products.map((p) => (
-          <ShopCard key={p.id} product={p as unknown as ShopCardProduct} />
+          <ShopCard
+            key={p.id}
+            product={p as unknown as ShopCardProduct}
+            storeLowStockThreshold={storeLowStockThreshold}
+          />
         ))}
       </HorizontalCarousel>
     </section>

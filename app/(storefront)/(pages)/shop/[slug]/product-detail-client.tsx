@@ -12,6 +12,11 @@ import {
   hasSpecialPrice,
   variantEffectiveSelling,
 } from "@/lib/pricing";
+import {
+  isSoldOut,
+  lowStockLeft,
+  maxPurchasable,
+} from "@/lib/inventory/status";
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
 import { ShareButtons } from "@/app/(storefront)/components/share-buttons";
 import { RelatedProducts, type RelatedProduct } from "./related-products";
@@ -29,10 +34,13 @@ export interface DetailVariant {
   // NULL when no sale price is set; otherwise overrides selling_price and
   // triggers the "best value" tag badge on the chip.
   special_price: number | null;
-  stock: number;
   sku: string | null;
   images: string[] | null;
   sort_order: number;
+  track_inventory: boolean;
+  stock: number;
+  low_stock_threshold: number | null;
+  allow_backorder: boolean;
 }
 
 export interface DetailProduct {
@@ -48,6 +56,10 @@ export interface DetailProduct {
   seo_title: string | null;
   seo_description: string | null;
   category: { id: string; name: string; slug: string; status: string } | null;
+  track_inventory: boolean;
+  stock: number;
+  low_stock_threshold: number | null;
+  allow_backorder: boolean;
   variants: DetailVariant[];
 }
 
@@ -73,11 +85,15 @@ export default function ProductDetailClient({
   related,
   reviews,
   grocery = false,
+  storeLowStockThreshold = 0,
 }: {
   product: DetailProduct;
   related: RelatedProduct[];
   reviews: ProductReview[];
   grocery?: boolean;
+  // Store-wide default (inventory.lowStockThreshold), resolved by the page; a
+  // per-SKU threshold overrides it. Drives the "Only X left" badge.
+  storeLowStockThreshold?: number;
 }) {
   const router = useRouter();
   const { addItem } = useCart();
@@ -132,7 +148,16 @@ export default function ProductDetailClient({
     ? variantSellingWithFallback(selectedVariant)
     : sellingOf(product.base_price, product.selling_price);
   const discount = discountPercent(base, selling);
-  const outOfStock = selectedVariant ? selectedVariant.stock <= 0 : false;
+
+  // Sell against the selected variant when present, else the simple product.
+  // Shared resolver so the PDP, cards, and dashboard agree; "Only X left" now
+  // honours the store-wide default threshold, not just a per-SKU override.
+  const sellableSku = selectedVariant ?? product;
+  const outOfStock = isSoldOut(sellableSku);
+  const lowStockAmount = outOfStock
+    ? null
+    : lowStockLeft(sellableSku, storeLowStockThreshold);
+  const isLowStock = lowStockAmount !== null;
 
   // Close the zoom overlay with Escape.
   useEffect(() => {
@@ -144,12 +169,14 @@ export default function ProductDetailClient({
     return () => window.removeEventListener("keydown", onKey);
   }, [zoomOpen]);
 
-  // Cap quantity at available stock when a variant tracks it, and clamp the
-  // chosen quantity to it at render time (so switching variants can't leave a
-  // stale over-stock value) — no effect needed.
-  const maxQty =
-    selectedVariant && selectedVariant.stock > 0 ? selectedVariant.stock : 99;
-  const qty = Math.min(Math.max(1, quantity), maxQty);
+  // Cap quantity at what the shopper can actually buy — the sellable SKU's
+  // stock when it's tracked and non-backorderable, else a UI ceiling. Covers
+  // simple products too (previously only variants were capped) and never wrongly
+  // caps an untracked/backorderable SKU. Clamped at render so switching variants
+  // can't leave a stale over-stock value; floored at 1 for display (the add
+  // buttons are disabled when out of stock).
+  const maxQty = maxPurchasable(sellableSku);
+  const qty = Math.min(Math.max(1, quantity), Math.max(1, maxQty));
 
   // Aggregate rating for the summary shown near the title.
   const reviewCount = reviews.length;
@@ -170,6 +197,10 @@ export default function ProductDetailClient({
         basePrice: base,
         image: activeImg ?? product.image_url ?? null,
         category: product.category?.name ?? null,
+        // Snapshot the sellable SKU's stock so the cart can cap this line.
+        trackInventory: sellableSku.track_inventory,
+        stock: sellableSku.stock,
+        allowBackorder: sellableSku.allow_backorder,
       },
       qty,
     );
@@ -218,7 +249,11 @@ export default function ProductDetailClient({
           reviews={reviews}
         />
 
-        <RelatedProducts products={related} grocery />
+        <RelatedProducts
+          products={related}
+          grocery
+          storeLowStockThreshold={storeLowStockThreshold}
+        />
 
         {zoomOpen && activeImg && (
           <div
@@ -320,6 +355,17 @@ export default function ProductDetailClient({
           {product.category && product.category.status === "active" && (
             <span className="pdp-category">{product.category.name}</span>
           )}
+
+          {outOfStock ? (
+            <div className="mb-2 inline-block text-xs font-bold uppercase tracking-wider bg-zinc-200 text-zinc-600 px-2 py-1 rounded-sm">
+              Sold Out
+            </div>
+          ) : isLowStock ? (
+            <div className="mb-2 inline-block text-xs font-bold uppercase tracking-wider bg-orange-100 text-orange-700 px-2 py-1 rounded-sm">
+              Only {lowStockAmount} left in stock!
+            </div>
+          ) : null}
+
           <h1 className="pdp-name">{product.name}</h1>
 
           <a href="#reviews" className="pdp-rating-top">
@@ -353,7 +399,8 @@ export default function ProductDetailClient({
               <label className="pdp-variants-label">Options</label>
               <div className="pdp-variant-options">
                 {product.variants.map((v) => {
-                  const disabled = v.stock <= 0;
+                  const disabled =
+                    v.track_inventory && !v.allow_backorder && v.stock <= 0;
                   const hasSale = hasSpecialPrice(v);
                   const vSelling = variantSellingWithFallback(v);
                   // Show the struck-through original only when it's genuinely
@@ -454,7 +501,10 @@ export default function ProductDetailClient({
       />
 
       {/* You may also like */}
-      <RelatedProducts products={related} />
+      <RelatedProducts
+        products={related}
+        storeLowStockThreshold={storeLowStockThreshold}
+      />
 
       {/* Zoom lightbox */}
       {zoomOpen && activeImg && (

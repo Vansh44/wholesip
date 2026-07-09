@@ -11,6 +11,7 @@ type Props = {
   placeholder?: string;
   id?: string;
   "aria-label"?: string;
+  disabled?: boolean;
 };
 
 // A numeric input that stores its own editable text, so it behaves like a

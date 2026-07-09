@@ -24,12 +24,15 @@ export interface EditorSetting {
   label: string;
   description: string;
   group: string;
-  value: boolean;
+  type: "boolean" | "number";
+  value: boolean | number;
   /** True when the store's plan is below the setting's minimum — shown but
    *  not editable. */
   locked: boolean;
   minPlan?: string;
   dependsOn?: string;
+  min?: number;
+  max?: number;
 }
 
 // Feature settings for the acting store, shaped for the dashboard editors.
@@ -70,10 +73,13 @@ export async function getStoreSettingsForEditor(group?: string): Promise<{
       label: def.label,
       description: def.description,
       group: def.group,
+      type: def.type,
       value: values[def.key],
       locked: !planAllows(plan, def.minPlan),
       minPlan: def.minPlan,
       dependsOn: def.dependsOn,
+      min: def.min,
+      max: def.max,
     })),
   };
 }
@@ -87,14 +93,14 @@ export async function getStoreSettingsForEditor(group?: string): Promise<{
  * the storefront and all setting reads update at once.
  */
 export async function saveStoreSettings(
-  values: Record<string, boolean>,
+  values: Record<string, boolean | number>,
 ): Promise<ActionResult> {
   const ctx = await getViewerContext();
   if (!ctx?.profile) return { error: "Not authenticated" };
 
   // Registry keys actually submitted vs. the subset this caller may change.
   const requested = SETTINGS.filter(
-    (def) => typeof values[def.key] === "boolean",
+    (def) => typeof values[def.key] === def.type,
   );
   const permitted = requested.filter((def) =>
     can(ctx.permissions, def.section, "manage", ctx.isSuperadmin),
@@ -125,7 +131,11 @@ export async function saveStoreSettings(
 
   for (const def of permitted) {
     if (!planAllows(plan, def.minPlan)) continue; // locked on this plan
-    features[def.key] = values[def.key];
+    let val = values[def.key];
+    if (def.type === "number" && typeof val === "number") {
+      val = Math.max(def.min ?? -Infinity, Math.min(def.max ?? Infinity, val));
+    }
+    features[def.key] = val;
   }
 
   const { error } = await admin

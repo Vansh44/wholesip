@@ -442,7 +442,7 @@ export async function getAvailableStorefrontCoupons(): Promise<
 > {
   const store = await getCurrentStore();
   const settings = resolveStoreSettings(store.settings, store.plan);
-  const showAll = settings["marketing.showAllCoupons"];
+  const showAll = Boolean(settings["marketing.showAllCoupons"]);
   return getStorefrontCouponsCached(store.id, showAll);
 }
 

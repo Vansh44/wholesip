@@ -567,6 +567,40 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
       own-row RLS) prefill the default and are picked from cards so the address
       isn't retyped each order.
 
+13. **Inventory System**. Per-store stock tracking. Products and variants have `track_inventory` (bool), `stock` (int), `low_stock_threshold` (int), `allow_backorder` (bool), and `sku` (text, products only). Stock edits go through `supabase/inventory_rpc.sql` (`reserve_stock`, `release_stock`, `adjust_stock`) to ensure atomic correctness and generate an append-only ledger in the `stock_movements` table. `lib/inventory/status.ts` is the SINGLE source of truth for turning stock fields into a display status (`isSoldOut`/`lowStockLeft`/`inventoryStatus` + product-level aggregation) — shared by the dashboard list, its optimistic UI, and the storefront so the per-SKU threshold override and the store-wide default (`inventory.lowStockThreshold`) resolve identically everywhere. The storefront reads these fields to display 'Sold Out' or 'Only X left!' badges on product cards and detail pages (the store default is resolved per request in the shop/product pages + section resolver and threaded down as `storeLowStockThreshold`), and the quick-add button disables itself for out-of-stock items. Checkout (`checkout-actions.ts`) creates the order row **before** calling `reserve_stock` per line (the `stock_movements.order_id` FK requires the order to exist first), and rolls back stock→order→coupon in reverse on any failure. Each order carries a `stock_status` (`none`/`reserved`/`released`) tracking its reservation lifecycle: checkout sets `reserved`; `order-actions.ts` restocks on cancellation by atomically claiming the `reserved`→`released` transition (a single conditional UPDATE), so cancellation restocks **exactly once** and never touches legacy orders (`none`) — reinstating a cancelled order does NOT auto re-reserve. Store admins manage inventory at `/dashboard/inventory` (list view, history drawer, bulk adjustments) and settings at `/dashboard/inventory/settings`. **Cart-side enforcement (layered defense above the DB guarantee).** `reserve_stock` makes overselling impossible at order time, but the cart must not let a shopper pile quantity past stock in the first place. `lib/inventory/status.ts` adds `cartLineMax(snapshot, ceiling=99)` — the camelCase cart counterpart of `maxPurchasable` — and a `CartStockSnapshot` shape. Every `CartItem` (`CartProvider`) carries an optional `{trackInventory, stock, allowBackorder}` snapshot captured at add time (all optional, so older persisted carts parse as untracked/unlimited); `addItem` and `setQuantity` clamp centrally to `cartLineMax`, so ONE choke-point caps every surface: the quick-add button (`quick-add-button.tsx`, toasts at the cap), the PDP quantity selector + Buy Now (`product-detail-client.tsx`), and all three cart steppers (`CartDrawer.tsx`, classic `cart-client.tsx`, `grocery-cart.tsx`) — each disables "+" and shows a "Max available: N" hint at the cap. **Stale carts are reconciled at checkout**: `getCartStock(lines)` (`checkout-actions.ts`, service-role, store-scoped, uncached) re-reads live per-line stock and marks vanished products/variants `exists:false`; `CartProvider.reconcileStock(updates)` refreshes each line's snapshot, clamps over-stock quantities, drops sold-out/vanished lines, and returns a `{removed, reduced}` summary the `/checkout` page toasts on mount. If a reserve still fails at order time, `placeOrder` re-reads the SKU and returns the exact shortfall ("only N left" / "just sold out"), not a generic error.
+
+14. **Human-readable identifiers (store_no / order_no / SKU).** Layered ON TOP
+    of the internal UUID keys — the UUIDs stay the primary keys, foreign keys,
+    and URL/lookup keys (access control is always UUID + `store_id` RLS); the
+    codes are display + search values only, so a guessable/sequential number is
+    never an IDOR vector. Compact grammar `<TYPE><STORE:4+><SEQ:4+>[V<VAR:2+>]<CHECK>`
+    with a trailing Luhn (mod-10) check digit over the numeric payload, so every
+    code self-validates offline: product SKU `SKU100100015`, variant SKU
+    `SKU10010001V013`, order `ORD100110006`; the 4-digit store number is embedded
+    in all of them (store `1001` → `SKU1001…`/`ORD1001…`), so everything for a
+    store shares a core and is globally unique despite per-store sequences.
+    `lib/identifiers.ts` (pure, tested) is the **client-display authority**
+    (`luhnCheckDigit`/`isValidCode`/`formatSku`/`formatVariantSku`/`formatOrderRef`/
+    `formatStoreCode`/`refKind`). **Generation is at the DB layer** so no insert
+    path can produce a code-less row: `supabase/identifiers_01_schema.sql` adds
+    `stores.store_no` (global `store_no_seq`, from 1000), `orders.order_no`/
+    `order_ref`, `products.sku_no`, `product_variants.variant_no`, a per-store
+    `store_counters` table (anon-revoked; a live counter leaks order volume) and
+    atomic allocators (`next_order_no`/`next_product_no`/`next_variant_no` —
+    single `UPDATE … RETURNING`, the `increment_coupon_usage` pattern);
+    `identifiers_04_triggers.sql` adds permanent SQL formatters (`sm_luhn`/
+    `sm_sku`/`sm_variant_sku`/`sm_order_ref`, mirror of `lib/identifiers.ts`,
+    cross-checked by its tests) + BEFORE-INSERT triggers that fill the codes and
+    a `nextval` default on `store_no`. `02_backfill` numbered existing rows by
+    `created_at`; `03_constraints` locked `NOT NULL` + `UNIQUE` (store_no global;
+    order_no + sku per-store). **SKUs are system-generated & locked** — the
+    product editor shows them read-only and `product-actions.ts` never writes
+    `sku`/`sku_no` (the trigger owns them, immutable once assigned — variant
+    numbers are frozen so a reorder never renumbers a live SKU). `placeOrder`
+    returns `orderRef` for the confirmation page; the dashboard orders list shows
+    `order_ref` (UUID kept in a `title` tooltip). Order/product/store UUIDs and
+    routes are UNCHANGED. Supersedes the "sku (text, products only)" note in #13.
+
 ## 6. Commands
 
 ```bash

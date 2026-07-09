@@ -2,14 +2,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 import { effectivePricing, formatPrice, type PricedLike } from "@/lib/pricing";
+import { productIsSoldOut, productLowStockLeft } from "@/lib/inventory/status";
 import { QuickAddButton } from "./quick-add-button";
 
 // Card background falls back to this when a product has no card_color set.
 // (Per-product colour is the source of truth.)
 export const DEFAULT_CARD_BG = "#f4f2ee";
 
-// The data a card needs: display fields + whatever effectivePricing reads.
-export type ShopCardProduct = PricedLike & {
+export type ShopCardProduct = Omit<PricedLike, "variants"> & {
   id: string;
   name: string;
   slug: string;
@@ -18,12 +18,44 @@ export type ShopCardProduct = PricedLike & {
   card_color?: string | null;
   /** Resolved category name; shown as an eyebrow label when present. */
   category?: string | null;
+  track_inventory: boolean;
+  stock: number;
+  low_stock_threshold: number | null;
+  allow_backorder: boolean;
+  variants?: {
+    base_price: number;
+    selling_price: number;
+    special_price?: number | null;
+    sort_order?: number;
+    track_inventory: boolean;
+    stock: number;
+    low_stock_threshold: number | null;
+    allow_backorder: boolean;
+  }[];
 };
 
 // Single source of truth for the storefront product card — used by the shop
 // grid and the homepage "featured products" section so styling stays in sync.
-export function ShopCard({ product: p }: { product: ShopCardProduct }) {
+// `storeLowStockThreshold` is the store-wide default (inventory.lowStockThreshold)
+// resolved per request by the rendering page; a per-SKU threshold overrides it.
+export function ShopCard({
+  product: p,
+  storeLowStockThreshold = 0,
+}: {
+  product: ShopCardProduct;
+  storeLowStockThreshold?: number;
+}) {
   const pr = effectivePricing(p);
+
+  // Stock status via the shared resolver so cards, the detail page, and the
+  // dashboard agree (sold-out wins over low; low uses the effective threshold).
+  const variants = p.variants ?? [];
+  const isOutOfStock = productIsSoldOut(variants, p);
+  const lowStockAmount = isOutOfStock
+    ? null
+    : productLowStockLeft(variants, p, storeLowStockThreshold);
+  const isLowStock = lowStockAmount !== null;
+
   return (
     <Link
       href={`/shop/${p.slug}`}
@@ -49,8 +81,23 @@ export function ShopCard({ product: p }: { product: ShopCardProduct }) {
       </div>
 
       <div className="shop-card-body">
-        {p.category && <span className="shop-card-cat">{p.category}</span>}
-        <h3 className="shop-card-name">{p.name}</h3>
+        <div className="flex items-start justify-between">
+          <div className="min-w-0">
+            {p.category && <span className="shop-card-cat">{p.category}</span>}
+            <h3 className="shop-card-name">{p.name}</h3>
+          </div>
+          <div className="shrink-0 ml-2 flex flex-col items-end gap-1">
+            {isOutOfStock ? (
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-zinc-200 text-zinc-600 px-1.5 py-0.5 rounded-sm">
+                Sold Out
+              </span>
+            ) : isLowStock ? (
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-sm">
+                Only {lowStockAmount} left!
+              </span>
+            ) : null}
+          </div>
+        </div>
         <div className="shop-card-price">
           {pr.hasVariants && <span className="shop-card-from">from </span>}
           <span className="shop-card-sell">{formatPrice(pr.selling)}</span>

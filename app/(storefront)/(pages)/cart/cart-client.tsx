@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 
 import { formatPrice, discountPercent } from "@/lib/pricing";
+import { cartLineMax } from "@/lib/inventory/status";
 import {
   useCart,
   lineKey,
@@ -146,6 +147,8 @@ function CartLine({
 }) {
   const discount = discountPercent(item.basePrice, item.price);
   const lineTotal = item.price * item.quantity;
+  const max = cartLineMax(item);
+  const atMax = item.quantity >= max;
 
   return (
     <li className="cart-item">
@@ -200,11 +203,13 @@ function CartLine({
               type="button"
               className="cart-stepper-btn"
               onClick={onInc}
+              disabled={atMax}
               aria-label="Increase quantity"
             >
               +
             </button>
           </div>
+          {atMax && <span className="cart-item-max">Max available: {max}</span>}
           <span className="cart-item-line-total">{formatPrice(lineTotal)}</span>
           <button
             type="button"

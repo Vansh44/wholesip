@@ -17,6 +17,8 @@ import { callGemini, brandSystemText, loadBrandSoul } from "@/lib/ai/gemini";
 // ---------------------------------------------------------------------------
 
 export interface VariantFormData {
+  /** DB id — present for existing variants, absent for newly-added rows. */
+  id?: string;
   name: string;
   base_price: number;
   selling_price: number;
@@ -45,6 +47,10 @@ export interface ProductFormData {
   seo_title: string;
   seo_description: string;
   variants: VariantFormData[];
+  track_inventory?: boolean;
+  allow_backorder?: boolean;
+  low_stock_threshold?: number | null;
+  sku?: string;
 }
 
 export interface ActionResult {
@@ -125,6 +131,7 @@ function normalizePrices(base: number, selling: number) {
 }
 
 // Keep only valid variant rows (a name is required) and normalise numbers.
+// Preserves `id` so the reconcile can match existing DB rows.
 function sanitizeVariants(variants: VariantFormData[]) {
   return (variants ?? [])
     .filter((v) => v.name && v.name.trim())
@@ -146,11 +153,13 @@ function sanitizeVariants(variants: VariantFormData[]) {
             : v.special_price;
       }
       return {
+        id: v.id || undefined, // pass through existing variant id for reconcile
         name: v.name.trim(),
         ...prices,
         special_price: special,
         stock: Number.isFinite(v.stock) ? Math.trunc(v.stock) : 0,
-        sku: v.sku?.trim() || null,
+        // SKU is system-generated & locked — set by the DB trigger on insert
+        // and immutable thereafter, so the form never writes it.
         images,
         image_url: images[0] ?? null, // keep the legacy single image in sync
         sort_order: i,
@@ -158,30 +167,78 @@ function sanitizeVariants(variants: VariantFormData[]) {
     });
 }
 
-// Replace strategy: delete all existing variants for a product then insert the
-// new set. Variants aren't referenced by orders yet, so this is safe and keeps
-// the editor's "what you see is what's saved" semantics simple.
+// Reconcile strategy: UPDATE existing variants by id, INSERT new ones (no id),
+// DELETE removed ones. Stock is NEVER overwritten by the product form — stock
+// flows only through inventory RPCs. Variant ids are stable so order_items
+// references and the stock_movements ledger are preserved.
 async function replaceVariants(
   supabase: SupabaseClient,
   productId: string,
   variants: VariantFormData[],
   storeId: string,
 ): Promise<string | null> {
-  const { error: delError } = await supabase
-    .from("product_variants")
-    .delete()
-    .eq("product_id", productId);
-  if (delError) return delError.message;
-
   const rows = sanitizeVariants(variants);
-  if (rows.length === 0) return null;
 
-  const { error: insError } = await supabase
+  // 1. Fetch existing variant ids for this product.
+  const { data: existing, error: fetchError } = await supabase
     .from("product_variants")
-    .insert(
-      rows.map((r) => ({ ...r, product_id: productId, store_id: storeId })),
-    );
-  if (insError) return insError.message;
+    .select("id")
+    .eq("product_id", productId);
+  if (fetchError) return fetchError.message;
+
+  const existingIds = new Set(
+    (existing ?? []).map((v: { id: string }) => v.id),
+  );
+  const formIds = new Set(rows.filter((r) => r.id).map((r) => r.id!));
+
+  // 2. UPDATE existing variants (matched by id). Never overwrite stock —
+  //    the `stock` field in the form is informational; real stock changes go
+  //    through the inventory RPCs.
+  for (const row of rows) {
+    if (!row.id || !existingIds.has(row.id)) continue;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _id, stock: _stock, ...updates } = row;
+    const { error } = await supabase
+      .from("product_variants")
+      .update(updates)
+      .eq("id", row.id)
+      .eq("product_id", productId);
+    if (error) return error.message;
+  }
+
+  // 3. INSERT new variants (no id in form data).
+  const newRows = rows.filter((r) => !r.id);
+  if (newRows.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const inserts = newRows.map(({ id: _id, ...r }) => ({
+      ...r,
+      product_id: productId,
+      store_id: storeId,
+    }));
+    const { error } = await supabase.from("product_variants").insert(inserts);
+    if (error) return error.message;
+  }
+
+  // 4. DELETE variants removed from the editor. The ON DELETE RESTRICT
+  //    constraint on order_items.variant_id will block deletion of a variant
+  //    that has existing orders — surface a friendly message.
+  const toDelete = [...existingIds].filter((id) => !formIds.has(id));
+  if (toDelete.length > 0) {
+    const { error } = await supabase
+      .from("product_variants")
+      .delete()
+      .in("id", toDelete);
+    if (error) {
+      // RESTRICT FK violation — variant has order references.
+      if (
+        error.code === "23503" ||
+        error.message?.toLowerCase().includes("violates foreign key")
+      ) {
+        return "Cannot delete one or more variants because they have existing orders. Disable them instead.";
+      }
+      return error.message;
+    }
+  }
 
   return null;
 }
@@ -289,6 +346,10 @@ export async function createProduct(
     created_by: userId,
     updated_by: userId,
     store_id: storeId,
+    track_inventory: formData.track_inventory ?? false,
+    allow_backorder: formData.allow_backorder ?? false,
+    low_stock_threshold: formData.low_stock_threshold ?? null,
+    // sku / sku_no are set by the DB trigger (system-generated & locked).
   });
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
@@ -380,6 +441,10 @@ export async function updateProduct(
     seo_description: formData.seo_description.trim() || null,
     published_at: publishedAt,
     updated_by: userId,
+    track_inventory: formData.track_inventory ?? false,
+    allow_backorder: formData.allow_backorder ?? false,
+    low_stock_threshold: formData.low_stock_threshold ?? null,
+    // sku is system-generated & locked (DB trigger) — never overwritten here.
   });
 
   // Images referenced before this save — compared against what survives so any

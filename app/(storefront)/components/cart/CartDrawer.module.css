@@ -202,8 +202,21 @@
   transition: background 0.15s ease;
 }
 
-.stepperBtn:hover {
+.stepperBtn:hover:not(:disabled) {
   background: rgba(var(--wholesip-shadow-rgb), 0.08);
+}
+
+.stepperBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.itemMax {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--wholesip-error, #c2410c);
 }
 
 .stepperValue {

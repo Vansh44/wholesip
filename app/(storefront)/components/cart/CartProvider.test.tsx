@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useState } from "react";
 import { render, screen, act } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 
@@ -15,6 +16,7 @@ import { validateCoupon } from "@/app/actions/coupon-actions";
 // so we can exercise the provider through real React state transitions.
 function Harness() {
   const cart = useCart();
+  const [reconcileOut, setReconcileOut] = useState("");
   return (
     <div>
       <span data-testid="hydrated">{String(cart.hydrated)}</span>
@@ -25,6 +27,7 @@ function Harness() {
       <span data-testid="valid">{String(cart.couponValid)}</span>
       <span data-testid="open">{String(cart.isCartOpen)}</span>
       <span data-testid="coupon">{cart.appliedCoupon?.code ?? ""}</span>
+      <span data-testid="reconcile">{reconcileOut}</span>
       <span data-testid="lines">
         {cart.items
           .map((i) => `${lineKey(i.productId, i.variantId)}x${i.quantity}`)
@@ -73,6 +76,93 @@ function Harness() {
       </button>
       <button onClick={() => cart.removeItem(lineKey("p1", null))}>
         removeP1
+      </button>
+      {/* A tracked, non-backorderable line with only 3 in stock. Added with a
+          quantity of 5 to prove the provider clamps to the snapshot cap. */}
+      <button
+        onClick={() =>
+          cart.addItem(
+            {
+              productId: "p3",
+              slug: "tea",
+              name: "Tea",
+              variantId: null,
+              variantName: null,
+              price: 10,
+              basePrice: 10,
+              image: null,
+              trackInventory: true,
+              stock: 3,
+              allowBackorder: false,
+            },
+            5,
+          )
+        }
+      >
+        addLimited5
+      </button>
+      <button onClick={() => cart.setQuantity(lineKey("p3", null), 10)}>
+        setLimitedTo10
+      </button>
+      <button
+        onClick={() =>
+          setReconcileOut(
+            JSON.stringify(
+              cart.reconcileStock([
+                {
+                  productId: "p1",
+                  variantId: null,
+                  exists: true,
+                  trackInventory: true,
+                  stock: 1,
+                  allowBackorder: false,
+                },
+              ]),
+            ),
+          )
+        }
+      >
+        reconcileP1To1
+      </button>
+      <button
+        onClick={() =>
+          setReconcileOut(
+            JSON.stringify(
+              cart.reconcileStock([
+                {
+                  productId: "p1",
+                  variantId: null,
+                  exists: true,
+                  trackInventory: true,
+                  stock: 0,
+                  allowBackorder: false,
+                },
+              ]),
+            ),
+          )
+        }
+      >
+        reconcileP1SoldOut
+      </button>
+      <button
+        onClick={() =>
+          setReconcileOut(
+            JSON.stringify(
+              cart.reconcileStock([
+                {
+                  productId: "p1",
+                  variantId: null,
+                  exists: false,
+                  trackInventory: false,
+                  stock: 0,
+                  allowBackorder: false,
+                },
+              ]),
+            ),
+          )
+        }
+      >
+        reconcileP1Gone
       </button>
       <button onClick={() => cart.clear()}>clear</button>
       <button onClick={() => cart.openCart()}>open</button>
@@ -124,6 +214,63 @@ describe("CartProvider", () => {
     expect(screen.getByTestId("lines")).toHaveTextContent("p1:x4|p2:v1x1");
     expect(screen.getByTestId("totalItems")).toHaveTextContent("5");
     expect(screen.getByTestId("subtotal")).toHaveTextContent("450"); // 4*100 + 1*50
+  });
+
+  it("clamps addItem to the line's stock snapshot (tracked, no backorder)", async () => {
+    const user = userEvent.setup();
+    renderCart();
+
+    // Only 3 in stock, but we try to add 5 → capped at 3.
+    await user.click(screen.getByText("addLimited5"));
+    expect(screen.getByTestId("lines")).toHaveTextContent("p3:x3");
+
+    // A second add of 5 must not pile past the cap either.
+    await user.click(screen.getByText("addLimited5"));
+    expect(screen.getByTestId("lines")).toHaveTextContent("p3:x3");
+    expect(screen.getByTestId("totalItems")).toHaveTextContent("3");
+  });
+
+  it("clamps setQuantity to the line's stock snapshot", async () => {
+    const user = userEvent.setup();
+    renderCart();
+
+    await user.click(screen.getByText("addLimited5")); // qty 3, stock 3
+    await user.click(screen.getByText("setLimitedTo10")); // ask for 10
+    expect(screen.getByTestId("lines")).toHaveTextContent("p3:x3");
+  });
+
+  it("reconcileStock reduces an over-stock line and reports it", async () => {
+    const user = userEvent.setup();
+    renderCart();
+
+    await user.click(screen.getByText("addP1")); // qty 2, untracked snapshot
+    await user.click(screen.getByText("reconcileP1To1")); // live stock now 1
+    expect(screen.getByTestId("lines")).toHaveTextContent("p1:x1");
+    const out = JSON.parse(screen.getByTestId("reconcile").textContent!);
+    expect(out.reduced).toEqual([{ name: "Soap", from: 2, to: 1 }]);
+    expect(out.removed).toEqual([]);
+  });
+
+  it("reconcileStock drops a sold-out line and reports it removed", async () => {
+    const user = userEvent.setup();
+    renderCart();
+
+    await user.click(screen.getByText("addP1"));
+    await user.click(screen.getByText("reconcileP1SoldOut")); // live stock 0
+    expect(screen.getByTestId("lines")).toHaveTextContent("");
+    const out = JSON.parse(screen.getByTestId("reconcile").textContent!);
+    expect(out.removed).toEqual(["Soap"]);
+  });
+
+  it("reconcileStock drops a line whose product no longer exists", async () => {
+    const user = userEvent.setup();
+    renderCart();
+
+    await user.click(screen.getByText("addP1"));
+    await user.click(screen.getByText("reconcileP1Gone")); // exists: false
+    expect(screen.getByTestId("lines")).toHaveTextContent("");
+    const out = JSON.parse(screen.getByTestId("reconcile").textContent!);
+    expect(out.removed).toEqual(["Soap"]);
   });
 
   it("setQuantity updates a line and removes it when set below 1", async () => {

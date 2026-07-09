@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NumberField } from "@/components/ui/number-field";
 import {
   saveStoreSettings,
   type EditorSetting,
@@ -64,7 +65,7 @@ export function FeatureToggles({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [values, setValues] = useState<Record<string, boolean>>(() =>
+  const [values, setValues] = useState<Record<string, boolean | number>>(() =>
     Object.fromEntries(initialSettings.map((s) => [s.key, s.value])),
   );
 
@@ -118,14 +119,27 @@ export function FeatureToggles({
                     {s.description}
                   </p>
                 </div>
-                <Toggle
-                  on={values[s.key]}
-                  disabled={disabled}
-                  label={s.label}
-                  onChange={(next) =>
-                    setValues((v) => ({ ...v, [s.key]: next }))
-                  }
-                />
+                {s.type === "number" ? (
+                  <div className="w-24 shrink-0">
+                    <NumberField
+                      value={values[s.key] as number}
+                      onValueChange={(next) =>
+                        setValues((v) => ({ ...v, [s.key]: next }))
+                      }
+                      disabled={disabled}
+                      aria-label={s.label}
+                    />
+                  </div>
+                ) : (
+                  <Toggle
+                    on={values[s.key] as boolean}
+                    disabled={disabled}
+                    label={s.label}
+                    onChange={(next) =>
+                      setValues((v) => ({ ...v, [s.key]: next }))
+                    }
+                  />
+                )}
               </li>
             );
           })}

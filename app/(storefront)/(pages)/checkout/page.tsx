@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
-import { placeOrder, CheckoutFormData } from "@/app/actions/checkout-actions";
+import {
+  placeOrder,
+  getCartStock,
+  CheckoutFormData,
+} from "@/app/actions/checkout-actions";
 import {
   getMyAddresses,
   saveAddress as saveAddressAction,
@@ -111,6 +115,44 @@ export default function CheckoutPage() {
     }
   }, [cart.hydrated, cart.items.length, router]);
 
+  // Revalidate the cart against LIVE stock as soon as checkout opens. A cart
+  // persisted in localStorage can be stale (merchant lowered stock, deleted a
+  // product, another shopper bought the last unit). reconcileStock clamps/drops
+  // lines up front and we tell the shopper — so they aren't rejected only after
+  // filling in an address. placeOrder still re-reserves atomically as the hard
+  // guarantee. Runs once per mount (guarded), only after hydration.
+  const stockChecked = useRef(false);
+  useEffect(() => {
+    if (stockChecked.current) return;
+    if (!cart.hydrated || cart.items.length === 0) return;
+    stockChecked.current = true;
+    const lines = cart.items.map((i) => ({
+      productId: i.productId,
+      variantId: i.variantId,
+    }));
+    getCartStock(lines)
+      .then((info) => {
+        const { removed, reduced } = cart.reconcileStock(info);
+        if (removed.length > 0) {
+          toast.error(
+            removed.length === 1
+              ? `${removed[0]} is no longer available and was removed from your cart.`
+              : `${removed.length} items are no longer available and were removed from your cart.`,
+          );
+        }
+        if (reduced.length > 0) {
+          toast.info(
+            reduced.length === 1
+              ? `Only ${reduced[0].to} of ${reduced[0].name} left — quantity updated.`
+              : "Some items had limited stock; quantities were updated.",
+          );
+        }
+      })
+      .catch(() => {
+        // Non-fatal — placeOrder revalidates stock atomically regardless.
+      });
+  }, [cart]);
+
   if (authLoading || !cart.hydrated) {
     return (
       <main className="min-h-[50vh] flex items-center justify-center">
@@ -201,7 +243,9 @@ export default function CheckoutPage() {
 
     toast.success("Order placed successfully!");
     orderPlaced.current = true;
-    router.push(`/checkout/success?orderId=${result.orderId}`);
+    router.push(
+      `/checkout/success?orderId=${result.orderId}&ref=${encodeURIComponent(result.orderRef)}`,
+    );
     cart.clear(); // Clear the cart state after navigating away.
   };
 

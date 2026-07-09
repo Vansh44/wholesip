@@ -43,6 +43,11 @@
   overflow: hidden;
 }
 
+/* The market header reserves space on the root itself; remove double padding */
+.sm-header-market.storefront-root .blog-hero {
+  padding-top: 42px; /* 132px - 90px reserved by the header */
+}
+
 .blog-hero::before {
   content: "";
   position: absolute;

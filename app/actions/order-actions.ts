@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getActingStoreId, getManagerUserId } from "@/app/dashboard/lib/access";
 import { DASHBOARD_PAGE_SIZE } from "@/app/dashboard/lib/list-params";
 
@@ -24,7 +25,7 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 // order_items join — the table only needs these, and pulling every line item
 // for every order made the query grow without bound.
 const ORDER_LIST_COLUMNS =
-  "id, created_at, total, currency, payment_method, payment_status, status, shipping_address";
+  "id, order_no, order_ref, created_at, total, currency, payment_method, payment_status, status, shipping_address";
 
 export interface OrdersResult {
   orders: Record<string, unknown>[];
@@ -94,6 +95,49 @@ export async function updateOrderStatus(
   const updateData: Record<string, string> = { status };
   if (paymentStatus) {
     updateData.payment_status = paymentStatus;
+  }
+
+  // If cancelling, restock the order's stock EXACTLY ONCE. We atomically
+  // "claim" the release by flipping stock_status 'reserved' → 'released' in a
+  // single conditional UPDATE, then release only if this call won the claim:
+  //   - Legacy / never-reserved orders are stuck at 'none' → claim matches
+  //     nothing → no phantom restock (finding #2).
+  //   - An already-cancelled order (or one reinstated after a cancel) is
+  //     'released' → claim matches nothing → no double restock (finding #3).
+  //   - Two concurrent cancels → only one UPDATE flips the row → one release.
+  // The release itself never blocks the status change (fails open); the ledger
+  // is best-effort, the status update is the source of truth.
+  if (status === "cancelled") {
+    const { data: claimed, error: claimError } = await supabase
+      .from("orders")
+      .update({ stock_status: "released" })
+      .eq("id", orderId)
+      .eq("store_id", storeId)
+      .eq("stock_status", "reserved")
+      .select("id");
+
+    if (claimError) {
+      console.error("stock release claim:", claimError.message);
+    } else if (claimed && claimed.length > 0) {
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("product_id, variant_id, quantity")
+        .eq("order_id", orderId);
+
+      if (items && items.length > 0) {
+        const admin = createAdminClient();
+        for (const item of items) {
+          await admin.rpc("release_stock", {
+            p_store: storeId,
+            p_product: item.product_id,
+            p_variant: item.variant_id,
+            p_qty: item.quantity,
+            p_order: orderId,
+            p_reason: "order_cancelled",
+          });
+        }
+      }
+    }
   }
 
   const { error } = await supabase

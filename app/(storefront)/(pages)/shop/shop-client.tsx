@@ -17,11 +17,19 @@ export interface ShopProduct {
   sort_order: number;
   card_color: string | null;
   category?: string | null;
+  track_inventory: boolean;
+  stock: number;
+  low_stock_threshold: number | null;
+  allow_backorder: boolean;
   variants: {
     base_price: number;
     selling_price: number;
     special_price?: number | null;
     sort_order?: number;
+    track_inventory: boolean;
+    stock: number;
+    low_stock_threshold: number | null;
+    allow_backorder: boolean;
   }[];
 }
 
@@ -43,6 +51,9 @@ type Props = {
   initialQuery?: string;
   // Grocery theme: swap the WholeSip-branded hero/ticker for a clean header.
   grocery?: boolean;
+  // Store-wide default low-stock threshold (inventory.lowStockThreshold),
+  // resolved by the page; drives each card's "Only X left" badge.
+  storeLowStockThreshold?: number;
 };
 
 // Repeating phrases for the scrolling promo ticker.
@@ -76,6 +87,7 @@ export default function ShopClient({
   initialCategorySlug,
   initialQuery,
   grocery = false,
+  storeLowStockThreshold = 0,
 }: Props) {
   // Map the deep-link slug to its category id; fall back to "all" when absent
   // or unknown.
@@ -229,7 +241,11 @@ export default function ShopClient({
                   </p>
                   <div className="shop-grid">
                     {filtered.map((p) => (
-                      <ShopCard key={p.id} product={p} />
+                      <ShopCard
+                        key={p.id}
+                        product={p}
+                        storeLowStockThreshold={storeLowStockThreshold}
+                      />
                     ))}
                   </div>
                 </>

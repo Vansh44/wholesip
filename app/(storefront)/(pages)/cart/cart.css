@@ -189,8 +189,19 @@
   transition: background 0.15s ease;
 }
 
-.cart-stepper-btn:hover {
+.cart-stepper-btn:hover:not(:disabled) {
   background: var(--cart-accent-soft);
+}
+
+.cart-stepper-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cart-item-max {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--wholesip-error, #c2410c);
 }
 
 .cart-stepper-value {
@@ -545,8 +556,19 @@
   color: var(--wholesip-ink);
   cursor: pointer;
 }
-.gcart-stepper button:hover {
+.gcart-stepper button:hover:not(:disabled) {
   background: var(--wholesip-cream-deep);
+}
+.gcart-stepper button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.gcart-item-max {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--wholesip-error, #c2410c);
 }
 .gcart-stepper span {
   min-width: 34px;
@@ -681,5 +703,18 @@
     grid-column: 2 / 4;
     text-align: left;
     margin-top: 4px;
+  }
+}
+
+/* The market header reserves space on the root itself; remove double padding */
+.sm-header-market.storefront-root .cart-main,
+.sm-header-market.storefront-root .gcart-main {
+  padding-top: 32px;
+}
+
+@media (min-width: 768px) {
+  .sm-header-market.storefront-root .cart-main,
+  .sm-header-market.storefront-root .gcart-main {
+    padding-top: 48px;
   }
 }

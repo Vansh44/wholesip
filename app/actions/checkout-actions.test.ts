@@ -13,7 +13,11 @@ vi.mock("@/lib/store/resolve", () => ({
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn() }));
 vi.mock("./coupon-actions", () => ({ validateCoupon: vi.fn() }));
 
-import { placeOrder, type CheckoutFormData } from "./checkout-actions";
+import {
+  placeOrder,
+  getCartStock,
+  type CheckoutFormData,
+} from "./checkout-actions";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/rate-limit";
@@ -56,7 +60,7 @@ function oneItem(overrides: Partial<CartItem> = {}): CartItem {
 // chain; products/order_items resolve when awaited, orders/coupons via single/
 // maybeSingle.
 function makeAdmin(overrides: Record<string, any> = {}) {
-  return makeSupabase({
+  const s = makeSupabase({
     products: makeChain(undefined, {
       data: [{ id: "p1", name: "Prod", selling_price: 100, store_id: STORE }],
       error: null,
@@ -75,6 +79,9 @@ function makeAdmin(overrides: Record<string, any> = {}) {
     ),
     ...overrides,
   });
+  // Default rpc mock so both reserve_stock and increment_coupon_usage pass.
+  s.rpc = vi.fn().mockResolvedValue({ data: true, error: null });
+  return s;
 }
 
 describe("placeOrder", () => {
@@ -150,6 +157,8 @@ describe("placeOrder", () => {
     expect(inserted.total).toBe(200);
     expect(inserted.store_id).toBe(STORE);
     expect(inserted.customer_id).toBe("user-1");
+    // Marked so cancellation restocks it exactly once (order-actions claim).
+    expect(inserted.stock_status).toBe("reserved");
   });
 
   it("applies a validated coupon, rounds the discount, and increments usage", async () => {
@@ -161,8 +170,6 @@ describe("placeOrder", () => {
         minOrderAmount: 0,
       },
     } as any);
-
-    admin.rpc.mockResolvedValue({ data: true, error: null });
 
     const result = await placeOrder(validForm, [oneItem()], "SAVE10");
     expect("success" in result && result.success).toBe(true);
@@ -190,7 +197,12 @@ describe("placeOrder", () => {
       },
     } as any);
     // The atomic reserve returns false → the last use was taken by another order.
-    admin.rpc.mockResolvedValue({ data: false, error: null });
+    // Must only mock for the coupon RPC, so stock reservation still succeeds.
+    admin.rpc.mockImplementation((name: string) => {
+      if (name === "increment_coupon_usage")
+        return Promise.resolve({ data: false, error: null });
+      return Promise.resolve({ data: true, error: null });
+    });
 
     const result = await placeOrder(validForm, [oneItem()], "SAVE10");
     expect("error" in result && result.error).toMatch(/usage limit/i);
@@ -209,7 +221,6 @@ describe("placeOrder", () => {
     admin = makeAdmin({
       order_items: makeChain(undefined, { error: { message: "boom" } }),
     });
-    admin.rpc.mockResolvedValue({ data: true, error: null });
     vi.mocked(createAdminClient).mockReturnValue(admin);
 
     const result = await placeOrder(validForm, [oneItem()], "SAVE10");
@@ -242,5 +253,201 @@ describe("placeOrder", () => {
     // Orphan order deleted.
     expect(admin._tables.orders.delete).toHaveBeenCalled();
     expect(admin._tables.orders.eq).toHaveBeenCalledWith("id", "order-1");
+  });
+
+  it("fails checkout if stock cannot be reserved, reports the exact shortfall, and rolls back prior reservations", async () => {
+    // We simulate 2 items. The first item reserves successfully, the second
+    // fails. The post-failure re-read (maybeSingle) reports 1 unit left, so the
+    // shopper is told the precise remaining quantity.
+    admin = makeAdmin({
+      products: makeChain(
+        { data: { stock: 1 }, error: null }, // availableStock() re-read
+        {
+          data: [
+            { id: "p1", name: "Prod", selling_price: 100, store_id: STORE },
+            {
+              id: "p2",
+              name: "Product 2",
+              selling_price: 150,
+              store_id: STORE,
+            },
+          ],
+          error: null,
+        },
+      ),
+    });
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+
+    admin.rpc.mockImplementation((name: string, args: any) => {
+      if (name === "reserve_stock") {
+        if (args.p_product === "p2") {
+          return Promise.resolve({ data: false, error: null });
+        }
+        return Promise.resolve({ data: true, error: null });
+      }
+      return Promise.resolve({ data: true, error: null });
+    });
+
+    const result = await placeOrder(validForm, [
+      oneItem({ productId: "p1" }),
+      oneItem({ productId: "p2", name: "Product 2" }),
+    ]);
+
+    expect("error" in result && result.error).toMatch(
+      /not enough stock for Product 2/i,
+    );
+    // Names the exact remaining count from the live re-read.
+    expect("error" in result && result.error).toMatch(/only 1 left/i);
+    // Should have called release_stock for the first item that succeeded.
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "release_stock",
+      expect.objectContaining({
+        p_product: "p1",
+        p_reason: "checkout_failed",
+      }),
+    );
+  });
+
+  it("reports 'just sold out' when the live re-read shows zero left", async () => {
+    admin = makeAdmin({
+      products: makeChain(
+        { data: { stock: 0 }, error: null }, // availableStock() → 0 left
+        {
+          data: [
+            { id: "p1", name: "Prod", selling_price: 100, store_id: STORE },
+          ],
+          error: null,
+        },
+      ),
+    });
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+    admin.rpc.mockImplementation((name: string) =>
+      name === "reserve_stock"
+        ? Promise.resolve({ data: false, error: null })
+        : Promise.resolve({ data: true, error: null }),
+    );
+
+    const result = await placeOrder(validForm, [oneItem({ productId: "p1" })]);
+    expect("error" in result && result.error).toMatch(/just sold out/i);
+    expect(admin._tables.orders.delete).toHaveBeenCalled();
+  });
+
+  // Regression guard for the stock_movements.order_id foreign key. reserve_stock
+  // writes a ledger row referencing the order, so the order row MUST be inserted
+  // BEFORE any stock is reserved. We simulate the FK by failing reserve_stock
+  // until the order has been inserted: the previous "reserve before insert"
+  // ordering trips it and aborts every tracked-SKU checkout. A fully-mocked rpc
+  // (as the other tests use) can't catch this, so we model the constraint here.
+  it("creates the order before reserving stock (stock_movements FK ordering)", async () => {
+    let orderInserted = false;
+    const ordersChain = admin._tables.orders;
+    ordersChain.insert = vi.fn(() => {
+      orderInserted = true;
+      return ordersChain;
+    });
+
+    admin.rpc.mockImplementation((name: string) => {
+      // Mirror Postgres rejecting a stock_movements row whose order_id has no
+      // matching orders row yet.
+      if (name === "reserve_stock" && !orderInserted) {
+        return Promise.resolve({
+          data: null,
+          error: {
+            message:
+              'insert or update on table "stock_movements" violates foreign key constraint "stock_movements_order_id_fkey"',
+          },
+        });
+      }
+      return Promise.resolve({ data: true, error: null });
+    });
+
+    const result = await placeOrder(validForm, [oneItem()]);
+
+    expect("success" in result && result.success).toBe(true);
+    expect(orderInserted).toBe(true);
+    // reserve_stock succeeded only because the order row already existed.
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "reserve_stock",
+      expect.objectContaining({ p_product: "p1", p_qty: 2 }),
+    );
+  });
+});
+
+// getCartStock re-reads live stock for the cart, store-scoped, so the checkout
+// page can reconcile a stale localStorage cart before the shopper commits.
+describe("getCartStock", () => {
+  function makeStockAdmin(overrides: Record<string, any> = {}) {
+    return makeSupabase({
+      products: makeChain(undefined, {
+        data: [
+          { id: "p1", track_inventory: true, stock: 3, allow_backorder: false },
+        ],
+        error: null,
+      }),
+      product_variants: makeChain(undefined, {
+        data: [
+          { id: "v1", track_inventory: true, stock: 2, allow_backorder: false },
+        ],
+        error: null,
+      }),
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns [] for an empty cart without touching the DB", async () => {
+    const admin = makeStockAdmin();
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+    expect(await getCartStock([])).toEqual([]);
+    expect(admin.from).not.toHaveBeenCalled();
+  });
+
+  it("returns a fresh, store-scoped snapshot for a product line", async () => {
+    const admin = makeStockAdmin();
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+
+    const info = await getCartStock([{ productId: "p1", variantId: null }]);
+    expect(info).toEqual([
+      {
+        productId: "p1",
+        variantId: null,
+        exists: true,
+        trackInventory: true,
+        stock: 3,
+        allowBackorder: false,
+      },
+    ]);
+    expect(admin._tables.products.eq).toHaveBeenCalledWith("store_id", STORE);
+  });
+
+  it("marks a vanished product as exists:false", async () => {
+    const admin = makeStockAdmin();
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+
+    const info = await getCartStock([{ productId: "gone", variantId: null }]);
+    expect(info[0].exists).toBe(false);
+  });
+
+  it("resolves a variant line from the variant row (not the product)", async () => {
+    const admin = makeStockAdmin();
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+
+    const info = await getCartStock([{ productId: "p1", variantId: "v1" }]);
+    expect(info[0]).toMatchObject({
+      variantId: "v1",
+      exists: true,
+      stock: 2, // the variant's stock, not the product's 3
+    });
+  });
+
+  it("marks a variant line exists:false when the variant is gone", async () => {
+    const admin = makeStockAdmin();
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+
+    const info = await getCartStock([{ productId: "p1", variantId: "vGone" }]);
+    expect(info[0].exists).toBe(false);
   });
 });

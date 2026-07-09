@@ -13,6 +13,8 @@ interface ShippingAddress {
 
 interface OrderRow {
   id: string;
+  order_no: number;
+  order_ref: string;
   created_at: string;
   total: number;
   payment_method: string;
@@ -80,7 +82,12 @@ export default async function OrdersPage({
 
               return (
                 <tr key={order.id} className="hover:bg-gray-50/50">
-                  <td className="px-6 py-4 font-mono text-xs">{order.id}</td>
+                  <td
+                    className="px-6 py-4 font-mono text-sm font-semibold text-gray-900"
+                    title={order.id}
+                  >
+                    {order.order_ref}
+                  </td>
                   <td className="px-6 py-4">
                     <div className="font-medium text-gray-900">
                       {customerName || "Unknown"}

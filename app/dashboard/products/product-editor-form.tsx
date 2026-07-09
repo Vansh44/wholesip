@@ -13,6 +13,13 @@ import {
   Sparkles,
   Image as ImageIcon,
   Loader2,
+  Package,
+  Tag,
+  Boxes,
+  Layers,
+  Eye,
+  Search,
+  type LucideIcon,
 } from "lucide-react";
 import { uploadImage } from "@/lib/supabase/storage";
 import { Button } from "@/components/ui/button";
@@ -35,6 +42,10 @@ type Props = {
   colors: CardColorOption[];
   onClose: () => void;
   onSaved: () => void;
+  // Store default for NEW simple products (inventory.simpleTrackDefault). Only
+  // seeds the initial checkbox when creating; ignored when editing an existing
+  // product (its own value wins).
+  defaultTrackInventory?: boolean;
 };
 
 const EMPTY: ProductFormData = {
@@ -53,6 +64,10 @@ const EMPTY: ProductFormData = {
   seo_title: "",
   seo_description: "",
   variants: [],
+  track_inventory: false,
+  allow_backorder: false,
+  low_stock_threshold: null,
+  sku: "",
 };
 
 function toForm(product: Product): ProductFormData {
@@ -71,7 +86,12 @@ function toForm(product: Product): ProductFormData {
     card_color: product.card_color ?? "",
     seo_title: product.seo_title ?? "",
     seo_description: product.seo_description ?? "",
+    track_inventory: product.track_inventory,
+    allow_backorder: product.allow_backorder,
+    low_stock_threshold: product.low_stock_threshold,
+    sku: product.sku ?? "",
     variants: (product.variants ?? []).map((v) => ({
+      id: v.id, // preserve DB id for reconcile (stable variant ids)
       name: v.name,
       base_price: v.base_price,
       selling_price: v.selling_price,
@@ -84,9 +104,95 @@ function toForm(product: Product): ProductFormData {
 }
 
 const fieldClass =
-  "w-full rounded-md border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#1f2937] outline-none placeholder:text-[#9ca3af] focus:border-[#4f46e5]";
-const labelClass =
-  "mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#6b7280]";
+  "w-full rounded-lg border border-[#d1d5db] bg-white px-3 py-2 text-sm text-[#1f2937] outline-none transition placeholder:text-[#9ca3af] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/15";
+const labelClass = "mb-1.5 block text-[13px] font-medium text-[#374151]";
+const hintClass = "mt-1 text-[11px] leading-relaxed text-[#9ca3af]";
+const aiButtonClass =
+  "flex shrink-0 items-center gap-1 rounded-md border border-indigo-200 bg-gradient-to-r from-indigo-50 to-violet-50 px-2.5 py-1 text-xs font-medium text-[#4f46e5] hover:from-indigo-100 hover:to-violet-100 disabled:cursor-not-allowed disabled:opacity-50";
+
+// Per-section colour themes — a tinted card + a matching icon badge give each
+// group its own identity so the editor reads as a colourful, scannable page
+// rather than a wall of white. Kept subtle (light washes) so field text and the
+// white inputs stay crisp on top.
+type Tint =
+  | "indigo"
+  | "violet"
+  | "emerald"
+  | "amber"
+  | "sky"
+  | "slate"
+  | "teal";
+const TINTS: Record<Tint, { card: string; badge: string }> = {
+  indigo: {
+    card: "border-indigo-100 bg-indigo-50/40",
+    badge: "bg-indigo-100 text-indigo-600",
+  },
+  violet: {
+    card: "border-violet-100 bg-violet-50/40",
+    badge: "bg-violet-100 text-violet-600",
+  },
+  emerald: {
+    card: "border-emerald-100 bg-emerald-50/40",
+    badge: "bg-emerald-100 text-emerald-600",
+  },
+  amber: {
+    card: "border-amber-100 bg-amber-50/40",
+    badge: "bg-amber-100 text-amber-600",
+  },
+  sky: {
+    card: "border-sky-100 bg-sky-50/40",
+    badge: "bg-sky-100 text-sky-600",
+  },
+  slate: {
+    card: "border-slate-200 bg-slate-50",
+    badge: "bg-slate-200 text-slate-600",
+  },
+  teal: {
+    card: "border-teal-100 bg-teal-50/40",
+    badge: "bg-teal-100 text-teal-600",
+  },
+};
+
+// A titled, described, colour-tinted panel — the building block of the editor.
+function Section({
+  title,
+  description,
+  icon: Icon,
+  tint,
+  aside,
+  children,
+}: {
+  title: string;
+  description?: string;
+  icon: LucideIcon;
+  tint: Tint;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const t = TINTS[tint];
+  return (
+    <section className={`rounded-xl border ${t.card} p-4 shadow-sm sm:p-5`}>
+      <div className="mb-4 flex items-start gap-3">
+        <span
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${t.badge}`}
+          aria-hidden
+        >
+          <Icon className="h-[18px] w-[18px]" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-[#111827]">{title}</h3>
+          {description ? (
+            <p className="mt-0.5 text-xs leading-relaxed text-[#6b7280]">
+              {description}
+            </p>
+          ) : null}
+        </div>
+        {aside ? <div className="shrink-0">{aside}</div> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 // Per-variant gallery: a strip of 44px thumbnails plus an "add" tile.
 function VariantGallery({
@@ -171,9 +277,12 @@ export function ProductEditorForm({
   colors,
   onClose,
   onSaved,
+  defaultTrackInventory = false,
 }: Props) {
   const [form, setForm] = useState<ProductFormData>(() =>
-    product ? toForm(product) : EMPTY,
+    product
+      ? toForm(product)
+      : { ...EMPTY, track_inventory: defaultTrackInventory },
   );
   const [isPending, startTransition] = useTransition();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -387,235 +496,300 @@ export function ProductEditorForm({
     });
   };
 
+  const selectedCategory = categories.find((c) => c.id === form.category_id);
+  const discountPct =
+    form.base_price > 0 &&
+    form.selling_price > 0 &&
+    form.selling_price < form.base_price
+      ? Math.round(
+          ((form.base_price - form.selling_price) / form.base_price) * 100,
+        )
+      : 0;
+
   return (
     <>
-      <div className="space-y-5 py-2">
-        {/* Basics */}
-        <div>
-          <label className={labelClass}>Name *</label>
-          <input
-            className={fieldClass}
-            value={form.name}
-            onChange={(e) => handleNameChange(e.target.value)}
-            placeholder="e.g. Almond Milk 500ml"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Slug</label>
-            <input
-              className={fieldClass}
-              value={form.slug}
-              onChange={(e) => handleSlugChange(e.target.value)}
-              placeholder="auto from name"
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Category *</label>
-            <select
-              className={fieldClass}
-              value={form.category_id ?? ""}
-              onChange={(e) => set("category_id", e.target.value || null)}
-            >
-              <option value="">Select a category…</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.status === "hidden" ? " (hidden)" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <label className={`${labelClass} mb-0`}>Description *</label>
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={isGenerating || isPending}
-              title="Generate from your brand guide with AI"
-              className="flex items-center gap-1 rounded-md border border-[#c7d2fe] px-2 py-1 text-xs text-[#4f46e5] hover:bg-[#eef2ff] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              {isGenerating ? "Generating…" : "Generate with AI"}
-            </button>
-          </div>
-          <textarea
-            ref={setDescriptionRef}
-            className={`${fieldClass} min-h-[88px] resize-none overflow-hidden`}
-            value={form.description}
-            onChange={(e) => {
-              set("description", e.target.value);
-              autosize(e.target);
-            }}
-            placeholder="Describe the product… or type rough notes and click Generate with AI"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Base price ₹ (MRP)</label>
-            <NumberField
-              className={fieldClass}
-              value={form.base_price}
-              onValueChange={(n) => set("base_price", n)}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Selling price ₹</label>
-            <NumberField
-              className={fieldClass}
-              value={form.selling_price}
-              onValueChange={(n) => set("selling_price", n)}
-            />
-            <p className="mt-1 text-[11px] text-[#9ca3af]">
-              Leave 0 to sell at base price. Must be ≤ base price.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Sort order</label>
-            <NumberField
-              className={fieldClass}
-              value={form.sort_order}
-              onValueChange={(n) => set("sort_order", n)}
-              allowDecimal={false}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Status</label>
-            <select
-              className={fieldClass}
-              value={form.status}
-              onChange={(e) =>
-                set("status", e.target.value as "draft" | "published")
-              }
-            >
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-            </select>
-          </div>
-        </div>
-
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-[#1f2937]">
-          <input
-            type="checkbox"
-            checked={form.featured}
-            onChange={(e) => set("featured", e.target.checked)}
-            className="h-4 w-4 accent-[#4f46e5]"
-          />
-          Feature this product
-        </label>
-
-        {/* Storefront card colour — pick a shade from the Colours palette */}
-        <div>
-          <label className={labelClass}>Card colour (storefront)</label>
-          <div className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="h-9 w-9 shrink-0 rounded-md border border-[#e5e7eb]"
-              style={{ background: form.card_color || "transparent" }}
-            />
-            <select
-              className={`${fieldClass} flex-1`}
-              value={form.card_color}
-              onChange={(e) => set("card_color", e.target.value)}
-            >
-              <option value="">Default (no colour)</option>
-              {colors.map((c) => (
-                <option key={c.id} value={c.hex}>
-                  {c.name} — {c.hex}
-                </option>
-              ))}
-              {/* Preserve a custom/legacy hex not in the palette */}
-              {form.card_color &&
-                !colors.some((c) => c.hex === form.card_color) && (
-                  <option value={form.card_color}>
-                    Custom — {form.card_color}
-                  </option>
-                )}
-            </select>
-          </div>
-          <p className="mt-1.5 text-xs text-[#9ca3af]">
-            Shades come from{" "}
-            <Link href="/dashboard/colors" className="underline">
-              Colours
-            </Link>
-            . Name &amp; price stay near-black for contrast; blank uses the
-            storefront default.
-          </p>
-        </div>
-
-        {/* Primary image */}
-        <div>
-          <label className={labelClass}>Primary image</label>
-          <ImageUpload
-            folder="product-images"
-            defaultImage={form.image_url || undefined}
-            onUploadSuccess={(url) => set("image_url", url)}
-          />
-        </div>
-
-        {/* Gallery */}
-        <div>
-          <label className={labelClass}>Gallery (extra images)</label>
-          {form.images.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-2">
-              {form.images.map((url) => (
-                <div
-                  key={url}
-                  className="relative h-16 w-16 overflow-hidden rounded-md border border-[#e5e7eb]"
-                >
-                  <Image
-                    src={url}
-                    alt="Gallery image"
-                    fill
-                    className="object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeGalleryImage(url)}
-                    className="absolute right-0.5 top-0.5 rounded bg-black/70 p-0.5 text-white hover:bg-red-500"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
+      <div className="space-y-4 py-2">
+        {/* Product details */}
+        <Section
+          title="Product details"
+          description="The name, description, and storefront link your customers see."
+          icon={Package}
+          tint="indigo"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className={labelClass}>Name *</label>
+              <input
+                className={fieldClass}
+                value={form.name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="e.g. Almond Milk 500ml"
+              />
             </div>
-          )}
-          <ImageUpload
-            folder="product-images"
-            onUploadSuccess={addGalleryImage}
-          />
-        </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass}>URL handle (slug)</label>
+                <input
+                  className={fieldClass}
+                  value={form.slug}
+                  onChange={(e) => handleSlugChange(e.target.value)}
+                  placeholder="auto from name"
+                />
+                <p className={hintClass}>
+                  Lives at{" "}
+                  <span className="font-mono">/shop/{form.slug || "…"}</span>
+                </p>
+              </div>
+              <div>
+                <label className={labelClass}>Category *</label>
+                <select
+                  className={fieldClass}
+                  value={form.category_id ?? ""}
+                  onChange={(e) => set("category_id", e.target.value || null)}
+                >
+                  <option value="">Select a category…</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                      {c.status === "hidden" ? " (hidden)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <label className={`${labelClass} mb-0`}>Description *</label>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={isGenerating || isPending}
+                  title="Generate from your brand guide with AI"
+                  className={aiButtonClass}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {isGenerating ? "Generating…" : "Generate with AI"}
+                </button>
+              </div>
+              <textarea
+                ref={setDescriptionRef}
+                className={`${fieldClass} min-h-[96px] resize-none overflow-hidden`}
+                value={form.description}
+                onChange={(e) => {
+                  set("description", e.target.value);
+                  autosize(e.target);
+                }}
+                placeholder="Describe the product… or type rough notes and click Generate with AI"
+              />
+              <p className={hintClass}>
+                Written in your brand voice. Shown on the product page.
+              </p>
+            </div>
+          </div>
+        </Section>
+
+        {/* Media */}
+        <Section
+          title="Media"
+          description="Add photos so customers can see what they are buying. The primary image is the storefront thumbnail."
+          icon={ImageIcon}
+          tint="violet"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className={labelClass}>Primary image</label>
+              <ImageUpload
+                folder="product-images"
+                defaultImage={form.image_url || undefined}
+                onUploadSuccess={(url) => set("image_url", url)}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>Gallery (extra images)</label>
+              {form.images.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {form.images.map((url) => (
+                    <div
+                      key={url}
+                      className="relative h-16 w-16 overflow-hidden rounded-md border border-[#e5e7eb]"
+                    >
+                      <Image
+                        src={url}
+                        alt="Gallery image"
+                        fill
+                        className="object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeGalleryImage(url)}
+                        className="absolute right-0.5 top-0.5 rounded bg-black/70 p-0.5 text-white hover:bg-red-500"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <ImageUpload
+                folder="product-images"
+                onUploadSuccess={addGalleryImage}
+              />
+            </div>
+          </div>
+        </Section>
+
+        {/* Pricing */}
+        <Section
+          title="Pricing"
+          description="Set the list price (MRP) and what customers actually pay."
+          icon={Tag}
+          tint="emerald"
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>Base price ₹ (MRP)</label>
+              <NumberField
+                className={fieldClass}
+                value={form.base_price}
+                onValueChange={(n) => set("base_price", n)}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Selling price ₹</label>
+              <NumberField
+                className={fieldClass}
+                value={form.selling_price}
+                onValueChange={(n) => set("selling_price", n)}
+              />
+              <p className={hintClass}>
+                Leave 0 to sell at base price. Must be ≤ base price.
+                {discountPct > 0 ? (
+                  <span className="ml-1 font-medium text-[#15a34a]">
+                    {discountPct}% off
+                  </span>
+                ) : null}
+              </p>
+            </div>
+          </div>
+        </Section>
+
+        {/* Inventory — simple product (only shown when there are no variants) */}
+        {form.variants.length === 0 && (
+          <Section
+            title="Inventory"
+            description="Track stock levels and manage the auto-generated SKU."
+            icon={Boxes}
+            tint="amber"
+          >
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className={labelClass}>SKU</label>
+                  <input
+                    className={`${fieldClass} cursor-not-allowed bg-[#f3f4f6] font-mono text-[#6b7280]`}
+                    value={form.sku || "Auto-generated on save"}
+                    readOnly
+                    title="SKUs are generated automatically and cannot be edited"
+                  />
+                  <p className={hintClass}>Auto-generated &amp; locked.</p>
+                </div>
+                <div>
+                  <label className={labelClass}>Stock</label>
+                  <div className="flex min-h-[38px] items-center gap-2 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 text-sm">
+                    {product ? (
+                      <>
+                        <span className="font-semibold text-[#111827]">
+                          {product.stock}
+                        </span>
+                        <span className="text-[#6b7280]">in stock</span>
+                        <Link
+                          href={`/dashboard/inventory?q=${encodeURIComponent(product.name)}`}
+                          className="ml-auto text-xs font-medium text-[#4f46e5] hover:underline"
+                          target="_blank"
+                        >
+                          Manage →
+                        </Link>
+                      </>
+                    ) : (
+                      <span className="italic text-[#9ca3af]">
+                        Save product first to set stock.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-[#1f2937]">
+                <input
+                  type="checkbox"
+                  checked={form.track_inventory}
+                  onChange={(e) => set("track_inventory", e.target.checked)}
+                  className="h-4 w-4 accent-[#4f46e5]"
+                />
+                Track quantity for this product
+              </label>
+
+              {form.track_inventory && (
+                <div className="ml-6 space-y-3 border-l-2 border-[#e0e7ff] pl-4">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-[#1f2937]">
+                    <input
+                      type="checkbox"
+                      checked={form.allow_backorder}
+                      onChange={(e) => set("allow_backorder", e.target.checked)}
+                      className="h-4 w-4 accent-[#4f46e5]"
+                    />
+                    Continue selling when out of stock (backorder)
+                  </label>
+                  <div>
+                    <label className={labelClass}>
+                      Low stock alert threshold
+                    </label>
+                    <NumberField
+                      className={`${fieldClass} max-w-[120px]`}
+                      value={form.low_stock_threshold ?? 0}
+                      onValueChange={(n) =>
+                        set("low_stock_threshold", n > 0 ? n : null)
+                      }
+                    />
+                    <p className={hintClass}>
+                      Warn when stock drops to this level. Leave 0 to use the
+                      store default.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Section>
+        )}
 
         {/* Variants */}
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <label className={`${labelClass} mb-0`}>Variants</label>
+        <Section
+          title="Variants"
+          description="Options like size or flavour — each with its own price, stock, and auto-generated SKU. Leave empty for a single-price product."
+          icon={Layers}
+          tint="sky"
+          aside={
             <button
               type="button"
               onClick={addVariant}
-              className="flex items-center gap-1 rounded-md border border-[#e5e7eb] px-2 py-1 text-xs text-[#374151] hover:bg-[#f3f4f6]"
+              className="flex items-center gap-1 rounded-md border border-[#d1d5db] bg-white px-2.5 py-1 text-xs font-medium text-[#374151] hover:bg-[#f3f4f6]"
             >
               <Plus className="h-3.5 w-3.5" /> Add variant
             </button>
-          </div>
-          <p className="mb-2 text-[11px] text-[#9ca3af]">
-            Optional — e.g. sizes or flavors, each with its own price and stock.
-            Leave empty for a single-price product. The top variant is selected
-            by default on the product page — use the arrows to reorder.
-          </p>
-
-          {form.variants.length > 0 && (
+          }
+        >
+          {form.variants.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-[#d1d5db] bg-[#f9fafb] px-4 py-6 text-center text-xs text-[#9ca3af]">
+              No variants yet. This is a single-price product — add variants
+              only if it comes in multiple options.
+            </p>
+          ) : (
             <div className="overflow-x-auto sm:overflow-visible">
               <div className="min-w-[500px] space-y-2 sm:min-w-0">
-                <div className="grid grid-cols-[1fr_72px_72px_60px_84px_72px] gap-2 px-1 text-[10px] uppercase tracking-wide text-[#9ca3af]">
+                <div className="grid grid-cols-[1fr_72px_72px_60px_110px_72px] gap-2 px-1 text-[10px] uppercase tracking-wide text-[#9ca3af]">
                   <span>Name</span>
                   <span>Base ₹</span>
                   <span>Sell ₹</span>
@@ -626,9 +800,9 @@ export function ProductEditorForm({
                 {form.variants.map((v, i) => (
                   <div
                     key={i}
-                    className="space-y-2 border-b border-[#f3f4f6] pb-2 last:border-b-0"
+                    className="space-y-2 rounded-lg border border-[#f3f4f6] bg-[#fafafa] p-2"
                   >
-                    <div className="grid grid-cols-[1fr_72px_72px_60px_84px_72px] items-center gap-2">
+                    <div className="grid grid-cols-[1fr_72px_72px_60px_110px_72px] items-center gap-2">
                       <input
                         className={fieldClass}
                         value={v.name}
@@ -656,12 +830,10 @@ export function ProductEditorForm({
                         allowDecimal={false}
                       />
                       <input
-                        className={fieldClass}
-                        value={v.sku}
-                        onChange={(e) =>
-                          updateVariant(i, "sku", e.target.value)
-                        }
-                        placeholder="SKU"
+                        className={`${fieldClass} cursor-not-allowed bg-[#f3f4f6] font-mono text-[11px] text-[#6b7280]`}
+                        value={v.sku || "on save"}
+                        readOnly
+                        title="Auto-generated on save"
                       />
                       <div className="flex items-center justify-end gap-0.5">
                         <button
@@ -722,77 +894,191 @@ export function ProductEditorForm({
                     </div>
                   </div>
                 ))}
+                <p className={hintClass}>
+                  The top variant is selected by default on the product page —
+                  use the arrows to reorder.
+                </p>
               </div>
             </div>
           )}
-        </div>
+        </Section>
 
-        {/* SEO — required */}
-        <details open className="rounded-md border border-[#e5e7eb] p-3">
-          <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-[#6b7280]">
-            SEO *
-          </summary>
-          <div className="mt-3 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[11px] text-[#9ca3af]">
-                {form.description.trim()
-                  ? "Generated from the product description above."
-                  : "Fill in the description first to generate SEO."}
-              </p>
-              <button
-                type="button"
-                onClick={handleGenerateSeo}
-                disabled={
-                  isGeneratingSeo || isPending || !form.description.trim()
-                }
-                title={
-                  form.description.trim()
-                    ? "Generate SEO title & description from your brand guide with AI"
-                    : "Add a product description first"
-                }
-                className="flex shrink-0 items-center gap-1 rounded-md border border-[#c7d2fe] px-2 py-1 text-xs text-[#4f46e5] hover:bg-[#eef2ff] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                {isGeneratingSeo ? "Generating…" : "Generate with AI"}
-              </button>
+        {/* Organization & visibility */}
+        <Section
+          title="Organization & visibility"
+          description="Publishing state, storefront placement, and card styling."
+          icon={Eye}
+          tint="slate"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass}>Status</label>
+                <select
+                  className={fieldClass}
+                  value={form.status}
+                  onChange={(e) =>
+                    set("status", e.target.value as "draft" | "published")
+                  }
+                >
+                  <option value="draft">Draft — hidden from storefront</option>
+                  <option value="published">Published — live</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Sort order</label>
+                <NumberField
+                  className={fieldClass}
+                  value={form.sort_order}
+                  onValueChange={(n) => set("sort_order", n)}
+                  allowDecimal={false}
+                />
+                <p className={hintClass}>Lower numbers appear first.</p>
+              </div>
             </div>
+
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-[#1f2937]">
+              <input
+                type="checkbox"
+                checked={form.featured}
+                onChange={(e) => set("featured", e.target.checked)}
+                className="h-4 w-4 accent-[#4f46e5]"
+              />
+              Feature this product on the homepage
+            </label>
+
+            <div>
+              <label className={labelClass}>Card colour (storefront)</label>
+              <div className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className="h-9 w-9 shrink-0 rounded-md border border-[#e5e7eb]"
+                  style={{ background: form.card_color || "transparent" }}
+                />
+                <select
+                  className={`${fieldClass} flex-1`}
+                  value={form.card_color}
+                  onChange={(e) => set("card_color", e.target.value)}
+                >
+                  <option value="">Default (no colour)</option>
+                  {colors.map((c) => (
+                    <option key={c.id} value={c.hex}>
+                      {c.name} — {c.hex}
+                    </option>
+                  ))}
+                  {/* Preserve a custom/legacy hex not in the palette */}
+                  {form.card_color &&
+                    !colors.some((c) => c.hex === form.card_color) && (
+                      <option value={form.card_color}>
+                        Custom — {form.card_color}
+                      </option>
+                    )}
+                </select>
+              </div>
+              <p className={hintClass}>
+                Shades come from{" "}
+                <Link href="/dashboard/colors" className="underline">
+                  Colours
+                </Link>
+                . Name &amp; price stay near-black for contrast; blank uses the
+                storefront default.
+              </p>
+            </div>
+          </div>
+        </Section>
+
+        {/* Search engine listing (SEO) */}
+        <Section
+          title="Search engine listing"
+          description="Control how this product appears in Google and when shared."
+          icon={Search}
+          tint="teal"
+          aside={
+            <button
+              type="button"
+              onClick={handleGenerateSeo}
+              disabled={
+                isGeneratingSeo || isPending || !form.description.trim()
+              }
+              title={
+                form.description.trim()
+                  ? "Generate SEO title & description from your brand guide with AI"
+                  : "Add a product description first"
+              }
+              className={aiButtonClass}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {isGeneratingSeo ? "Generating…" : "Generate with AI"}
+            </button>
+          }
+        >
+          <div className="space-y-4">
+            {/* Live Google-style preview */}
+            <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-3.5">
+              <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-[#9ca3af]">
+                Search preview
+              </p>
+              <div className="truncate text-[15px] leading-snug text-[#1a0dab]">
+                {form.seo_title || form.name || "Product title"}
+              </div>
+              <div className="mt-0.5 truncate text-xs text-[#006621]">
+                yourstore.com › shop › {form.slug || "product"}
+              </div>
+              <div className="mt-1 line-clamp-2 text-[13px] leading-snug text-[#4d5156]">
+                {form.seo_description ||
+                  "Your meta description appears here — a compelling summary encourages clicks from search results."}
+              </div>
+            </div>
+
             <div>
               <label className={labelClass}>SEO title *</label>
               <input
                 className={fieldClass}
                 value={form.seo_title}
                 onChange={(e) => set("seo_title", e.target.value)}
+                placeholder={form.name || "Product title | Store"}
               />
-              <p className="mt-1 text-[11px] text-[#9ca3af]">
-                {form.seo_title.length}/60 characters
+              <p className={hintClass}>
+                {form.seo_title.length}/60 characters ·{" "}
+                {form.description.trim()
+                  ? "Tip: lead with the product name."
+                  : "Fill in the description above to generate this with AI."}
               </p>
             </div>
             <div>
               <label className={labelClass}>SEO description *</label>
               <textarea
-                className={`${fieldClass} min-h-[60px] resize-y`}
+                className={`${fieldClass} min-h-[64px] resize-y`}
                 value={form.seo_description}
                 onChange={(e) => set("seo_description", e.target.value)}
+                placeholder="One or two calm sentences describing the product."
               />
-              <p className="mt-1 text-[11px] text-[#9ca3af]">
+              <p className={hintClass}>
                 {form.seo_description.length}/160 characters
               </p>
             </div>
           </div>
-        </details>
+        </Section>
       </div>
 
-      <div className="mt-1 flex justify-end gap-2 border-t border-[#e5e7eb] pt-4">
-        <Button variant="outline" onClick={onClose} disabled={isPending}>
-          Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={isPending}>
-          {isPending
-            ? "Saving…"
-            : isEditing
-              ? "Save Changes"
-              : "Create Product"}
-        </Button>
+      <div className="sticky bottom-0 -mx-1 mt-2 flex items-center justify-between gap-2 border-t border-[#e5e7eb] bg-white px-1 py-3">
+        <span className="hidden text-xs text-[#9ca3af] sm:inline">
+          {selectedCategory
+            ? `In ${selectedCategory.name}`
+            : "Pick a category to publish"}
+        </span>
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" onClick={onClose} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={isPending}>
+            {isPending
+              ? "Saving…"
+              : isEditing
+                ? "Save changes"
+                : "Create product"}
+          </Button>
+        </div>
       </div>
     </>
   );

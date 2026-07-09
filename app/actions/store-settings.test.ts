@@ -146,16 +146,36 @@ describe("store-settings actions", () => {
       expect(revalidateTag).toHaveBeenCalled();
     });
 
-    it("ignores unknown keys and non-boolean values", async () => {
+    it("ignores unknown keys and invalid typed values", async () => {
       await saveStoreSettings({
         "blogs.customerSubmissions": false,
         "made.up": true,
-        "blogs.requireApproval": "yes",
-      } as any);
+        "blogs.requireApproval": "yes" as any,
+        "inventory.lowStockThreshold": "10" as any,
+      });
 
       const updateArg = admin._tables.stores.update.mock.calls[0][0];
       expect(updateArg.settings.features).toEqual({
         "blogs.customerSubmissions": false,
+      });
+    });
+
+    it("saves numeric values and clamps to min/max", async () => {
+      vi.mocked(getViewerContext).mockResolvedValue({
+        profile: { email: "a@b.c", role: "superadmin" },
+        isSuperadmin: true,
+        permissions: {},
+        storeId: "store-1",
+      } as any);
+
+      const r = await saveStoreSettings({
+        "inventory.lowStockThreshold": 1500, // max is 1000
+      });
+      expect(r.success).toBe(true);
+
+      const updateArg = admin._tables.stores.update.mock.calls[0][0];
+      expect(updateArg.settings.features).toMatchObject({
+        "inventory.lowStockThreshold": 1000,
       });
     });
 

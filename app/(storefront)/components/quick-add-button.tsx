@@ -1,8 +1,9 @@
 "use client";
 
 import { toast } from "sonner";
-import { useCart } from "./cart/CartProvider";
+import { useCart, lineKey } from "./cart/CartProvider";
 import { effectivePricing } from "@/lib/pricing";
+import { cartLineMax, productIsSoldOut } from "@/lib/inventory/status";
 import type { ShopCardProduct } from "./shop-card";
 
 // The "+ Add" button on product cards (theme layout.card = "quick_add").
@@ -13,13 +14,34 @@ import type { ShopCardProduct } from "./shop-card";
 // need a size choice, so the click falls through to the card link (no
 // preventDefault) and opens the product page.
 export function QuickAddButton({ product }: { product: ShopCardProduct }) {
-  const { addItem } = useCart();
+  const { addItem, items } = useCart();
   const pr = effectivePricing(product);
 
+  const isOutOfStock = productIsSoldOut(product.variants ?? [], product);
+
+  // Cap for this (variantless) line, and how many are already in the cart, so a
+  // rapid-fire "+ Add" can't pile quantity past available stock.
+  const max = cartLineMax({
+    trackInventory: product.track_inventory,
+    stock: product.stock,
+    allowBackorder: product.allow_backorder,
+  });
+  const inCart =
+    items.find(
+      (i) => lineKey(i.productId, i.variantId) === lineKey(product.id, null),
+    )?.quantity ?? 0;
+
   const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (pr.hasVariants) return; // bubble to the card link → detail page
+    if (pr.hasVariants || isOutOfStock) return; // bubble to the card link → detail page
     e.preventDefault();
     e.stopPropagation();
+    if (inCart >= max) {
+      toast.error(
+        `Only ${max} of ${product.name} available — already in your cart.`,
+        { duration: 2200 },
+      );
+      return;
+    }
     addItem({
       productId: product.id,
       slug: product.slug,
@@ -30,6 +52,9 @@ export function QuickAddButton({ product }: { product: ShopCardProduct }) {
       basePrice: pr.base,
       image: product.image_url,
       category: product.category ?? null,
+      trackInventory: product.track_inventory,
+      stock: product.stock,
+      allowBackorder: product.allow_backorder,
     });
     toast.success(`${product.name} added to cart`, { duration: 1800 });
   };
@@ -49,10 +74,16 @@ export function QuickAddButton({ product }: { product: ShopCardProduct }) {
       aria-label={
         pr.hasVariants
           ? `Choose options for ${product.name}`
-          : `Add ${product.name} to cart`
+          : isOutOfStock
+            ? `${product.name} is out of stock`
+            : `Add ${product.name} to cart`
       }
+      style={{
+        opacity: isOutOfStock && !pr.hasVariants ? 0.5 : 1,
+        cursor: isOutOfStock && !pr.hasVariants ? "not-allowed" : "pointer",
+      }}
     >
-      + Add
+      {isOutOfStock && !pr.hasVariants ? "Sold Out" : "+ Add"}
     </div>
   );
 }
