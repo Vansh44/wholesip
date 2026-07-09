@@ -508,557 +508,571 @@ export function ProductEditorForm({
 
   return (
     <>
-      <div className="space-y-4 py-2">
-        {/* Product details */}
-        <Section
-          title="Product details"
-          description="The name, description, and storefront link your customers see."
-          icon={Package}
-          tint="indigo"
-        >
-          <div className="space-y-4">
-            <div>
-              <label className={labelClass}>Name *</label>
-              <input
-                className={fieldClass}
-                value={form.name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="e.g. Almond Milk 500ml"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {/* Shopify-style two-column layout: a wide main column for the primary
+          content and a narrower sidebar for organization + SEO. Collapses to a
+          single column below lg (and in the modal, which is < lg wide). */}
+      <div className="grid grid-cols-1 gap-5 py-2 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <div className="space-y-4">
+          {/* Product details */}
+          <Section
+            title="Product details"
+            description="The name, description, and storefront link your customers see."
+            icon={Package}
+            tint="indigo"
+          >
+            <div className="space-y-4">
               <div>
-                <label className={labelClass}>URL handle (slug)</label>
+                <label className={labelClass}>Name *</label>
                 <input
                   className={fieldClass}
-                  value={form.slug}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="auto from name"
+                  value={form.name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  placeholder="e.g. Almond Milk 500ml"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className={labelClass}>URL handle (slug)</label>
+                  <input
+                    className={fieldClass}
+                    value={form.slug}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    placeholder="auto from name"
+                  />
+                  <p className={hintClass}>
+                    Lives at{" "}
+                    <span className="font-mono">/shop/{form.slug || "…"}</span>
+                  </p>
+                </div>
+                <div>
+                  <label className={labelClass}>Category *</label>
+                  <select
+                    className={fieldClass}
+                    value={form.category_id ?? ""}
+                    onChange={(e) => set("category_id", e.target.value || null)}
+                  >
+                    <option value="">Select a category…</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {c.status === "hidden" ? " (hidden)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <label className={`${labelClass} mb-0`}>Description *</label>
+                  <button
+                    type="button"
+                    onClick={handleGenerate}
+                    disabled={isGenerating || isPending}
+                    title="Generate from your brand guide with AI"
+                    className={aiButtonClass}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {isGenerating ? "Generating…" : "Generate with AI"}
+                  </button>
+                </div>
+                <textarea
+                  ref={setDescriptionRef}
+                  className={`${fieldClass} min-h-[96px] resize-none overflow-hidden`}
+                  value={form.description}
+                  onChange={(e) => {
+                    set("description", e.target.value);
+                    autosize(e.target);
+                  }}
+                  placeholder="Describe the product… or type rough notes and click Generate with AI"
                 />
                 <p className={hintClass}>
-                  Lives at{" "}
-                  <span className="font-mono">/shop/{form.slug || "…"}</span>
+                  Written in your brand voice. Shown on the product page.
                 </p>
               </div>
+            </div>
+          </Section>
+
+          {/* Media */}
+          <Section
+            title="Media"
+            description="Add photos so customers can see what they are buying. The primary image is the storefront thumbnail."
+            icon={ImageIcon}
+            tint="violet"
+          >
+            <div className="space-y-4">
               <div>
-                <label className={labelClass}>Category *</label>
-                <select
-                  className={fieldClass}
-                  value={form.category_id ?? ""}
-                  onChange={(e) => set("category_id", e.target.value || null)}
-                >
-                  <option value="">Select a category…</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                      {c.status === "hidden" ? " (hidden)" : ""}
-                    </option>
-                  ))}
-                </select>
+                <label className={labelClass}>Primary image</label>
+                <ImageUpload
+                  folder="product-images"
+                  defaultImage={form.image_url || undefined}
+                  onUploadSuccess={(url) => set("image_url", url)}
+                />
               </div>
-            </div>
 
-            <div>
-              <div className="mb-1.5 flex items-center justify-between gap-2">
-                <label className={`${labelClass} mb-0`}>Description *</label>
-                <button
-                  type="button"
-                  onClick={handleGenerate}
-                  disabled={isGenerating || isPending}
-                  title="Generate from your brand guide with AI"
-                  className={aiButtonClass}
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  {isGenerating ? "Generating…" : "Generate with AI"}
-                </button>
-              </div>
-              <textarea
-                ref={setDescriptionRef}
-                className={`${fieldClass} min-h-[96px] resize-none overflow-hidden`}
-                value={form.description}
-                onChange={(e) => {
-                  set("description", e.target.value);
-                  autosize(e.target);
-                }}
-                placeholder="Describe the product… or type rough notes and click Generate with AI"
-              />
-              <p className={hintClass}>
-                Written in your brand voice. Shown on the product page.
-              </p>
-            </div>
-          </div>
-        </Section>
-
-        {/* Media */}
-        <Section
-          title="Media"
-          description="Add photos so customers can see what they are buying. The primary image is the storefront thumbnail."
-          icon={ImageIcon}
-          tint="violet"
-        >
-          <div className="space-y-4">
-            <div>
-              <label className={labelClass}>Primary image</label>
-              <ImageUpload
-                folder="product-images"
-                defaultImage={form.image_url || undefined}
-                onUploadSuccess={(url) => set("image_url", url)}
-              />
-            </div>
-
-            <div>
-              <label className={labelClass}>Gallery (extra images)</label>
-              {form.images.length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {form.images.map((url) => (
-                    <div
-                      key={url}
-                      className="relative h-16 w-16 overflow-hidden rounded-md border border-[#e5e7eb]"
-                    >
-                      <Image
-                        src={url}
-                        alt="Gallery image"
-                        fill
-                        className="object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeGalleryImage(url)}
-                        className="absolute right-0.5 top-0.5 rounded bg-black/70 p-0.5 text-white hover:bg-red-500"
+              <div>
+                <label className={labelClass}>Gallery (extra images)</label>
+                {form.images.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {form.images.map((url) => (
+                      <div
+                        key={url}
+                        className="relative h-16 w-16 overflow-hidden rounded-md border border-[#e5e7eb]"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
+                        <Image
+                          src={url}
+                          alt="Gallery image"
+                          fill
+                          className="object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeGalleryImage(url)}
+                          className="absolute right-0.5 top-0.5 rounded bg-black/70 p-0.5 text-white hover:bg-red-500"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <ImageUpload
+                  folder="product-images"
+                  onUploadSuccess={addGalleryImage}
+                />
+              </div>
+            </div>
+          </Section>
+
+          {/* Pricing */}
+          <Section
+            title="Pricing"
+            description="Set the list price (MRP) and what customers actually pay."
+            icon={Tag}
+            tint="emerald"
+          >
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass}>Base price ₹ (MRP)</label>
+                <NumberField
+                  className={fieldClass}
+                  value={form.base_price}
+                  onValueChange={(n) => set("base_price", n)}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Selling price ₹</label>
+                <NumberField
+                  className={fieldClass}
+                  value={form.selling_price}
+                  onValueChange={(n) => set("selling_price", n)}
+                />
+                <p className={hintClass}>
+                  Leave 0 to sell at base price. Must be ≤ base price.
+                  {discountPct > 0 ? (
+                    <span className="ml-1 font-medium text-[#15a34a]">
+                      {discountPct}% off
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+            </div>
+          </Section>
+
+          {/* Inventory — simple product (only shown when there are no variants) */}
+          {form.variants.length === 0 && (
+            <Section
+              title="Inventory"
+              description="Track stock levels and manage the auto-generated SKU."
+              icon={Boxes}
+              tint="amber"
+            >
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>SKU</label>
+                    <input
+                      className={`${fieldClass} cursor-not-allowed bg-[#f3f4f6] font-mono text-[#6b7280]`}
+                      value={form.sku || "Auto-generated on save"}
+                      readOnly
+                      title="SKUs are generated automatically and cannot be edited"
+                    />
+                    <p className={hintClass}>Auto-generated &amp; locked.</p>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Stock</label>
+                    <div className="flex min-h-[38px] items-center gap-2 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 text-sm">
+                      {product ? (
+                        <>
+                          <span className="font-semibold text-[#111827]">
+                            {product.stock}
+                          </span>
+                          <span className="text-[#6b7280]">in stock</span>
+                          <Link
+                            href={`/dashboard/inventory?q=${encodeURIComponent(product.name)}`}
+                            className="ml-auto text-xs font-medium text-[#4f46e5] hover:underline"
+                            target="_blank"
+                          >
+                            Manage →
+                          </Link>
+                        </>
+                      ) : (
+                        <span className="italic text-[#9ca3af]">
+                          Save product first to set stock.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-[#1f2937]">
+                  <input
+                    type="checkbox"
+                    checked={form.track_inventory}
+                    onChange={(e) => set("track_inventory", e.target.checked)}
+                    className="h-4 w-4 accent-[#4f46e5]"
+                  />
+                  Track quantity for this product
+                </label>
+
+                {form.track_inventory && (
+                  <div className="ml-6 space-y-3 border-l-2 border-[#e0e7ff] pl-4">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-[#1f2937]">
+                      <input
+                        type="checkbox"
+                        checked={form.allow_backorder}
+                        onChange={(e) =>
+                          set("allow_backorder", e.target.checked)
+                        }
+                        className="h-4 w-4 accent-[#4f46e5]"
+                      />
+                      Continue selling when out of stock (backorder)
+                    </label>
+                    <div>
+                      <label className={labelClass}>
+                        Low stock alert threshold
+                      </label>
+                      <NumberField
+                        className={`${fieldClass} max-w-[120px]`}
+                        value={form.low_stock_threshold ?? 0}
+                        onValueChange={(n) =>
+                          set("low_stock_threshold", n > 0 ? n : null)
+                        }
+                      />
+                      <p className={hintClass}>
+                        Warn when stock drops to this level. Leave 0 to use the
+                        store default.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Section>
+          )}
+
+          {/* Variants */}
+          <Section
+            title="Variants"
+            description="Options like size or flavour — each with its own price, stock, and auto-generated SKU. Leave empty for a single-price product."
+            icon={Layers}
+            tint="sky"
+            aside={
+              <button
+                type="button"
+                onClick={addVariant}
+                className="flex items-center gap-1 rounded-md border border-[#d1d5db] bg-white px-2.5 py-1 text-xs font-medium text-[#374151] hover:bg-[#f3f4f6]"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add variant
+              </button>
+            }
+          >
+            {form.variants.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-[#d1d5db] bg-[#f9fafb] px-4 py-6 text-center text-xs text-[#9ca3af]">
+                No variants yet. This is a single-price product — add variants
+                only if it comes in multiple options.
+              </p>
+            ) : (
+              <div className="overflow-x-auto sm:overflow-visible">
+                <div className="min-w-[500px] space-y-2 sm:min-w-0">
+                  <div className="grid grid-cols-[1fr_72px_72px_60px_110px_72px] gap-2 px-1 text-[10px] uppercase tracking-wide text-[#9ca3af]">
+                    <span>Name</span>
+                    <span>Base ₹</span>
+                    <span>Sell ₹</span>
+                    <span>Stock</span>
+                    <span>SKU</span>
+                    <span />
+                  </div>
+                  {form.variants.map((v, i) => (
+                    <div
+                      key={i}
+                      className="space-y-2 rounded-lg border border-[#f3f4f6] bg-[#fafafa] p-2"
+                    >
+                      <div className="grid grid-cols-[1fr_72px_72px_60px_110px_72px] items-center gap-2">
+                        <input
+                          className={fieldClass}
+                          value={v.name}
+                          onChange={(e) =>
+                            updateVariant(i, "name", e.target.value)
+                          }
+                          placeholder="500ml"
+                        />
+                        <NumberField
+                          className={fieldClass}
+                          value={v.base_price}
+                          onValueChange={(n) =>
+                            updateVariant(i, "base_price", n)
+                          }
+                        />
+                        <NumberField
+                          className={fieldClass}
+                          value={v.selling_price}
+                          onValueChange={(n) =>
+                            updateVariant(i, "selling_price", n)
+                          }
+                        />
+                        <NumberField
+                          className={fieldClass}
+                          value={v.stock}
+                          onValueChange={(n) => updateVariant(i, "stock", n)}
+                          allowDecimal={false}
+                        />
+                        <input
+                          className={`${fieldClass} cursor-not-allowed bg-[#f3f4f6] font-mono text-[11px] text-[#6b7280]`}
+                          value={v.sku || "on save"}
+                          readOnly
+                          title="Auto-generated on save"
+                        />
+                        <div className="flex items-center justify-end gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => moveVariant(i, -1)}
+                            disabled={i === 0}
+                            title={i === 0 ? "Default variant" : "Move up"}
+                            className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveVariant(i, 1)}
+                            disabled={i === form.variants.length - 1}
+                            title="Move down"
+                            className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeVariant(i)}
+                            title="Remove variant"
+                            className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[rgba(239,68,68,0.12)] hover:text-[#ef4444]"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-10 shrink-0 text-[10px] uppercase tracking-wide text-[#9ca3af]">
+                          Imgs
+                        </span>
+                        <VariantGallery
+                          images={v.images}
+                          onChange={(imgs) => updateVariant(i, "images", imgs)}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-10 shrink-0 text-[10px] uppercase tracking-wide text-[#9ca3af]"
+                          title="Optional sale price for this variant"
+                        >
+                          Sale
+                        </span>
+                        <NumberField
+                          className={`${fieldClass} w-24`}
+                          value={v.special_price ?? 0}
+                          onValueChange={(n) =>
+                            updateVariant(i, "special_price", n > 0 ? n : null)
+                          }
+                        />
+                        <span className="text-[11px] text-[#9ca3af]">
+                          ₹ — leave 0 for no sale. Shows a yellow tag on the
+                          variant chip when set.
+                        </span>
+                      </div>
                     </div>
                   ))}
+                  <p className={hintClass}>
+                    The top variant is selected by default on the product page —
+                    use the arrows to reorder.
+                  </p>
                 </div>
-              )}
-              <ImageUpload
-                folder="product-images"
-                onUploadSuccess={addGalleryImage}
-              />
-            </div>
-          </div>
-        </Section>
+              </div>
+            )}
+          </Section>
+        </div>
 
-        {/* Pricing */}
-        <Section
-          title="Pricing"
-          description="Set the list price (MRP) and what customers actually pay."
-          icon={Tag}
-          tint="emerald"
-        >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={labelClass}>Base price ₹ (MRP)</label>
-              <NumberField
-                className={fieldClass}
-                value={form.base_price}
-                onValueChange={(n) => set("base_price", n)}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Selling price ₹</label>
-              <NumberField
-                className={fieldClass}
-                value={form.selling_price}
-                onValueChange={(n) => set("selling_price", n)}
-              />
-              <p className={hintClass}>
-                Leave 0 to sell at base price. Must be ≤ base price.
-                {discountPct > 0 ? (
-                  <span className="ml-1 font-medium text-[#15a34a]">
-                    {discountPct}% off
-                  </span>
-                ) : null}
-              </p>
-            </div>
-          </div>
-        </Section>
-
-        {/* Inventory — simple product (only shown when there are no variants) */}
-        {form.variants.length === 0 && (
+        {/* Sidebar: organization + SEO */}
+        <div className="space-y-4">
+          {/* Organization & visibility */}
           <Section
-            title="Inventory"
-            description="Track stock levels and manage the auto-generated SKU."
-            icon={Boxes}
-            tint="amber"
+            title="Organization & visibility"
+            description="Publishing state, storefront placement, and card styling."
+            icon={Eye}
+            tint="slate"
           >
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className={labelClass}>SKU</label>
-                  <input
-                    className={`${fieldClass} cursor-not-allowed bg-[#f3f4f6] font-mono text-[#6b7280]`}
-                    value={form.sku || "Auto-generated on save"}
-                    readOnly
-                    title="SKUs are generated automatically and cannot be edited"
-                  />
-                  <p className={hintClass}>Auto-generated &amp; locked.</p>
+                  <label className={labelClass}>Status</label>
+                  <select
+                    className={fieldClass}
+                    value={form.status}
+                    onChange={(e) =>
+                      set("status", e.target.value as "draft" | "published")
+                    }
+                  >
+                    <option value="draft">
+                      Draft — hidden from storefront
+                    </option>
+                    <option value="published">Published — live</option>
+                  </select>
                 </div>
                 <div>
-                  <label className={labelClass}>Stock</label>
-                  <div className="flex min-h-[38px] items-center gap-2 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 text-sm">
-                    {product ? (
-                      <>
-                        <span className="font-semibold text-[#111827]">
-                          {product.stock}
-                        </span>
-                        <span className="text-[#6b7280]">in stock</span>
-                        <Link
-                          href={`/dashboard/inventory?q=${encodeURIComponent(product.name)}`}
-                          className="ml-auto text-xs font-medium text-[#4f46e5] hover:underline"
-                          target="_blank"
-                        >
-                          Manage →
-                        </Link>
-                      </>
-                    ) : (
-                      <span className="italic text-[#9ca3af]">
-                        Save product first to set stock.
-                      </span>
-                    )}
-                  </div>
+                  <label className={labelClass}>Sort order</label>
+                  <NumberField
+                    className={fieldClass}
+                    value={form.sort_order}
+                    onValueChange={(n) => set("sort_order", n)}
+                    allowDecimal={false}
+                  />
+                  <p className={hintClass}>Lower numbers appear first.</p>
                 </div>
               </div>
 
               <label className="flex cursor-pointer items-center gap-2 text-sm text-[#1f2937]">
                 <input
                   type="checkbox"
-                  checked={form.track_inventory}
-                  onChange={(e) => set("track_inventory", e.target.checked)}
+                  checked={form.featured}
+                  onChange={(e) => set("featured", e.target.checked)}
                   className="h-4 w-4 accent-[#4f46e5]"
                 />
-                Track quantity for this product
+                Feature this product on the homepage
               </label>
 
-              {form.track_inventory && (
-                <div className="ml-6 space-y-3 border-l-2 border-[#e0e7ff] pl-4">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm text-[#1f2937]">
-                    <input
-                      type="checkbox"
-                      checked={form.allow_backorder}
-                      onChange={(e) => set("allow_backorder", e.target.checked)}
-                      className="h-4 w-4 accent-[#4f46e5]"
-                    />
-                    Continue selling when out of stock (backorder)
-                  </label>
-                  <div>
-                    <label className={labelClass}>
-                      Low stock alert threshold
-                    </label>
-                    <NumberField
-                      className={`${fieldClass} max-w-[120px]`}
-                      value={form.low_stock_threshold ?? 0}
-                      onValueChange={(n) =>
-                        set("low_stock_threshold", n > 0 ? n : null)
-                      }
-                    />
-                    <p className={hintClass}>
-                      Warn when stock drops to this level. Leave 0 to use the
-                      store default.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </Section>
-        )}
-
-        {/* Variants */}
-        <Section
-          title="Variants"
-          description="Options like size or flavour — each with its own price, stock, and auto-generated SKU. Leave empty for a single-price product."
-          icon={Layers}
-          tint="sky"
-          aside={
-            <button
-              type="button"
-              onClick={addVariant}
-              className="flex items-center gap-1 rounded-md border border-[#d1d5db] bg-white px-2.5 py-1 text-xs font-medium text-[#374151] hover:bg-[#f3f4f6]"
-            >
-              <Plus className="h-3.5 w-3.5" /> Add variant
-            </button>
-          }
-        >
-          {form.variants.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-[#d1d5db] bg-[#f9fafb] px-4 py-6 text-center text-xs text-[#9ca3af]">
-              No variants yet. This is a single-price product — add variants
-              only if it comes in multiple options.
-            </p>
-          ) : (
-            <div className="overflow-x-auto sm:overflow-visible">
-              <div className="min-w-[500px] space-y-2 sm:min-w-0">
-                <div className="grid grid-cols-[1fr_72px_72px_60px_110px_72px] gap-2 px-1 text-[10px] uppercase tracking-wide text-[#9ca3af]">
-                  <span>Name</span>
-                  <span>Base ₹</span>
-                  <span>Sell ₹</span>
-                  <span>Stock</span>
-                  <span>SKU</span>
-                  <span />
-                </div>
-                {form.variants.map((v, i) => (
-                  <div
-                    key={i}
-                    className="space-y-2 rounded-lg border border-[#f3f4f6] bg-[#fafafa] p-2"
+              <div>
+                <label className={labelClass}>Card colour (storefront)</label>
+                <div className="flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="h-9 w-9 shrink-0 rounded-md border border-[#e5e7eb]"
+                    style={{ background: form.card_color || "transparent" }}
+                  />
+                  <select
+                    className={`${fieldClass} flex-1`}
+                    value={form.card_color}
+                    onChange={(e) => set("card_color", e.target.value)}
                   >
-                    <div className="grid grid-cols-[1fr_72px_72px_60px_110px_72px] items-center gap-2">
-                      <input
-                        className={fieldClass}
-                        value={v.name}
-                        onChange={(e) =>
-                          updateVariant(i, "name", e.target.value)
-                        }
-                        placeholder="500ml"
-                      />
-                      <NumberField
-                        className={fieldClass}
-                        value={v.base_price}
-                        onValueChange={(n) => updateVariant(i, "base_price", n)}
-                      />
-                      <NumberField
-                        className={fieldClass}
-                        value={v.selling_price}
-                        onValueChange={(n) =>
-                          updateVariant(i, "selling_price", n)
-                        }
-                      />
-                      <NumberField
-                        className={fieldClass}
-                        value={v.stock}
-                        onValueChange={(n) => updateVariant(i, "stock", n)}
-                        allowDecimal={false}
-                      />
-                      <input
-                        className={`${fieldClass} cursor-not-allowed bg-[#f3f4f6] font-mono text-[11px] text-[#6b7280]`}
-                        value={v.sku || "on save"}
-                        readOnly
-                        title="Auto-generated on save"
-                      />
-                      <div className="flex items-center justify-end gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() => moveVariant(i, -1)}
-                          disabled={i === 0}
-                          title={i === 0 ? "Default variant" : "Move up"}
-                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-30"
-                        >
-                          <ChevronUp className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveVariant(i, 1)}
-                          disabled={i === form.variants.length - 1}
-                          title="Move down"
-                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-30"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeVariant(i)}
-                          title="Remove variant"
-                          className="flex h-8 w-6 items-center justify-center rounded-md text-[#6b7280] hover:bg-[rgba(239,68,68,0.12)] hover:text-[#ef4444]"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-10 shrink-0 text-[10px] uppercase tracking-wide text-[#9ca3af]">
-                        Imgs
-                      </span>
-                      <VariantGallery
-                        images={v.images}
-                        onChange={(imgs) => updateVariant(i, "images", imgs)}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="w-10 shrink-0 text-[10px] uppercase tracking-wide text-[#9ca3af]"
-                        title="Optional sale price for this variant"
-                      >
-                        Sale
-                      </span>
-                      <NumberField
-                        className={`${fieldClass} w-24`}
-                        value={v.special_price ?? 0}
-                        onValueChange={(n) =>
-                          updateVariant(i, "special_price", n > 0 ? n : null)
-                        }
-                      />
-                      <span className="text-[11px] text-[#9ca3af]">
-                        ₹ — leave 0 for no sale. Shows a yellow tag on the
-                        variant chip when set.
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                    <option value="">Default (no colour)</option>
+                    {colors.map((c) => (
+                      <option key={c.id} value={c.hex}>
+                        {c.name} — {c.hex}
+                      </option>
+                    ))}
+                    {/* Preserve a custom/legacy hex not in the palette */}
+                    {form.card_color &&
+                      !colors.some((c) => c.hex === form.card_color) && (
+                        <option value={form.card_color}>
+                          Custom — {form.card_color}
+                        </option>
+                      )}
+                  </select>
+                </div>
                 <p className={hintClass}>
-                  The top variant is selected by default on the product page —
-                  use the arrows to reorder.
+                  Shades come from{" "}
+                  <Link href="/dashboard/colors" className="underline">
+                    Colours
+                  </Link>
+                  . Name &amp; price stay near-black for contrast; blank uses
+                  the storefront default.
                 </p>
               </div>
             </div>
-          )}
-        </Section>
+          </Section>
 
-        {/* Organization & visibility */}
-        <Section
-          title="Organization & visibility"
-          description="Publishing state, storefront placement, and card styling."
-          icon={Eye}
-          tint="slate"
-        >
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Search engine listing (SEO) */}
+          <Section
+            title="Search engine listing"
+            description="Control how this product appears in Google and when shared."
+            icon={Search}
+            tint="teal"
+            aside={
+              <button
+                type="button"
+                onClick={handleGenerateSeo}
+                disabled={
+                  isGeneratingSeo || isPending || !form.description.trim()
+                }
+                title={
+                  form.description.trim()
+                    ? "Generate SEO title & description from your brand guide with AI"
+                    : "Add a product description first"
+                }
+                className={aiButtonClass}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {isGeneratingSeo ? "Generating…" : "Generate with AI"}
+              </button>
+            }
+          >
+            <div className="space-y-4">
+              {/* Live Google-style preview */}
+              <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-3.5">
+                <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-[#9ca3af]">
+                  Search preview
+                </p>
+                <div className="truncate text-[15px] leading-snug text-[#1a0dab]">
+                  {form.seo_title || form.name || "Product title"}
+                </div>
+                <div className="mt-0.5 truncate text-xs text-[#006621]">
+                  yourstore.com › shop › {form.slug || "product"}
+                </div>
+                <div className="mt-1 line-clamp-2 text-[13px] leading-snug text-[#4d5156]">
+                  {form.seo_description ||
+                    "Your meta description appears here — a compelling summary encourages clicks from search results."}
+                </div>
+              </div>
+
               <div>
-                <label className={labelClass}>Status</label>
-                <select
+                <label className={labelClass}>SEO title *</label>
+                <input
                   className={fieldClass}
-                  value={form.status}
-                  onChange={(e) =>
-                    set("status", e.target.value as "draft" | "published")
-                  }
-                >
-                  <option value="draft">Draft — hidden from storefront</option>
-                  <option value="published">Published — live</option>
-                </select>
+                  value={form.seo_title}
+                  onChange={(e) => set("seo_title", e.target.value)}
+                  placeholder={form.name || "Product title | Store"}
+                />
+                <p className={hintClass}>
+                  {form.seo_title.length}/60 characters ·{" "}
+                  {form.description.trim()
+                    ? "Tip: lead with the product name."
+                    : "Fill in the description above to generate this with AI."}
+                </p>
               </div>
               <div>
-                <label className={labelClass}>Sort order</label>
-                <NumberField
-                  className={fieldClass}
-                  value={form.sort_order}
-                  onValueChange={(n) => set("sort_order", n)}
-                  allowDecimal={false}
+                <label className={labelClass}>SEO description *</label>
+                <textarea
+                  className={`${fieldClass} min-h-[64px] resize-y`}
+                  value={form.seo_description}
+                  onChange={(e) => set("seo_description", e.target.value)}
+                  placeholder="One or two calm sentences describing the product."
                 />
-                <p className={hintClass}>Lower numbers appear first.</p>
+                <p className={hintClass}>
+                  {form.seo_description.length}/160 characters
+                </p>
               </div>
             </div>
-
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-[#1f2937]">
-              <input
-                type="checkbox"
-                checked={form.featured}
-                onChange={(e) => set("featured", e.target.checked)}
-                className="h-4 w-4 accent-[#4f46e5]"
-              />
-              Feature this product on the homepage
-            </label>
-
-            <div>
-              <label className={labelClass}>Card colour (storefront)</label>
-              <div className="flex items-center gap-2">
-                <span
-                  aria-hidden
-                  className="h-9 w-9 shrink-0 rounded-md border border-[#e5e7eb]"
-                  style={{ background: form.card_color || "transparent" }}
-                />
-                <select
-                  className={`${fieldClass} flex-1`}
-                  value={form.card_color}
-                  onChange={(e) => set("card_color", e.target.value)}
-                >
-                  <option value="">Default (no colour)</option>
-                  {colors.map((c) => (
-                    <option key={c.id} value={c.hex}>
-                      {c.name} — {c.hex}
-                    </option>
-                  ))}
-                  {/* Preserve a custom/legacy hex not in the palette */}
-                  {form.card_color &&
-                    !colors.some((c) => c.hex === form.card_color) && (
-                      <option value={form.card_color}>
-                        Custom — {form.card_color}
-                      </option>
-                    )}
-                </select>
-              </div>
-              <p className={hintClass}>
-                Shades come from{" "}
-                <Link href="/dashboard/colors" className="underline">
-                  Colours
-                </Link>
-                . Name &amp; price stay near-black for contrast; blank uses the
-                storefront default.
-              </p>
-            </div>
-          </div>
-        </Section>
-
-        {/* Search engine listing (SEO) */}
-        <Section
-          title="Search engine listing"
-          description="Control how this product appears in Google and when shared."
-          icon={Search}
-          tint="teal"
-          aside={
-            <button
-              type="button"
-              onClick={handleGenerateSeo}
-              disabled={
-                isGeneratingSeo || isPending || !form.description.trim()
-              }
-              title={
-                form.description.trim()
-                  ? "Generate SEO title & description from your brand guide with AI"
-                  : "Add a product description first"
-              }
-              className={aiButtonClass}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              {isGeneratingSeo ? "Generating…" : "Generate with AI"}
-            </button>
-          }
-        >
-          <div className="space-y-4">
-            {/* Live Google-style preview */}
-            <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-3.5">
-              <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-[#9ca3af]">
-                Search preview
-              </p>
-              <div className="truncate text-[15px] leading-snug text-[#1a0dab]">
-                {form.seo_title || form.name || "Product title"}
-              </div>
-              <div className="mt-0.5 truncate text-xs text-[#006621]">
-                yourstore.com › shop › {form.slug || "product"}
-              </div>
-              <div className="mt-1 line-clamp-2 text-[13px] leading-snug text-[#4d5156]">
-                {form.seo_description ||
-                  "Your meta description appears here — a compelling summary encourages clicks from search results."}
-              </div>
-            </div>
-
-            <div>
-              <label className={labelClass}>SEO title *</label>
-              <input
-                className={fieldClass}
-                value={form.seo_title}
-                onChange={(e) => set("seo_title", e.target.value)}
-                placeholder={form.name || "Product title | Store"}
-              />
-              <p className={hintClass}>
-                {form.seo_title.length}/60 characters ·{" "}
-                {form.description.trim()
-                  ? "Tip: lead with the product name."
-                  : "Fill in the description above to generate this with AI."}
-              </p>
-            </div>
-            <div>
-              <label className={labelClass}>SEO description *</label>
-              <textarea
-                className={`${fieldClass} min-h-[64px] resize-y`}
-                value={form.seo_description}
-                onChange={(e) => set("seo_description", e.target.value)}
-                placeholder="One or two calm sentences describing the product."
-              />
-              <p className={hintClass}>
-                {form.seo_description.length}/160 characters
-              </p>
-            </div>
-          </div>
-        </Section>
+          </Section>
+        </div>
       </div>
 
       <div className="sticky bottom-0 -mx-1 mt-2 flex items-center justify-between gap-2 border-t border-[#e5e7eb] bg-white px-1 py-3">

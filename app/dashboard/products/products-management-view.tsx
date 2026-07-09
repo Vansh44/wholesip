@@ -275,7 +275,7 @@ export function ProductsManagementView({
         </div>
       )}
 
-      <div className="dash-card">
+      <div className="dash-card" style={{ flex: "1 1 auto" }}>
         <div className="dash-card-header">
           <div>
             <div className="dash-card-title">Products</div>
