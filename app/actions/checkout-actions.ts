@@ -48,7 +48,7 @@ export interface CheckoutFormData {
 }
 
 export type CheckoutResult =
-  | { success: true; orderId: string }
+  | { success: true; orderId: string; orderRef: string }
   | { error: string };
 
 // Normalize a coupon code the same way coupon-actions does (stored uppercased,
@@ -444,7 +444,7 @@ export async function placeOrder(
       // is deleted, so this value only ever persists on a fully-reserved order.
       stock_status: "reserved",
     })
-    .select("id")
+    .select("id, order_ref")
     .single();
 
   if (orderError || !order) {
@@ -541,5 +541,9 @@ export async function placeOrder(
     return { error: "Failed to save order items. Please try again." };
   }
 
-  return { success: true, orderId: order.id };
+  return {
+    success: true,
+    orderId: order.id,
+    orderRef: (order as { order_ref?: string }).order_ref ?? "",
+  };
 }

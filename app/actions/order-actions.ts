@@ -25,7 +25,7 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 // order_items join — the table only needs these, and pulling every line item
 // for every order made the query grow without bound.
 const ORDER_LIST_COLUMNS =
-  "id, created_at, total, currency, payment_method, payment_status, status, shipping_address";
+  "id, order_no, order_ref, created_at, total, currency, payment_method, payment_status, status, shipping_address";
 
 export interface OrdersResult {
   orders: Record<string, unknown>[];
