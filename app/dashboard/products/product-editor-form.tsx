@@ -621,11 +621,14 @@ export function ProductEditorForm({
               <div>
                 <label className={labelClass}>SKU</label>
                 <input
-                  className={fieldClass}
-                  value={form.sku ?? ""}
-                  onChange={(e) => set("sku", e.target.value)}
-                  placeholder="e.g. ALM-500"
+                  className={`${fieldClass} cursor-not-allowed bg-gray-100 text-gray-500`}
+                  value={form.sku || "Auto-generated on save"}
+                  readOnly
+                  title="SKUs are generated automatically and cannot be edited"
                 />
+                <p className="mt-1 text-[11px] text-[#8b93a3]">
+                  Auto-generated &amp; locked.
+                </p>
               </div>
               <div>
                 <label className={labelClass}>Stock (Simple Product)</label>
@@ -756,12 +759,10 @@ export function ProductEditorForm({
                         allowDecimal={false}
                       />
                       <input
-                        className={fieldClass}
-                        value={v.sku}
-                        onChange={(e) =>
-                          updateVariant(i, "sku", e.target.value)
-                        }
-                        placeholder="SKU"
+                        className={`${fieldClass} cursor-not-allowed bg-gray-100 text-gray-500`}
+                        value={v.sku || "—"}
+                        readOnly
+                        title="Auto-generated on save"
                       />
                       <div className="flex items-center justify-end gap-0.5">
                         <button

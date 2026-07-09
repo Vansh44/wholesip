@@ -9,6 +9,8 @@ import { Suspense } from "react";
 function SuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
+  // The human-readable reference (ORD…) when present; fall back to the raw id.
+  const orderRef = searchParams.get("ref") || orderId;
 
   return (
     <div className="max-w-xl mx-auto px-4 py-24 text-center">
@@ -19,10 +21,10 @@ function SuccessContent() {
         processing it shortly.
       </p>
 
-      {orderId && (
+      {orderRef && (
         <div className="bg-muted/30 p-4 rounded-lg mb-8 inline-block text-left">
           <p className="text-sm text-muted-foreground mb-1">Order Reference</p>
-          <p className="font-mono font-medium text-lg">{orderId}</p>
+          <p className="font-mono font-medium text-lg">{orderRef}</p>
         </div>
       )}
 

@@ -158,7 +158,8 @@ function sanitizeVariants(variants: VariantFormData[]) {
         ...prices,
         special_price: special,
         stock: Number.isFinite(v.stock) ? Math.trunc(v.stock) : 0,
-        sku: v.sku?.trim() || null,
+        // SKU is system-generated & locked — set by the DB trigger on insert
+        // and immutable thereafter, so the form never writes it.
         images,
         image_url: images[0] ?? null, // keep the legacy single image in sync
         sort_order: i,
@@ -348,7 +349,7 @@ export async function createProduct(
     track_inventory: formData.track_inventory ?? false,
     allow_backorder: formData.allow_backorder ?? false,
     low_stock_threshold: formData.low_stock_threshold ?? null,
-    sku: formData.sku?.trim() || null,
+    // sku / sku_no are set by the DB trigger (system-generated & locked).
   });
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
@@ -443,7 +444,7 @@ export async function updateProduct(
     track_inventory: formData.track_inventory ?? false,
     allow_backorder: formData.allow_backorder ?? false,
     low_stock_threshold: formData.low_stock_threshold ?? null,
-    sku: formData.sku?.trim() || null,
+    // sku is system-generated & locked (DB trigger) — never overwritten here.
   });
 
   // Images referenced before this save — compared against what survives so any

@@ -243,7 +243,9 @@ export default function CheckoutPage() {
 
     toast.success("Order placed successfully!");
     orderPlaced.current = true;
-    router.push(`/checkout/success?orderId=${result.orderId}`);
+    router.push(
+      `/checkout/success?orderId=${result.orderId}&ref=${encodeURIComponent(result.orderRef)}`,
+    );
     cart.clear(); // Clear the cart state after navigating away.
   };
 
