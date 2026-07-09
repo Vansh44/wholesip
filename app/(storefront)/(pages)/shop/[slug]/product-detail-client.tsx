@@ -197,6 +197,10 @@ export default function ProductDetailClient({
         basePrice: base,
         image: activeImg ?? product.image_url ?? null,
         category: product.category?.name ?? null,
+        // Snapshot the sellable SKU's stock so the cart can cap this line.
+        trackInventory: sellableSku.track_inventory,
+        stock: sellableSku.stock,
+        allowBackorder: sellableSku.allow_backorder,
       },
       qty,
     );

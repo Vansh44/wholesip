@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 
 import { formatPrice } from "@/lib/pricing";
+import { cartLineMax } from "@/lib/inventory/status";
 import {
   useCart,
   lineKey,
@@ -161,6 +162,8 @@ function GroceryCartLine({
 }) {
   const lineTotal = item.price * item.quantity;
   const subtitle = item.category || item.variantName;
+  const max = cartLineMax(item);
+  const atMax = item.quantity >= max;
 
   return (
     <li className="gcart-item">
@@ -193,6 +196,7 @@ function GroceryCartLine({
         >
           Remove
         </button>
+        {atMax && <span className="gcart-item-max">Max available: {max}</span>}
       </div>
 
       <div className="gcart-stepper" aria-label="Quantity">
@@ -200,7 +204,12 @@ function GroceryCartLine({
           −
         </button>
         <span>{item.quantity}</span>
-        <button type="button" onClick={onInc} aria-label="Increase quantity">
+        <button
+          type="button"
+          onClick={onInc}
+          disabled={atMax}
+          aria-label="Increase quantity"
+        >
           +
         </button>
       </div>

@@ -58,66 +58,93 @@ export function InventoryHistoryDrawer({
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader className="mb-6">
           <SheetTitle>Stock History</SheetTitle>
-          <SheetDescription>
-            {sku.name} {sku.variantName ? `(${sku.variantName})` : ""}
-            <br />
-            <span className="mono mt-1 inline-block">
-              {sku.sku || "No SKU"}
+          <SheetDescription className="mt-2 flex flex-col items-start gap-2">
+            <span className="text-sm font-medium text-foreground">
+              {sku.name} {sku.variantName ? `(${sku.variantName})` : ""}
+            </span>
+            <span className="font-mono text-[11px] bg-muted text-muted-foreground px-2 py-1 rounded-md font-semibold tracking-wider">
+              {sku.sku || "NO-SKU"}
             </span>
           </SheetDescription>
         </SheetHeader>
 
         {loading ? (
-          <div className="flex justify-center p-8">
-            <Loader2 className="h-6 w-6 animate-spin text-dim" />
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : error ? (
-          <div className="p-4 text-sm text-red-600 bg-red-50 rounded-md">
+          <div className="p-4 text-sm text-destructive bg-destructive/10 rounded-lg font-medium">
             {error}
           </div>
         ) : movements.length === 0 ? (
-          <div className="text-center p-8 text-sm text-dim">
-            No stock movements found.
+          <div className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed rounded-xl border-border bg-muted/20">
+            <p className="text-sm font-medium text-foreground">
+              No stock movements found.
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Stock changes will appear here.
+            </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {movements.map((m) => (
               <div
                 key={m.id}
-                className="text-sm border-b pb-4 last:border-0 border-[var(--dash-border)]"
+                className="flex flex-col gap-3 p-4 rounded-xl border border-border bg-card shadow-sm transition-all hover:shadow-md"
               >
-                <div className="flex justify-between items-start mb-1">
-                  <span className="font-semibold">{m.reason}</span>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
+                    <span className="font-semibold text-sm text-foreground capitalize">
+                      {m.reason.replace(/_/g, " ")}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground font-medium">
+                      {new Intl.DateTimeFormat("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      }).format(new Date(m.created_at))}
+                    </span>
+                  </div>
                   <span
-                    className={`mono font-medium ${m.delta > 0 ? "text-green-600" : m.delta < 0 ? "text-red-600" : ""}`}
+                    className={`font-mono text-xs font-bold px-2 py-1 rounded-md shrink-0 ${
+                      m.delta > 0
+                        ? "bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400"
+                        : m.delta < 0
+                          ? "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400"
+                          : "bg-muted text-muted-foreground"
+                    }`}
                   >
                     {m.delta > 0 ? "+" : ""}
                     {m.delta}
                   </span>
                 </div>
-                <div className="flex justify-between text-xs text-dim">
-                  <span>
-                    {new Intl.DateTimeFormat("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    }).format(new Date(m.created_at))}
-                  </span>
-                  <span>Balance: {m.balance_after}</span>
+
+                <div className="flex items-start justify-between gap-2 text-xs">
+                  <div className="text-muted-foreground flex-1 min-w-0 flex flex-col gap-1">
+                    {m.order_id && (
+                      <span>
+                        Order ID:{" "}
+                        <span className="font-mono font-medium text-foreground">
+                          {m.order_id.slice(0, 8)}...
+                        </span>
+                      </span>
+                    )}
+                    {m.note && (
+                      <span className="italic break-words">
+                        &quot;{m.note}&quot;
+                      </span>
+                    )}
+                    {!m.order_id && !m.note && <span>System Update</span>}
+                  </div>
+                  <div className="font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded-md whitespace-nowrap shrink-0">
+                    Balance:{" "}
+                    <span className="font-mono font-bold text-foreground ml-1">
+                      {m.balance_after}
+                    </span>
+                  </div>
                 </div>
-                {m.order_id && (
-                  <div className="mt-1 text-xs text-dim">
-                    Order ID:{" "}
-                    <span className="mono">{m.order_id.slice(0, 8)}...</span>
-                  </div>
-                )}
-                {m.note && (
-                  <div className="mt-1 text-xs text-[var(--dash-text)] italic">
-                    &quot;{m.note}&quot;
-                  </div>
-                )}
               </div>
             ))}
           </div>

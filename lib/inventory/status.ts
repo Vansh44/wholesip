@@ -51,6 +51,34 @@ export function maxPurchasable(sku: StockFields, ceiling = 99): number {
   return ceiling;
 }
 
+// A cart line's inventory snapshot (camelCase, to match CartItem and the
+// storefront DTOs). All fields optional so older persisted carts — and callers
+// with no stock data — still parse; an absent `trackInventory` means "unknown ⇒
+// treat as untracked (unlimited)", leaving the server-side reserve_stock guard
+// as the final word rather than silently zeroing a valid line.
+export interface CartStockSnapshot {
+  trackInventory?: boolean;
+  stock?: number;
+  allowBackorder?: boolean;
+}
+
+// The most a shopper may hold in the cart for a single line — the camelCase
+// cart counterpart of maxPurchasable(). Shared by the CartProvider clamp and
+// every quantity stepper so "you can never exceed available stock" resolves
+// identically across the quick-add button, the detail page, the drawer, and the
+// cart page.
+export function cartLineMax(snap: CartStockSnapshot, ceiling = 99): number {
+  return maxPurchasable(
+    {
+      track_inventory: snap.trackInventory ?? false,
+      stock: snap.stock ?? 0,
+      low_stock_threshold: null,
+      allow_backorder: snap.allowBackorder ?? false,
+    },
+    ceiling,
+  );
+}
+
 // Storefront: the "Only N left" count when a tracked, in-stock SKU is at or
 // under its effective threshold; null when no low-stock badge should show.
 export function lowStockLeft(

@@ -4,6 +4,7 @@ import {
   isSoldOut,
   lowStockLeft,
   maxPurchasable,
+  cartLineMax,
   inventoryStatus,
   productIsSoldOut,
   productLowStockLeft,
@@ -77,6 +78,29 @@ describe("maxPurchasable", () => {
   it("never exceeds the UI ceiling and respects a custom one", () => {
     expect(maxPurchasable(sku({ stock: 500 }))).toBe(99);
     expect(maxPurchasable(sku({ stock: 500 }), 10)).toBe(10);
+  });
+});
+
+describe("cartLineMax (camelCase cart snapshot cap)", () => {
+  it("caps a tracked, non-backorderable line at its snapshot stock", () => {
+    expect(cartLineMax({ trackInventory: true, stock: 3 })).toBe(3);
+    expect(cartLineMax({ trackInventory: true, stock: 0 })).toBe(0);
+  });
+
+  it("treats an absent/untracked snapshot as unlimited (ceiling)", () => {
+    // Older persisted carts have no stock fields at all — never zero them.
+    expect(cartLineMax({})).toBe(99);
+    expect(cartLineMax({ trackInventory: false, stock: 0 })).toBe(99);
+  });
+
+  it("does not cap a backorderable line", () => {
+    expect(
+      cartLineMax({ trackInventory: true, stock: 1, allowBackorder: true }),
+    ).toBe(99);
+  });
+
+  it("respects a custom ceiling", () => {
+    expect(cartLineMax({ trackInventory: true, stock: 500 }, 10)).toBe(10);
   });
 });
 
