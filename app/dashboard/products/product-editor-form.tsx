@@ -593,7 +593,7 @@ export function ProductEditorForm({
         {/* Media */}
         <Section
           title="Media"
-          description="Add photos so customers can see what they're buying. The primary image is the storefront thumbnail."
+          description="Add photos so customers can see what they are buying. The primary image is the storefront thumbnail."
           icon={ImageIcon}
           tint="violet"
         >
