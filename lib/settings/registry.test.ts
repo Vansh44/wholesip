@@ -50,10 +50,10 @@ describe("settings registry", () => {
     });
 
     it("enforces the plan ladder", () => {
-      expect(planAllows("free", "growth")).toBe(false);
-      expect(planAllows("starter", "growth")).toBe(false);
-      expect(planAllows("growth", "growth")).toBe(true);
-      expect(planAllows("pro", "growth")).toBe(true);
+      expect(planAllows("free", "starter")).toBe(false);
+      expect(planAllows("starter", "starter")).toBe(true);
+      expect(planAllows("starter", "pro")).toBe(false);
+      expect(planAllows("pro", "starter")).toBe(true);
     });
   });
 

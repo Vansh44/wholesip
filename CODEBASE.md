@@ -601,6 +601,26 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     `order_ref` (UUID kept in a `title` tooltip). Order/product/store UUIDs and
     routes are UNCHANGED. Supersedes the "sku (text, products only)" note in #13.
 
+15. **Plans (free / starter / pro).** `lib/plans.ts` is the single plan catalog
+    (pure, tested): `PLAN_IDS`, `PLAN_RANK`, `normalizePlan`/`planAllows`
+    (re-exported by `lib/settings/registry.ts` for its `minPlan` gates —
+    the former "growth" id is retired), display meta (`PLAN_META`: INR
+    monthly/yearly pricing, taglines) and `PLAN_LIMITS` (product/staff/AI/
+    coupon caps + customDomain/onlinePayments/emailCampaigns/removeBadge
+    flags; `null` = unlimited; enforce server-side in the owning action,
+    soft-on-downgrade: never delete data, only block NEW rows past a cap).
+    `stores.plan` is CHECK-constrained to the three ids and paired with
+    `stores.plan_source` (`comp`/`paid`/`trial` — an operator comp must never
+    be overwritten by a future billing webhook); every change is recorded in
+    the append-only `plan_events` audit table (service-role only, like
+    `store_counters`) — all in `supabase/plans_01_schema.sql`. The platform
+    stores console upgrades stores via `setStorePlan` (`app/actions/
+platform.ts`, superadmin-only, tested): **UPGRADE-ONLY by design** —
+    free → starter/pro, starter → pro, pro → nowhere (`upgradeTargets`);
+    downgrades will arrive with billing (non-renewal), not as a console
+    button. Billing (Razorpay subscriptions), per-feature limit enforcement
+    and the merchant-facing billing page are later phases.
+
 ## 6. Commands
 
 ```bash

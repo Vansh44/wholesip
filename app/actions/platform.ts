@@ -7,6 +7,13 @@ import { STORE_TAG, WHOLESIP_STORE_ID } from "@/lib/store/resolve";
 import { getThemeDefinition } from "@/lib/themes";
 import { applyTheme } from "@/lib/themes/apply";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
+import {
+  PLAN_IDS,
+  PLAN_META,
+  normalizePlan,
+  isUpgrade,
+  type Plan,
+} from "@/lib/plans";
 
 // A Storemink platform operator (from platform_admins, by JWT email).
 export interface PlatformViewer {
@@ -124,6 +131,68 @@ export async function setStoreStatus(
     console.error("setStoreStatus:", error.message);
     return { error: "Could not update the store. Please try again." };
   }
+  revalidateTag(STORE_TAG, "max");
+  return { success: true };
+}
+
+// Promote a store to a higher plan (platform superadmin only). UPGRADE-ONLY by
+// design: free → starter/pro, starter → pro, pro → nowhere. A paying/comped
+// merchant is never stripped of features from the console — plan DEscents will
+// arrive with billing (non-renewal → scheduled downgrade), not as a button.
+// Every change is recorded in the append-only plan_events audit log.
+export async function setStorePlan(
+  storeId: string,
+  targetPlan: string,
+): Promise<ActionResult> {
+  const viewer = await getPlatformViewer();
+  if (viewer?.role !== "superadmin") {
+    return { error: "Only a platform superadmin can change store plans." };
+  }
+  if (!PLAN_IDS.includes(targetPlan as Plan)) {
+    return { error: "Invalid plan." };
+  }
+  const target = targetPlan as Plan;
+
+  const admin = createAdminClient();
+  const { data: store } = await admin
+    .from("stores")
+    .select("id, plan")
+    .eq("id", storeId)
+    .maybeSingle();
+  if (!store) return { error: "Store not found." };
+
+  const current = normalizePlan(store.plan);
+  if (current === target) {
+    return { error: `This store is already on ${PLAN_META[target].name}.` };
+  }
+  if (!isUpgrade(current, target)) {
+    return {
+      error: `Plans can't be downgraded from the console (${PLAN_META[current].name} → ${PLAN_META[target].name}).`,
+    };
+  }
+
+  const { error } = await admin
+    .from("stores")
+    .update({ plan: target, plan_source: "comp" })
+    .eq("id", storeId)
+    .eq("plan", store.plan); // no-op if the plan changed under us (stale row)
+  if (error) {
+    console.error("setStorePlan:", error.message);
+    return { error: "Could not update the plan. Please try again." };
+  }
+
+  // Best-effort audit trail — the plan change itself is the source of truth.
+  const { error: auditErr } = await admin.from("plan_events").insert({
+    store_id: storeId,
+    from_plan: current,
+    to_plan: target,
+    source: "operator",
+    actor: viewer.email,
+  });
+  if (auditErr) console.error("setStorePlan (audit):", auditErr.message);
+
+  // Plan gates feature settings (minPlan) — bust the cached store lookups so
+  // the store's dashboard + storefront see the new plan immediately.
   revalidateTag(STORE_TAG, "max");
   return { success: true };
 }

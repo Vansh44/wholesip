@@ -4,10 +4,24 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   setStoreStatus,
+  setStorePlan,
   deleteStore,
   type PlatformStoreRow,
 } from "@/app/actions/platform";
-import { Search, AlertTriangle } from "lucide-react";
+import {
+  PLAN_META,
+  normalizePlan,
+  upgradeTargets,
+  type Plan,
+} from "@/lib/plans";
+import { Search, AlertTriangle, ArrowUpCircle } from "lucide-react";
+
+// Badge styling per plan — free is neutral, paid tiers get colour.
+const PLAN_BADGE: Record<Plan, string> = {
+  free: "bg-gray-50 text-gray-600 ring-gray-500/10",
+  starter: "bg-sky-50 text-sky-700 ring-sky-600/20",
+  pro: "bg-violet-50 text-violet-700 ring-violet-600/20",
+};
 
 function storeUrl(store: PlatformStoreRow, rootDomain: string): string {
   return store.custom_domain
@@ -37,6 +51,33 @@ export function StoresConsole({
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
+  // Plan-upgrade dialog (upgrade-only; pro stores never show the button).
+  const [toUpgrade, setToUpgrade] = useState<PlatformStoreRow | null>(null);
+  const [targetPlan, setTargetPlan] = useState<Plan | null>(null);
+  const [upgrading, setUpgrading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState("");
+
+  function openUpgrade(store: PlatformStoreRow) {
+    const targets = upgradeTargets(normalizePlan(store.plan));
+    setToUpgrade(store);
+    setTargetPlan(targets.length === 1 ? targets[0] : null);
+    setUpgradeError("");
+  }
+
+  async function confirmUpgrade() {
+    if (!toUpgrade || !targetPlan) return;
+    setUpgrading(true);
+    setUpgradeError("");
+    const res = await setStorePlan(toUpgrade.id, targetPlan);
+    setUpgrading(false);
+    if (res.error) {
+      setUpgradeError(res.error);
+      return;
+    }
+    setToUpgrade(null);
+    startTransition(() => router.refresh());
+  }
 
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -154,8 +195,12 @@ export function StoresConsole({
                         {s.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-600 capitalize">
-                      {s.plan}
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ring-1 ring-inset ${PLAN_BADGE[normalizePlan(s.plan)]}`}
+                      >
+                        {PLAN_META[normalizePlan(s.plan)].name}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-gray-600">
                       {new Date(s.created_at).toLocaleDateString("en-GB", {
@@ -174,6 +219,16 @@ export function StoresConsole({
                         >
                           Open ↗
                         </a>
+                        {canManage &&
+                          upgradeTargets(normalizePlan(s.plan)).length > 0 && (
+                            <button
+                              className="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors inline-flex items-center gap-1"
+                              onClick={() => openUpgrade(s)}
+                            >
+                              <ArrowUpCircle className="h-3.5 w-3.5" />
+                              Upgrade
+                            </button>
+                          )}
                         {canManage && (
                           <button
                             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -208,6 +263,94 @@ export function StoresConsole({
           </table>
         </div>
       </div>
+
+      {toUpgrade && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !upgrading && setToUpgrade(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white shadow-xl border border-gray-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                  <ArrowUpCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">
+                    Upgrade {toUpgrade.name}
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Currently on{" "}
+                    <span className="font-medium capitalize">
+                      {PLAN_META[normalizePlan(toUpgrade.plan)].name}
+                    </span>
+                    . Upgrades apply immediately; plans can&apos;t be downgraded
+                    from the console.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-2">
+                {upgradeTargets(normalizePlan(toUpgrade.plan)).map((p) => {
+                  const meta = PLAN_META[p];
+                  const active = targetPlan === p;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setTargetPlan(p)}
+                      className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                        active
+                          ? "border-indigo-500 ring-2 ring-indigo-100 bg-indigo-50/40"
+                          : "border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-gray-900">
+                          {meta.name}
+                        </span>
+                        <span className="text-sm text-gray-600">
+                          ₹{meta.monthlyInr.toLocaleString("en-IN")}/mo
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {meta.tagline}
+                      </p>
+                    </button>
+                  );
+                })}
+                {upgradeError && (
+                  <p className="text-sm text-red-600">{upgradeError}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+              <button
+                className="px-4 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"
+                onClick={() => setToUpgrade(null)}
+                disabled={upgrading}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={upgrading || !targetPlan}
+                onClick={confirmUpgrade}
+              >
+                {upgrading
+                  ? "Upgrading…"
+                  : targetPlan
+                    ? `Upgrade to ${PLAN_META[targetPlan].name}`
+                    : "Choose a plan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toDelete && (
         <div
