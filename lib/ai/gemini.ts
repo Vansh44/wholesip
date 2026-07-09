@@ -1,30 +1,11 @@
-import { readFile } from "fs/promises";
-import path from "path";
-
 // Shared Gemini access for every AI copy feature (product descriptions, SEO,
-// coupon emails). Plain server module — NOT a "use server" file — so it can
-// export sync helpers, constants and types alongside the async call.
+// coupon emails, brand-voice setup). Plain server module — NOT a "use server"
+// file — so it can export sync helpers, constants and types alongside the call.
+//
+// The brand "soul" is PER-STORE data now — lib/ai/brand-voice.ts
+// (store_brand_profiles) replaced the legacy file-based brand/brand.md loader.
 
 export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-
-/**
- * Load brand/brand.md (the brand "soul"). Returns null if the file is missing
- * or only contains the placeholder comment, so callers can fail with a helpful
- * message instead of feeding the model an empty identity.
- */
-export async function loadBrandSoul(): Promise<string | null> {
-  try {
-    const raw = await readFile(
-      path.join(process.cwd(), "brand", "brand.md"),
-      "utf8",
-    );
-    // Drop the HTML placeholder comment so an untouched template reads as empty.
-    const clean = raw.replace(/<!--[\s\S]*?-->/g, "").trim();
-    return clean || null;
-  } catch {
-    return null;
-  }
-}
 
 // The brand soul becomes Gemini's system instruction — its persistent identity.
 export function brandSystemText(brand: string): string {

@@ -4,7 +4,9 @@ import { after } from "next/server";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
-import { callGemini, brandSystemText, loadBrandSoul } from "@/lib/ai/gemini";
+import { callGemini, brandSystemText } from "@/lib/ai/gemini";
+import { getBrandSoulForStore } from "@/lib/ai/brand-voice";
+import { consumeAiQuota } from "@/lib/ai/quota";
 import { triggerEmailWorker } from "@/lib/email/trigger-worker";
 import {
   mergeTokens,
@@ -155,13 +157,12 @@ export async function generateCouponEmail(
   const userId = await getManagerUserId("marketing");
   if (!userId) return { error: "Not authenticated" };
 
-  const brand = await loadBrandSoul();
-  if (!brand) {
-    return {
-      error:
-        "brand/brand.md is missing or empty. Paste your brand guide first.",
-    };
-  }
+  // Meter against the store's plan cap, then speak in ITS voice.
+  const storeId = await getActingStoreId();
+  const quota = await consumeAiQuota(storeId);
+  if (!quota.allowed) return { error: quota.error };
+
+  const brand = await getBrandSoulForStore(storeId);
 
   const facts = [
     `Coupon code: ${input.code}`,

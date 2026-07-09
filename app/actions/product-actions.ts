@@ -10,7 +10,9 @@ import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import { getStoreUrl } from "@/lib/site";
 import { pingIndexNow } from "@/lib/seo/search-engines";
 import { TAGS } from "@/lib/storefront/tags";
-import { callGemini, brandSystemText, loadBrandSoul } from "@/lib/ai/gemini";
+import { callGemini, brandSystemText } from "@/lib/ai/gemini";
+import { getBrandSoulForStore } from "@/lib/ai/brand-voice";
+import { consumeAiQuota } from "@/lib/ai/quota";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -709,14 +711,14 @@ export async function generateProductDescription(
     return { error: "Add a product name first." };
   }
 
-  // brand.md (soul) + product-desc.md (task) + form fields → Gemini.
-  const brand = await loadBrandSoul();
-  if (!brand) {
-    return {
-      error:
-        "brand/brand.md is missing or empty. Paste your brand guide first.",
-    };
-  }
+  // Meter the generation against the store's plan cap BEFORE calling Gemini.
+  const storeId = await getActingStoreId();
+  const quota = await consumeAiQuota(storeId);
+  if (!quota.allowed) return { error: quota.error };
+
+  // The store's brand soul (per-store, generic fallback when unset) +
+  // product-desc.md (task rules) + form fields → Gemini.
+  const brand = await getBrandSoulForStore(storeId);
 
   const taskRules = await loadTaskRules();
   const facts = buildProductFacts(input);
@@ -798,13 +800,11 @@ export async function generateProductSeo(input: SeoInput): Promise<SeoResult> {
     return { error: "Fill in the product description before generating SEO." };
   }
 
-  const brand = await loadBrandSoul();
-  if (!brand) {
-    return {
-      error:
-        "brand/brand.md is missing or empty. Paste your brand guide first.",
-    };
-  }
+  const storeId = await getActingStoreId();
+  const quota = await consumeAiQuota(storeId);
+  if (!quota.allowed) return { error: quota.error };
+
+  const brand = await getBrandSoulForStore(storeId);
 
   const taskRules = await loadSeoTaskRules();
   const facts = buildProductFacts(input);

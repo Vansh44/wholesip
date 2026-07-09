@@ -26,7 +26,7 @@ so some naming (repo name `wholesip`, `config/site.ts`, `brand/`) is legacy.
 | UI        | React 19, Tailwind CSS v4, shadcn/ui (`components/ui/`), Base UI, lucide-react, sonner (toasts), recharts (charts), TipTap (rich-text editor), CodeMirror 6 (`@uiw/react-codemirror` — website-builder code editor, lazy-loaded) |
 | Backend   | Supabase (Postgres + Auth + Storage + RLS), server actions in `app/actions/`                                                                                                                                                     |
 | Email     | Resend + nodemailer (`lib/email/`), Vercel cron `/api/cron/send-emails` (daily, `vercel.json`)                                                                                                                                   |
-| AI        | Gemini (`lib/ai/gemini.ts`) for AI copy actions; brand voice files in `brand/`                                                                                                                                                   |
+| AI        | Gemini (`lib/ai/gemini.ts`); per-store brand voice (`lib/ai/brand-voice.ts` + `store_brand_profiles`) with plan-capped usage metering (`lib/ai/quota.ts`); task prompts in `brand/tasks/`                                        |
 | Testing   | Vitest + Testing Library + jsdom, coverage via v8 (`coverage/` is generated output — never edit)                                                                                                                                 |
 | Deploy    | Vercel; CI on GitHub Actions (`.github/workflows/ci.yml`: lint → typecheck → test → prettier → build)                                                                                                                            |
 
@@ -620,6 +620,28 @@ platform.ts`, superadmin-only, tested): **UPGRADE-ONLY by design** —
     downgrades will arrive with billing (non-renewal), not as a console
     button. Billing (Razorpay subscriptions), per-feature limit enforcement
     and the merchant-facing billing page are later phases.
+
+16. **Per-store brand voice + AI quota.** Every AI copy feature (product
+    description, SEO, coupon email, brand-voice setup) speaks in the STORE's
+    voice: `lib/ai/brand-voice.ts` `getBrandSoulForStore(storeId)` reads
+    `store_brand_profiles` (`supabase/brand_voice_01_schema.sql`; service-role
+    only — a brand guide is internal content, so no anon/authenticated grants,
+    the store_pages-draft pattern) and NEVER returns null — stores without a
+    saved guide get a safe generic default folded from their name/tagline/blurb,
+    so AI works out of the box. The legacy file-based `brand/brand.md` loader is
+    retired (its content seeded as the WholeSip store's row); `brand/tasks/*`
+    (task prompts — WHAT to write, not WHO speaks) stay platform assets in code.
+    Merchants edit their voice at `/dashboard/branding` (section `branding`):
+    five guided questions + "Generate with AI" (a fixed brand-strategist prompt
+    composes the guide from the answers, review-before-save) + a free-form
+    guide textarea — `app/actions/brand-voice-actions.ts` (tested). **AI quota
+    (first live plan-limit enforcement):** `lib/ai/quota.ts` `consumeAiQuota`
+    meters generations per store per calendar month against the plan's
+    `aiGenerationsPerMonth` cap (null = unlimited, no metering) via the atomic
+    `try_ai_generation` RPC + `ai_usage` table (single conditional UPDATE, the
+    coupon-usage pattern; fails OPEN on transient errors). Called BEFORE Gemini
+    in every AI action; blocked stores get a plan-aware upgrade message and the
+    branding page shows "X of Y used this month".
 
 ## 6. Commands
 

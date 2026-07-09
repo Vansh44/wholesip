@@ -7,8 +7,14 @@ vi.mock("@/app/dashboard/lib/access", () => ({
 }));
 vi.mock("@/lib/ai/gemini", () => ({
   callGemini: vi.fn(),
-  loadBrandSoul: vi.fn(),
   brandSystemText: vi.fn((b: string) => `SYSTEM:${b}`),
+}));
+// Per-store brand soul + plan-capped AI quota.
+vi.mock("@/lib/ai/brand-voice", () => ({
+  getBrandSoulForStore: vi.fn(async () => "brand soul"),
+}));
+vi.mock("@/lib/ai/quota", () => ({
+  consumeAiQuota: vi.fn(async () => ({ allowed: true })),
 }));
 vi.mock("@/lib/email/coupon-campaign", () => ({
   mergeTokens: vi.fn((t: string) => t),
@@ -56,7 +62,8 @@ import {
 } from "./coupon-email-actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
-import { callGemini, loadBrandSoul } from "@/lib/ai/gemini";
+import { callGemini } from "@/lib/ai/gemini";
+import { consumeAiQuota } from "@/lib/ai/quota";
 import { mergeTokens, renderCouponEmail } from "@/lib/email/coupon-campaign";
 import { makeChain, makeSupabase } from "./_test-helpers";
 
@@ -111,7 +118,7 @@ function makeEnqueueSupabase(
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getManagerUserId).mockResolvedValue("user-1");
-  vi.mocked(loadBrandSoul).mockResolvedValue("brand soul");
+  vi.mocked(consumeAiQuota).mockResolvedValue({ allowed: true });
   vi.mocked(callGemini).mockResolvedValue({
     text: JSON.stringify({ subject: "S", body: "B" }),
   });
@@ -209,10 +216,14 @@ describe("generateCouponEmail", () => {
     expect(result.error).toMatch(/not authenticated/i);
   });
 
-  it("errors when the brand soul is missing", async () => {
-    vi.mocked(loadBrandSoul).mockResolvedValue(null);
+  it("blocks the generation when the monthly AI quota is spent", async () => {
+    vi.mocked(consumeAiQuota).mockResolvedValueOnce({
+      allowed: false,
+      error: "You've used all 10 AI generations…",
+    });
     const result = await generateCouponEmail(genInput);
-    expect(result.error).toMatch(/brand\.md is missing/i);
+    expect(result.error).toMatch(/AI generations/i);
+    expect(callGemini).not.toHaveBeenCalled();
   });
 
   it("surfaces a callGemini error", async () => {

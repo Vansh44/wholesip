@@ -2,21 +2,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Mock fs/promises so loadBrandSoul never touches the real filesystem.
-vi.mock("fs/promises", () => {
-  const readFile = vi.fn();
-  return { readFile, default: { readFile } };
-});
-
-import { readFile } from "fs/promises";
-import {
-  GEMINI_MODEL,
-  loadBrandSoul,
-  brandSystemText,
-  callGemini,
-} from "./gemini";
-
-const mockReadFile = vi.mocked(readFile);
+import { GEMINI_MODEL, brandSystemText, callGemini } from "./gemini";
 
 // Build a minimal fake fetch Response.
 function fakeResponse({
@@ -43,42 +29,8 @@ const okJson = (text: string) => ({
   candidates: [{ content: { parts: [{ text }] } }],
 });
 
-describe("loadBrandSoul", () => {
-  beforeEach(() => {
-    mockReadFile.mockReset();
-  });
-
-  it("returns trimmed brand content", async () => {
-    mockReadFile.mockResolvedValue(
-      "  We are WholeSip, calm and warm.  \n" as any,
-    );
-    await expect(loadBrandSoul()).resolves.toBe(
-      "We are WholeSip, calm and warm.",
-    );
-  });
-
-  it("returns null when the file is only the placeholder HTML comment", async () => {
-    mockReadFile.mockResolvedValue("<!-- paste brand here -->" as any);
-    await expect(loadBrandSoul()).resolves.toBeNull();
-  });
-
-  it("returns null when readFile rejects (file missing)", async () => {
-    mockReadFile.mockRejectedValue(new Error("ENOENT"));
-    await expect(loadBrandSoul()).resolves.toBeNull();
-  });
-
-  it("strips HTML comments and trims the remaining content", async () => {
-    mockReadFile.mockResolvedValue(
-      "<!-- template note -->\n  Real brand voice.  <!-- trailing -->\n" as any,
-    );
-    await expect(loadBrandSoul()).resolves.toBe("Real brand voice.");
-  });
-
-  it("returns null when the content is only whitespace", async () => {
-    mockReadFile.mockResolvedValue("   \n\t  " as any);
-    await expect(loadBrandSoul()).resolves.toBeNull();
-  });
-});
+// loadBrandSoul (the file-based brand.md reader) moved to per-store data —
+// lib/ai/brand-voice.ts owns that path now, with its own tests.
 
 describe("brandSystemText", () => {
   it("embeds the brand text and appends the brand's soul instruction", () => {
