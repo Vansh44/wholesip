@@ -4,6 +4,7 @@ import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getActingStoreId } from "@/app/dashboard/lib/access";
 import { STORE_TAG } from "@/lib/store/resolve";
+import { ROOT_DOMAIN } from "@/lib/store/host";
 import { brandFromSettings, type StoreBrand } from "@/lib/store/brand";
 
 export interface ActionResult {
@@ -22,7 +23,7 @@ export async function getStoreBrandingForEditor(): Promise<StoreBrand> {
     .eq("id", storeId)
     .single();
   const domain =
-    data?.custom_domain || `${data?.slug || "store"}.storemink.com`;
+    data?.custom_domain || `${data?.slug || "store"}.${ROOT_DOMAIN}`;
   return brandFromSettings(
     (data?.settings as Record<string, unknown>) ?? {},
     (data?.name as string) ?? "Store",
