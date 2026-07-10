@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShopCard } from "@/app/(storefront)/components/shop-card";
+import { useBrand } from "@/app/(storefront)/components/brand-provider";
 
 export interface ShopProduct {
   id: string;
@@ -56,31 +57,6 @@ type Props = {
   storeLowStockThreshold?: number;
 };
 
-// Repeating phrases for the scrolling promo ticker.
-const TICKER_PHRASES = [
-  "free shipping over ₹599",
-  "real food, nothing stripped out",
-  "all whole food",
-  "the way Earth made it",
-  "0g added sugar",
-];
-
-// One sequence: phrases repeated enough to fill wide screens. Two of these
-// sit in the track; the CSS animation translates by -50% for a seamless loop.
-function TickerSequence({ ariaHidden = false }: { ariaHidden?: boolean }) {
-  return (
-    <div className="shop-ticker-seq" aria-hidden={ariaHidden || undefined}>
-      {Array.from({ length: 3 }).flatMap((_, rep) =>
-        TICKER_PHRASES.map((phrase, i) => (
-          <span className="shop-ticker-item" key={`${rep}-${i}`}>
-            {phrase}
-          </span>
-        )),
-      )}
-    </div>
-  );
-}
-
 export default function ShopClient({
   products,
   categories,
@@ -96,6 +72,7 @@ export default function ShopClient({
   const [active, setActive] = useState<string>(initialActive);
   const [query, setQuery] = useState<string>(initialQuery ?? "");
   const router = useRouter();
+  const brand = useBrand();
 
   // The header search pushes a new ?q= onto the SAME route, so this component
   // is reused rather than remounted — adopt the new deep link during render
@@ -133,16 +110,6 @@ export default function ShopClient({
   return (
     <main className="shop-main shop-listing">
       <div className="shop-panel">
-        {/* Promo ticker — continuous scrolling marquee (classic only). */}
-        {!grocery && (
-          <div className="shop-ticker">
-            <div className="shop-ticker-track">
-              <TickerSequence />
-              <TickerSequence ariaHidden />
-            </div>
-          </div>
-        )}
-
         <div className="shop-panel-body">
           {/* Hero: grocery gets a clean, brand-neutral header; the classic
               theme keeps the WholeSip lowercase-headline hero. */}
@@ -154,23 +121,25 @@ export default function ShopClient({
                   : "Shop everything"}
               </h1>
               <p className="shop-sub-grocery">
-                Fresh picks, daily staples and pantry favourites.
+                {brand.tagline ||
+                  brand.blurb ||
+                  "Fresh picks, daily staples and pantry favourites."}
               </p>
             </section>
           ) : (
             <section className="shop-hero">
-              <span className="shop-kicker">the wholesip store</span>
+              <span className="shop-kicker">{brand.name}</span>
               <div className="shop-hero-row">
                 <h1 className="shop-title">
-                  the whole shelf
-                  <br />
-                  {/* shelf */}
+                  {query.trim()
+                    ? `Results for “${query.trim()}”`
+                    : "Shop everything"}
                 </h1>
-                <div className="shop-note">
-                  100% whole food
-                  <br />
-                  nothing synthetic
-                </div>
+                {(brand.tagline || brand.blurb) && (
+                  <div className="shop-note">
+                    {brand.tagline || brand.blurb}
+                  </div>
+                )}
               </div>
             </section>
           )}

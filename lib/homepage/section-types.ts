@@ -22,6 +22,7 @@ export type HomepageSectionType =
   | "promo_banner"
   | "tile_grid"
   | "usp_bar"
+  | "ticker"
   | "faq_accordion"
   | "latest_blogs"
   | "rich_text"
@@ -35,6 +36,7 @@ export const HOMEPAGE_SECTION_TYPES: HomepageSectionType[] = [
   "promo_banner",
   "tile_grid",
   "usp_bar",
+  "ticker",
   "faq_accordion",
   "latest_blogs",
   "rich_text",
@@ -178,6 +180,20 @@ export interface UspBarConfig {
   theme: BannerTheme;
 }
 
+export type TickerSpeed = "slow" | "medium" | "fast";
+
+/**
+ * Scrolling marquee strip of short messages ("Free shipping over ₹499 ✦ New
+ * arrivals weekly"). theme = TEXT colour like usp_bar/promo_banner — pair with
+ * a style.background for the band. Pure CSS animation: pauses on hover, and
+ * falls back to a static wrapped strip under prefers-reduced-motion.
+ */
+export interface TickerConfig {
+  messages: string[];
+  speed: TickerSpeed;
+  theme: BannerTheme;
+}
+
 /**
  * Grid of linked colour/image tiles — covers grocery offer tiles, curated
  * collection grids, gift-pack grids and 2-up mini-banner pairs. Tile
@@ -274,6 +290,7 @@ export type AnySectionConfig =
   | PromoBannerConfig
   | TileGridConfig
   | UspBarConfig
+  | TickerConfig
   | FaqAccordionConfig
   | LatestBlogsConfig
   | RichTextConfig
@@ -289,6 +306,7 @@ export type HomepageSectionConfig =
   | { type: "promo_banner"; config: PromoBannerConfig }
   | { type: "tile_grid"; config: TileGridConfig }
   | { type: "usp_bar"; config: UspBarConfig }
+  | { type: "ticker"; config: TickerConfig }
   | { type: "faq_accordion"; config: FaqAccordionConfig }
   | { type: "latest_blogs"; config: LatestBlogsConfig }
   | { type: "rich_text"; config: RichTextConfig }
@@ -315,6 +333,7 @@ export const EMPTY_CONFIG: {
   promo_banner: PromoBannerConfig;
   tile_grid: TileGridConfig;
   usp_bar: UspBarConfig;
+  ticker: TickerConfig;
   faq_accordion: FaqAccordionConfig;
   latest_blogs: LatestBlogsConfig;
   rich_text: RichTextConfig;
@@ -387,6 +406,17 @@ export const EMPTY_CONFIG: {
       { icon: "shield", title: "Secure checkout", subtitle: "" },
       { icon: "refresh", title: "Easy returns", subtitle: "" },
     ],
+    theme: "dark",
+  },
+  ticker: {
+    messages: [
+      "Free shipping over ₹499",
+      "New arrivals every week",
+      "Easy 7-day returns",
+    ],
+    speed: "medium",
+    // Dark text so it's readable on a light page out of the box; switch to
+    // light text + a dark Style-tab background for the classic banded look.
     theme: "dark",
   },
   faq_accordion: {
@@ -505,6 +535,22 @@ export const SECTION_TYPE_META: Record<HomepageSectionType, SectionTypeMeta> = {
     category: "essentials",
     keywords: ["benefits", "trust", "badges", "shipping", "guarantee"],
   },
+  ticker: {
+    label: "Ticker",
+    description:
+      "A scrolling marquee of short messages — offers, news, announcements.",
+    icon: "ticker",
+    category: "essentials",
+    keywords: [
+      "marquee",
+      "scrolling",
+      "announcement",
+      "news",
+      "banner",
+      "strip",
+      "promo",
+    ],
+  },
   faq_accordion: {
     label: "FAQ Accordion",
     description: "Expandable question/answer list with optional filters.",
@@ -541,6 +587,8 @@ export const LIMIT_MAX = 12;
 
 // Item caps for list-shaped sections.
 export const MAX_USP_ITEMS = 6;
+export const MAX_TICKER_MESSAGES = 12;
+export const TICKER_MESSAGE_MAX_CHARS = 120;
 export const MAX_TILES = 8;
 export const MAX_HERO_SLIDES = 8;
 export const MAX_FAQ_ITEMS = 30;
@@ -758,6 +806,30 @@ export function validateConfig(
     }
     const config: UspBarConfig = {
       items,
+      theme: textTheme(input.theme, "dark"),
+    };
+    return { config };
+  }
+
+  if (type === "ticker") {
+    const rawMessages = Array.isArray(input.messages) ? input.messages : [];
+    if (rawMessages.length > MAX_TICKER_MESSAGES) {
+      return { error: `At most ${MAX_TICKER_MESSAGES} messages.` };
+    }
+    const messages: string[] = [];
+    for (const raw of rawMessages) {
+      const m = str(raw).slice(0, TICKER_MESSAGE_MAX_CHARS);
+      if (m) messages.push(m); // drop empty rows silently
+    }
+    if (strict && messages.length === 0) {
+      return { error: "Add at least one message." };
+    }
+    const config: TickerConfig = {
+      messages,
+      speed:
+        input.speed === "slow" || input.speed === "fast"
+          ? input.speed
+          : "medium",
       theme: textTheme(input.theme, "dark"),
     };
     return { config };
@@ -981,6 +1053,11 @@ export function summarizeSection(section: {
       const u = c as UspBarConfig;
       const first = u.items[0]?.title?.trim();
       return `USP bar · ${u.items.length} item${u.items.length === 1 ? "" : "s"}${first ? ` · ${first}…` : ""}`;
+    }
+    case "ticker": {
+      const t = c as TickerConfig;
+      const first = t.messages[0]?.trim();
+      return `Ticker · ${t.messages.length} message${t.messages.length === 1 ? "" : "s"}${first ? ` · ${first}` : ""}`;
     }
     case "tile_grid": {
       const t = c as TileGridConfig;

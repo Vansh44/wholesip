@@ -378,7 +378,7 @@ export function ProductEditorForm({
       return { ...f, variants };
     });
 
-  // brand/brand.md (soul) + the current form fields → Gemini → description.
+  // The store's brand soul + the current form fields → Gemini → description.
   const handleGenerate = async () => {
     if (!form.name.trim()) {
       toast.error("Add a product name first");

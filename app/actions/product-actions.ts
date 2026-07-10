@@ -631,13 +631,14 @@ export async function bulkDeleteProducts(ids: string[]): Promise<ActionResult> {
 // ---------------------------------------------------------------------------
 // AI description generation (Gemini)
 //
-// Pipeline:  brand/brand.md (soul)  +  product-desc.md (task rules)  +
-//            the form fields the admin entered  →  Gemini  →  one paragraph.
+// Pipeline:  the store's brand soul  +  brand/tasks/product-desc.md (task
+//            rules)  +  the form fields the admin entered  →  Gemini  →  one
+//            paragraph.
 //
-// brand.md is the system instruction (who is speaking). product-desc.md is the
-// single source of truth for the task rules — the SAME file the /product-desc
-// slash command uses — so editing it updates both surfaces at once. The API
-// key is server-only and never reaches the browser.
+// The brand soul (getBrandSoulForStore — per-store store_brand_profiles, with a
+// generic fallback) is the system instruction: WHO is speaking. product-desc.md
+// is the single source of truth for the task rules (WHAT to write). The API key
+// is server-only and never reaches the browser.
 // ---------------------------------------------------------------------------
 
 export interface DescriptionInput {

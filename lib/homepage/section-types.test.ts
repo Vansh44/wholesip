@@ -8,6 +8,7 @@ import {
   LIMIT_MAX,
   MAX_FAQ_ITEMS,
   MAX_HERO_SLIDES,
+  MAX_TICKER_MESSAGES,
   MAX_TILES,
   MAX_USP_ITEMS,
   type FaqAccordionConfig,
@@ -17,6 +18,7 @@ import {
   type ShopByCategoryConfig,
   type PromoBannerConfig,
   type LatestBlogsConfig,
+  type TickerConfig,
   type TileGridConfig,
   type UspBarConfig,
 } from "./section-types";
@@ -292,6 +294,45 @@ describe("validateConfig", () => {
       }));
       expect(validateConfig("usp_bar", { items })).toEqual({
         error: `At most ${MAX_USP_ITEMS} items.`,
+      });
+    });
+  });
+
+  // --- ticker ------------------------------------------------------------------
+  describe("ticker", () => {
+    it("keeps non-empty messages and normalises speed/theme", () => {
+      const out = validateConfig("ticker", {
+        messages: ["Free shipping", "   ", "New arrivals"],
+        speed: "fast",
+        theme: "light",
+      });
+      const config = (out as { config: TickerConfig }).config;
+      expect(config.messages).toEqual(["Free shipping", "New arrivals"]);
+      expect(config.speed).toBe("fast");
+      expect(config.theme).toBe("light");
+    });
+
+    it("defaults an unknown speed to medium", () => {
+      const out = validateConfig("ticker", { messages: ["a"], speed: "turbo" });
+      expect((out as { config: TickerConfig }).config.speed).toBe("medium");
+    });
+
+    it("errors on publish with no messages, allows it in draft", () => {
+      expect(validateConfig("ticker", { messages: [] })).toEqual({
+        error: "Add at least one message.",
+      });
+      expect(
+        "config" in validateConfig("ticker", { messages: [] }, "draft"),
+      ).toBe(true);
+    });
+
+    it("rejects more than MAX_TICKER_MESSAGES", () => {
+      const messages = Array.from(
+        { length: MAX_TICKER_MESSAGES + 1 },
+        (_, i) => `m${i}`,
+      );
+      expect(validateConfig("ticker", { messages })).toEqual({
+        error: `At most ${MAX_TICKER_MESSAGES} messages.`,
       });
     });
   });

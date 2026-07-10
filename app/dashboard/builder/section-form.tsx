@@ -10,6 +10,7 @@ import { FieldGroup } from "./field-group";
 import {
   MAX_FAQ_ITEMS,
   MAX_HERO_SLIDES,
+  MAX_TICKER_MESSAGES,
   MAX_TILES,
   MAX_USP_ITEMS,
   USP_ICONS,
@@ -26,6 +27,7 @@ import {
   type PromoBannerConfig,
   type RichTextConfig,
   type ShopByCategoryConfig,
+  type TickerConfig,
   type TileGridConfig,
   type TileItem,
   type UspBarConfig,
@@ -93,6 +95,10 @@ export function SectionForm({
     case "usp_bar":
       return (
         <UspBarFields config={config as UspBarConfig} setConfig={setConfig} />
+      );
+    case "ticker":
+      return (
+        <TickerFields config={config as TickerConfig} setConfig={setConfig} />
       );
     case "tile_grid":
       return (
@@ -776,6 +782,124 @@ function UspBarFields({
             className="text-muted-foreground hover:bg-muted flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
           >
             <Plus className="h-3.5 w-3.5" /> Add item
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+function TickerFields({
+  config,
+  setConfig,
+}: {
+  config: TickerConfig;
+  setConfig: (c: AnySectionConfig) => void;
+}) {
+  const setMessages = (messages: string[]) =>
+    setConfig({ ...config, messages });
+  const setMessage = (i: number, value: string) =>
+    setMessages(config.messages.map((m, j) => (j === i ? value : m)));
+  const move = (i: number, dir: -1 | 1) => {
+    const target = i + dir;
+    if (target < 0 || target >= config.messages.length) return;
+    const next = [...config.messages];
+    [next[i], next[target]] = [next[target], next[i]];
+    setMessages(next);
+  };
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>Speed</label>
+          <select
+            className={fieldClass}
+            value={config.speed}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                speed: e.target.value as TickerConfig["speed"],
+              })
+            }
+          >
+            <option value="slow">Slow</option>
+            <option value="medium">Medium</option>
+            <option value="fast">Fast</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelClass}>Text theme</label>
+          <select
+            className={fieldClass}
+            value={config.theme}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                theme: e.target.value as TickerConfig["theme"],
+              })
+            }
+          >
+            <option value="dark">Dark text (light background)</option>
+            <option value="light">Light text (dark background)</option>
+          </select>
+        </div>
+      </div>
+      <p className="text-muted-foreground -mt-1 text-[11px]">
+        For a dark strip, set a dark background in the Style tab and pick light
+        text here.
+      </p>
+
+      <div className="space-y-2">
+        <label className={labelClass}>Messages</label>
+        {config.messages.map((message, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              className={fieldClass}
+              value={message}
+              onChange={(e) => setMessage(i, e.target.value)}
+              placeholder="Free shipping over ₹499"
+              maxLength={120}
+            />
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() => move(i, -1)}
+                disabled={i === 0}
+                title="Move up"
+                className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+              >
+                <ChevronUp className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => move(i, 1)}
+                disabled={i === config.messages.length - 1}
+                title="Move down"
+                className="text-muted-foreground hover:bg-muted flex h-7 w-6 items-center justify-center rounded disabled:opacity-30"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setMessages(config.messages.filter((_, j) => j !== i))
+                }
+                title="Remove"
+                className="text-muted-foreground hover:text-[var(--dash-red)] flex h-7 w-6 items-center justify-center rounded hover:bg-[var(--dash-red-soft)]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+        {config.messages.length < MAX_TICKER_MESSAGES && (
+          <button
+            type="button"
+            onClick={() => setMessages([...config.messages, ""])}
+            className="text-muted-foreground hover:bg-muted flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add message
           </button>
         )}
       </div>

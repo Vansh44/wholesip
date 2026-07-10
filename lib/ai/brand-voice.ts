@@ -3,8 +3,8 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Per-store brand voice — the identity text fed to Gemini as its system
-// instruction for every AI copy feature. Replaces the old file-based
-// brand/brand.md (now the WholeSip store's store_brand_profiles row).
+// instruction for every AI copy feature. Replaces an earlier file-based
+// approach; every store's voice now lives in store_brand_profiles.
 //
 // A store that hasn't set up its voice still gets USABLE copy: the generic
 // default template below folds in whatever branding it already has (name,

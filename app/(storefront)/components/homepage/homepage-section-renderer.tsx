@@ -11,6 +11,7 @@ import { CustomCodeSection } from "../sections/custom-code-section";
 import { HeroSection } from "../sections/hero-section";
 import { HeroCarouselSection } from "../sections/hero-carousel-section";
 import { UspBarSection } from "../sections/usp-bar-section";
+import { TickerSection } from "../sections/ticker-section";
 import { TileGridSection } from "../sections/tile-grid-section";
 import { FaqAccordionSection } from "../sections/faq-accordion-section";
 import type {
@@ -26,6 +27,7 @@ import type {
   RichTextConfig,
   SectionStyle,
   ShopByCategoryConfig,
+  TickerConfig,
   TileGridConfig,
   UspBarConfig,
 } from "@/lib/homepage/section-types";
@@ -73,6 +75,10 @@ export function HomepageSectionRenderer({
     case "usp_bar":
       return (
         <UspBarSection {...shell} config={section.config as UspBarConfig} />
+      );
+    case "ticker":
+      return (
+        <TickerSection {...shell} config={section.config as TickerConfig} />
       );
     case "tile_grid":
       return (

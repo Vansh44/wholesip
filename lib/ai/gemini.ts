@@ -2,8 +2,8 @@
 // coupon emails, brand-voice setup). Plain server module — NOT a "use server"
 // file — so it can export sync helpers, constants and types alongside the call.
 //
-// The brand "soul" is PER-STORE data now — lib/ai/brand-voice.ts
-// (store_brand_profiles) replaced the legacy file-based brand/brand.md loader.
+// The brand "soul" is PER-STORE data — lib/ai/brand-voice.ts
+// (store_brand_profiles); it replaced an earlier file-based loader.
 
 export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 

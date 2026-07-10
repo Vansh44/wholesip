@@ -16,7 +16,7 @@ selling within a day. Every store gets:
 The codebase began as **WholeSip** (a single D2C juice brand, store #1) and was
 converted to multi-tenant in phases. WholeSip still exists as the fallback store
 (`WHOLESIP_STORE_ID = a0000000-0000-4000-8000-000000000001` in `lib/store/resolve.ts`),
-so some naming (repo name `wholesip`, `config/site.ts`, `brand/`) is legacy.
+so some naming (repo name `wholesip`, the `--wholesip-*` CSS tokens, `brand/`) is legacy.
 
 ## 2. Tech stack
 
@@ -107,7 +107,8 @@ wholesip/
 │   │       ├── sections/      # ★ Generalized section renderer shared by homepage + pages:
 │   │       │                  # page-section-renderer, custom-code-frame (sandboxed iframe),
 │   │       │                  # custom-code-section, rich-text-section, hero-section,
-│   │       │                  # usp-bar-section, tile-grid-section, faq-accordion-section,
+│   │       │                  # usp-bar-section, ticker-section, tile-grid-section,
+│   │       │                  # faq-accordion-section,
 │   │       │                  # preview-bridge, draft-canvas (client-side instant
 │   │       │                  # builder preview, §11), builder-overlay
 │   │       ├── brand-provider.tsx   # Injects per-store branding CSS vars
@@ -234,8 +235,8 @@ wholesip/
 │   ├── email/                 # sender, layout, campaign-worker, coupon-campaign,
 │   │                          # trigger-worker, blog/enquiry notifications
 │   ├── homepage/section-types.ts  # Section schema (typed, tested) — shared by homepage AND
-│   │                          # custom pages; 10 types incl. hero, tile_grid, usp_bar,
-│   │                          # faq_accordion, rich_text + custom_code (see §11)
+│   │                          # custom pages; 12 types incl. hero, tile_grid, usp_bar,
+│   │                          # ticker, faq_accordion, rich_text + custom_code (see §11)
 │   ├── menus.ts               # ★ Per-store nav (§11): StoreMenus types, DEFAULT_MENUS,
 │   │                          # normalize/sanitize. Read cached via getStoreMenus.
 │   ├── ai/gemini.ts           # Gemini client for AI copy
@@ -248,7 +249,6 @@ wholesip/
 │   ├── ui/                    # shadcn/ui primitives (button, dialog, table, sidebar…)
 │   └── customer-multiselect.tsx
 ├── hooks/use-mobile.ts
-├── config/site.ts             # LEGACY WholeSip asset URLs (being superseded by per-store branding)
 │
 ├── supabase/                  # ★ SQL — schema, migrations, RLS (run against Supabase manually/MCP)
 │   ├── multitenant_01_schema.sql        # stores table + store_id columns (+ rollback)
@@ -280,8 +280,10 @@ wholesip/
 │   ├── custom_access_token_hook.sql     # JWT claims (role, force_password_reset)
 │   └── perf_*.sql             # index / RLS performance migrations
 │
-├── brand/                     # WholeSip brand voice + AI task prompts (traced into serverless
-│                              # bundle via next.config.ts; used by /product-desc & /seo-meta skills)
+├── brand/tasks/               # AI copy TASK prompts (product-desc.md, seo-meta.md), read at
+│                              # runtime by product actions + traced into the serverless bundle via
+│                              # next.config.ts. brand.md + the file-based /product-desc & /seo-meta
+│                              # skills were retired — brand voice is per-store in the DB (§16).
 ├── public/                    # Static assets (favicon, svgs)
 └── coverage/                  # GENERATED test coverage report — do not edit
 ```
@@ -345,7 +347,7 @@ wholesip/
 11. **Website Builder — pages & custom code are per-store, dashboard-editable.**
     The storefront itself is a per-store artifact, not hardcoded: - **Section registry**: `lib/homepage/section-types.ts` is the single typed
     section schema (config types, `EMPTY_CONFIG`, `META`, `validateConfig`),
-    shared by the homepage AND custom pages. Eleven block types: `hero`
+    shared by the homepage AND custom pages. Twelve block types: `hero`
     (banner/split/minimal variants — first-class hero, replaces the old
     custom_code hero hack; optional `video_url` plays muted/looping in place
     of the image with the image as poster), `hero_carousel` (auto-playing
@@ -354,7 +356,10 @@ wholesip/
     `shop_by_category` (with a
     `display: circles|cards` tile-shape variant), `promo_banner`, `tile_grid`
     (linked colour/image tiles — offers, collections, 2-up mini banners),
-    `usp_bar` (fixed icon catalog `USP_ICONS` + label strip), `faq_accordion`
+    `usp_bar` (fixed icon catalog `USP_ICONS` + label strip), `ticker`
+    (scrolling marquee — `messages[]` + speed + text theme; CSS-animated
+    `ticker-section.tsx`, pauses on hover, static under reduced-motion),
+    `faq_accordion`
     (expandable Q/A with optional category-filter pills; plain-text answers),
     `latest_blogs`, `rich_text` (inline sanitized HTML, SEO-friendly) and
     `custom_code` (merchant HTML/CSS/JS). Hero/tile/slide `background` fields
@@ -522,13 +527,18 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     / `gpdp-*` in shop.css; `grocery-cart.tsx` / `gcart-*` in cart.css) — the
     page servers read the flag via `lib/store/storefront-layout.ts`
     (`getStorefrontLayout`) and pass a `grocery` prop to the client
-    components; the shop listing also drops its WholeSip-branded hero/ticker.
+    components; the grocery shop listing swaps in a clean neutral header. (The
+    classic shop hero is now brand-aware — store name + tagline, not hardcoded
+    WholeSip — and the old hardcoded promo ticker was removed; a ticker is a
+    builder section type now, §11.)
     All of this is GATED, so the WholeSip fallback and any classic theme keep
     today's shared layout untouched. (Basket is the first grocery theme.)
     Design derives from the theme id at RENDER time (no DB column), so no reseed
     is needed when a theme's skin changes. - **Phase 4d (not built, by design)**: nothing pending — homepage, static
-    pages, and menus are all migrated. Remaining WholeSip cleanup (config/site.ts,
-    brand/) continues opportunistically.
+    pages, and menus are all migrated. config/site.ts, brand.md and the
+    file-based AI skills are deleted, and the shop hero is brand-aware; remaining
+    WholeSip cleanup (the `--wholesip-*` CSS token namespace, the
+    `WHOLESIP_STORE_ID` fallback-store constant) continues opportunistically.
 
 12. **Checkout & orders security model (COD).** A signed-in shopper places an
     order from `/checkout`; `placeOrder` (`app/actions/checkout-actions.ts`) is
@@ -628,9 +638,10 @@ platform.ts`, superadmin-only, tested): **UPGRADE-ONLY by design** —
     only — a brand guide is internal content, so no anon/authenticated grants,
     the store_pages-draft pattern) and NEVER returns null — stores without a
     saved guide get a safe generic default folded from their name/tagline/blurb,
-    so AI works out of the box. The legacy file-based `brand/brand.md` loader is
-    retired (its content seeded as the WholeSip store's row); `brand/tasks/*`
-    (task prompts — WHAT to write, not WHO speaks) stay platform assets in code.
+    so AI works out of the box. The legacy file-based `brand/brand.md` is retired
+    AND DELETED (its content was seeded as the WholeSip store's row); only
+    `brand/tasks/*` (task prompts — WHAT to write, not WHO speaks) stay platform
+    assets in code.
     Merchants edit their voice at `/dashboard/branding` (section `branding`):
     five guided questions + "Generate with AI" (a fixed brand-strategist prompt
     composes the guide from the answers, review-before-save) + a free-form
@@ -718,7 +729,7 @@ Legacy WholeSip fallback remains until all traffic moves to real store hosts.
   (BYO gateway — merchant connects own Razorpay/Cashfree; checkout is COD-only
   for now), merchant subscription billing for StoreMink plans.
 - **WholeSip cleanup is ongoing**: the product started as the WholeSip site and
-  was converted into StoreMink; remaining WholeSip traces (`config/site.ts`,
-  `brand/`, repo name) are being removed gradually as features become
+  was converted into StoreMink; remaining WholeSip traces (the `--wholesip-*`
+  CSS tokens, `WHOLESIP_STORE_ID`, repo name) are being removed gradually as features become
   per-store/settings-based. (The hardcoded homepage/hero and static pages are
   now migrated — Phase 4.)

@@ -346,76 +346,6 @@
   box-shadow: none;
 }
 
-/* Promo ticker — full-width continuous scrolling marquee.
-   Bold "ink bar" look: near-black band, cream text, lowercase with
-   editorial tracking, and a terracotta ✦ separator BETWEEN phrases.
-   The separator is drawn by CSS (.shop-ticker-item::after) — so in the
-   JSX render just "{phrase}", NOT "✦ {phrase}".
-   To use the softer LIGHT variant instead: set background to
-   var(--wholesip-taupe), the item color to var(--wholesip-ink-soft), and add
-   `border-block: 0.5px solid var(--wholesip-border);` here. */
-.shop-ticker {
-  overflow: hidden;
-  background: var(--wholesip-ink); /* near-black band */
-  font-family: var(--font-outfit), sans-serif;
-  padding: 9px 0; /* thinner, more refined bar */
-}
-
-/* Two identical sequences sit side by side; translating the track by -50%
-   (exactly one sequence width) loops seamlessly. */
-.shop-ticker-track {
-  display: flex;
-  width: max-content;
-  animation: shop-ticker-scroll 48s linear infinite; /* slower = more premium */
-}
-
-.shop-ticker:hover .shop-ticker-track {
-  animation-play-state: paused;
-}
-
-.shop-ticker-seq {
-  display: flex;
-  flex-shrink: 0;
-}
-
-.shop-ticker-item {
-  white-space: nowrap;
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.2em; /* wide editorial tracking, uppercase */
-  text-transform: uppercase;
-  color: var(--wholesip-on-ink); /* warm muted cream on the ink band */
-  padding: 0 18px;
-}
-
-/* Terracotta ✦ between phrases — the one warm pop of brand colour.
-   Drawn here so spacing stays perfectly even; keep the JSX at "{phrase}".
-   margin-left (36) = left+right padding (18+18) so the mark sits centred
-   between two phrases. */
-.shop-ticker-item::after {
-  content: "✦";
-  font-size: 7px;
-  color: var(--wholesip-accent-warm, #ce8662);
-  margin-left: 36px;
-  vertical-align: middle;
-  opacity: 0.85;
-}
-
-@keyframes shop-ticker-scroll {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .shop-ticker-track {
-    animation: none;
-  }
-}
-
 /* Content gutters — content fills the page, aligned to its edges */
 .shop-panel-body {
   padding: 24px clamp(20px, 5vw, 64px) 24px;
@@ -424,17 +354,6 @@
 @media (max-width: 700px) {
   .shop-panel-body {
     padding: 32px 20px 16px;
-  }
-  .shop-ticker {
-    padding: 8px 0;
-  }
-  .shop-ticker-item {
-    font-size: 9.5px;
-    letter-spacing: 0.16em;
-    padding: 0 14px;
-  }
-  .shop-ticker-item::after {
-    margin-left: 28px; /* = 14 + 14 padding, keeps the mark centred */
   }
 }
 
