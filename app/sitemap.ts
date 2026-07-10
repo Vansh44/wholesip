@@ -52,6 +52,10 @@ const PLATFORM_PATHS: { path: string; priority: number; freq: ChangeFreq }[] = [
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Staging / preview keeps the whole site out of search (see robots.ts), so
+  // emit an empty sitemap. Toggled by NEXT_PUBLIC_NOINDEX=1 on the environment.
+  if (process.env.NEXT_PUBLIC_NOINDEX === "1") return [];
+
   const now = new Date();
 
   // Per-host: resolve the store on the requesting domain. No real store (the
