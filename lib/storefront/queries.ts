@@ -3,6 +3,12 @@ import { createPublicClient } from "@/lib/supabase/public";
 import { TAGS } from "@/lib/storefront/tags";
 import type { PageSectionItem } from "@/lib/sections/registry";
 import { normalizeMenus, type StoreMenus } from "@/lib/menus";
+import {
+  rowToBillingSettings,
+  rowToTaxClass,
+  type BillingSettings,
+  type TaxClass,
+} from "@/lib/billing/types";
 
 // ---------------------------------------------------------------------------
 // Cached PUBLIC storefront reads.
@@ -238,6 +244,42 @@ export const getStoreMenus = unstable_cache(
   },
   ["storefront-store-menus"],
   { tags: [TAGS.menus], revalidate: REVALIDATE },
+);
+
+// Per-store tax classes (named rate buckets), sorted for display. Read by the
+// storefront/checkout to resolve a product's tax rate and by the invoice
+// renderer. Empty when the store has none / the table is missing.
+export const getStoreTaxClasses = unstable_cache(
+  async (storeId: string): Promise<TaxClass[]> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("tax_classes")
+      .select("id, name, rate, sort_order")
+      .eq("store_id", storeId)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+    if (error || !data) return [];
+    return data.map((r) => rowToTaxClass(r as Record<string, unknown>));
+  },
+  ["storefront-tax-classes"],
+  { tags: [TAGS.billing], revalidate: REVALIDATE },
+);
+
+// Per-store billing + invoice settings. Falls back to DEFAULT_BILLING_SETTINGS
+// for a store with no row (tax off, generic invoice), so callers never null-check.
+export const getStoreBillingSettings = unstable_cache(
+  async (storeId: string): Promise<BillingSettings> => {
+    const supabase = createPublicClient();
+    const { data, error } = await supabase
+      .from("store_billing_settings")
+      .select("*")
+      .eq("store_id", storeId)
+      .maybeSingle();
+    if (error || !data) return rowToBillingSettings(null);
+    return rowToBillingSettings(data as Record<string, unknown>);
+  },
+  ["storefront-billing-settings"],
+  { tags: [TAGS.billing], revalidate: REVALIDATE },
 );
 
 // Published page slugs for the current store — used by the sitemap.

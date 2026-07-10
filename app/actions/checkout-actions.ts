@@ -6,6 +6,13 @@ import { getCurrentStoreId } from "@/lib/store/resolve";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateCoupon } from "./coupon-actions";
 import { CartItem } from "@/app/(storefront)/components/cart/CartProvider";
+import { computeTax } from "@/lib/billing/tax";
+import {
+  rowToBillingSettings,
+  rowToTaxClass,
+  type BillingSettings,
+  type TaxClass,
+} from "@/lib/billing/types";
 
 // Bounds on client-supplied cart data — reject oversized/malformed payloads
 // before any DB work so a hostile client can't send 10k line items or negative
@@ -189,6 +196,161 @@ async function availableStock(
   }
 }
 
+// Read a store's tax config authoritatively (uncached, store-scoped) through an
+// admin client. Used by both placeOrder (trust boundary) and getCartTax
+// (display), so both agree. Uncached on purpose: an order must reflect the tax
+// config at the exact moment it's placed, never a stale cached copy.
+async function readTaxConfig(
+  admin: ReturnType<typeof createAdminClient>,
+  storeId: string,
+): Promise<{ billing: BillingSettings; taxClasses: TaxClass[] }> {
+  const [billingRes, taxRes] = await Promise.all([
+    admin
+      .from("store_billing_settings")
+      .select("*")
+      .eq("store_id", storeId)
+      .maybeSingle(),
+    admin
+      .from("tax_classes")
+      .select("id, name, rate, sort_order")
+      .eq("store_id", storeId)
+      .order("sort_order", { ascending: true }),
+  ]);
+  return {
+    billing: rowToBillingSettings(
+      billingRes.data as Record<string, unknown> | null,
+    ),
+    taxClasses: (taxRes.data ?? []).map((r) =>
+      rowToTaxClass(r as Record<string, unknown>),
+    ),
+  };
+}
+
+export interface CartTaxResult {
+  enabled: boolean;
+  inclusive: boolean;
+  tax: number;
+  byRate: Array<{ rate: number; label: string; tax: number }>;
+}
+
+// Tax for the current cart, for DISPLAY on the checkout summary. Re-prices from
+// the DB (store-scoped) and resolves each line's rate the same way placeOrder
+// does, so the shown tax matches what will be charged. `discount` is the cart's
+// applied discount (tax is computed on the discounted base). placeOrder remains
+// the authoritative recompute at order time.
+export async function getCartTax(
+  lines: Array<{
+    productId: string;
+    variantId: string | null;
+    quantity: number;
+  }>,
+  discount = 0,
+): Promise<CartTaxResult> {
+  const empty: CartTaxResult = {
+    enabled: false,
+    inclusive: false,
+    tax: 0,
+    byRate: [],
+  };
+  if (!Array.isArray(lines) || lines.length === 0) return empty;
+  // Same bounds as placeOrder — this is an anonymous-callable action doing
+  // service-role reads, so reject oversized/malformed payloads before any DB
+  // work (a real cart never exceeds these; the tax line simply won't show).
+  if (lines.length > MAX_LINE_ITEMS) return empty;
+  const safeLines = lines
+    .map((l) => ({
+      productId: typeof l?.productId === "string" ? l.productId : "",
+      variantId: typeof l?.variantId === "string" ? l.variantId : null,
+      quantity:
+        Number.isInteger(l?.quantity) &&
+        l.quantity > 0 &&
+        l.quantity <= MAX_QUANTITY_PER_LINE
+          ? l.quantity
+          : 0,
+    }))
+    .filter((l) => l.productId && l.quantity > 0);
+  if (safeLines.length === 0) return empty;
+  const safeDiscount =
+    typeof discount === "number" && Number.isFinite(discount)
+      ? Math.max(0, discount)
+      : 0;
+
+  const storeId = await getCurrentStoreId();
+  const admin = createAdminClient();
+  const { billing, taxClasses } = await readTaxConfig(admin, storeId);
+  if (!billing.taxEnabled) return empty;
+
+  const productIds = Array.from(
+    new Set(safeLines.map((l) => l.productId).filter(Boolean)),
+  );
+  const variantIds = Array.from(
+    new Set(safeLines.map((l) => l.variantId).filter(Boolean)),
+  ) as string[];
+
+  const [{ data: products }, variantsRes] = await Promise.all([
+    admin
+      .from("products")
+      .select("id, selling_price, tax_class_id")
+      .in("id", productIds)
+      .eq("store_id", storeId),
+    variantIds.length
+      ? admin
+          .from("product_variants")
+          .select("id, selling_price")
+          .in("id", variantIds)
+          .eq("store_id", storeId)
+      : Promise.resolve({
+          data: [] as { id: string; selling_price: number }[],
+        }),
+  ]);
+
+  const pMap = new Map(
+    (products ?? []).map((p) => [
+      p.id as string,
+      p as { selling_price: number; tax_class_id: string | null },
+    ]),
+  );
+  const vMap = new Map(
+    (variantsRes.data ?? []).map((v) => [
+      v.id as string,
+      v as { selling_price: number },
+    ]),
+  );
+  const classById = new Map(taxClasses.map((c) => [c.id, c]));
+
+  const taxLines = safeLines.map((l) => {
+    const p = pMap.get(l.productId);
+    if (!p) return { amount: 0, rate: 0 };
+    const price = l.variantId
+      ? (vMap.get(l.variantId)?.selling_price ?? p.selling_price)
+      : p.selling_price;
+    const classId = p.tax_class_id ?? billing.defaultTaxClassId;
+    const cls = classId ? classById.get(classId) : null;
+    return {
+      amount: price * l.quantity,
+      rate: cls?.rate ?? 0,
+      label: cls?.name,
+    };
+  });
+
+  const result = computeTax({
+    lines: taxLines,
+    discount: safeDiscount,
+    pricesIncludeTax: billing.pricesIncludeTax,
+    enabled: true,
+  });
+  return {
+    enabled: true,
+    inclusive: billing.pricesIncludeTax,
+    tax: result.totalTax,
+    byRate: result.byRate.map((b) => ({
+      rate: b.rate,
+      label: b.label,
+      tax: b.tax,
+    })),
+  };
+}
+
 export async function placeOrder(
   form: CheckoutFormData,
   items: CartItem[],
@@ -262,7 +424,7 @@ export async function placeOrder(
 
   const { data: dbProducts } = await admin
     .from("products")
-    .select("id, name, selling_price, store_id")
+    .select("id, name, selling_price, store_id, tax_class_id")
     .in("id", productIds)
     .eq("store_id", storeId);
 
@@ -271,6 +433,20 @@ export async function placeOrder(
   }
 
   const productsMap = new Map(dbProducts.map((p) => [p.id, p]));
+
+  // Tax config + rate resolver. A line's rate comes from its product's tax
+  // class, falling back to the store default; only applied when tax is enabled.
+  // Read store-scoped (admin), never trusting the client.
+  const { billing, taxClasses } = await readTaxConfig(admin, storeId);
+  const taxClassById = new Map(taxClasses.map((c) => [c.id, c]));
+  const resolveTax = (
+    p: { tax_class_id?: string | null } | undefined,
+  ): { rate: number; name: string | null } => {
+    if (!billing.taxEnabled) return { rate: 0, name: null };
+    const classId = p?.tax_class_id ?? billing.defaultTaxClassId;
+    const cls = classId ? taxClassById.get(classId) : null;
+    return cls ? { rate: cls.rate, name: cls.name } : { rate: 0, name: null };
+  };
 
   // 2. Fetch variants if any (also store-scoped).
   const variantIds = Array.from(
@@ -303,6 +479,11 @@ export async function placeOrder(
     price: number;
     quantity: number;
     total: number;
+    // Tax snapshot per line (rate resolved from the product's tax class). Filled
+    // in below once the discount is known so tax is computed on the net amount.
+    tax_rate: number;
+    tax_amount: number;
+    tax_class_name: string | null;
   }> = [];
 
   for (const item of items) {
@@ -322,6 +503,7 @@ export async function placeOrder(
       variantName = dbVariant.name;
     }
 
+    const taxInfo = resolveTax(dbProduct);
     subtotal += price * item.quantity;
     validItems.push({
       product_id: item.productId,
@@ -331,6 +513,9 @@ export async function placeOrder(
       price,
       quantity: item.quantity,
       total: price * item.quantity,
+      tax_rate: taxInfo.rate,
+      tax_amount: 0,
+      tax_class_name: taxInfo.name,
     });
   }
 
@@ -356,8 +541,30 @@ export async function placeOrder(
   }
 
   const shipping = 0; // Hardcoded free shipping for now
-  const tax = 0; // Hardcoded zero tax for now
-  const total = Math.max(0, subtotal + shipping + tax - discount);
+
+  // 3c. Compute tax from each line's resolved rate, on the DISCOUNTED amount
+  //     (see lib/billing/tax.ts). Exclusive: tax is ADDED to the total.
+  //     Inclusive: tax is already inside the listed prices, so it's reported but
+  //     NOT added again. Per-line tax is written back to each order item below.
+  const taxResult = computeTax({
+    lines: validItems.map((it) => ({
+      amount: it.total,
+      rate: it.tax_rate,
+      label: it.tax_class_name ?? undefined,
+    })),
+    discount,
+    pricesIncludeTax: billing.pricesIncludeTax,
+    enabled: billing.taxEnabled,
+  });
+  const tax = taxResult.totalTax;
+  validItems.forEach((it, idx) => {
+    it.tax_amount = taxResult.lines[idx]?.tax ?? 0;
+  });
+
+  const total = Math.max(
+    0,
+    subtotal - discount + shipping + (billing.pricesIncludeTax ? 0 : tax),
+  );
 
   // Store only trimmed, length-capped values (the fields render in the admin
   // dashboard; React escapes output, but we keep the stored data clean too).
@@ -432,6 +639,7 @@ export async function placeOrder(
       billing_address: null, // COD uses shipping as billing essentially
       subtotal,
       tax,
+      tax_inclusive: billing.pricesIncludeTax,
       shipping,
       discount,
       total,

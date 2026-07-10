@@ -31,6 +31,7 @@ export default async function ProductEditPage({
           product={data.product}
           categories={data.categories}
           colors={data.colors}
+          taxClasses={data.taxClasses}
         />
       </div>
     </div>

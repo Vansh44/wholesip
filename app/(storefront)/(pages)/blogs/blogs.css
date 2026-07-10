@@ -859,6 +859,12 @@
   padding: 140px 24px 80px;
 }
 
+/* The market header reserves space on the root itself; remove double padding
+   (mirrors the .blog-hero override above). */
+.sm-header-market.storefront-root .blog-detail-page-section {
+  padding-top: 48px;
+}
+
 .blog-detail-content-container {
   max-width: 720px;
   margin: 0 auto;

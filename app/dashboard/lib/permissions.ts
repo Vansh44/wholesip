@@ -231,6 +231,14 @@ export const SECTIONS: DashboardSection[] = [
     actions: ["view", "manage"],
   },
   {
+    key: "billing",
+    label: "Invoices & Billing",
+    href: "/dashboard/billing",
+    icon: "billing",
+    group: "Administration",
+    actions: ["view", "manage"],
+  },
+  {
     key: "settings",
     label: "Settings",
     href: "/dashboard/settings",

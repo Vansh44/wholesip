@@ -30,6 +30,7 @@ import {
   BadgeCheck,
   LayoutDashboard,
   HelpCircle,
+  Receipt,
   type LucideIcon,
 } from "lucide-react";
 
@@ -62,6 +63,7 @@ export const navIcons = {
   ticker: Megaphone,
   tiles: LayoutDashboard,
   faq: HelpCircle,
+  billing: Receipt,
 } satisfies Record<string, LucideIcon>;
 
 export type NavIconKey = keyof typeof navIcons;

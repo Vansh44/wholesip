@@ -1,0 +1,272 @@
+/* Invoices & Billing (/dashboard/billing) — tokenised on the dashboard
+   --dash-* design system (dashboard.css) so it stays consistent with the rest
+   of the admin and inherits any future theme change. Shopify-style settings
+   cards: white surface, soft border, sticky save bar. */
+
+.billPage {
+  max-width: 820px;
+}
+.billPage h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--dash-text);
+}
+.billPage .lead {
+  color: var(--dash-text-2);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+.billSection {
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 18px;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+}
+.billSection h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--dash-text);
+}
+.billSection .hint {
+  color: var(--dash-text-2);
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+.billGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.billField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.billField.full {
+  grid-column: 1 / -1;
+}
+.billField label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dash-text);
+}
+.billField input,
+.billField textarea,
+.billField select {
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+  background: var(--dash-surface);
+  color: var(--dash-text);
+}
+.billField textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+.billField input:focus,
+.billField textarea:focus,
+.billField select:focus {
+  outline: none;
+  border-color: var(--dash-accent);
+  box-shadow: 0 0 0 3px var(--dash-accent-soft);
+}
+.billField input[type="color"] {
+  padding: 4px;
+  height: 40px;
+}
+
+/* Toggle rows */
+.billToggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--dash-border);
+}
+.billToggle:last-child {
+  border-bottom: none;
+}
+.billToggle input[type="checkbox"] {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--dash-accent);
+}
+.billToggle .tLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dash-text);
+}
+.billToggle .tDesc {
+  font-size: 12.5px;
+  color: var(--dash-text-2);
+  margin-top: 2px;
+}
+.billToggle.disabled {
+  opacity: 0.5;
+}
+
+/* Tax classes table */
+.taxRows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.taxRow {
+  display: grid;
+  grid-template-columns: 1fr 120px auto;
+  gap: 10px;
+  align-items: center;
+}
+/* Inputs must fill (not overflow) their grid track — an input's intrinsic
+   default width (~200px) is wider than the 120px rate column and would
+   otherwise spill over the buttons next to it, swallowing their clicks. */
+.taxRow input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--dash-surface);
+  color: var(--dash-text);
+}
+.taxRow input:focus {
+  outline: none;
+  border-color: var(--dash-accent);
+  box-shadow: 0 0 0 3px var(--dash-accent-soft);
+}
+.taxRow .rate {
+  position: relative;
+}
+.taxRow .rate::after {
+  content: "%";
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--dash-text-3);
+  font-size: 13px;
+  pointer-events: none;
+}
+.taxRow .rate input {
+  padding-right: 26px;
+}
+.taxActions {
+  display: flex;
+  gap: 6px;
+}
+.taxBtn {
+  border: 1px solid var(--dash-border-strong);
+  background: var(--dash-surface);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dash-text);
+  cursor: pointer;
+}
+.taxBtn:hover:not(:disabled) {
+  background: var(--dash-surface-2);
+}
+.taxBtn.primary {
+  background: var(--dash-accent);
+  border-color: var(--dash-accent);
+  color: #fff;
+}
+.taxBtn.primary:hover:not(:disabled) {
+  background: var(--dash-accent-hover);
+}
+.taxBtn.danger {
+  color: var(--dash-red);
+  border-color: var(--dash-red-soft);
+}
+.taxBtn.danger:hover:not(:disabled) {
+  background: var(--dash-red-soft);
+}
+.taxBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.taxEmpty {
+  color: var(--dash-text-2);
+  font-size: 13.5px;
+  padding: 8px 0 14px;
+}
+.taxAddRow {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--dash-border-strong);
+}
+
+/* Sticky save bar (Shopify-style contextual save). pointer-events pass
+   through the bar's empty area so it never swallows clicks on content
+   scrolled beneath it — only the button/status themselves are interactive. */
+.billBar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: sticky;
+  bottom: 0;
+  padding: 14px 0;
+  pointer-events: none;
+}
+.billBar > * {
+  pointer-events: auto;
+}
+.billBar .billSave {
+  box-shadow: 0 2px 10px rgba(17, 24, 39, 0.18);
+}
+.billBar .billStatus {
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+.billSave {
+  background: var(--dash-accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.billSave:hover:not(:disabled) {
+  background: var(--dash-accent-hover);
+}
+.billSave:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.billStatus.ok {
+  color: var(--dash-green);
+  font-size: 14px;
+  font-weight: 600;
+}
+.billStatus.bad {
+  color: var(--dash-red);
+  font-size: 14px;
+  font-weight: 600;
+}
+.billRowError {
+  color: var(--dash-red);
+  font-size: 12.5px;
+  margin-top: 8px;
+}
+
+@media (max-width: 560px) {
+  .taxRow {
+    grid-template-columns: 1fr;
+  }
+}

@@ -3,26 +3,39 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import {
+  MapPin,
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  Banknote,
+  ShieldCheck,
+  Truck,
+  Lock,
+  ShoppingBag,
+} from "lucide-react";
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
 import {
   placeOrder,
   getCartStock,
+  getCartTax,
   CheckoutFormData,
+  type CartTaxResult,
 } from "@/app/actions/checkout-actions";
 import {
   getMyAddresses,
-  saveAddress as saveAddressAction,
+  upsertAddress,
   deleteAddress,
   type SavedAddress,
+  type AddressInput,
 } from "@/app/actions/address-actions";
 import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
 import { formatPrice } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import styles from "./checkout.module.css";
 
-const EMPTY_FORM: CheckoutFormData = {
+const EMPTY_ADDR: AddressInput = {
   firstName: "",
   lastName: "",
   email: "",
@@ -35,57 +48,57 @@ const EMPTY_FORM: CheckoutFormData = {
   country: "India",
 };
 
+// Build the placeOrder payload from a saved address, falling back to the
+// account's contact details when the address itself doesn't carry them.
+function addressToForm(
+  a: SavedAddress,
+  fallbackEmail?: string | null,
+): CheckoutFormData {
+  return {
+    firstName: a.first_name || "",
+    lastName: a.last_name || "",
+    email: a.email || fallbackEmail || "",
+    phone: a.phone || "",
+    addressLine1: a.address_line1,
+    addressLine2: a.address_line2 || "",
+    city: a.city,
+    state: a.state,
+    postalCode: a.postal_code,
+    country: a.country || "India",
+  };
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { customer, loading: authLoading, openAuthModal } = useAuth();
   const cart = useCart();
 
-  const [loading, setLoading] = useState(false);
+  const [placing, setPlacing] = useState(false);
   // Set once the order is placed so clearing the cart below doesn't trip the
   // "cart empty → /shop" effect and steal the redirect to the success page.
   const orderPlaced = useRef(false);
-  const [form, setForm] = useState<CheckoutFormData>(EMPTY_FORM);
 
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
-  // Which saved address is selected (null = entering a new/edited address).
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [saveForLater, setSaveForLater] = useState(true);
+  const [addrLoaded, setAddrLoaded] = useState(false);
 
-  const fillFormFromAddress = useCallback((a: SavedAddress) => {
-    setForm((f) => ({
-      firstName: a.first_name || f.firstName,
-      lastName: a.last_name || f.lastName,
-      email: a.email || f.email,
-      phone: a.phone || f.phone,
-      addressLine1: a.address_line1,
-      addressLine2: a.address_line2 || "",
-      city: a.city,
-      state: a.state,
-      postalCode: a.postal_code,
-      country: a.country || "India",
-    }));
-  }, []);
+  // Address add/edit form. `editingId`: null = closed, "new" = adding, else the
+  // id of the address being edited.
+  const [editingId, setEditingId] = useState<string | "new" | null>(null);
+  const [addrForm, setAddrForm] = useState<AddressInput>(EMPTY_ADDR);
+  const [savingAddr, setSavingAddr] = useState(false);
+  const [addrError, setAddrError] = useState<string | null>(null);
+
+  const [notes, setNotes] = useState("");
+  const [taxInfo, setTaxInfo] = useState<CartTaxResult | null>(null);
+
+  const selected = addresses.find((a) => a.id === selectedId) ?? null;
 
   // Not signed in → open the auth modal IN PLACE (no redirect). After sign-in
-  // `customer` populates and the checkout form renders right here, so the click
-  // the shopper already made carries through to checkout.
+  // `customer` populates and the checkout renders right here.
   useEffect(() => {
     if (!authLoading && !customer) openAuthModal();
   }, [authLoading, customer, openAuthModal]);
-
-  // Prefill contact details from the account as a baseline.
-  useEffect(() => {
-    if (customer) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setForm((f) => ({
-        ...f,
-        email: customer.email || f.email,
-        phone: customer.phone || f.phone,
-        firstName: customer.first_name || f.firstName,
-        lastName: customer.last_name || f.lastName,
-      }));
-    }
-  }, [customer]);
 
   // Load saved addresses; preselect the default so the shopper doesn't retype.
   useEffect(() => {
@@ -95,15 +108,30 @@ export default function CheckoutPage() {
       if (!active) return;
       setAddresses(list);
       const def = list.find((a) => a.is_default) ?? list[0];
-      if (def) {
-        setSelectedId(def.id);
-        fillFormFromAddress(def);
-      }
+      if (def) setSelectedId(def.id);
+      setAddrLoaded(true);
     });
     return () => {
       active = false;
     };
-  }, [customer, fillFormFromAddress]);
+  }, [customer]);
+
+  // First-time shopper with no saved address → open the add form straight away,
+  // prefilled with their account contact details.
+  useEffect(() => {
+    if (!addrLoaded || !customer) return;
+    if (addresses.length === 0 && editingId === null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setEditingId("new");
+      setAddrForm({
+        ...EMPTY_ADDR,
+        firstName: customer.first_name || "",
+        lastName: customer.last_name || "",
+        email: customer.email || "",
+        phone: customer.phone || "",
+      });
+    }
+  }, [addrLoaded, customer, addresses.length, editingId]);
 
   // Redirect if cart empty (but not when we just emptied it after a successful
   // order — that navigates to the success page instead).
@@ -115,12 +143,8 @@ export default function CheckoutPage() {
     }
   }, [cart.hydrated, cart.items.length, router]);
 
-  // Revalidate the cart against LIVE stock as soon as checkout opens. A cart
-  // persisted in localStorage can be stale (merchant lowered stock, deleted a
-  // product, another shopper bought the last unit). reconcileStock clamps/drops
-  // lines up front and we tell the shopper — so they aren't rejected only after
-  // filling in an address. placeOrder still re-reserves atomically as the hard
-  // guarantee. Runs once per mount (guarded), only after hydration.
+  // Revalidate the cart against LIVE stock as soon as checkout opens (see the
+  // long note in checkout-actions.ts). placeOrder still re-reserves atomically.
   const stockChecked = useRef(false);
   useEffect(() => {
     if (stockChecked.current) return;
@@ -153,19 +177,165 @@ export default function CheckoutPage() {
       });
   }, [cart]);
 
+  // Tax for the order summary. Re-fetched when the cart or its discount changes;
+  // placeOrder recomputes authoritatively at order time (this is display only).
+  useEffect(() => {
+    if (!cart.hydrated || cart.items.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTaxInfo(null);
+      return;
+    }
+    let active = true;
+    const lines = cart.items.map((i) => ({
+      productId: i.productId,
+      variantId: i.variantId,
+      quantity: i.quantity,
+    }));
+    const discount = cart.couponValid ? cart.couponDiscount : 0;
+    getCartTax(lines, discount)
+      .then((info) => {
+        if (active) setTaxInfo(info);
+      })
+      .catch(() => {
+        // Non-fatal — the tax line just won't show; the order is still correct.
+      });
+    return () => {
+      active = false;
+    };
+  }, [cart.hydrated, cart.items, cart.couponValid, cart.couponDiscount]);
+
+  const startAdd = useCallback(() => {
+    setEditingId("new");
+    setAddrError(null);
+    setAddrForm({
+      ...EMPTY_ADDR,
+      firstName: customer?.first_name || "",
+      lastName: customer?.last_name || "",
+      email: customer?.email || "",
+      phone: customer?.phone || "",
+    });
+  }, [customer]);
+
+  const startEdit = useCallback((a: SavedAddress) => {
+    setEditingId(a.id);
+    setAddrError(null);
+    setAddrForm({
+      firstName: a.first_name,
+      lastName: a.last_name ?? "",
+      email: a.email ?? "",
+      phone: a.phone ?? "",
+      addressLine1: a.address_line1,
+      addressLine2: a.address_line2 ?? "",
+      city: a.city,
+      state: a.state,
+      postalCode: a.postal_code,
+      country: a.country,
+    });
+  }, []);
+
+  const cancelAddr = useCallback(() => {
+    setEditingId(null);
+    setAddrError(null);
+  }, []);
+
+  const changeAddr = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setAddrForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+  const submitAddr = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddrError(null);
+
+    // Checkout needs a complete contact + address (placeOrder rejects otherwise).
+    const missing = (
+      [
+        ["firstName", "First name"],
+        ["lastName", "Last name"],
+        ["phone", "Phone"],
+        ["email", "Email"],
+        ["addressLine1", "Address"],
+        ["city", "City"],
+        ["state", "State"],
+        ["postalCode", "Postal code"],
+        ["country", "Country"],
+      ] as Array<[keyof AddressInput, string]>
+    ).find(([k]) => !String(addrForm[k] ?? "").trim());
+    if (missing) {
+      setAddrError(`${missing[1]} is required.`);
+      return;
+    }
+
+    setSavingAddr(true);
+    const res = await upsertAddress(
+      addrForm,
+      editingId === "new" ? undefined : (editingId ?? undefined),
+    );
+    if (res.error || !res.id) {
+      setSavingAddr(false);
+      setAddrError(res.error || "Could not save address.");
+      return;
+    }
+
+    const savedId = res.id;
+    const list = await getMyAddresses();
+    setAddresses(list);
+    setSelectedId(savedId);
+    setEditingId(null);
+    setSavingAddr(false);
+    toast.success("Address saved");
+  };
+
+  const handleDelete = async (id: string) => {
+    const res = await deleteAddress(id);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    setAddresses((prev) => prev.filter((a) => a.id !== id));
+    if (selectedId === id) setSelectedId(null);
+    if (editingId === id) setEditingId(null);
+    toast.success("Address removed");
+  };
+
+  const handlePlaceOrder = async () => {
+    if (!selected) {
+      toast.error("Please select a delivery address.");
+      return;
+    }
+    setPlacing(true);
+
+    const form = addressToForm(selected, customer?.email);
+    if (notes.trim()) form.notes = notes.trim().slice(0, 500);
+
+    const result = await placeOrder(form, cart.items, cart.appliedCoupon?.code);
+
+    if ("error" in result) {
+      toast.error(result.error);
+      setPlacing(false);
+      return;
+    }
+
+    toast.success("Order placed successfully!");
+    orderPlaced.current = true;
+    router.push(
+      `/checkout/success?orderId=${result.orderId}&ref=${encodeURIComponent(result.orderRef)}`,
+    );
+    cart.clear(); // Clear the cart state after navigating away.
+  };
+
+  // ---- Loading / gate states ----
   if (authLoading || !cart.hydrated) {
     return (
-      <main className="min-h-[50vh] flex items-center justify-center">
-        <p className="text-muted-foreground">Loading checkout...</p>
+      <main className={styles.center}>
+        <p className={styles.muted}>Loading checkout…</p>
       </main>
     );
   }
 
   if (!customer) {
     return (
-      <main className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-4 pt-[120px] text-center">
-        <h1 className="text-2xl font-bold">Sign in to continue</h1>
-        <p className="max-w-sm text-muted-foreground">
+      <main className={styles.center}>
+        <h1 className={styles.centerTitle}>Sign in to continue</h1>
+        <p className={styles.centerText}>
           Please sign in to review your order and check out — your cart is
           saved.
         </p>
@@ -178,365 +348,444 @@ export default function CheckoutPage() {
 
   if (cart.items.length === 0) {
     return (
-      <main className="min-h-[50vh] flex items-center justify-center">
-        <p className="text-muted-foreground">Loading checkout...</p>
+      <main className={styles.center}>
+        <p className={styles.muted}>Loading checkout…</p>
       </main>
     );
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Manual edits mean the shopper has diverged from the saved card.
-    setSelectedId(null);
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const selectAddress = (a: SavedAddress) => {
-    setSelectedId(a.id);
-    fillFormFromAddress(a);
-  };
-
-  const useNewAddress = () => {
-    setSelectedId(null);
-    setForm((f) => ({
-      ...f,
-      addressLine1: "",
-      addressLine2: "",
-      city: "",
-      state: "",
-      postalCode: "",
-      country: "India",
-    }));
-  };
-
-  const handleDeleteAddress = async (id: string) => {
-    const res = await deleteAddress(id);
-    if (res.error) {
-      toast.error(res.error);
-      return;
-    }
-    setAddresses((prev) => prev.filter((a) => a.id !== id));
-    if (selectedId === id) setSelectedId(null);
-    toast.success("Address removed");
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    // Best-effort: remember this address for next time. Never block the order
-    // on it — the order is the important part.
-    if (saveForLater) {
-      try {
-        await saveAddressAction(form);
-      } catch {
-        // ignore — saving the address book entry is not critical to the order
-      }
-    }
-
-    const result = await placeOrder(form, cart.items, cart.appliedCoupon?.code);
-
-    if ("error" in result) {
-      toast.error(result.error);
-      setLoading(false);
-      return;
-    }
-
-    toast.success("Order placed successfully!");
-    orderPlaced.current = true;
-    router.push(
-      `/checkout/success?orderId=${result.orderId}&ref=${encodeURIComponent(result.orderRef)}`,
-    );
-    cart.clear(); // Clear the cart state after navigating away.
-  };
+  const formOpen = editingId !== null;
 
   return (
-    <main className="max-w-5xl mx-auto px-4 pt-[120px] pb-12 md:pb-16">
-      <h1 className="text-3xl font-bold mb-8">Checkout</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Form */}
-        <div className="md:col-span-7 space-y-8">
-          {/* Saved addresses */}
-          {addresses.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-xl font-semibold">Delivery Address</h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {addresses.map((a) => (
-                  <div
-                    key={a.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => selectAddress(a)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        selectAddress(a);
-                      }
-                    }}
-                    className={`relative cursor-pointer rounded-lg border p-3 pr-9 text-left transition-colors ${
-                      selectedId === a.id
-                        ? "border-primary ring-1 ring-primary"
-                        : "hover:border-muted-foreground/40"
-                    }`}
-                  >
-                    <div className="text-sm font-medium">
-                      {a.first_name} {a.last_name}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {a.address_line1}
-                      {a.address_line2 ? `, ${a.address_line2}` : ""}, {a.city},{" "}
-                      {a.state} {a.postal_code}
-                    </div>
-                    {a.phone && (
-                      <div className="mt-0.5 text-xs text-muted-foreground">
-                        {a.phone}
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      aria-label="Remove address"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteAddress(a.id);
-                      }}
-                      className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={useNewAddress}
-                  className={`rounded-lg border border-dashed p-3 text-sm text-muted-foreground transition-colors ${
-                    selectedId === null
-                      ? "border-primary text-foreground"
-                      : "hover:border-muted-foreground/40"
-                  }`}
-                >
-                  + Use a new address
-                </button>
-              </div>
-            </div>
-          )}
-
-          <form
-            id="checkout-form"
-            onSubmit={handleSubmit}
-            className="space-y-6"
-          >
-            {/* Contact Info */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold">Contact Information</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name *</Label>
-                  <Input
-                    id="firstName"
-                    name="firstName"
-                    required
-                    value={form.firstName}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name *</Label>
-                  <Input
-                    id="lastName"
-                    name="lastName"
-                    required
-                    value={form.lastName}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email *</Label>
-                  <Input
-                    type="email"
-                    id="email"
-                    name="email"
-                    required
-                    value={form.email}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone *</Label>
-                  <Input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    required
-                    value={form.phone}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Shipping Info */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold">Shipping Address</h2>
-              <div className="space-y-2">
-                <Label htmlFor="addressLine1">Address Line 1 *</Label>
-                <Input
-                  id="addressLine1"
-                  name="addressLine1"
-                  required
-                  value={form.addressLine1}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="addressLine2">Address Line 2 (Optional)</Label>
-                <Input
-                  id="addressLine2"
-                  name="addressLine2"
-                  value={form.addressLine2}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="city">City *</Label>
-                  <Input
-                    id="city"
-                    name="city"
-                    required
-                    value={form.city}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="state">State *</Label>
-                  <Input
-                    id="state"
-                    name="state"
-                    required
-                    value={form.state}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="postalCode">Postal Code *</Label>
-                  <Input
-                    id="postalCode"
-                    name="postalCode"
-                    required
-                    value={form.postalCode}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="country">Country *</Label>
-                  <Input
-                    id="country"
-                    name="country"
-                    required
-                    value={form.country}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={saveForLater}
-                  onChange={(e) => setSaveForLater(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                Save this address for future orders
-              </label>
-            </div>
-
-            {/* Payment Method */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold">Payment Method</h2>
-              <div className="border rounded-lg p-4 flex items-center gap-3 bg-muted/30">
-                <input
-                  type="radio"
-                  id="cod"
-                  name="payment"
-                  checked
-                  readOnly
-                  className="h-4 w-4"
-                />
-                <Label
-                  htmlFor="cod"
-                  className="font-medium cursor-pointer flex-1"
-                >
-                  Cash on Delivery (COD)
-                </Label>
-              </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                Pay with cash when your order is delivered.
-              </p>
-            </div>
-          </form>
+    <main className={styles.page}>
+      <div className={styles.inner}>
+        <div className={styles.heading}>
+          <h1 className={styles.title}>Checkout</h1>
+          <p className={styles.subtitle}>
+            Review your delivery details and place your order.
+          </p>
         </div>
 
-        {/* Right Column: Order Summary */}
-        <div className="md:col-span-5 border rounded-xl p-6 bg-muted/10 sticky top-8">
-          <h2 className="text-xl font-semibold mb-6">Order Summary</h2>
+        <div className={styles.layout}>
+          {/* ---- Left: steps ---- */}
+          <div className={styles.main}>
+            {/* Step 1 — Delivery address */}
+            <section className={styles.card}>
+              <div className={styles.sectionHead}>
+                <span className={styles.stepNum}>1</span>
+                <h2 className={styles.sectionTitle}>Delivery Address</h2>
+                {addresses.length > 0 && !formOpen && (
+                  <span className={styles.sectionHint}>
+                    {addresses.length} saved
+                  </span>
+                )}
+              </div>
 
-          <ul className="space-y-4 mb-6 max-h-[40vh] overflow-y-auto pr-2">
-            {cart.items.map((item, idx) => (
-              <li key={idx} className="flex gap-4">
-                <div className="flex-1">
-                  <h4 className="font-medium text-sm">{item.name}</h4>
-                  {item.variantName && (
-                    <p className="text-xs text-muted-foreground">
-                      {item.variantName}
-                    </p>
+              {addresses.length > 0 && (
+                <div className={styles.addrGrid}>
+                  {addresses.map((a) => {
+                    const active = selectedId === a.id;
+                    return (
+                      <div
+                        key={a.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={active}
+                        onClick={() => setSelectedId(a.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedId(a.id);
+                          }
+                        }}
+                        className={`${styles.addrCard} ${active ? styles.addrCardActive : ""}`}
+                      >
+                        <span className={styles.radio} />
+                        <div className={styles.addrBody}>
+                          <div className={styles.addrName}>
+                            {a.first_name} {a.last_name}
+                            {a.is_default && (
+                              <span className={styles.badge}>Default</span>
+                            )}
+                          </div>
+                          <div className={styles.addrLines}>
+                            {a.address_line1}
+                            {a.address_line2
+                              ? `, ${a.address_line2}`
+                              : ""}, {a.city}, {a.state} {a.postal_code}
+                          </div>
+                          {a.phone && (
+                            <div className={styles.addrPhone}>
+                              Phone: {a.phone}
+                            </div>
+                          )}
+                          <div className={styles.addrActions}>
+                            <button
+                              type="button"
+                              className={styles.linkBtn}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEdit(a);
+                              }}
+                            >
+                              <Pencil size={13} /> Edit
+                            </button>
+                            <button
+                              type="button"
+                              className={`${styles.linkBtn} ${styles.linkBtnDanger}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(a.id);
+                              }}
+                            >
+                              <Trash2 size={13} /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {!formOpen && (
+                    <button
+                      type="button"
+                      className={styles.addTile}
+                      onClick={startAdd}
+                    >
+                      <span className={styles.addTileIcon}>
+                        <Plus size={18} />
+                      </span>
+                      Add a new address
+                    </button>
                   )}
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Qty: {item.quantity}
-                  </p>
-                </div>
-                <div className="font-medium text-sm text-right">
-                  {formatPrice(item.price * item.quantity)}
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          <div className="border-t pt-4 space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span>{formatPrice(cart.subtotal)}</span>
-            </div>
-            {cart.appliedCoupon &&
-              cart.couponValid &&
-              cart.couponDiscount > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>Discount ({cart.appliedCoupon.code})</span>
-                  <span>-{formatPrice(cart.couponDiscount)}</span>
                 </div>
               )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Shipping</span>
-              <span>Free</span>
-            </div>
-            <div className="border-t pt-3 flex justify-between font-bold text-base">
-              <span>Total</span>
-              <span>{formatPrice(cart.total)}</span>
-            </div>
+
+              {formOpen && (
+                <form onSubmit={submitAddr} className={styles.form}>
+                  <div className={styles.formTitle}>
+                    {editingId === "new" ? "Add a new address" : "Edit address"}
+                  </div>
+
+                  <div className={styles.twoCol}>
+                    <div className={styles.field}>
+                      <label className={styles.label} htmlFor="firstName">
+                        First Name
+                      </label>
+                      <input
+                        id="firstName"
+                        name="firstName"
+                        className={styles.input}
+                        value={addrForm.firstName}
+                        onChange={changeAddr}
+                        disabled={savingAddr}
+                      />
+                    </div>
+                    <div className={styles.field}>
+                      <label className={styles.label} htmlFor="lastName">
+                        Last Name
+                      </label>
+                      <input
+                        id="lastName"
+                        name="lastName"
+                        className={styles.input}
+                        value={addrForm.lastName}
+                        onChange={changeAddr}
+                        disabled={savingAddr}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={styles.twoCol}>
+                    <div className={styles.field}>
+                      <label className={styles.label} htmlFor="email">
+                        Email
+                      </label>
+                      <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        className={styles.input}
+                        value={addrForm.email}
+                        onChange={changeAddr}
+                        disabled={savingAddr}
+                      />
+                    </div>
+                    <div className={styles.field}>
+                      <label className={styles.label} htmlFor="phone">
+                        Phone
+                      </label>
+                      <input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        className={styles.input}
+                        value={addrForm.phone}
+                        onChange={changeAddr}
+                        disabled={savingAddr}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={styles.field}>
+                    <label className={styles.label} htmlFor="addressLine1">
+                      Address Line 1
+                    </label>
+                    <input
+                      id="addressLine1"
+                      name="addressLine1"
+                      className={styles.input}
+                      placeholder="House no., building, street"
+                      value={addrForm.addressLine1}
+                      onChange={changeAddr}
+                      disabled={savingAddr}
+                    />
+                  </div>
+
+                  <div className={styles.field}>
+                    <label className={styles.label} htmlFor="addressLine2">
+                      Address Line 2 (Optional)
+                    </label>
+                    <input
+                      id="addressLine2"
+                      name="addressLine2"
+                      className={styles.input}
+                      placeholder="Area, landmark"
+                      value={addrForm.addressLine2}
+                      onChange={changeAddr}
+                      disabled={savingAddr}
+                    />
+                  </div>
+
+                  <div className={styles.twoCol}>
+                    <div className={styles.field}>
+                      <label className={styles.label} htmlFor="city">
+                        City
+                      </label>
+                      <input
+                        id="city"
+                        name="city"
+                        className={styles.input}
+                        value={addrForm.city}
+                        onChange={changeAddr}
+                        disabled={savingAddr}
+                      />
+                    </div>
+                    <div className={styles.field}>
+                      <label className={styles.label} htmlFor="state">
+                        State
+                      </label>
+                      <input
+                        id="state"
+                        name="state"
+                        className={styles.input}
+                        value={addrForm.state}
+                        onChange={changeAddr}
+                        disabled={savingAddr}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={styles.twoCol}>
+                    <div className={styles.field}>
+                      <label className={styles.label} htmlFor="postalCode">
+                        Postal Code
+                      </label>
+                      <input
+                        id="postalCode"
+                        name="postalCode"
+                        className={styles.input}
+                        value={addrForm.postalCode}
+                        onChange={changeAddr}
+                        disabled={savingAddr}
+                      />
+                    </div>
+                    <div className={styles.field}>
+                      <label className={styles.label} htmlFor="country">
+                        Country
+                      </label>
+                      <input
+                        id="country"
+                        name="country"
+                        className={styles.input}
+                        value={addrForm.country}
+                        onChange={changeAddr}
+                        disabled={savingAddr}
+                      />
+                    </div>
+                  </div>
+
+                  {addrError && <p className={styles.formError}>{addrError}</p>}
+
+                  <div className={styles.formActions}>
+                    {(addresses.length > 0 || editingId !== "new") && (
+                      <button
+                        type="button"
+                        className={styles.ghostBtn}
+                        onClick={cancelAddr}
+                        disabled={savingAddr}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      className={styles.primaryBtn}
+                      disabled={savingAddr}
+                    >
+                      <MapPin size={16} />
+                      {savingAddr ? "Saving…" : "Save & deliver here"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </section>
+
+            {/* Step 2 — Payment */}
+            <section className={styles.card}>
+              <div className={styles.sectionHead}>
+                <span className={styles.stepNum}>2</span>
+                <h2 className={styles.sectionTitle}>Payment Method</h2>
+              </div>
+
+              <div className={styles.payOption}>
+                <span className={styles.payIcon}>
+                  <Banknote size={22} />
+                </span>
+                <div>
+                  <div className={styles.payName}>Cash on Delivery</div>
+                  <div className={styles.payDesc}>
+                    Pay with cash when your order arrives at your doorstep.
+                  </div>
+                </div>
+                <span className={styles.payCheck}>
+                  <Check size={20} />
+                </span>
+              </div>
+
+              <div className={styles.field} style={{ marginTop: 18 }}>
+                <label className={styles.label} htmlFor="notes">
+                  Delivery instructions (Optional)
+                </label>
+                <input
+                  id="notes"
+                  name="notes"
+                  className={styles.input}
+                  placeholder="e.g. Leave at the front desk"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  maxLength={500}
+                />
+              </div>
+            </section>
           </div>
 
-          <Button
-            type="submit"
-            form="checkout-form"
-            className="w-full mt-8"
-            size="lg"
-            disabled={loading}
-          >
-            {loading ? "Processing..." : "Place Order (COD)"}
-          </Button>
+          {/* ---- Right: order summary ---- */}
+          <aside className={styles.aside}>
+            <div className={styles.summaryCard}>
+              <h2 className={styles.summaryTitle}>Order Summary</h2>
+
+              <ul className={styles.items}>
+                {cart.items.map((item, idx) => (
+                  <li key={idx} className={styles.item}>
+                    <div className={styles.thumb}>
+                      {item.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.image} alt={item.name} />
+                      ) : (
+                        <span className={styles.thumbFallback}>
+                          <ShoppingBag size={18} />
+                        </span>
+                      )}
+                      <span className={styles.qtyBubble}>{item.quantity}</span>
+                    </div>
+                    <div className={styles.itemBody}>
+                      <div className={styles.itemName}>{item.name}</div>
+                      {item.variantName && (
+                        <div className={styles.itemVariant}>
+                          {item.variantName}
+                        </div>
+                      )}
+                    </div>
+                    <div className={styles.itemPrice}>
+                      {formatPrice(item.price * item.quantity)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <div className={styles.rows}>
+                <div className={styles.row}>
+                  <span>Subtotal</span>
+                  <span>{formatPrice(cart.subtotal)}</span>
+                </div>
+                {cart.appliedCoupon &&
+                  cart.couponValid &&
+                  cart.couponDiscount > 0 && (
+                    <div className={`${styles.row} ${styles.rowDiscount}`}>
+                      <span>Discount ({cart.appliedCoupon.code})</span>
+                      <span>−{formatPrice(cart.couponDiscount)}</span>
+                    </div>
+                  )}
+                <div className={styles.row}>
+                  <span>Shipping</span>
+                  <span className={styles.free}>Free</span>
+                </div>
+                {taxInfo?.enabled && taxInfo.tax > 0 && (
+                  <div className={styles.row}>
+                    <span>
+                      {taxInfo.inclusive ? "Tax (included)" : "Tax"}
+                      {taxInfo.byRate.length === 1
+                        ? ` · ${taxInfo.byRate[0].label}`
+                        : ""}
+                    </span>
+                    <span>
+                      {taxInfo.inclusive ? "" : "+"}
+                      {formatPrice(taxInfo.tax)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className={styles.totalRow}>
+                <span className={styles.totalLabel}>Total</span>
+                <span className={styles.totalValue}>
+                  {formatPrice(
+                    taxInfo?.enabled && !taxInfo.inclusive
+                      ? cart.total + taxInfo.tax
+                      : cart.total,
+                  )}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                className={styles.placeBtn}
+                onClick={handlePlaceOrder}
+                disabled={placing || !selected}
+              >
+                {placing ? "Processing…" : "Place Order (COD)"}
+              </button>
+              {!selected && (
+                <p className={styles.placeHint}>
+                  Add a delivery address to continue
+                </p>
+              )}
+            </div>
+
+            <div className={styles.trust}>
+              <div className={styles.trustItem}>
+                <ShieldCheck size={16} /> Your details are kept private &amp;
+                secure
+              </div>
+              <div className={styles.trustItem}>
+                <Truck size={16} /> Free delivery on this order
+              </div>
+              <div className={styles.trustItem}>
+                <Lock size={16} /> No payment needed until delivery
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
     </main>

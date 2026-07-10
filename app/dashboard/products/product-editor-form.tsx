@@ -34,12 +34,18 @@ import {
   type ProductFormData,
   type VariantFormData,
 } from "@/app/actions/product-actions";
-import type { Product, CategoryOption, CardColorOption } from "./page";
+import type {
+  Product,
+  CategoryOption,
+  CardColorOption,
+  TaxClassOption,
+} from "./page";
 
 type Props = {
   product: Product | null;
   categories: CategoryOption[];
   colors: CardColorOption[];
+  taxClasses: TaxClassOption[];
   onClose: () => void;
   onSaved: () => void;
   // Store default for NEW simple products (inventory.simpleTrackDefault). Only
@@ -68,6 +74,7 @@ const EMPTY: ProductFormData = {
   allow_backorder: false,
   low_stock_threshold: null,
   sku: "",
+  tax_class_id: null,
 };
 
 function toForm(product: Product): ProductFormData {
@@ -90,6 +97,7 @@ function toForm(product: Product): ProductFormData {
     allow_backorder: product.allow_backorder,
     low_stock_threshold: product.low_stock_threshold,
     sku: product.sku ?? "",
+    tax_class_id: product.tax_class_id,
     variants: (product.variants ?? []).map((v) => ({
       id: v.id, // preserve DB id for reconcile (stable variant ids)
       name: v.name,
@@ -275,6 +283,7 @@ export function ProductEditorForm({
   product,
   categories,
   colors,
+  taxClasses,
   onClose,
   onSaved,
   defaultTrackInventory = false,
@@ -561,6 +570,26 @@ export function ProductEditorForm({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className={labelClass}>Tax class</label>
+                <select
+                  className={fieldClass}
+                  value={form.tax_class_id ?? ""}
+                  onChange={(e) => set("tax_class_id", e.target.value || null)}
+                >
+                  <option value="">Use store default</option>
+                  {taxClasses.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.rate}%)
+                    </option>
+                  ))}
+                </select>
+                <p className={hintClass}>
+                  Products without a tax class use the store default. Applies at
+                  checkout when tax is enabled (Invoices &amp; Billing).
+                </p>
               </div>
 
               <div>

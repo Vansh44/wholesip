@@ -73,6 +73,7 @@ export default async function OrdersPage({
               <th className="px-6 py-4 font-medium text-right">Total</th>
               <th className="px-6 py-4 font-medium text-center">Payment</th>
               <th className="px-6 py-4 font-medium text-center">Status</th>
+              <th className="px-6 py-4 font-medium text-right">Invoice</th>
             </tr>
           </thead>
           <tbody className="divide-y text-gray-600">
@@ -129,6 +130,14 @@ export default async function OrdersPage({
                     >
                       {order.status}
                     </Badge>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <Link
+                      href={`/dashboard/orders/${order.id}/invoice`}
+                      className="font-medium text-indigo-600 hover:underline"
+                    >
+                      View
+                    </Link>
                   </td>
                 </tr>
               );

@@ -68,6 +68,7 @@ export interface Product {
   low_stock_threshold: number | null;
   allow_backorder: boolean;
   sku: string | null;
+  tax_class_id: string | null;
   created_at: string;
   updated_at: string;
   // Joined
@@ -80,6 +81,12 @@ export interface CategoryOption {
   name: string;
   slug: string;
   status: "active" | "hidden";
+}
+
+export interface TaxClassOption {
+  id: string;
+  name: string;
+  rate: number;
 }
 
 export interface CardColorOption {
@@ -143,6 +150,7 @@ export default async function ProductsPage({
     { data: products, error, count },
     { data: categories },
     { data: colors },
+    { data: taxClasses },
     { data: storeRow },
     allRes,
     publishedRes,
@@ -159,6 +167,12 @@ export default async function ProductsPage({
     supabase
       .from("card_colors")
       .select("id, name, hex")
+      .eq("store_id", storeId)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
+    supabase
+      .from("tax_classes")
+      .select("id, name, rate")
       .eq("store_id", storeId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
@@ -207,6 +221,7 @@ export default async function ProductsPage({
       products={list}
       categories={(categories ?? []) as CategoryOption[]}
       colors={(colors ?? []) as CardColorOption[]}
+      taxClasses={(taxClasses ?? []) as TaxClassOption[]}
       canManage={canManage}
       counts={counts}
       total={count ?? 0}

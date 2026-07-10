@@ -25,6 +25,12 @@
   color: var(--blog-dark);
 }
 
+/* The market header reserves its height on .storefront-root itself, so don't
+   add the full floating-header offset on top — that doubles the gap. */
+.sm-header-market.storefront-root .write-blog-page {
+  padding-top: 32px;
+}
+
 /* ============================================
    AUTH GATE
    ============================================ */
