@@ -30,7 +30,7 @@ export default function HelpCentre() {
     <>
       <nav className="stq-nav">
         <a href="https://storemink.com" className="stq-logo">
-          Store<span>mink</span>
+          Store<span>Mink</span>
         </a>
         <div className="stq-nav-actions">
           <a
@@ -47,7 +47,7 @@ export default function HelpCentre() {
         <h1>How can we help?</h1>
         <p>
           Guides and answers for setting up and growing your D2C store on
-          Storemink. Stuck somewhere? Start with a topic below.
+          StoreMink. Stuck somewhere? Start with a topic below.
         </p>
       </header>
 

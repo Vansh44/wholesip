@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getPlatformViewer, listPlatformAdmins } from "@/app/actions/platform";
 import { OperatorsConsole } from "../operators-console";
 
-export const metadata = { title: "Operators — Storemink Admin" };
+export const metadata = { title: "Operators — StoreMink Admin" };
 
 export default async function OperatorsPage() {
   const supabase = await createClient();

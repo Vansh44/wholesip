@@ -38,7 +38,7 @@ export default function StoreLoginPage() {
     <div className="stq-auth-wrap">
       <form className="stq-auth" onSubmit={go}>
         <Link href="/" className="stq-logo" style={{ fontSize: 20 }}>
-          Store<span>mink</span>
+          Store<span>Mink</span>
         </Link>
         <h1 style={{ marginTop: 18 }}>Log in to your store</h1>
         <p className="sub">Enter your store address to continue.</p>
@@ -71,7 +71,7 @@ export default function StoreLoginPage() {
         </button>
 
         <p className="stq-alt">
-          New to Storemink? <Link href="/signup">Sign up</Link>
+          New to StoreMink? <Link href="/signup">Sign up</Link>
         </p>
       </form>
     </div>

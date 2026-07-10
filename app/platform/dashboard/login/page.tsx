@@ -56,12 +56,12 @@ export default function OperatorLoginPage() {
         onSubmit={step === "email" ? sendCode : verify}
       >
         <Link href="/" className="stq-logo" style={{ fontSize: 20 }}>
-          Stor<span>emink</span>
+          Stor<span>eMink</span>
         </Link>
         <h1 style={{ marginTop: 18 }}>Operator login</h1>
         <p className="sub">
           {step === "email"
-            ? "Sign in to the Storemink admin console."
+            ? "Sign in to the StoreMink admin console."
             : `Enter the 6-digit code sent to ${email}.`}
         </p>
 

@@ -100,7 +100,7 @@ export function BrandingForm({
             placeholder: "Acme Foods Pvt. Ltd.",
           })}
           {field("creditLine", "Credit line", initial.creditLine, {
-            placeholder: "Powered by Storemink",
+            placeholder: "Powered by StoreMink",
           })}
         </div>
       </div>

@@ -35,7 +35,7 @@ export default function NotFound() {
             marginBottom: 20,
           }}
         >
-          Store<span style={{ color: "#4f39f6" }}>mink</span>
+          Store<span style={{ color: "#4f39f6" }}>Mink</span>
         </div>
         <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 10px" }}>
           This store doesn&apos;t exist

@@ -64,8 +64,8 @@ const jakarta = Plus_Jakarta_Sans({
 // store (brand name + canonical origin); the (platform) layout sets its own.
 export const metadata = {
   metadataBase: new URL(PLATFORM_URL),
-  applicationName: "Storemink",
-  title: { default: "Storemink", template: "%s" },
+  applicationName: "StoreMink",
+  title: { default: "StoreMink", template: "%s" },
   description: "Launch, grow, and scale your D2C brand online.",
 };
 

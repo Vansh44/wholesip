@@ -22,7 +22,7 @@ const dashMono = JetBrains_Mono({
 
 export async function generateMetadata() {
   return {
-    title: `Storemink Admin`,
+    title: `StoreMink Admin`,
   };
 }
 
@@ -64,7 +64,7 @@ export default async function PlatformDashboardLayout({
         <DashboardSidebar
           groups={navGroups}
           logoUrl={null}
-          storeName="Storemink Admin"
+          storeName="StoreMink Admin"
         />
 
         <div className="dash-main">

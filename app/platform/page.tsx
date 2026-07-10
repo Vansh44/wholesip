@@ -241,7 +241,7 @@ export default function StoreminkLanding() {
       <div className="stq-navbar">
         <nav className="stq-nav">
           <Link href="/" className="stq-logo">
-            Store<span>mink</span>
+            Store<span>Mink</span>
           </Link>
           <div className="stq-nav-links">
             <a href="#features">Features</a>
@@ -668,7 +668,7 @@ export default function StoreminkLanding() {
         <div className="stq-footer2-inner">
           <div className="stq-footer2-brand">
             <Link href="/" className="stq-logo">
-              Store<span>mink</span>
+              Store<span>Mink</span>
             </Link>
             <p>
               The India-first store builder with everything included. Launch

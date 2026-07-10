@@ -68,7 +68,7 @@ export default function Footer() {
   ].filter((s) => s.href);
 
   const legalName = brand.legalName || brand.name;
-  const creditLine = brand.creditLine || "Powered by Storemink";
+  const creditLine = brand.creditLine || "Powered by StoreMink";
 
   const handleLogoClick = (e) => {
     e.preventDefault();
@@ -262,7 +262,7 @@ export default function Footer() {
           </div>
         </div>
         <div className={styles.credit}>
-          {creditLine === "Powered by Storemink" ? (
+          {creditLine === "Powered by StoreMink" ? (
             <>
               <strong>Powered by</strong>
               <img
@@ -271,7 +271,7 @@ export default function Footer() {
                 className={styles.creditLogo}
                 aria-hidden="true"
               />
-              <strong>Storemink</strong>
+              <strong>StoreMink</strong>
             </>
           ) : (
             <strong>{creditLine}</strong>

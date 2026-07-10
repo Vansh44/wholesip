@@ -6,7 +6,7 @@ import { THEME_META } from "@/lib/themes/meta";
 import { StoresConsole } from "./stores-console";
 import { ThemesPanel } from "./themes-panel";
 
-export const metadata = { title: "Storemink Admin" };
+export const metadata = { title: "StoreMink Admin" };
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storemink.com";
 
@@ -29,7 +29,7 @@ export default async function PlatformDashboard({
         <div className="stq-auth">
           <h1>Not authorized</h1>
           <p className="sub">
-            {user.email} isn&apos;t a Storemink operator. If you run a store,
+            {user.email} isn&apos;t a StoreMink operator. If you run a store,
             log in at your store&apos;s address instead.
           </p>
           <Link href="/login" className="stq-btn stq-btn-ghost stq-btn-block">

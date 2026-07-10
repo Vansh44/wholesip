@@ -246,7 +246,7 @@ export default function SignupPage() {
           href="/"
           className="font-bold text-xl text-gray-900 tracking-tight flex items-center"
         >
-          Store<span className="text-primary">mink</span>
+          Store<span className="text-primary">Mink</span>
         </Link>
         <p className="text-sm text-gray-500 font-medium">
           Already selling?{" "}
