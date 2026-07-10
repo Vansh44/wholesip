@@ -1,0 +1,714 @@
+/* Checkout — premium multi-step layout (Amazon / Flipkart / Shopify inspired).
+   Fully tokenised on the storefront --wholesip-* vars so it re-skins per theme
+   and works in light/dark like the rest of the storefront. */
+
+.page {
+  min-height: 100vh;
+  padding: 120px 20px 72px;
+  background: var(--wholesip-cream);
+  font-family: var(--font-outfit), sans-serif;
+  color: var(--wholesip-ink);
+}
+
+.inner {
+  max-width: 1140px;
+  margin: 0 auto;
+}
+
+.heading {
+  margin-bottom: 28px;
+}
+
+.title {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--wholesip-ink);
+}
+
+.subtitle {
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--wholesip-ink-soft);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 384px;
+  gap: 28px;
+  align-items: start;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* ---- Cards / sections ---- */
+.card {
+  background: var(--wholesip-surface);
+  border: 1px solid var(--wholesip-border);
+  border-radius: var(--wholesip-radius-card);
+  box-shadow: 0 6px 22px rgba(var(--wholesip-shadow-rgb), 0.05);
+  padding: 28px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.stepNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--wholesip-radius-pill);
+  background: var(--wholesip-accent);
+  color: var(--wholesip-on-accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sectionTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--wholesip-ink);
+}
+
+.sectionHint {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--wholesip-ink-faint);
+}
+
+/* ---- Saved address cards ---- */
+.addrGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.addrCard {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 16px 16px 16px 44px;
+  text-align: left;
+  border: 1.5px solid var(--wholesip-border);
+  border-radius: var(--wholesip-radius-control);
+  background: var(--wholesip-cream);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.addrCard:hover {
+  border-color: var(--wholesip-ink-faint);
+}
+
+.addrCardActive {
+  border-color: var(--wholesip-accent);
+  background: var(--wholesip-surface);
+  box-shadow: 0 0 0 3px rgba(var(--wholesip-shadow-rgb), 0.06);
+}
+
+.radio {
+  position: absolute;
+  top: 17px;
+  left: 16px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--wholesip-radius-pill);
+  border: 2px solid var(--wholesip-ink-faint);
+  transition: border-color 0.15s ease;
+}
+
+.addrCardActive .radio {
+  border-color: var(--wholesip-accent);
+}
+
+.addrCardActive .radio::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: var(--wholesip-radius-pill);
+  background: var(--wholesip-accent);
+}
+
+.addrBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.addrName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wholesip-ink);
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: var(--wholesip-radius-pill);
+  background: var(--wholesip-sand);
+  color: var(--wholesip-ink-soft);
+}
+
+.addrLines {
+  margin-top: 5px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--wholesip-ink-soft);
+}
+
+.addrPhone {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--wholesip-ink-faint);
+}
+
+.addrActions {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--wholesip-ink-soft);
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  border-radius: var(--wholesip-radius-sm);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.linkBtn:hover {
+  background: var(--wholesip-cream-deep);
+  color: var(--wholesip-ink);
+}
+
+.linkBtnDanger:hover {
+  background: var(--wholesip-error-soft);
+  color: var(--wholesip-error);
+}
+
+/* "+ Add a new address" tile */
+.addTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 108px;
+  border: 1.5px dashed var(--wholesip-border);
+  border-radius: var(--wholesip-radius-control);
+  background: transparent;
+  color: var(--wholesip-ink-soft);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.addTile:hover {
+  border-color: var(--wholesip-accent);
+  color: var(--wholesip-ink);
+  background: var(--wholesip-cream);
+}
+
+.addTileIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--wholesip-radius-pill);
+  background: var(--wholesip-sand);
+  color: var(--wholesip-ink);
+}
+
+/* ---- Address form ---- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.formTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wholesip-ink);
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wholesip-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--wholesip-radius-control);
+  border: 1.5px solid var(--wholesip-border);
+  background: var(--wholesip-cream-deep);
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--wholesip-ink);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.input::placeholder {
+  color: var(--wholesip-ink-faint);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--wholesip-accent);
+  background: var(--wholesip-surface);
+}
+
+.formError {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--wholesip-error);
+}
+
+.formActions {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 22px;
+  border-radius: var(--wholesip-radius-control);
+  background: var(--wholesip-accent);
+  color: var(--wholesip-on-accent);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: var(--wholesip-accent-deep);
+}
+
+.primaryBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ghostBtn {
+  padding: 13px 22px;
+  border-radius: var(--wholesip-radius-control);
+  background: transparent;
+  color: var(--wholesip-ink-soft);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1.5px solid var(--wholesip-border);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.ghostBtn:hover:not(:disabled) {
+  background: var(--wholesip-cream-deep);
+  color: var(--wholesip-ink);
+}
+
+/* ---- Payment ---- */
+.payOption {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1.5px solid var(--wholesip-accent);
+  border-radius: var(--wholesip-radius-control);
+  background: var(--wholesip-cream);
+}
+
+.payIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: var(--wholesip-radius-control);
+  background: var(--wholesip-sand);
+  color: var(--wholesip-ink);
+}
+
+.payName {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wholesip-ink);
+}
+
+.payDesc {
+  font-size: 13px;
+  color: var(--wholesip-ink-soft);
+  margin-top: 2px;
+}
+
+.payCheck {
+  margin-left: auto;
+  color: var(--wholesip-accent);
+}
+
+/* ---- Order summary (right rail) ---- */
+.aside {
+  position: sticky;
+  top: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.summaryCard {
+  background: var(--wholesip-surface);
+  border: 1px solid var(--wholesip-border);
+  border-radius: var(--wholesip-radius-card);
+  box-shadow: 0 6px 22px rgba(var(--wholesip-shadow-rgb), 0.05);
+  padding: 24px;
+}
+
+.summaryTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--wholesip-ink);
+  margin-bottom: 18px;
+}
+
+.items {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.thumb {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: var(--wholesip-radius-sm);
+  overflow: hidden;
+  background: var(--wholesip-cream-deep);
+  border: 1px solid var(--wholesip-border);
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbFallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--wholesip-ink-faint);
+}
+
+.qtyBubble {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--wholesip-radius-pill);
+  background: var(--wholesip-accent);
+  color: var(--wholesip-on-accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.itemBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.itemName {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--wholesip-ink);
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.itemVariant {
+  font-size: 12px;
+  color: var(--wholesip-ink-faint);
+  margin-top: 2px;
+}
+
+.itemPrice {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--wholesip-ink);
+  white-space: nowrap;
+}
+
+.rows {
+  border-top: 1px solid var(--wholesip-border);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--wholesip-ink-soft);
+}
+
+.rowDiscount {
+  color: var(--wholesip-success);
+  font-weight: 600;
+}
+
+.free {
+  color: var(--wholesip-success);
+  font-weight: 600;
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--wholesip-border);
+}
+
+.totalLabel {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wholesip-ink);
+}
+
+.totalValue {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--wholesip-ink);
+}
+
+.placeBtn {
+  width: 100%;
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: var(--wholesip-radius-control);
+  background: var(--wholesip-accent);
+  color: var(--wholesip-on-accent);
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease,
+    box-shadow 0.15s ease;
+}
+
+.placeBtn:hover:not(:disabled) {
+  background: var(--wholesip-accent-deep);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(var(--wholesip-shadow-rgb), 0.16);
+}
+
+.placeBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.placeHint {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--wholesip-ink-faint);
+}
+
+.trust {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px;
+  border: 1px solid var(--wholesip-border);
+  border-radius: var(--wholesip-radius-card);
+  background: var(--wholesip-surface);
+}
+
+.trustItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--wholesip-ink-soft);
+}
+
+.trustItem svg {
+  color: var(--wholesip-success);
+  flex-shrink: 0;
+}
+
+/* ---- Centered states ---- */
+.center {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  padding: 120px 20px 40px;
+}
+
+.centerTitle {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--wholesip-ink);
+}
+
+.centerText {
+  max-width: 360px;
+  font-size: 15px;
+  color: var(--wholesip-ink-soft);
+}
+
+.muted {
+  color: var(--wholesip-ink-soft);
+  font-size: 15px;
+}
+
+/* The "market" header reserves its height on .storefront-root itself, so the
+   page must NOT add the full floating-header offset on top — that doubles the
+   gap. Mirror the shop/cart overrides. (Classic header floats and reserves no
+   space, so the base 120px above stays for it.) */
+:global(.sm-header-market.storefront-root) .page {
+  padding-top: 32px;
+}
+
+@media (min-width: 768px) {
+  :global(.sm-header-market.storefront-root) .page {
+    padding-top: 48px;
+  }
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .aside {
+    position: static;
+  }
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 96px 14px 56px;
+  }
+
+  .title {
+    font-size: 27px;
+  }
+
+  .card {
+    padding: 20px;
+  }
+
+  .addrGrid,
+  .twoCol {
+    grid-template-columns: 1fr;
+  }
+
+  .formActions {
+    flex-direction: column-reverse;
+  }
+
+  .formActions .primaryBtn,
+  .formActions .ghostBtn {
+    width: 100%;
+  }
+}

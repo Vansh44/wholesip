@@ -133,6 +133,7 @@ export function GroceryCart() {
             <span>Total</span>
             <span>{formatPrice(grandTotal)}</span>
           </div>
+          <p className="gcart-tax-note">Taxes calculated at checkout.</p>
 
           <Link
             href="/checkout"

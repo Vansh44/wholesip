@@ -102,7 +102,7 @@ function ClassicCart() {
             </div>
           )}
           <div className="cart-summary-row cart-summary-muted">
-            <span>Shipping</span>
+            <span>Shipping &amp; taxes</span>
             <span>Calculated at checkout</span>
           </div>
 

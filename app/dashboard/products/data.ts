@@ -2,45 +2,61 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { getActingStoreId } from "@/app/dashboard/lib/access";
-import type { Product, CategoryOption, CardColorOption } from "./page";
+import type {
+  Product,
+  CategoryOption,
+  CardColorOption,
+  TaxClassOption,
+} from "./page";
 
 /**
  * Everything the product editor needs for one product: the product (with its
- * category + variants) plus the category and card-colour option lists. Returns
- * null if the product doesn't exist. Mirrors the list page's query so RLS
- * (admins can read) behaves identically.
+ * category + variants) plus the category, card-colour and tax-class option
+ * lists. Returns null if the product doesn't exist. Mirrors the list page's
+ * query so RLS (admins can read) behaves identically.
  */
 export async function getProductEditData(id: string): Promise<{
   product: Product;
   categories: CategoryOption[];
   colors: CardColorOption[];
+  taxClasses: TaxClassOption[];
 } | null> {
   const supabase = await createClient();
   const storeId = await getActingStoreId();
 
-  const [{ data: product }, { data: categories }, { data: colors }] =
-    await Promise.all([
-      supabase
-        .from("products")
-        .select(
-          "*, category:categories(id, name, slug), variants:product_variants(*)",
-        )
-        .eq("id", id)
-        .eq("store_id", storeId)
-        .single(),
-      supabase
-        .from("categories")
-        .select("id, name, slug, status")
-        .eq("store_id", storeId)
-        .order("sort_order", { ascending: true })
-        .order("name", { ascending: true }),
-      supabase
-        .from("card_colors")
-        .select("id, name, hex")
-        .eq("store_id", storeId)
-        .order("sort_order", { ascending: true })
-        .order("name", { ascending: true }),
-    ]);
+  const [
+    { data: product },
+    { data: categories },
+    { data: colors },
+    { data: taxClasses },
+  ] = await Promise.all([
+    supabase
+      .from("products")
+      .select(
+        "*, category:categories(id, name, slug), variants:product_variants(*)",
+      )
+      .eq("id", id)
+      .eq("store_id", storeId)
+      .single(),
+    supabase
+      .from("categories")
+      .select("id, name, slug, status")
+      .eq("store_id", storeId)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
+    supabase
+      .from("card_colors")
+      .select("id, name, hex")
+      .eq("store_id", storeId)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
+    supabase
+      .from("tax_classes")
+      .select("id, name, rate")
+      .eq("store_id", storeId)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true }),
+  ]);
 
   if (!product) return null;
 
@@ -51,5 +67,6 @@ export async function getProductEditData(id: string): Promise<{
     product: p,
     categories: (categories ?? []) as CategoryOption[],
     colors: (colors ?? []) as CardColorOption[],
+    taxClasses: (taxClasses ?? []) as TaxClassOption[],
   };
 }

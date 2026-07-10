@@ -5,6 +5,19 @@
   font-family: var(--font-outfit), sans-serif;
 }
 
+/* The "market" header reserves its height on .storefront-root itself, so the
+   page must NOT add the full floating-header offset on top — that doubles the
+   gap. (Classic header floats and reserves no space, so the base 140px stays.) */
+:global(.sm-header-market.storefront-root) .container {
+  padding-top: 32px;
+}
+
+@media (min-width: 768px) {
+  :global(.sm-header-market.storefront-root) .container {
+    padding-top: 48px;
+  }
+}
+
 .content {
   max-width: 620px;
   margin: 0 auto;

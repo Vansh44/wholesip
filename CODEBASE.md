@@ -148,6 +148,9 @@ wholesip/
 │   │   ├── users/             # customers + user_groups/ (segments)  [superadmin only]
 │   │   ├── admins/ roles/     # staff invites + role management
 │   │   ├── branding/          # per-store branding editor (logo, colors)
+│   │   ├── billing/           # ★ Invoices & Billing (§17): tax config + tax-class
+│   │   │                      # manager + invoice-template editor (billing.css)
+│   │   ├── orders/[id]/invoice/  # ★ printable invoice for one order (§17)
 │   │   └── settings/          # account/ + domain/ (custom-domain connect + verify);
 │   │                          # feature toggles live on their feature's own page
 │   │                          # (e.g. blogs → blogs/settings — see convention #9)
@@ -172,6 +175,8 @@ wholesip/
 │   │   ├── store-branding.ts  # Per-store branding updates
 │   │   ├── store-settings.ts  # Read/save per-store feature settings (see lib/settings)
 │   │   ├── blog-taxonomy-actions.ts  # Per-store blog categories/tags CRUD (+ propagation into blogs)
+│   │   ├── billing-actions.ts # ★ Invoices & tax (§17): tax-class CRUD + save billing/
+│   │   │                      # invoice settings. Gated on `billing`, revalidates TAGS.billing.
 │   │   ├── store-domain.ts    # Custom domain connect + DNS verification (Resend)
 │   │   ├── page-actions.ts    # ★ Custom-page CRUD + draft/publish (see §11): createPage/
 │   │   │                      # updatePageMeta/savePageDraft/publishPage/unpublishPage/
@@ -240,6 +245,10 @@ wholesip/
 │   ├── menus.ts               # ★ Per-store nav (§11): StoreMenus types, DEFAULT_MENUS,
 │   │                          # normalize/sanitize. Read cached via getStoreMenus.
 │   ├── ai/gemini.ts           # Gemini client for AI copy
+│   ├── billing/               # ★ Invoices & tax (§17): types.ts (BillingSettings/
+│   │                          # TaxClass + row mappers + defaults), tax.ts (pure
+│   │                          # inclusive/exclusive tax math, tested), invoice-data.ts
+│   │                          # (server-only invoice loaders: by-store + own-order)
 │   ├── pricing.ts / slug.ts / sanitize.ts / rate-limit.ts / og-image.ts
 │   ├── blog-taxonomy.ts   # fetchBlogTaxonomy(): per-store blog categories/tags reader
 │   ├── blog-reactions.ts / phone-labels.ts / use-otp-throttle.ts
@@ -247,6 +256,8 @@ wholesip/
 │
 ├── components/
 │   ├── ui/                    # shadcn/ui primitives (button, dialog, table, sidebar…)
+│   ├── invoice/               # ★ Print-styled InvoiceDocument (server) + PrintButton
+│   │                          # (client) + invoice.css (@media print isolation) — §17
 │   └── customer-multiselect.tsx
 ├── hooks/use-mobile.ts
 │
@@ -267,6 +278,8 @@ wholesip/
 │   │                          # reserve/release (enforces max_uses under concurrency)
 │   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
 │   ├── store_menus.sql        # ★ per-store header/footer nav (+ RLS + WholeSip seed) — §11
+│   ├── invoicing.sql          # ★ tax_classes + products.tax_class_id + order_items tax
+│   │                          # cols + orders.tax_inclusive + store_billing_settings — §17
 │   ├── homepage_to_store_pages.sql  # Phase 4a data migration: homepage_sections → slug ""
 │   ├── wholesip_static_pages_seed.sql  # Phase 4b: seed the 17 legacy static pages
 │   │                          # (our-story, faqs, privacy-policy…) as published
@@ -653,6 +666,43 @@ platform.ts`, superadmin-only, tested): **UPGRADE-ONLY by design** —
     coupon-usage pattern; fails OPEN on transient errors). Called BEFORE Gemini
     in every AI action; blocked stores get a plan-aware upgrade message and the
     branding page shows "X of Y used this month".
+
+17. **Invoices & tax (per-store, Shopify-style).** Managed at `/dashboard/billing`
+    (permission section `billing`, group Administration). Storage in
+    `supabase/invoicing.sql`: `tax_classes` (named rate buckets, public-read /
+    admin-write RLS), `products.tax_class_id` (ON DELETE SET NULL), per-line tax
+    snapshot on `order_items` (`tax_rate`/`tax_amount`/`tax_class_name`),
+    `orders.tax_inclusive` (`orders.tax` already existed), and a single-row
+    `store_billing_settings` (tax config + business identity + invoice template;
+    **public-readable by design — everything here prints on the customer's
+    invoice, so NEVER put a secret in it**). - **Tax model = classes per product**: a store defines tax classes (e.g. GST
+    5/12/18%), assigns one per product (product editor → "Tax class"; products
+    without one use `store_billing_settings.default_tax_class_id`), and toggles
+    tax on/off + inclusive/exclusive store-wide. (Region-based CGST/SGST split
+    is the deliberately-unbuilt heavier option.) - **Pure math** in `lib/billing/tax.ts` (`computeTax`, tested): discount is
+    allocated across lines proportionally, then tax is computed on the
+    discounted amount — EXCLUSIVE adds tax to the total, INCLUSIVE carves it
+    out (total unchanged) and reports it. `lib/billing/types.ts` holds
+    `BillingSettings`/`TaxClass` + row mappers + `DEFAULT_BILLING_SETTINGS`. - **Checkout** (`checkout-actions.ts`, convention #12): `placeOrder` reads the
+    tax config authoritatively via `readTaxConfig` (uncached admin, store-scoped
+    — an order must reflect config at order time), resolves each line's rate,
+    computes tax, and snapshots `order.tax`/`order.tax_inclusive` + per-line tax.
+    `getCartTax(lines, discount)` is the DISPLAY counterpart (same resolution)
+    shown as a Tax line in the checkout summary; the cart shows "calculated at
+    checkout". Storefront reads use cached `getStoreBillingSettings` /
+    `getStoreTaxClasses` (tag `TAGS.billing`). - **Invoices = printable HTML** (chosen over server PDF): `components/invoice/
+InvoiceDocument` (server, presentational) + `invoice.css` (`@media print`
+    isolates the sheet from all chrome) + `PrintInvoiceButton` (client
+    `window.print()` → Save as PDF). Loaders in `lib/billing/invoice-data.ts`:
+    `loadInvoiceByStore` (dashboard, service-role, store-scoped) and
+    `loadInvoiceForCustomer` (own-order via cookie RLS; both return `storeId`).
+    Routes: `/dashboard/orders/[id]/invoice` (linked from the orders list) and
+    the customer `/checkout/invoice/[orderId]` (noindex; linked from the order-
+    confirmation page; guards the host via `requireStorefrontStoreId()` and
+    404s unless the order belongs to the host store). Access control is UUID +
+    RLS/store-scope, never a guessable code. The invoice's Bill To/Ship To and
+    tax column derive from the ORDER's snapshot (`tax_inclusive`, per-line
+    `tax_rate`), never live settings — historical invoices are immutable.
 
 ## 6. Commands
 

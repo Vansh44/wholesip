@@ -10,4 +10,5 @@ export const TAGS = {
   pages: "storefront:pages",
   menus: "storefront:menus",
   coupons: "storefront:coupons",
+  billing: "storefront:billing",
 } as const;

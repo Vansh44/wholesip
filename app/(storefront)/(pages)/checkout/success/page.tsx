@@ -3,7 +3,6 @@
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Suspense } from "react";
 
 function SuccessContent() {
@@ -29,11 +28,27 @@ function SuccessContent() {
       )}
 
       <div className="space-y-4">
-        <Link href="/shop" passHref legacyBehavior>
-          <Button size="lg" className="w-full sm:w-auto px-8">
-            Continue Shopping
-          </Button>
+        {/* Themed on the storefront accent (matches the checkout "Place Order"
+            button). Color is set via inline style so it beats the storefront's
+            `.storefront-root a { color: inherit }` rule (which would otherwise
+            drag the text to dark ink on this accent-filled button). */}
+        <Link
+          href="/shop"
+          className="inline-flex w-full items-center justify-center rounded-[var(--wholesip-radius-control)] bg-[var(--wholesip-accent)] px-8 py-3.5 text-base font-semibold transition-colors hover:bg-[var(--wholesip-accent-deep)] sm:w-auto"
+          style={{ color: "var(--wholesip-on-accent)" }}
+        >
+          Continue Shopping
         </Link>
+        {orderId && (
+          <div>
+            <Link
+              href={`/checkout/invoice/${orderId}`}
+              className="text-sm font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              View / download invoice
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

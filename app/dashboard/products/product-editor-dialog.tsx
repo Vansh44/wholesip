@@ -8,13 +8,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ProductEditorForm } from "./product-editor-form";
-import type { Product, CategoryOption, CardColorOption } from "./page";
+import type {
+  Product,
+  CategoryOption,
+  CardColorOption,
+  TaxClassOption,
+} from "./page";
 
 type Props = {
   open: boolean;
   product: Product | null;
   categories: CategoryOption[];
   colors: CardColorOption[];
+  taxClasses: TaxClassOption[];
   onClose: () => void;
   onSaved: () => void;
   defaultTrackInventory?: boolean;
@@ -27,6 +33,7 @@ export function ProductEditorDialog({
   product,
   categories,
   colors,
+  taxClasses,
   onClose,
   onSaved,
   defaultTrackInventory = false,
@@ -44,6 +51,7 @@ export function ProductEditorDialog({
           product={product}
           categories={categories}
           colors={colors}
+          taxClasses={taxClasses}
           onClose={onClose}
           onSaved={onSaved}
           defaultTrackInventory={defaultTrackInventory}

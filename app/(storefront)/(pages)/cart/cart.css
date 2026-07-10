@@ -620,7 +620,12 @@
 }
 .gcart-summary-total {
   font-size: 1.3rem;
-  margin-bottom: 20px;
+  margin-bottom: 6px;
+}
+.gcart-tax-note {
+  font-size: 0.8rem;
+  color: var(--wholesip-ink-faint);
+  margin: 0 0 20px;
 }
 .gcart-summary-total span {
   font-family: var(--font-outfit), sans-serif;

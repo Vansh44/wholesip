@@ -53,6 +53,9 @@ export interface ProductFormData {
   allow_backorder?: boolean;
   low_stock_threshold?: number | null;
   sku?: string;
+  // Optional per-product tax class (public.tax_classes). Products without one
+  // fall back to the store default at checkout. Empty string / null = none.
+  tax_class_id?: string | null;
 }
 
 export interface ActionResult {
@@ -351,6 +354,7 @@ export async function createProduct(
     track_inventory: formData.track_inventory ?? false,
     allow_backorder: formData.allow_backorder ?? false,
     low_stock_threshold: formData.low_stock_threshold ?? null,
+    tax_class_id: formData.tax_class_id || null,
     // sku / sku_no are set by the DB trigger (system-generated & locked).
   });
 
@@ -446,6 +450,7 @@ export async function updateProduct(
     track_inventory: formData.track_inventory ?? false,
     allow_backorder: formData.allow_backorder ?? false,
     low_stock_threshold: formData.low_stock_threshold ?? null,
+    tax_class_id: formData.tax_class_id || null,
     // sku is system-generated & locked (DB trigger) — never overwritten here.
   });
 

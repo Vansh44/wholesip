@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { ProductEditorForm } from "./product-editor-form";
-import type { Product, CategoryOption, CardColorOption } from "./page";
+import type {
+  Product,
+  CategoryOption,
+  CardColorOption,
+  TaxClassOption,
+} from "./page";
 
 // Full-page editor surface (dark panel, matching the editor's theme) for a
 // direct visit / shared link to /dashboard/products/[id].
@@ -10,10 +15,12 @@ export function ProductEditPanel({
   product,
   categories,
   colors,
+  taxClasses,
 }: {
   product: Product;
   categories: CategoryOption[];
   colors: CardColorOption[];
+  taxClasses: TaxClassOption[];
 }) {
   const router = useRouter();
   const toList = () => router.push("/dashboard/products");
@@ -32,6 +39,7 @@ export function ProductEditPanel({
         product={product}
         categories={categories}
         colors={colors}
+        taxClasses={taxClasses}
         onClose={toList}
         onSaved={() => {
           router.push("/dashboard/products");

@@ -55,6 +55,7 @@ import type {
   Product,
   CategoryOption,
   CardColorOption,
+  TaxClassOption,
   ProductFilter,
   ProductCounts,
 } from "./page";
@@ -63,6 +64,7 @@ type Props = {
   products: Product[];
   categories: CategoryOption[];
   colors: CardColorOption[];
+  taxClasses: TaxClassOption[];
   canManage?: boolean;
   counts: ProductCounts;
   total: number;
@@ -78,6 +80,7 @@ export function ProductsManagementView({
   products,
   categories,
   colors,
+  taxClasses,
   canManage = true,
   counts,
   total,
@@ -668,6 +671,7 @@ export function ProductsManagementView({
           product={null}
           categories={categories}
           colors={colors}
+          taxClasses={taxClasses}
           onClose={closeEditor}
           onSaved={handleSaved}
           defaultTrackInventory={defaultTrackInventory}

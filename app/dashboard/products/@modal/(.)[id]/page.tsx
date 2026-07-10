@@ -19,6 +19,7 @@ export default async function InterceptedProductEdit({
       product={data.product}
       categories={data.categories}
       colors={data.colors}
+      taxClasses={data.taxClasses}
     />
   );
 }

@@ -451,3 +451,100 @@ describe("getCartStock", () => {
     expect(info[0].exists).toBe(false);
   });
 });
+
+// A store with tax ENABLED: the product carries a tax class (GST 18%), read
+// authoritatively from the DB. placeOrder must snapshot the tax onto the order +
+// each line, and adjust the total per the inclusive/exclusive mode. (The
+// tax-OFF path is the default in every other placeOrder test above.)
+describe("placeOrder — tax", () => {
+  function makeTaxAdmin(pricesIncludeTax: boolean) {
+    const s = makeSupabase({
+      products: makeChain(undefined, {
+        data: [
+          {
+            id: "p1",
+            name: "Prod",
+            selling_price: 100,
+            store_id: STORE,
+            tax_class_id: "tc1",
+          },
+        ],
+        error: null,
+      }),
+      product_variants: makeChain(undefined, { data: [], error: null }),
+      store_billing_settings: makeChain(
+        {
+          data: {
+            tax_enabled: true,
+            prices_include_tax: pricesIncludeTax,
+            default_tax_class_id: null,
+          },
+          error: null,
+        },
+        { error: null },
+      ),
+      tax_classes: makeChain(undefined, {
+        data: [{ id: "tc1", name: "GST 18%", rate: 18, sort_order: 0 }],
+        error: null,
+      }),
+      orders: makeChain(
+        { data: { id: "order-1", order_ref: "ORD1" }, error: null },
+        { error: null },
+      ),
+      order_items: makeChain(undefined, { error: null }),
+      coupons: makeChain(
+        { data: { id: "c1", used_count: 0 }, error: null },
+        { error: null },
+      ),
+    });
+    // reserve_stock + increment_coupon_usage both succeed.
+    s.rpc = vi.fn().mockResolvedValue({ data: true, error: null });
+    return s;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabase({}, { id: "user-1" }),
+    );
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true });
+    vi.mocked(validateCoupon).mockResolvedValue({} as any);
+  });
+
+  it("adds tax on top of the total when prices are exclusive", async () => {
+    const admin = makeTaxAdmin(false);
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+
+    // oneItem() = qty 2 @ ₹100 (DB price) → subtotal 200.
+    const res = await placeOrder(validForm, [oneItem()]);
+    expect("success" in res && res.success).toBe(true);
+
+    const order = admin._tables.orders.insert.mock.calls[0][0];
+    expect(order.subtotal).toBe(200);
+    expect(order.tax).toBe(36); // 200 * 18%
+    expect(order.tax_inclusive).toBe(false);
+    expect(order.total).toBe(236); // subtotal + tax
+
+    const items = admin._tables.order_items.insert.mock.calls[0][0];
+    expect(items[0].tax_rate).toBe(18);
+    expect(items[0].tax_amount).toBe(36);
+    expect(items[0].tax_class_name).toBe("GST 18%");
+  });
+
+  it("carves tax out without changing the total when prices are inclusive", async () => {
+    const admin = makeTaxAdmin(true);
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+
+    const res = await placeOrder(validForm, [oneItem()]);
+    expect("success" in res && res.success).toBe(true);
+
+    const order = admin._tables.orders.insert.mock.calls[0][0];
+    expect(order.subtotal).toBe(200);
+    expect(order.tax).toBe(30.51); // round2(200 * 18 / 118)
+    expect(order.tax_inclusive).toBe(true);
+    expect(order.total).toBe(200); // unchanged — tax already inside the price
+
+    const items = admin._tables.order_items.insert.mock.calls[0][0];
+    expect(items[0].tax_amount).toBe(30.51);
+  });
+});
