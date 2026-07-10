@@ -59,6 +59,7 @@ export const navIcons = {
   custom_code: Code2,
   hero: GalleryHorizontalEnd,
   usp: BadgeCheck,
+  ticker: Megaphone,
   tiles: LayoutDashboard,
   faq: HelpCircle,
 } satisfies Record<string, LucideIcon>;

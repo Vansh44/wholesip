@@ -31,7 +31,7 @@ export function EnquiryDetail({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const replyMailto = `mailto:${enquiry.email}?subject=${encodeURIComponent(
-    `Re: ${enquiry.subject?.trim() || "Your enquiry to WholeSip"}`,
+    `Re: ${enquiry.subject?.trim() || "Your enquiry"}`,
   )}`;
 
   const setStatus = (status: EnquiryStatus) =>

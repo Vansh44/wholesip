@@ -29,6 +29,17 @@ vi.mock("fs/promises", () => {
   const readFile = vi.fn().mockResolvedValue("");
   return { readFile, default: { readFile } };
 });
+// The AI path: per-store brand soul + plan-capped quota + Gemini.
+vi.mock("@/lib/ai/brand-voice", () => ({
+  getBrandSoulForStore: vi.fn(async () => "brand soul"),
+}));
+vi.mock("@/lib/ai/quota", () => ({
+  consumeAiQuota: vi.fn(async () => ({ allowed: true })),
+}));
+vi.mock("@/lib/ai/gemini", () => ({
+  callGemini: vi.fn(async () => ({ text: "A lovely description." })),
+  brandSystemText: vi.fn((b: string) => b),
+}));
 
 import {
   createProduct,
@@ -43,7 +54,9 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
-import { readFile } from "fs/promises";
+import { getBrandSoulForStore } from "@/lib/ai/brand-voice";
+import { consumeAiQuota } from "@/lib/ai/quota";
+import { callGemini } from "@/lib/ai/gemini";
 import { makeChain, makeSupabase } from "./_test-helpers";
 
 const validForm = {
@@ -417,8 +430,8 @@ describe("product-actions", () => {
     });
   });
 
-  // The AI description endpoint — verifies the input guards, brand-file
-  // requirement, and that an empty form name short-circuits.
+  // The AI description endpoint — input guards, the plan-capped quota gate,
+  // and the per-store brand soul feeding the prompt.
   describe("generateProductDescription", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
@@ -431,14 +444,28 @@ describe("product-actions", () => {
     it("rejects when product name is missing", async () => {
       const result = await generateProductDescription({ name: "  " });
       expect(result.error).toMatch(/product name/i);
+      expect(consumeAiQuota).not.toHaveBeenCalled(); // never burns a credit
     });
 
-    // Without brand/brand.md the prompt has no voice — the action refuses
-    // rather than calling Gemini with an empty system instruction.
-    it("rejects when brand/brand.md is missing or empty", async () => {
-      vi.mocked(readFile).mockResolvedValue("");
+    // The quota gate runs BEFORE Gemini — a blocked store spends nothing.
+    it("blocks the generation when the monthly AI quota is spent", async () => {
+      vi.mocked(consumeAiQuota).mockResolvedValueOnce({
+        allowed: false,
+        error: "You've used all 10 AI generations…",
+      });
       const result = await generateProductDescription({ name: "Almonds" });
-      expect(result.error).toMatch(/brand\.md/i);
+      expect(result.error).toMatch(/AI generations/i);
+      expect(callGemini).not.toHaveBeenCalled();
+    });
+
+    // Happy path: speaks in the STORE's brand soul (per-store, never null —
+    // stores without a saved guide get the generic default).
+    it("generates using the store's own brand soul", async () => {
+      const result = await generateProductDescription({ name: "Almonds" });
+      expect(result.description).toBe("A lovely description.");
+      expect(getBrandSoulForStore).toHaveBeenCalledWith(
+        "a0000000-0000-4000-8000-000000000001",
+      );
     });
   });
 });

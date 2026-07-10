@@ -196,7 +196,7 @@ export function EnquiriesManagementView({
 
   const replyMailto = (enquiry: Enquiry) =>
     `mailto:${enquiry.email}?subject=${encodeURIComponent(
-      `Re: ${enquiry.subject?.trim() || "Your enquiry to WholeSip"}`,
+      `Re: ${enquiry.subject?.trim() || "Your enquiry"}`,
     )}`;
 
   const rangeFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;

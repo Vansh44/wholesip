@@ -4,7 +4,9 @@ import { after } from "next/server";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
-import { callGemini, brandSystemText, loadBrandSoul } from "@/lib/ai/gemini";
+import { callGemini, brandSystemText } from "@/lib/ai/gemini";
+import { getBrandSoulForStore } from "@/lib/ai/brand-voice";
+import { consumeAiQuota } from "@/lib/ai/quota";
 import { triggerEmailWorker } from "@/lib/email/trigger-worker";
 import {
   mergeTokens,
@@ -155,13 +157,12 @@ export async function generateCouponEmail(
   const userId = await getManagerUserId("marketing");
   if (!userId) return { error: "Not authenticated" };
 
-  const brand = await loadBrandSoul();
-  if (!brand) {
-    return {
-      error:
-        "brand/brand.md is missing or empty. Paste your brand guide first.",
-    };
-  }
+  // Meter against the store's plan cap, then speak in ITS voice.
+  const storeId = await getActingStoreId();
+  const quota = await consumeAiQuota(storeId);
+  if (!quota.allowed) return { error: quota.error };
+
+  const brand = await getBrandSoulForStore(storeId);
 
   const facts = [
     `Coupon code: ${input.code}`,
@@ -183,7 +184,7 @@ export async function generateCouponEmail(
 RULES:
 - Address the reader using the literal token {{first_name}} once near the start (e.g. "Hi {{first_name},"). It will be replaced per recipient — do NOT invent a name.
 - Do NOT print the coupon code or the discount/validity yourself — those are shown in a styled box added automatically below your copy. Just build desire and tell them a code is waiting inside.
-- Keep it to 2–4 short paragraphs. Plain text only — no markdown, no HTML, no links, no images, no sign-off (a "Team WholeSip" sign-off is added automatically).
+- Keep it to 2–4 short paragraphs. Plain text only — no markdown, no HTML, no links, no images, no sign-off (a "Team {store name}" sign-off is added automatically).
 - Separate paragraphs with a blank line.
 - Return JSON: { "subject": "...", "body": "..." }. The subject is a single compelling line (you may use {{first_name}} in it too).
 

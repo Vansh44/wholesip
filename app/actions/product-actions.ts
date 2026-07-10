@@ -10,7 +10,9 @@ import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import { getStoreUrl } from "@/lib/site";
 import { pingIndexNow } from "@/lib/seo/search-engines";
 import { TAGS } from "@/lib/storefront/tags";
-import { callGemini, brandSystemText, loadBrandSoul } from "@/lib/ai/gemini";
+import { callGemini, brandSystemText } from "@/lib/ai/gemini";
+import { getBrandSoulForStore } from "@/lib/ai/brand-voice";
+import { consumeAiQuota } from "@/lib/ai/quota";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -629,13 +631,14 @@ export async function bulkDeleteProducts(ids: string[]): Promise<ActionResult> {
 // ---------------------------------------------------------------------------
 // AI description generation (Gemini)
 //
-// Pipeline:  brand/brand.md (soul)  +  product-desc.md (task rules)  +
-//            the form fields the admin entered  →  Gemini  →  one paragraph.
+// Pipeline:  the store's brand soul  +  brand/tasks/product-desc.md (task
+//            rules)  +  the form fields the admin entered  →  Gemini  →  one
+//            paragraph.
 //
-// brand.md is the system instruction (who is speaking). product-desc.md is the
-// single source of truth for the task rules — the SAME file the /product-desc
-// slash command uses — so editing it updates both surfaces at once. The API
-// key is server-only and never reaches the browser.
+// The brand soul (getBrandSoulForStore — per-store store_brand_profiles, with a
+// generic fallback) is the system instruction: WHO is speaking. product-desc.md
+// is the single source of truth for the task rules (WHAT to write). The API key
+// is server-only and never reaches the browser.
 // ---------------------------------------------------------------------------
 
 export interface DescriptionInput {
@@ -709,14 +712,14 @@ export async function generateProductDescription(
     return { error: "Add a product name first." };
   }
 
-  // brand.md (soul) + product-desc.md (task) + form fields → Gemini.
-  const brand = await loadBrandSoul();
-  if (!brand) {
-    return {
-      error:
-        "brand/brand.md is missing or empty. Paste your brand guide first.",
-    };
-  }
+  // Meter the generation against the store's plan cap BEFORE calling Gemini.
+  const storeId = await getActingStoreId();
+  const quota = await consumeAiQuota(storeId);
+  if (!quota.allowed) return { error: quota.error };
+
+  // The store's brand soul (per-store, generic fallback when unset) +
+  // product-desc.md (task rules) + form fields → Gemini.
+  const brand = await getBrandSoulForStore(storeId);
 
   const taskRules = await loadTaskRules();
   const facts = buildProductFacts(input);
@@ -798,13 +801,11 @@ export async function generateProductSeo(input: SeoInput): Promise<SeoResult> {
     return { error: "Fill in the product description before generating SEO." };
   }
 
-  const brand = await loadBrandSoul();
-  if (!brand) {
-    return {
-      error:
-        "brand/brand.md is missing or empty. Paste your brand guide first.",
-    };
-  }
+  const storeId = await getActingStoreId();
+  const quota = await consumeAiQuota(storeId);
+  if (!quota.allowed) return { error: quota.error };
+
+  const brand = await getBrandSoulForStore(storeId);
 
   const taskRules = await loadSeoTaskRules();
   const facts = buildProductFacts(input);

@@ -121,6 +121,23 @@ const THUMBS: Record<HomepageSectionType, React.ReactNode> = {
       ))}
     </Svg>
   ),
+  ticker: (
+    <Svg>
+      {/* a band with short "words" marching across — a scrolling strip */}
+      <rect x="6" y="31" width="108" height="18" rx="4" fill={S} />
+      {[12, 42, 72, 102].map((x, i) => (
+        <rect
+          key={x}
+          x={x}
+          y="37"
+          width="18"
+          height="6"
+          rx="3"
+          fill={i === 0 ? A : M}
+        />
+      ))}
+    </Svg>
+  ),
   faq_accordion: (
     <Svg>
       {[12, 34, 56].map((y, i) => (

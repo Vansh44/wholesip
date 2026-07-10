@@ -18,27 +18,11 @@
 // server actions, client editors, and tests alike — mirrors permissions.ts.
 // ---------------------------------------------------------------------------
 
-export type Plan = "free" | "starter" | "growth" | "pro";
+// Plans live in lib/plans.ts (the plan catalog: ids, pricing, limits).
+// Re-exported here so existing consumers of the registry keep working.
+import { type Plan, normalizePlan, planAllows } from "@/lib/plans";
 
-const PLAN_RANK: Record<Plan, number> = {
-  free: 0,
-  starter: 1,
-  growth: 2,
-  pro: 3,
-};
-
-/** Coerce an arbitrary stores.plan value to a known plan (unknown → free). */
-export function normalizePlan(plan: unknown): Plan {
-  return typeof plan === "string" && plan in PLAN_RANK
-    ? (plan as Plan)
-    : "free";
-}
-
-/** Is `plan` at or above `minPlan`? (No minPlan = available on every plan.) */
-export function planAllows(plan: Plan, minPlan?: Plan): boolean {
-  if (!minPlan) return true;
-  return PLAN_RANK[plan] >= PLAN_RANK[minPlan];
-}
+export { type Plan, normalizePlan, planAllows } from "@/lib/plans";
 
 /** Where per-store overrides live inside stores.settings (jsonb). */
 export const FEATURES_KEY = "features";

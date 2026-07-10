@@ -1102,6 +1102,71 @@
   }
 }
 
+/* ---- Ticker (scrolling marquee) ---- */
+.home-ticker {
+  overflow: hidden;
+  padding: 12px 0;
+}
+.home-ticker.theme-dark {
+  color: var(--wholesip-ink);
+}
+.home-ticker.theme-light {
+  color: var(--wholesip-on-ink);
+}
+.home-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: home-ticker-scroll 48s linear infinite;
+}
+.home-ticker.speed-slow .home-ticker-track {
+  animation-duration: 72s;
+}
+.home-ticker.speed-medium .home-ticker-track {
+  animation-duration: 48s;
+}
+.home-ticker.speed-fast .home-ticker-track {
+  animation-duration: 28s;
+}
+.home-ticker:hover .home-ticker-track {
+  animation-play-state: paused;
+}
+.home-ticker-seq {
+  display: flex;
+  flex-shrink: 0;
+}
+.home-ticker-item {
+  white-space: nowrap;
+  font-family: var(--font-outfit), sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0 22px;
+}
+/* Separator between phrases — a warm accent mark centred in the gap
+   (margin = the two 22px item paddings, so it sits midway). */
+.home-ticker-item::after {
+  content: "✦";
+  margin-left: 44px;
+  font-size: 0.6em;
+  vertical-align: middle;
+  color: var(--wholesip-accent-warm, #ce8662);
+  opacity: 0.85;
+}
+@keyframes home-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-ticker-track {
+    animation: none;
+  }
+}
+
 /* ---- Tile grid ---- */
 .home-tile-grid {
   display: grid;
