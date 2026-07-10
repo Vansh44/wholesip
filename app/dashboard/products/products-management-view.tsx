@@ -344,6 +344,11 @@ export function ProductsManagementView({
                 <tr
                   key={p.id}
                   onClick={canManage ? () => openEdit(p) : undefined}
+                  onMouseEnter={
+                    canManage
+                      ? () => router.prefetch(`/dashboard/products/${p.id}`)
+                      : undefined
+                  }
                   className={`${canManage ? "cursor-pointer" : ""}${
                     selection.isSelected(p.id) ? " is-selected" : ""
                   }`}

@@ -627,6 +627,12 @@
   color: var(--wholesip-ink-faint);
   margin: 0 0 20px;
 }
+.gcart-saving-note {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--wholesip-success);
+  margin: 0 0 20px;
+}
 .gcart-summary-total span {
   font-family: var(--font-outfit), sans-serif;
   font-weight: 800 !important;

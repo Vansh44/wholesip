@@ -127,7 +127,7 @@ wholesip/
 │   │   │                      # feature-toggles (shared settings-group card, convention #9)
 │   │   ├── lib/               # access.ts, permissions.ts (role → allowed nav/actions),
 │   │   │                      # list-params.ts, use-row-selection.ts
-│   │   ├── products/          # CRUD + @modal intercepted route for quick edit
+│   │   ├── products/          # CRUD; edit = full page [id]/ (Shopify-style, no modal)
 │   │   ├── orders/            # Orders list (server-paginated) — reads order-actions
 │   │   ├── categories/ colors/ blogs/ media/   # content management
 │   │   │   └── blogs/settings/  # blog feature toggles + per-store categories/tags manager
@@ -312,7 +312,11 @@ wholesip/
    `platform/` = StoreMink itself. Don't put platform pages in the storefront group —
    the proxy rewrite depends on this separation.
 4. **Modals via intercepted routes**: dashboard list pages use the `@modal/(.)[id]`
-   parallel-route pattern (products, enquiries, users). Follow it for new entities.
+   parallel-route pattern (enquiries, users). Follow it for quick-glance detail
+   views. Products is the exception BY OWNER CHOICE: editing is a full page
+   (`/dashboard/products/[id]`, Shopify-style — no interception; hover-prefetched
+   rows + a `loading.tsx` skeleton keep it fast); only "New product" stays a
+   dialog.
 5. **Caching**: storefront reads use `unstable_cache` + tags (`lib/storefront/tags.ts`,
    `STORE_TAG`). After mutations, `revalidateTag`/`revalidatePath` accordingly.
 6. **Styling**: Tailwind v4 + CSS modules for scoped styles + a few plain `.css`
