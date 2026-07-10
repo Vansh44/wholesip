@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -27,24 +26,12 @@ function matches(pathname: string, href: string): boolean {
   );
 }
 
-// Two-pane sidebar:
-//  • Primary — the labelled section nav (icon + name), grouped.
-//  • Panel — the active section's sub-pages, shown only when it has any.
-//    Sections without sub-pages just open directly (no panel).
-export function DashboardSidebar({
-  groups,
-  logoUrl,
-  storeName,
-}: {
-  groups: Group[];
-  logoUrl: string | null;
-  storeName: string;
-}) {
+export function DashboardSidebar({ groups }: { groups?: Group[] }) {
   const pathname = usePathname();
   const { open, setOpen } = useMobileNav();
-  const allItems = groups.flatMap((g) => g.items);
+  const allItems = groups ? groups.flatMap((g) => g.items) : [];
 
-  const [sidebarWidth, setSidebarWidth] = useState(248);
+  const [sidebarWidth, setSidebarWidth] = useState(240);
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
 
@@ -97,15 +84,12 @@ export function DashboardSidebar({
 
   const showPanel = !!activeSection?.children?.length;
 
-  // Close the mobile drawer whenever the route changes (i.e. the user tapped a
-  // nav item). Harmless when already closed / on desktop.
   useEffect(() => {
     setOpen(false);
   }, [pathname, setOpen]);
 
   return (
     <>
-      {/* Backdrop — only visible while the drawer is open on mobile */}
       <div
         className={`dash-sidebar-overlay ${open ? "open" : ""}`}
         onClick={() => setOpen(false)}
@@ -114,7 +98,7 @@ export function DashboardSidebar({
 
       <aside
         ref={sidebarRef}
-        className={`dash-sidebar shrink-0 ${open ? "dash-sidebar--open" : ""}`}
+        className={`dash-sidebar shrink-0 flex flex-col justify-between py-3 ${open ? "dash-sidebar--open" : ""}`}
         style={{ width: open ? undefined : sidebarWidth }}
       >
         <div
@@ -122,69 +106,15 @@ export function DashboardSidebar({
           onMouseDown={startResizing}
           aria-hidden="true"
         />
-        {/* Single drill-down column. By default it shows the grouped top-level
-            nav. Inside a section that has sub-(pages), the top-level nav is
-            replaced by a "Back" link + that section's sub-pages. */}
-        <div className="dash-primary" style={{ width: "100%" }}>
-          <div className="dash-brand-row" style={{ justifyContent: "center" }}>
-            <Link
-              href="/dashboard"
-              className="dash-brand"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                textDecoration: "none",
-                padding: "2px 0",
-              }}
-            >
-              {logoUrl && (
-                <div
-                  style={{
-                    height: "32px",
-                    width: "32px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: "6px",
-                    overflow: "hidden",
-                    flexShrink: 0,
-                  }}
-                >
-                  <img
-                    src={logoUrl}
-                    alt={`${storeName} logo`}
-                    style={{
-                      height: "100%",
-                      width: "100%",
-                      objectFit: "contain",
-                    }}
-                  />
-                </div>
-              )}
-              <span
-                className="truncate"
-                style={{
-                  fontWeight: 700,
-                  fontSize: 20,
-                  color: "#0f172a",
-                  letterSpacing: "-0.01em",
-                  lineHeight: "1.3",
-                  paddingBottom: "2px",
-                }}
-              >
-                {storeName}
-              </span>
-            </Link>
-          </div>
 
+        <div className="dash-primary" style={{ width: "100%" }}>
           {showPanel ? (
             (() => {
               const activeChildHref = activeSection
                 .children!.filter((c) => matches(pathname, c.href))
                 .sort((a, b) => b.href.length - a.href.length)[0]?.href;
               return (
-                <div className="dash-nav-scroll">
+                <div className="dash-nav-scroll px-3">
                   <Link
                     href="/dashboard"
                     className="dash-nav-item dash-subnav-back"
@@ -198,8 +128,10 @@ export function DashboardSidebar({
                     <span className="truncate">Back</span>
                   </Link>
                   <div className="pt-1">
-                    <div className="dash-nav-label">{activeSection.label}</div>
-                    <nav>
+                    <div className="dash-nav-label text-xs font-semibold text-[#8a8a8a] mb-2 px-2.5">
+                      {activeSection.label}
+                    </div>
+                    <nav className="flex flex-col gap-0.5">
                       {activeSection.children!.map((c) => {
                         const Icon = navIcons[c.icon ?? activeSection.icon];
                         const active = c.href === activeChildHref;
@@ -207,7 +139,11 @@ export function DashboardSidebar({
                           <Link
                             key={c.href}
                             href={c.href}
-                            className={`dash-nav-item ${active ? "active" : ""}`}
+                            className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13.5px] font-medium transition-colors ${
+                              active
+                                ? "bg-white text-[#1a1a1a] shadow-[0_1px_3px_rgba(0,0,0,0.05)]"
+                                : "text-[#4a4a4a] hover:bg-[#e3e3e3] hover:text-[#1a1a1a]"
+                            }`}
                           >
                             <span className="dash-nav-icon" aria-hidden>
                               <Icon
@@ -225,11 +161,13 @@ export function DashboardSidebar({
               );
             })()
           ) : (
-            <div className="dash-nav-scroll">
-              {groups.map((g) => (
+            <div className="dash-nav-scroll px-3 flex-1 flex flex-col gap-0.5 mt-1">
+              {groups?.map((g) => (
                 <div key={g.group} className="pt-1">
-                  <div className="dash-nav-label">{g.group}</div>
-                  <nav>
+                  <div className="text-xs font-semibold text-[#8a8a8a] mb-2 px-2.5 mt-2">
+                    {g.group}
+                  </div>
+                  <nav className="flex flex-col gap-0.5">
                     {g.items.map((item) => (
                       <SidebarNavLink
                         key={item.href}

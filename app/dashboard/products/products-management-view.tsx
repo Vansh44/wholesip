@@ -220,48 +220,6 @@ export function ProductsManagementView({
         )}
       </header>
 
-      {/* Toolbar: Tabs + Category filter + Search */}
-      <div className="dash-toolbar">
-        <div className="dash-filter-tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              className={`dash-filter-tab${filter === tab.key ? " active" : ""}`}
-              onClick={() => go({ filter: tab.key })}
-            >
-              {tab.label}
-              <span className="dash-tab-count">{tab.count}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="dash-toolbar-actions">
-          <select
-            value={categoryFilter}
-            onChange={(e) => go({ category: e.target.value })}
-            className="rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-[7px] text-[13px] text-[var(--dash-text)] outline-none"
-          >
-            <option value="all">All categories</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-            <option value="uncategorized">Uncategorized</option>
-          </select>
-
-          <label className="dash-search-bar">
-            <Search className="h-4 w-4 shrink-0 opacity-50" />
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </label>
-        </div>
-      </div>
-
       {categories.length === 0 && (
         <div className="dash-card mb-3.5 flex items-center gap-2 px-4 py-3.5 text-[13px]">
           <Lightbulb className="h-4 w-4 shrink-0 text-[var(--dash-amber)]" />
@@ -278,14 +236,48 @@ export function ProductsManagementView({
         </div>
       )}
 
-      <div className="dash-card" style={{ flex: "1 1 auto" }}>
-        <div className="dash-card-header">
-          <div>
-            <div className="dash-card-title">Products</div>
-            <div className="dash-card-sub">
-              {total} {total === 1 ? "product" : "products"}
-              {navigating ? " · updating…" : ""}
+      <div className="dash-card flex flex-col" style={{ flex: "1 1 auto" }}>
+        {/* Toolbar: Tabs + Category filter + Search - Now INSIDE the card */}
+        <div className="dash-toolbar px-5 pt-4 pb-2 border-b border-[var(--dash-border)] mb-0 flex flex-col gap-4">
+          <div className="dash-filter-tabs">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                className={`dash-filter-tab${filter === tab.key ? " active" : ""}`}
+                onClick={() => go({ filter: tab.key })}
+              >
+                {tab.label}
+                <span className="dash-tab-count">{tab.count}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="dash-toolbar-actions w-full flex justify-between">
+            <div className="flex items-center gap-2">
+              <select
+                value={categoryFilter}
+                onChange={(e) => go({ category: e.target.value })}
+                className="rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-[7px] text-[13px] text-[var(--dash-text)] outline-none"
+              >
+                <option value="all">All categories</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value="uncategorized">Uncategorized</option>
+              </select>
             </div>
+
+            <label className="dash-search-bar">
+              <Search className="h-4 w-4 shrink-0 opacity-50" />
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </label>
           </div>
         </div>
 

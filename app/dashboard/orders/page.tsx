@@ -60,36 +60,41 @@ export default async function OrdersPage({
   const hrefForPage = (p: number) => (p > 1 ? `?page=${p}` : "?page=1");
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-8">Orders</h1>
+    <div className="dash-page-enter">
+      <header className="dash-page-header row">
+        <div>
+          <h1>Orders</h1>
+          <p>View and manage all customer orders</p>
+        </div>
+      </header>
 
-      <div className="bg-white border rounded-lg overflow-hidden">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 border-b text-gray-700">
+      <div className="dash-card flex flex-col" style={{ flex: "1 1 auto" }}>
+        <table className="dash-table">
+          <thead>
             <tr>
-              <th className="px-6 py-4 font-medium">Order ID</th>
-              <th className="px-6 py-4 font-medium">Customer Info</th>
-              <th className="px-6 py-4 font-medium">Date</th>
-              <th className="px-6 py-4 font-medium text-right">Total</th>
-              <th className="px-6 py-4 font-medium text-center">Payment</th>
-              <th className="px-6 py-4 font-medium text-center">Status</th>
-              <th className="px-6 py-4 font-medium text-right">Invoice</th>
+              <th>Order ID</th>
+              <th>Customer Info</th>
+              <th>Date</th>
+              <th className="text-right">Total</th>
+              <th className="text-center">Payment</th>
+              <th className="text-center">Status</th>
+              <th className="text-right">Invoice</th>
             </tr>
           </thead>
-          <tbody className="divide-y text-gray-600">
+          <tbody>
             {orders.map((order) => {
               const customerName =
                 `${order.shipping_address?.firstName || ""} ${order.shipping_address?.lastName || ""}`.trim();
 
               return (
-                <tr key={order.id} className="hover:bg-gray-50/50">
+                <tr key={order.id}>
                   <td
-                    className="px-6 py-4 font-mono text-sm font-semibold text-gray-900"
+                    className="font-mono text-sm font-semibold text-gray-900"
                     title={order.id}
                   >
                     {order.order_ref}
                   </td>
-                  <td className="px-6 py-4">
+                  <td>
                     <div className="font-medium text-gray-900">
                       {customerName || "Unknown"}
                     </div>
@@ -98,13 +103,13 @@ export default async function OrdersPage({
                       {order.shipping_address?.state}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-xs">
+                  <td className="whitespace-nowrap text-xs">
                     {new Date(order.created_at).toLocaleString()}
                   </td>
-                  <td className="px-6 py-4 text-right font-medium text-gray-900">
+                  <td className="text-right font-medium text-gray-900">
                     {formatPrice(order.total)}
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="text-center">
                     <Badge
                       variant={
                         order.payment_status === "paid"
@@ -118,7 +123,7 @@ export default async function OrdersPage({
                       ({order.payment_status})
                     </Badge>
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="text-center">
                     <Badge
                       variant={
                         order.status === "delivered"
@@ -131,7 +136,7 @@ export default async function OrdersPage({
                       {order.status}
                     </Badge>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="text-right">
                     <Link
                       href={`/dashboard/orders/${order.id}/invoice`}
                       className="font-medium text-indigo-600 hover:underline"

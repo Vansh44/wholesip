@@ -217,53 +217,45 @@ export function InventoryManagementView({
         </div>
       </header>
 
-      <div className="dash-toolbar">
-        <div className="dash-filter-tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              className={`dash-filter-tab${filter === tab.key ? " active" : ""}`}
-              onClick={() => go({ filter: tab.key })}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="dash-toolbar-actions">
-          <select
-            value={categoryFilter}
-            onChange={(e) => go({ category: e.target.value })}
-            className="rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-[7px] text-[13px] text-[var(--dash-text)] outline-none"
-          >
-            <option value="all">All categories</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
+      <div className="dash-card flex flex-col" style={{ flex: "1 1 auto" }}>
+        <div className="dash-toolbar px-5 pt-4 pb-2 border-b border-[var(--dash-border)] mb-0 flex flex-col gap-4">
+          <div className="dash-filter-tabs">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                className={`dash-filter-tab${filter === tab.key ? " active" : ""}`}
+                onClick={() => go({ filter: tab.key })}
+              >
+                {tab.label}
+              </button>
             ))}
-          </select>
+          </div>
 
-          <label className="dash-search-bar">
-            <Search className="h-4 w-4 shrink-0 opacity-50" />
-            <input
-              type="text"
-              placeholder="Search SKUs or products..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </label>
-        </div>
-      </div>
-
-      <div className="dash-card" style={{ flex: "1 0 auto" }}>
-        <div className="dash-card-header">
-          <div>
-            <div className="dash-card-title">Stock</div>
-            <div className="dash-card-sub">
-              {total} {total === 1 ? "item" : "items"}
-              {navigating ? " · updating…" : ""}
+          <div className="dash-toolbar-actions w-full flex justify-between">
+            <div className="flex items-center gap-2">
+              <select
+                value={categoryFilter}
+                onChange={(e) => go({ category: e.target.value })}
+                className="rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-[7px] text-[13px] text-[var(--dash-text)] outline-none"
+              >
+                <option value="all">All categories</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            <label className="dash-search-bar">
+              <Search className="h-4 w-4 shrink-0 opacity-50" />
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </label>
           </div>
         </div>
 
