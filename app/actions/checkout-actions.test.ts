@@ -9,19 +9,45 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/store/resolve", () => ({
   getCurrentStoreId: vi.fn(async () => STORE),
+  getCurrentStore: vi.fn(async () => ({ id: STORE, name: "Test Store" })),
 }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn() }));
 vi.mock("./coupon-actions", () => ({ validateCoupon: vi.fn() }));
+// Online payments: the gateway loader (credential decrypt) and the Razorpay
+// HTTP calls are mocked at the module boundary; the pure helpers
+// (capturedPayment) keep their real implementations — they're unit-tested in
+// lib/payments/payments.test.ts.
+vi.mock("@/lib/payments/provider", () => ({
+  getStoreGateway: vi.fn(),
+  getPlatformRazorpayCreds: vi.fn(),
+}));
+vi.mock("@/lib/payments/razorpay", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    rzpCreateOrder: vi.fn(),
+    rzpFetchOrderPayments: vi.fn(),
+    verifyCheckoutSignature: vi.fn(),
+  };
+});
 
 import {
   placeOrder,
   getCartStock,
+  confirmOnlinePayment,
+  reconcileMyOrderPayment,
   type CheckoutFormData,
 } from "./checkout-actions";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateCoupon } from "./coupon-actions";
+import { getStoreGateway } from "@/lib/payments/provider";
+import {
+  rzpCreateOrder,
+  rzpFetchOrderPayments,
+  verifyCheckoutSignature,
+} from "@/lib/payments/razorpay";
 import { makeChain, makeSupabase } from "./_test-helpers";
 import type { CartItem } from "@/app/(storefront)/components/cart/CartProvider";
 
@@ -546,5 +572,308 @@ describe("placeOrder — tax", () => {
 
     const items = admin._tables.order_items.insert.mock.calls[0][0];
     expect(items[0].tax_amount).toBe(30.51);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Online payments (BYO Razorpay)
+// ---------------------------------------------------------------------------
+
+const GATEWAY = {
+  creds: { keyId: "rzp_test_abc123", keySecret: "shh" },
+  enabled: true,
+};
+
+// Admin mock whose `stores` row is on a paid plan (online payments allowed).
+function makeRzpAdmin(overrides: Record<string, any> = {}) {
+  const s = makeSupabase({
+    stores: makeChain({
+      data: { plan: "basic", plan_expires_at: null },
+      error: null,
+    }),
+    products: makeChain(undefined, {
+      data: [{ id: "p1", name: "Prod", selling_price: 100, store_id: STORE }],
+      error: null,
+    }),
+    product_variants: makeChain(undefined, { data: [], error: null }),
+    orders: makeChain(
+      { data: { id: "order-1", order_ref: "ORD100110006" }, error: null },
+      { error: null },
+    ),
+    order_items: makeChain(undefined, { error: null }),
+    ...overrides,
+  });
+  s.rpc = vi.fn().mockResolvedValue({ data: true, error: null });
+  return s;
+}
+
+describe("placeOrder — razorpay", () => {
+  let admin: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    admin = makeRzpAdmin();
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabase({}, { id: "user-1" }),
+    );
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true } as any);
+    vi.mocked(validateCoupon).mockResolvedValue({} as any);
+    vi.mocked(getStoreGateway).mockResolvedValue(GATEWAY as any);
+    vi.mocked(rzpCreateOrder).mockResolvedValue({
+      ok: true,
+      data: {
+        id: "rzp_order_1",
+        amount: 20000,
+        currency: "INR",
+        receipt: "ORD100110006",
+        status: "created",
+      },
+    } as any);
+  });
+
+  it("rejects an unknown payment method", async () => {
+    const res = await placeOrder(validForm, [oneItem()], null, "upi" as any);
+    expect("error" in res && res.error).toMatch(/invalid payment method/i);
+  });
+
+  it("creates the Razorpay order for the SERVER-computed total and returns checkout params", async () => {
+    const res = await placeOrder(validForm, [oneItem()], null, "razorpay");
+    expect("success" in res && res.success).toBe(true);
+    if (!("success" in res)) throw new Error("unreachable");
+
+    // Amount derives from the DB price (100 × 2 = ₹200 = 20000 paise), never
+    // the client's claimed 999999.
+    expect(rzpCreateOrder).toHaveBeenCalledWith(GATEWAY.creds, {
+      amountPaise: 20000,
+      receipt: "ORD100110006",
+      notes: { order_id: "order-1", store_id: STORE },
+    });
+
+    // Our order row records the method + the pinned Razorpay order id.
+    const inserted = admin._tables.orders.insert.mock.calls[0][0];
+    expect(inserted.payment_method).toBe("razorpay");
+    expect(inserted.payment_status).toBe("pending");
+    expect(admin._tables.orders.update).toHaveBeenCalledWith({
+      razorpay_order_id: "rzp_order_1",
+    });
+
+    expect(res.payment).toEqual({
+      rzpOrderId: "rzp_order_1",
+      keyId: "rzp_test_abc123",
+      amountPaise: 20000,
+    });
+  });
+
+  it("refuses online payment when no gateway is connected/enabled", async () => {
+    vi.mocked(getStoreGateway).mockResolvedValue(null);
+    const res = await placeOrder(validForm, [oneItem()], null, "razorpay");
+    expect("error" in res && res.error).toMatch(/cash on delivery/i);
+    expect(admin._tables.orders.insert).not.toHaveBeenCalled();
+  });
+
+  it("refuses online payment when the plan doesn't include it (free)", async () => {
+    admin = makeRzpAdmin({
+      stores: makeChain({
+        data: { plan: "free", plan_expires_at: null },
+        error: null,
+      }),
+    });
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+    const res = await placeOrder(validForm, [oneItem()], null, "razorpay");
+    expect("error" in res && res.error).toMatch(/cash on delivery/i);
+    expect(admin._tables.orders.insert).not.toHaveBeenCalled();
+  });
+
+  it("rolls back stock, order and coupon when the Razorpay order can't be created", async () => {
+    vi.mocked(validateCoupon).mockResolvedValue({
+      coupon: {
+        code: "SAVE10",
+        discountType: "percentage",
+        discountValue: 10,
+        minOrderAmount: 0,
+      },
+    } as any);
+    vi.mocked(rzpCreateOrder).mockResolvedValue({
+      ok: false,
+      error: "gateway down",
+    } as any);
+
+    const res = await placeOrder(validForm, [oneItem()], "SAVE10", "razorpay");
+    expect("error" in res && res.error).toMatch(/try again/i);
+
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "release_stock",
+      expect.objectContaining({ p_order: "order-1" }),
+    );
+    expect(admin._tables.orders.delete).toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledWith("decrement_coupon_usage", {
+      p_code: "SAVE10",
+      p_store_id: STORE,
+    });
+  });
+
+  it("rolls back when the rzp order id can't be pinned to our order", async () => {
+    // orders: insert().select().single() succeeds, but the follow-up
+    // update().eq() (awaited directly) fails.
+    admin = makeRzpAdmin({
+      orders: makeChain(
+        { data: { id: "order-1", order_ref: "ORD100110006" }, error: null },
+        { error: { message: "boom" } },
+      ),
+    });
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+
+    const res = await placeOrder(validForm, [oneItem()], null, "razorpay");
+    expect("error" in res && res.error).toMatch(/try again/i);
+    expect(admin._tables.orders.delete).toHaveBeenCalled();
+  });
+});
+
+describe("confirmOnlinePayment", () => {
+  let admin: any;
+
+  const pendingOrder = {
+    id: "order-1",
+    payment_method: "razorpay",
+    payment_status: "pending",
+    razorpay_order_id: "rzp_order_1",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    admin = makeSupabase({
+      orders: makeChain({ data: pendingOrder, error: null }, { error: null }),
+    });
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabase({}, { id: "user-1" }),
+    );
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true } as any);
+    vi.mocked(getStoreGateway).mockResolvedValue(GATEWAY as any);
+    vi.mocked(verifyCheckoutSignature).mockReturnValue(true);
+  });
+
+  it("verifies the HMAC with the store secret and marks the order paid", async () => {
+    const res = await confirmOnlinePayment("order-1", "pay_1", "sig");
+    expect(res).toEqual({ success: true, paid: true });
+
+    expect(verifyCheckoutSignature).toHaveBeenCalledWith(
+      "shh",
+      "rzp_order_1",
+      "pay_1",
+      "sig",
+    );
+    expect(admin._tables.orders.update).toHaveBeenCalledWith({
+      payment_status: "paid",
+      razorpay_payment_id: "pay_1",
+    });
+    // Idempotency: the update claims the pending → paid transition.
+    expect(admin._tables.orders.eq).toHaveBeenCalledWith(
+      "payment_status",
+      "pending",
+    );
+    // Ownership: the order lookup is scoped to the signed-in customer + store.
+    expect(admin._tables.orders.eq).toHaveBeenCalledWith(
+      "customer_id",
+      "user-1",
+    );
+    expect(admin._tables.orders.eq).toHaveBeenCalledWith("store_id", STORE);
+  });
+
+  it("rejects a bad signature and leaves the order untouched", async () => {
+    vi.mocked(verifyCheckoutSignature).mockReturnValue(false);
+    const res = await confirmOnlinePayment("order-1", "pay_1", "bad");
+    expect("error" in res && res.error).toMatch(/verification failed/i);
+    expect(admin._tables.orders.update).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op success when the order is already paid", async () => {
+    admin = makeSupabase({
+      orders: makeChain(
+        { data: { ...pendingOrder, payment_status: "paid" }, error: null },
+        { error: null },
+      ),
+    });
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+
+    const res = await confirmOnlinePayment("order-1", "pay_1", "sig");
+    expect(res).toEqual({ success: true, paid: true });
+    expect(verifyCheckoutSignature).not.toHaveBeenCalled();
+    expect(admin._tables.orders.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects an anonymous caller", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabase({}, null));
+    const res = await confirmOnlinePayment("order-1", "pay_1", "sig");
+    expect("error" in res && res.error).toMatch(/logged in/i);
+  });
+
+  it("rejects when the order isn't the caller's / isn't razorpay", async () => {
+    admin = makeSupabase({
+      orders: makeChain({ data: null, error: null }, { error: null }),
+    });
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+    const res = await confirmOnlinePayment("order-1", "pay_1", "sig");
+    expect("error" in res && res.error).toMatch(/not found/i);
+  });
+});
+
+describe("reconcileMyOrderPayment", () => {
+  const pendingOrder = {
+    id: "order-1",
+    payment_method: "razorpay",
+    payment_status: "pending",
+    razorpay_order_id: "rzp_order_1",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabase({}, { id: "user-1" }),
+    );
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true } as any);
+    vi.mocked(getStoreGateway).mockResolvedValue(GATEWAY as any);
+  });
+
+  it("marks the order paid when Razorpay reports a captured payment", async () => {
+    const admin = makeSupabase({
+      orders: makeChain({ data: pendingOrder, error: null }, { error: null }),
+    });
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+    vi.mocked(rzpFetchOrderPayments).mockResolvedValue({
+      ok: true,
+      data: [
+        { id: "pay_f", order_id: "rzp_order_1", amount: 1, status: "failed" },
+        {
+          id: "pay_ok",
+          order_id: "rzp_order_1",
+          amount: 20000,
+          status: "captured",
+        },
+      ],
+    } as any);
+
+    const res = await reconcileMyOrderPayment("order-1");
+    expect(res).toEqual({ success: true, paid: true });
+    expect(admin._tables.orders.update).toHaveBeenCalledWith({
+      payment_status: "paid",
+      razorpay_payment_id: "pay_ok",
+    });
+  });
+
+  it("reports unpaid (without cancelling) when nothing was captured", async () => {
+    const admin = makeSupabase({
+      orders: makeChain({ data: pendingOrder, error: null }, { error: null }),
+    });
+    vi.mocked(createAdminClient).mockReturnValue(admin);
+    vi.mocked(rzpFetchOrderPayments).mockResolvedValue({
+      ok: true,
+      data: [],
+    } as any);
+
+    const res = await reconcileMyOrderPayment("order-1");
+    expect(res).toEqual({ success: true, paid: false });
+    expect(admin._tables.orders.update).not.toHaveBeenCalled();
   });
 });

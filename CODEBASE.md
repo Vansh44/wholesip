@@ -67,7 +67,8 @@ wholesip/
 ├── CODEBASE.md                # ← this file
 ├── proxy.ts                   # Edge middleware: host routing + auth gates (see §3)
 ├── next.config.ts             # Image formats, brand/ file tracing, optimizePackageImports
-├── vercel.json                # Daily cron → /api/cron/send-emails
+├── vercel.json                # Crons: send-emails + plan-expiry (daily),
+│                              # expire-pending-payments (daily on Hobby)
 ├── vitest.config.ts / vitest.setup.ts / vitest.server-only-stub.ts
 ├── eslint.config.mjs / postcss.config.mjs / tsconfig.json / components.json
 │
@@ -150,6 +151,10 @@ wholesip/
 │   │   ├── branding/          # per-store branding editor (logo, colors)
 │   │   ├── billing/           # ★ Invoices & Billing (§17): tax config + tax-class
 │   │   │                      # manager + invoice-template editor (billing.css)
+│   │   ├── channels/          # ★ Channels (§18): connect the store's OWN Razorpay
+│   │   │                      # gateway (verify & save, pause/resume, disconnect)
+│   │   ├── ai/                # ★ AI usage (§16): monthly bar + credit balance +
+│   │   │                      # ledger + buy-credit packs (platform Razorpay)
 │   │   ├── orders/[id]/invoice/  # ★ printable invoice for one order (§17)
 │   │   └── settings/          # account/ + domain/ (custom-domain connect + verify);
 │   │                          # feature toggles live on their feature's own page
@@ -182,9 +187,15 @@ wholesip/
 │   │   │                      # updatePageMeta/savePageDraft/publishPage/unpublishPage/
 │   │   │                      # deletePage/ensureHomepage, gated builder, service-role
 │   │   ├── menu-actions.ts    # ★ Per-store nav read/save (see §11 menu builder, store_menus)
-│   │   ├── checkout-actions.ts # ★ placeOrder (COD): re-prices from DB, store-scoped by
-│   │   │                      # host, re-validates coupon, rate-limited, SERVICE-ROLE
-│   │   │                      # writes (no customer INSERT policy — see convention #12). Tested.
+│   │   ├── checkout-actions.ts # ★ placeOrder (COD + razorpay — §12/§18): re-prices from
+│   │   │                      # DB, store-scoped by host, re-validates coupon, rate-limited,
+│   │   │                      # SERVICE-ROLE writes (no customer INSERT policy — convention
+│   │   │                      # #12); getCheckoutConfig + confirmOnlinePayment (HMAC) +
+│   │   │                      # reconcileMyOrderPayment. Tested.
+│   │   ├── payment-provider-actions.ts # ★ Channels (§18): get/save/enable/disconnect the
+│   │   │                      # store's BYO Razorpay creds (verified, encrypted, plan-gated). Tested.
+│   │   ├── ai-credit-actions.ts # ★ AI credits (§16): usage-page data + reconcile,
+│   │   │                      # startCreditPurchase/confirmCreditPurchase (platform Razorpay).
 │   │   ├── order-actions.ts   # ★ getOrders (paginated) + updateOrderStatus (allowlisted
 │   │   │                      # status/payment_status, store-scoped). Tested.
 │   │   ├── address-actions.ts # ★ Customer saved-address book (own-row RLS, tested):
@@ -196,6 +207,9 @@ wholesip/
 │   │
 │   └── api/
 │       ├── cron/send-emails/  # Daily email campaign worker (Vercel cron)
+│       ├── cron/plan-expiry/  # ★ Daily: flips expired timed plans → free (§15)
+│       ├── cron/expire-pending-payments/ # ★ Hourly reaper for unpaid razorpay
+│       │                      # orders: mark paid if captured, else cancel+restock (§18)
 │       ├── og-image/          # OG image proxy (compresses Supabase images only)
 │       ├── og/                # Dynamic branded OG card (ImageResponse; ?d=JSON
 │       │                      # {title,subtitle,color}) — default share image for
@@ -245,6 +259,11 @@ wholesip/
 │   ├── menus.ts               # ★ Per-store nav (§11): StoreMenus types, DEFAULT_MENUS,
 │   │                          # normalize/sanitize. Read cached via getStoreMenus.
 │   ├── ai/gemini.ts           # Gemini client for AI copy
+│   ├── ai/credits.ts          # ★ AI credit pack catalog (pure — the one place to reprice)
+│   ├── payments/              # ★ Online payments (§18): crypto.ts (AES-256-GCM cred
+│   │                          # encryption), razorpay.ts (server fetch client + HMAC verify,
+│   │                          # tested), provider.ts (store/platform cred loaders),
+│   │                          # razorpay-client.ts (client checkout.js loader + modal)
 │   ├── billing/               # ★ Invoices & tax (§17): types.ts (BillingSettings/
 │   │                          # TaxClass + row mappers + defaults), tax.ts (pure
 │   │                          # inclusive/exclusive tax math, tested), invoice-data.ts
@@ -280,6 +299,12 @@ wholesip/
 │   ├── store_menus.sql        # ★ per-store header/footer nav (+ RLS + WholeSip seed) — §11
 │   ├── invoicing.sql          # ★ tax_classes + products.tax_class_id + order_items tax
 │   │                          # cols + orders.tax_inclusive + store_billing_settings — §17
+│   ├── plans_02_basic_and_expiry.sql # ★ starter→basic rename + plan_expires_at — §15
+│   ├── ai_credits.sql         # ★ credit balances/ledger/purchases + add_ai_credits/
+│   │                          # try_spend_ai_credit RPCs (service-role only) — §16
+│   ├── payment_providers.sql  # ★ store_payment_providers (BYO Razorpay creds,
+│   │                          # service-role only, app-layer encrypted secret) — §18
+│   ├── payments_01_orders.sql # ★ orders.razorpay_order_id/payment_id + indexes — §18
 │   ├── homepage_to_store_pages.sql  # Phase 4a data migration: homepage_sections → slug ""
 │   ├── wholesip_static_pages_seed.sql  # Phase 4b: seed the 17 legacy static pages
 │   │                          # (our-story, faqs, privacy-policy…) as published
@@ -628,25 +653,36 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     `order_ref` (UUID kept in a `title` tooltip). Order/product/store UUIDs and
     routes are UNCHANGED. Supersedes the "sku (text, products only)" note in #13.
 
-15. **Plans (free / starter / pro).** `lib/plans.ts` is the single plan catalog
-    (pure, tested): `PLAN_IDS`, `PLAN_RANK`, `normalizePlan`/`planAllows`
-    (re-exported by `lib/settings/registry.ts` for its `minPlan` gates —
-    the former "growth" id is retired), display meta (`PLAN_META`: INR
-    monthly/yearly pricing, taglines) and `PLAN_LIMITS` (product/staff/AI/
-    coupon caps + customDomain/onlinePayments/emailCampaigns/removeBadge
-    flags; `null` = unlimited; enforce server-side in the owning action,
-    soft-on-downgrade: never delete data, only block NEW rows past a cap).
-    `stores.plan` is CHECK-constrained to the three ids and paired with
+15. **Plans (free / basic ₹500 / pro ₹1500) + timed grants.** `lib/plans.ts` is
+    the single plan catalog (pure, tested): `PLAN_IDS`, `PLAN_RANK`,
+    `normalizePlan`/`planAllows` (re-exported by `lib/settings/registry.ts`
+    for its `minPlan` gates — the former "growth" AND "starter" ids are
+    retired; `normalizePlan` aliases legacy `starter → basic`), display meta
+    (`PLAN_META`: INR monthly/yearly pricing, taglines) and `PLAN_LIMITS`
+    (product/staff/AI/coupon caps + customDomain/onlinePayments/
+    emailCampaigns/removeBadge flags; `null` = unlimited; AI caps are
+    **3 / 10 / 50 per month** — pro is metered too; enforce server-side in
+    the owning action, soft-on-downgrade: never delete data, only block NEW
+    rows past a cap). The platform landing page (`app/platform/page.tsx`)
+    derives its pricing cards from `PLAN_META`/`PLAN_LIMITS` so it can never
+    drift. `stores.plan` is CHECK-constrained to the three ids
+    (`plans_02_basic_and_expiry.sql` renamed starter→basic) and paired with
     `stores.plan_source` (`comp`/`paid`/`trial` — an operator comp must never
     be overwritten by a future billing webhook); every change is recorded in
     the append-only `plan_events` audit table (service-role only, like
-    `store_counters`) — all in `supabase/plans_01_schema.sql`. The platform
-    stores console upgrades stores via `setStorePlan` (`app/actions/
-platform.ts`, superadmin-only, tested): **UPGRADE-ONLY by design** —
-    free → starter/pro, starter → pro, pro → nowhere (`upgradeTargets`);
-    downgrades will arrive with billing (non-renewal), not as a console
-    button. Billing (Razorpay subscriptions), per-feature limit enforcement
-    and the merchant-facing billing page are later phases.
+    `store_counters`) — schema in `supabase/plans_01_schema.sql`.
+    **Timed plans:** `stores.plan_expires_at` (timestamptz, NULL = indefinite)
+    bounds an operator grant. Enforcement is two-layered: (1) read-time —
+    every gate resolves the plan via **`effectivePlan(store)`** (expired ⇒
+    free; threaded through `lib/ai/quota.ts`, `lib/settings/resolve.ts`,
+    `store-settings.ts`, checkout's gateway gate, credit purchases), and
+    (2) durable — `/api/cron/plan-expiry` (daily, vercel.json,
+    CRON_SECRET-protected) flips expired rows to free, clears the expiry,
+    writes a `plan_events` row (source `system`) and busts `STORE_TAG`.
+    The platform stores console sets plans via `setStorePlan`
+    (`app/actions/platform.ts`, superadmin-only, tested): **any plan, any
+    direction**, with a duration picker (1/3/6/12 months / custom date /
+    indefinite). Merchant-facing subscription billing is a later phase.
 
 16. **Per-store brand voice + AI quota.** Every AI copy feature (product
     description, SEO, coupon email, brand-voice setup) speaks in the STORE's
@@ -664,12 +700,36 @@ platform.ts`, superadmin-only, tested): **UPGRADE-ONLY by design** —
     composes the guide from the answers, review-before-save) + a free-form
     guide textarea — `app/actions/brand-voice-actions.ts` (tested). **AI quota
     (first live plan-limit enforcement):** `lib/ai/quota.ts` `consumeAiQuota`
-    meters generations per store per calendar month against the plan's
-    `aiGenerationsPerMonth` cap (null = unlimited, no metering) via the atomic
-    `try_ai_generation` RPC + `ai_usage` table (single conditional UPDATE, the
-    coupon-usage pattern; fails OPEN on transient errors). Called BEFORE Gemini
-    in every AI action; blocked stores get a plan-aware upgrade message and the
-    branding page shows "X of Y used this month".
+    meters generations per store per calendar month against the EFFECTIVE
+    plan's `aiGenerationsPerMonth` cap (3/10/50; null = unlimited, no
+    metering) via the atomic `try_ai_generation` RPC + `ai_usage` table
+    (single conditional UPDATE, the coupon-usage pattern; fails OPEN on
+    transient errors). Called BEFORE Gemini in every AI action; blocked
+    stores get a plan-aware message and the branding page shows "X of Y used
+    this month".
+    **AI credits (purchasable top-ups):** once the monthly allowance is
+    spent, `consumeAiQuota` falls back to the store's credit balance
+    (never-expiring integers) via `try_spend_ai_credit` — the expiring
+    resource burns before the permanent one. Storage in
+    `supabase/ai_credits.sql`: `ai_credit_balances` (one row/store, CHECK
+    ≥ 0), append-only `ai_credit_ledger` (`purchase`/`grant`/`spend`; a
+    UNIQUE partial index on purchase refs makes crediting idempotent per
+    Razorpay payment id) and `ai_credit_purchases` (pending→paid/failed) —
+    all SERVICE-ROLE ONLY. RPCs `add_ai_credits` (idempotent for purchases)
+    - `try_spend_ai_credit` (single conditional UPDATE). Pack catalog in
+      `lib/ai/credits.ts` (25/₹59, 60/₹129, 150/₹299 — the one place to
+      reprice). Merchants see usage + balance + ledger and buy packs at
+      **`/dashboard/ai`** (section `ai`, group Administration) —
+      `app/actions/ai-credit-actions.ts`: `startCreditPurchase` (plan-gated
+      basic+, server-side) → Razorpay modal on the **PLATFORM's own account**
+      (env `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`; totally separate from a
+      store's BYO gateway) → `confirmCreditPurchase` (HMAC verify → paid →
+      `add_ai_credits`); dropped callbacks self-heal via reconcile-on-read on
+      page load (no webhook in v1). Operators grant free credits from the
+      stores console (`grantAiCredits`, superadmin-only, audited with the
+      operator's email as the ledger ref) and see per-store AI used / credit
+      balance / gateway state (batch-enriched `listAllStores`) plus a History
+      drawer (`getStoreAudit`: plan_events + credit ledger).
 
 17. **Invoices & tax (per-store, Shopify-style).** Managed at `/dashboard/billing`
     (permission section `billing`, group Administration). Storage in
@@ -713,6 +773,58 @@ InvoiceDocument` (server, presentational) + `invoice.css` (`@media print`
     tax column derive from the ORDER's snapshot (`tax_inclusive`, per-line
     `tax_rate`), never live settings — historical invoices are immutable.
 
+18. **Online payments — BYO Razorpay per store (Channels).** A merchant
+    connects their OWN Razorpay account at **`/dashboard/channels`** (section
+    `channels`, group Administration); order money settles directly with them
+    — the platform never touches order funds and takes no fee. - **Credentials** live in `store_payment_providers`
+    (`supabase/payment_providers.sql`) — SERVICE-ROLE ONLY (**never** in
+    anon-readable `stores.settings`, §5.9), with the key secret
+    ADDITIONALLY encrypted at the app layer: `lib/payments/crypto.ts`
+    (AES-256-GCM, env `PAYMENT_CRED_KEY` = 32-byte base64; rotation =
+    offline decrypt/re-encrypt). The secret is WRITE-ONLY — no action ever
+    returns it (`getChannelState` exposes only key id + enabled).
+    `app/actions/payment-provider-actions.ts` (tested):
+    `saveRazorpayCredentials` proves the pair against the Razorpay API
+    before storing ("Verify & save"), `setRazorpayEnabled` (pause/resume),
+    `disconnectRazorpay`. Plan gate `PLAN_LIMITS.onlinePayments` (basic+)
+    is enforced server-side on save/enable AND re-checked at checkout —
+    a lapsed plan silently reverts the storefront to COD-only without
+    touching stored credentials. - **Razorpay client** `lib/payments/razorpay.ts` (server-only, plain
+    fetch + basic auth, no SDK; pure helpers tested in
+    `lib/payments/payments.test.ts`): `rzpCreateOrder`,
+    `rzpFetchOrderPayments` (the reconciliation source of truth),
+    `capturedPayment`, `validateCredentials`, `verifyCheckoutSignature`
+    (HMAC-SHA256 of `order_id|payment_id`, constant-time compare).
+    `lib/payments/provider.ts` loads decrypted store creds
+    (`getStoreGateway`) and the platform's env creds
+    (`getPlatformRazorpayCreds` — AI credits only, §16).
+    `lib/payments/razorpay-client.ts` is the CLIENT-side checkout.js
+    loader + typed modal wrapper shared by the storefront checkout and the
+    AI-credits buy panel. - **Checkout flow** (extends convention #12; `orders.razorpay_order_id`/
+    `razorpay_payment_id` added by `supabase/payments_01_orders.sql`):
+    `getCheckoutConfig()` tells the client whether to render the method
+    selector (COD default | "Pay online"). `placeOrder(..., "razorpay")`
+    runs the IDENTICAL validation/repricing/coupon/stock machinery, inserts
+    the order (`payment_method: 'razorpay'`, `payment_status: 'pending'`),
+    then creates the Razorpay Order for the **server-computed total**
+    (paise) with `receipt = order_ref` — any failure there unwinds the full
+    chain (stock → order → coupon) — and returns `{rzpOrderId, keyId,
+amountPaise}` for the modal. `confirmOnlinePayment` verifies the HMAC
+    with the store's decrypted secret and claims the pending→paid
+    transition atomically (idempotent; owner + store scoped). A dismissed
+    modal keeps the order retryable against the SAME Razorpay order
+    ("Retry payment"; any cart/coupon change invalidates the retry). - **No merchant webhooks in v1 — reconcile-on-read:** the success page
+    (`?pm=rzp`) fires `reconcileMyOrderPayment` (owner-gated, asks Razorpay
+    directly), and the reaper `/api/cron/expire-pending-payments`
+    (vercel.json, CRON_SECRET; DAILY on the Vercel Hobby plan, which caps
+    crons at once/day — bump to hourly on Pro; it's only a backstop since the
+    success page reconciles instantly) sweeps razorpay orders pending > 45 min:
+    captured at Razorpay ⇒ mark paid (never lose a paid order); otherwise
+    claim pending→failed, restock via the reserved→released conditional
+    claim (exactly-once, order-actions pattern), release the coupon use,
+    cancel the order. Refunds are out of scope v1 (merchant refunds from
+    their own Razorpay dashboard).
+
 ## 6. Commands
 
 ```bash
@@ -740,6 +852,13 @@ npm run format      # prettier --write
 - **Vercel**: hosting + cron. Wildcard domain `*.storemink.com` → store subdomains.
 - **Resend**: transactional email + custom-domain DNS verification.
 - **Gemini**: AI copy generation.
+- **Razorpay** (§18, §16): two SEPARATE credential sets. Per-store BYO gateway
+  creds live in the DB (`store_payment_providers`, encrypted with env
+  **`PAYMENT_CRED_KEY`** — 32-byte base64; generate with
+  `openssl rand -base64 32`). The PLATFORM's own account (AI-credit purchases
+  only) is env **`RAZORPAY_KEY_ID`** / **`RAZORPAY_KEY_SECRET`**. Cron routes
+  (`/api/cron/*`) require **`CRON_SECRET`** (Vercel Cron sends it as a Bearer
+  header).
 - **Search-engine indexing** (`lib/seo/search-engines.ts`): IndexNow needs no
   account (public key file `public/<key>.txt`; `INDEXNOW_KEY` overrides it,
   `INDEXNOW_FORCE=1` enables pings outside prod). Google Search Console

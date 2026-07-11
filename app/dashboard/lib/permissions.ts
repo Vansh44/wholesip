@@ -239,6 +239,22 @@ export const SECTIONS: DashboardSection[] = [
     actions: ["view", "manage"],
   },
   {
+    key: "channels",
+    label: "Channels",
+    href: "/dashboard/channels",
+    icon: "channels",
+    group: "Administration",
+    actions: ["view", "manage"],
+  },
+  {
+    key: "ai",
+    label: "AI usage",
+    href: "/dashboard/ai",
+    icon: "ai",
+    group: "Administration",
+    actions: ["view", "manage"],
+  },
+  {
     key: "settings",
     label: "Settings",
     href: "/dashboard/settings",

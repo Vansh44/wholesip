@@ -10,6 +10,7 @@ import {
   Trash2,
   Check,
   Banknote,
+  CreditCard,
   ShieldCheck,
   Truck,
   Lock,
@@ -20,7 +21,11 @@ import { useCartTax } from "@/app/(storefront)/components/cart/useCartTax";
 import {
   placeOrder,
   getCartStock,
+  getCheckoutConfig,
+  confirmOnlinePayment,
   CheckoutFormData,
+  type CheckoutConfig,
+  type PaymentMethod,
 } from "@/app/actions/checkout-actions";
 import {
   getMyAddresses,
@@ -30,6 +35,7 @@ import {
   type AddressInput,
 } from "@/app/actions/address-actions";
 import { useAuth } from "@/app/(storefront)/components/auth/AuthProvider";
+import { openRazorpayModal } from "@/lib/payments/razorpay-client";
 import { formatPrice } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import styles from "./checkout.module.css";
@@ -89,6 +95,47 @@ export default function CheckoutPage() {
   const [addrError, setAddrError] = useState<string | null>(null);
 
   const [notes, setNotes] = useState("");
+
+  // Payment method. Online payments render only when the store's gateway is
+  // connected + enabled + plan-allowed (server-computed; placeOrder re-checks).
+  const [payConfig, setPayConfig] = useState<CheckoutConfig | null>(null);
+  const [payMethod, setPayMethod] = useState<PaymentMethod>("cod");
+  // A placed-but-unpaid online order (modal dismissed / payment failed). Kept
+  // so "Retry payment" reopens the SAME Razorpay order instead of placing a
+  // duplicate; the reaper cancels it server-side if the shopper walks away.
+  // `cartKey` snapshots the cart it was priced from — see activePendingPayment.
+  const [pendingPayment, setPendingPayment] = useState<{
+    orderId: string;
+    orderRef: string;
+    rzpOrderId: string;
+    keyId: string;
+    amountPaise: number;
+    cartKey: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getCheckoutConfig()
+      .then((cfg) => {
+        if (active) setPayConfig(cfg);
+      })
+      .catch(() => {
+        // COD-only fallback; placeOrder would reject online anyway.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // A retryable unpaid order is only valid for the exact cart it was priced
+  // from — any cart/coupon change invalidates it (a fresh order gets placed
+  // instead; the reaper cancels the abandoned one server-side). Derived, so
+  // no effect is needed: a stale pending payment simply stops matching.
+  const cartKey = `${cart.items.length}:${cart.total}:${cart.appliedCoupon?.code ?? ""}`;
+  const activePendingPayment =
+    pendingPayment && pendingPayment.cartKey === cartKey
+      ? pendingPayment
+      : null;
 
   // Tax for the order summary — resolved once per product-set change, recomputed
   // locally on quantity/coupon edits (see useCartTax). Display only; placeOrder
@@ -276,6 +323,76 @@ export default function CheckoutPage() {
     toast.success("Address removed");
   };
 
+  const finishOrder = useCallback(
+    (orderId: string, orderRef: string, online = false) => {
+      orderPlaced.current = true;
+      // `pm=rzp` tells the success page to reconcile the payment server-side
+      // in case the confirm call was dropped (network blip after paying).
+      router.push(
+        `/checkout/success?orderId=${orderId}&ref=${encodeURIComponent(orderRef)}${online ? "&pm=rzp" : ""}`,
+      );
+      cart.clear(); // Clear the cart state after navigating away.
+    },
+    [router, cart],
+  );
+
+  // Open Razorpay Standard Checkout for an already-placed order and confirm
+  // the payment server-side (HMAC-verified). The order/cart are only released
+  // once payment succeeds; a dismissed modal keeps the order retryable.
+  const startOnlinePayment = useCallback(
+    async (payment: NonNullable<typeof pendingPayment>) => {
+      const opened = await openRazorpayModal({
+        keyId: payment.keyId,
+        rzpOrderId: payment.rzpOrderId,
+        amountPaise: payment.amountPaise,
+        name: payConfig?.storeName || "Checkout",
+        description: payment.orderRef || undefined,
+        prefill: {
+          name:
+            `${customer?.first_name ?? ""} ${customer?.last_name ?? ""}`.trim() ||
+            undefined,
+          email: customer?.email || undefined,
+          contact: customer?.phone || undefined,
+        },
+        onSuccess: async (res) => {
+          const confirm = await confirmOnlinePayment(
+            payment.orderId,
+            res.razorpay_payment_id,
+            res.razorpay_signature,
+          );
+          setPlacing(false);
+          if (confirm.error) {
+            // The money may have been taken but our confirm failed (network /
+            // transient). Send the shopper to the confirmation page anyway —
+            // the server reconciles pending payments against Razorpay.
+            toast.info(
+              "Payment received — we're confirming it with the gateway.",
+            );
+          } else {
+            toast.success("Payment successful!");
+          }
+          setPendingPayment(null);
+          finishOrder(payment.orderId, payment.orderRef, true);
+        },
+        onDismiss: () => {
+          setPlacing(false);
+          setPendingPayment(payment);
+          toast.error(
+            "Payment not completed. You can retry the payment or switch to Cash on Delivery.",
+          );
+        },
+      });
+      if (!opened) {
+        setPlacing(false);
+        setPendingPayment(payment);
+        toast.error(
+          "Couldn't load the payment window. Please check your connection and retry.",
+        );
+      }
+    },
+    [payConfig, customer, finishOrder],
+  );
+
   const handlePlaceOrder = async () => {
     if (!selected) {
       toast.error("Please select a delivery address.");
@@ -283,10 +400,22 @@ export default function CheckoutPage() {
     }
     setPlacing(true);
 
+    // Retry path: an online order was already placed for this exact cart —
+    // reopen the SAME Razorpay order rather than creating a duplicate.
+    if (activePendingPayment && payMethod === "razorpay") {
+      await startOnlinePayment(activePendingPayment);
+      return;
+    }
+
     const form = addressToForm(selected, customer?.email);
     if (notes.trim()) form.notes = notes.trim().slice(0, 500);
 
-    const result = await placeOrder(form, cart.items, cart.appliedCoupon?.code);
+    const result = await placeOrder(
+      form,
+      cart.items,
+      cart.appliedCoupon?.code,
+      payMethod,
+    );
 
     if ("error" in result) {
       toast.error(result.error);
@@ -294,12 +423,19 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (result.payment) {
+      await startOnlinePayment({
+        orderId: result.orderId,
+        orderRef: result.orderRef,
+        ...result.payment,
+        cartKey,
+      });
+      return;
+    }
+
     toast.success("Order placed successfully!");
-    orderPlaced.current = true;
-    router.push(
-      `/checkout/success?orderId=${result.orderId}&ref=${encodeURIComponent(result.orderRef)}`,
-    );
-    cart.clear(); // Clear the cart state after navigating away.
+    setPlacing(false);
+    finishOrder(result.orderId, result.orderRef);
   };
 
   // ---- Loading / gate states ----
@@ -628,20 +764,63 @@ export default function CheckoutPage() {
                 <h2 className={styles.sectionTitle}>Payment Method</h2>
               </div>
 
-              <div className={styles.payOption}>
-                <span className={styles.payIcon}>
-                  <Banknote size={22} />
-                </span>
-                <div>
-                  <div className={styles.payName}>Cash on Delivery</div>
-                  <div className={styles.payDesc}>
-                    Pay with cash when your order arrives at your doorstep.
-                  </div>
+              {payConfig?.onlinePayments ? (
+                <div className={styles.payStack}>
+                  <button
+                    type="button"
+                    className={`${styles.payOption}${payMethod === "cod" ? "" : ` ${styles.payOptionMuted}`}`}
+                    onClick={() => setPayMethod("cod")}
+                    aria-pressed={payMethod === "cod"}
+                  >
+                    <span className={styles.payIcon}>
+                      <Banknote size={22} />
+                    </span>
+                    <div>
+                      <div className={styles.payName}>Cash on Delivery</div>
+                      <div className={styles.payDesc}>
+                        Pay with cash when your order arrives at your doorstep.
+                      </div>
+                    </div>
+                    <span className={styles.payCheck}>
+                      <Check size={20} />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.payOption}${payMethod === "razorpay" ? "" : ` ${styles.payOptionMuted}`}`}
+                    onClick={() => setPayMethod("razorpay")}
+                    aria-pressed={payMethod === "razorpay"}
+                  >
+                    <span className={styles.payIcon}>
+                      <CreditCard size={22} />
+                    </span>
+                    <div>
+                      <div className={styles.payName}>Pay online</div>
+                      <div className={styles.payDesc}>
+                        UPI, cards or netbanking — secured by Razorpay.
+                      </div>
+                    </div>
+                    <span className={styles.payCheck}>
+                      <Check size={20} />
+                    </span>
+                  </button>
                 </div>
-                <span className={styles.payCheck}>
-                  <Check size={20} />
-                </span>
-              </div>
+              ) : (
+                <div className={styles.payOption}>
+                  <span className={styles.payIcon}>
+                    <Banknote size={22} />
+                  </span>
+                  <div>
+                    <div className={styles.payName}>Cash on Delivery</div>
+                    <div className={styles.payDesc}>
+                      Pay with cash when your order arrives at your doorstep.
+                    </div>
+                  </div>
+                  <span className={styles.payCheck}>
+                    <Check size={20} />
+                  </span>
+                </div>
+              )}
 
               <div className={styles.field} style={{ marginTop: 18 }}>
                 <label className={styles.label} htmlFor="notes">
@@ -744,7 +923,13 @@ export default function CheckoutPage() {
                 onClick={handlePlaceOrder}
                 disabled={placing || !selected}
               >
-                {placing ? "Processing…" : "Place Order (COD)"}
+                {placing
+                  ? "Processing…"
+                  : activePendingPayment && payMethod === "razorpay"
+                    ? "Retry Payment"
+                    : payMethod === "razorpay"
+                      ? "Pay & Place Order"
+                      : "Place Order (COD)"}
               </button>
               {!selected && (
                 <p className={styles.placeHint}>
@@ -762,7 +947,10 @@ export default function CheckoutPage() {
                 <Truck size={16} /> Free delivery on this order
               </div>
               <div className={styles.trustItem}>
-                <Lock size={16} /> No payment needed until delivery
+                <Lock size={16} />{" "}
+                {payMethod === "razorpay"
+                  ? "Payments secured by Razorpay"
+                  : "No payment needed until delivery"}
               </div>
             </div>
           </aside>

@@ -8,10 +8,10 @@ import { STORE_TAG } from "@/lib/store/resolve";
 import {
   FEATURES_KEY,
   SETTINGS,
-  normalizePlan,
   planAllows,
   resolveStoreSettings,
 } from "@/lib/settings/registry";
+import { effectivePlan } from "@/lib/plans";
 
 export interface ActionResult {
   success?: boolean;
@@ -56,11 +56,11 @@ export async function getStoreSettingsForEditor(group?: string): Promise<{
   const admin = createAdminClient();
   const { data: store } = await admin
     .from("stores")
-    .select("settings, plan")
+    .select("settings, plan, plan_expires_at")
     .eq("id", ctx.storeId)
     .single();
 
-  const plan = normalizePlan(store?.plan);
+  const plan = effectivePlan(store ?? {});
   const values = resolveStoreSettings(
     (store?.settings as Record<string, unknown>) ?? {},
     plan,
@@ -114,7 +114,7 @@ export async function saveStoreSettings(
 
   const { data: store, error: readError } = await admin
     .from("stores")
-    .select("settings, plan")
+    .select("settings, plan, plan_expires_at")
     .eq("id", storeId)
     .single();
   if (readError) {
@@ -124,7 +124,7 @@ export async function saveStoreSettings(
 
   const settings = ((store?.settings as Record<string, unknown>) ??
     {}) as Record<string, unknown>;
-  const plan = normalizePlan(store?.plan);
+  const plan = effectivePlan(store ?? {});
   const features = {
     ...((settings[FEATURES_KEY] as Record<string, unknown>) ?? {}),
   };

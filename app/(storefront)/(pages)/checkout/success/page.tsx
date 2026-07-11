@@ -3,13 +3,24 @@
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle } from "lucide-react";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
+import { reconcileMyOrderPayment } from "@/app/actions/checkout-actions";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
   // The human-readable reference (ORD…) when present; fall back to the raw id.
   const orderRef = searchParams.get("ref") || orderId;
+  const paidOnline = searchParams.get("pm") === "rzp";
+
+  // Online orders: reconcile-on-read. If the client-side confirm call was
+  // dropped (network blip right after paying), this asks the server to check
+  // Razorpay directly and mark the order paid. Fire-and-forget — the hourly
+  // reaper is the ultimate safety net.
+  useEffect(() => {
+    if (!paidOnline || !orderId) return;
+    reconcileMyOrderPayment(orderId).catch(() => {});
+  }, [paidOnline, orderId]);
 
   return (
     <div className="max-w-xl mx-auto px-4 py-24 text-center">

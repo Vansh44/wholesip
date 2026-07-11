@@ -33,7 +33,7 @@ describe("settings registry", () => {
   describe("normalizePlan", () => {
     it("passes known plans through", () => {
       expect(normalizePlan("pro")).toBe("pro");
-      expect(normalizePlan("starter")).toBe("starter");
+      expect(normalizePlan("basic")).toBe("basic");
     });
 
     it("coerces unknown values to free", () => {
@@ -50,10 +50,10 @@ describe("settings registry", () => {
     });
 
     it("enforces the plan ladder", () => {
-      expect(planAllows("free", "starter")).toBe(false);
-      expect(planAllows("starter", "starter")).toBe(true);
-      expect(planAllows("starter", "pro")).toBe(false);
-      expect(planAllows("pro", "starter")).toBe(true);
+      expect(planAllows("free", "basic")).toBe(false);
+      expect(planAllows("basic", "basic")).toBe(true);
+      expect(planAllows("basic", "pro")).toBe(false);
+      expect(planAllows("pro", "basic")).toBe(true);
     });
   });
 
