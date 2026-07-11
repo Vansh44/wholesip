@@ -68,7 +68,7 @@ wholesip/
 ├── proxy.ts                   # Edge middleware: host routing + auth gates (see §3)
 ├── next.config.ts             # Image formats, brand/ file tracing, optimizePackageImports
 ├── vercel.json                # Crons: send-emails + plan-expiry (daily),
-│                              # expire-pending-payments (hourly)
+│                              # expire-pending-payments (daily on Hobby)
 ├── vitest.config.ts / vitest.setup.ts / vitest.server-only-stub.ts
 ├── eslint.config.mjs / postcss.config.mjs / tsconfig.json / components.json
 │
@@ -815,8 +815,10 @@ amountPaise}` for the modal. `confirmOnlinePayment` verifies the HMAC
     modal keeps the order retryable against the SAME Razorpay order
     ("Retry payment"; any cart/coupon change invalidates the retry). - **No merchant webhooks in v1 — reconcile-on-read:** the success page
     (`?pm=rzp`) fires `reconcileMyOrderPayment` (owner-gated, asks Razorpay
-    directly), and the hourly reaper `/api/cron/expire-pending-payments`
-    (vercel.json, CRON_SECRET) sweeps razorpay orders pending > 45 min:
+    directly), and the reaper `/api/cron/expire-pending-payments`
+    (vercel.json, CRON_SECRET; DAILY on the Vercel Hobby plan, which caps
+    crons at once/day — bump to hourly on Pro; it's only a backstop since the
+    success page reconciles instantly) sweeps razorpay orders pending > 45 min:
     captured at Razorpay ⇒ mark paid (never lose a paid order); otherwise
     claim pending→failed, restock via the reserved→released conditional
     claim (exactly-once, order-actions pattern), release the coupon use,

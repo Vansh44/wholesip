@@ -7,9 +7,12 @@ import {
 } from "@/lib/payments/razorpay";
 
 // Reaper for online-payment orders stuck in `payment_status: 'pending'` —
-// v1 has no merchant webhooks (reconcile-on-read instead), so this hourly
+// v1 has no merchant webhooks (reconcile-on-read instead), so this scheduled
 // job is the safety net for shoppers who paid but never triggered
 // confirmOnlinePayment, and for orders whose payment simply never happened.
+// It runs DAILY on the Vercel Hobby plan (which caps crons at once/day); it's
+// only a backstop, since the success page reconciles a real payment instantly.
+// On Vercel Pro, bump the vercel.json schedule back to hourly.
 //
 // For each razorpay order pending longer than the grace window:
 //   1. Ask Razorpay first — a CAPTURED payment means the money was taken:
