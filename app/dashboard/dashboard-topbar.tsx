@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Search, Eye, Menu, MessageSquare } from "lucide-react";
+import { Bell, Search, Store, Menu, MessageSquare } from "lucide-react";
 import { TopbarProfile } from "./topbar-profile";
 import { useMobileNav } from "./dashboard-mobile-nav";
 import { useChat } from "./chat-context";
@@ -66,20 +66,17 @@ export function DashboardTopbar({
             ⌘ K
           </kbd>
         </div>
-
-        <button className="hidden sm:flex items-center gap-2 text-[#a3a3a3] hover:text-white bg-[#303030] hover:bg-[#3a3a3a] h-[34px] px-3 rounded-lg text-[13px] font-medium transition-colors">
-          <Eye className="h-4 w-4" />
-          View as
-        </button>
       </div>
 
       <div className="flex items-center gap-1 sm:gap-3 min-w-[200px] justify-end">
-        <div className="hidden sm:flex h-7 w-7 items-center justify-center rounded bg-[#333333] hover:bg-[#404040] cursor-pointer transition-colors text-[#a3a3a3] hover:text-white">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M14.5 3h-13c-.28 0-.5.22-.5.5v9c0 .28.22.5.5.5h13c.28 0 .5-.22.5-.5v-9c0-.28-.22-.5-.5-.5zm-1.5 8h-10v-6h10v6z"></path>
-            <path d="M4.5 6.5h2v2h-2zM8.5 6.5h2v2h-2z"></path>
-          </svg>
-        </div>
+        <button
+          type="button"
+          onClick={() => window.open("/", "_blank")}
+          className="hidden sm:flex items-center gap-2 text-[#a3a3a3] hover:text-white bg-[#303030] hover:bg-[#3a3a3a] h-[34px] px-3 rounded-lg text-[13px] font-medium transition-colors"
+        >
+          <Store className="h-4 w-4" />
+          My Store
+        </button>
         <button
           type="button"
           onClick={toggleChat}

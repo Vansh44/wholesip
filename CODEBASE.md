@@ -691,10 +691,15 @@ platform.ts`, superadmin-only, tested): **UPGRADE-ONLY by design** —
     tax config authoritatively via `readTaxConfig` (uncached admin, store-scoped
     — an order must reflect config at order time), resolves each line's rate,
     computes tax, and snapshots `order.tax`/`order.tax_inclusive` + per-line tax.
-    `getCartTax(lines, discount)` is the DISPLAY counterpart (same resolution)
-    shown as a Tax line in the checkout summary; the cart shows "calculated at
-    checkout". Storefront reads use cached `getStoreBillingSettings` /
-    `getStoreTaxClasses` (tag `TAGS.billing`). - **Invoices = printable HTML** (chosen over server PDF): `components/invoice/
+    `getCartTaxRates(lines)` is the DISPLAY counterpart: it resolves the tax
+    config + each line's authoritative price & rate WITHOUT quantity/discount
+    (those depend only on the product SET), so the shared client hook
+    `useCartTax` (`app/(storefront)/components/cart/useCartTax.ts`, used by the
+    checkout summary AND the grocery cart) fetches it once per product-set
+    change and recomputes the tax LOCALLY via the pure `computeTax` on every
+    quantity/coupon edit — zero round-trips except on add/remove. Storefront
+    reads use cached `getStoreBillingSettings` / `getStoreTaxClasses` (tag
+    `TAGS.billing`). - **Invoices = printable HTML** (chosen over server PDF): `components/invoice/
 InvoiceDocument` (server, presentational) + `invoice.css` (`@media print`
     isolates the sheet from all chrome) + `PrintInvoiceButton` (client
     `window.print()` → Save as PDF). Loaders in `lib/billing/invoice-data.ts`:

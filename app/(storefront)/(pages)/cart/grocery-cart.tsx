@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 
 import { formatPrice } from "@/lib/pricing";
 import { cartLineMax } from "@/lib/inventory/status";
-import { getCartTax, type CartTaxResult } from "@/app/actions/checkout-actions";
 import {
   useCart,
   lineKey,
   type CartItem,
 } from "@/app/(storefront)/components/cart/CartProvider";
+import { useCartTax } from "@/app/(storefront)/components/cart/useCartTax";
 import CouponField from "@/app/(storefront)/components/cart/CouponField";
 
 // The Basket (grocery) cart — a distinct premium layout used ONLY when the
@@ -32,34 +31,9 @@ export function GroceryCart() {
     total,
   } = useCart();
 
-  // Live tax for the summary, resolved from the store's tax config the same
-  // way checkout does — the cart total must match checkout to the rupee.
-  // placeOrder recomputes authoritatively at order time (this is display only).
-  const [taxInfo, setTaxInfo] = useState<CartTaxResult | null>(null);
-  useEffect(() => {
-    if (!hydrated || items.length === 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setTaxInfo(null);
-      return;
-    }
-    let active = true;
-    const lines = items.map((i) => ({
-      productId: i.productId,
-      variantId: i.variantId,
-      quantity: i.quantity,
-    }));
-    const discount = couponValid ? couponDiscount : 0;
-    getCartTax(lines, discount)
-      .then((info) => {
-        if (active) setTaxInfo(info);
-      })
-      .catch(() => {
-        // Non-fatal — the note falls back to "calculated at checkout".
-      });
-    return () => {
-      active = false;
-    };
-  }, [hydrated, items, couponValid, couponDiscount]);
+  // Live tax for the summary — matches checkout to the rupee. Resolved once per
+  // product-set change; quantity/coupon edits recompute locally (see useCartTax).
+  const taxInfo = useCartTax(items, hydrated, couponValid ? couponDiscount : 0);
 
   if (!hydrated) {
     return (

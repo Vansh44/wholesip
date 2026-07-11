@@ -69,7 +69,7 @@ export default async function OrdersPage({
       </header>
 
       <div className="dash-card flex flex-col" style={{ flex: "1 1 auto" }}>
-        <table className="dash-table">
+        <table className="dash-table dash-table-wide">
           <thead>
             <tr>
               <th>Order ID</th>

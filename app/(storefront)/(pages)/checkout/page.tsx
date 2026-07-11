@@ -16,12 +16,11 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { useCart } from "@/app/(storefront)/components/cart/CartProvider";
+import { useCartTax } from "@/app/(storefront)/components/cart/useCartTax";
 import {
   placeOrder,
   getCartStock,
-  getCartTax,
   CheckoutFormData,
-  type CartTaxResult,
 } from "@/app/actions/checkout-actions";
 import {
   getMyAddresses,
@@ -90,7 +89,15 @@ export default function CheckoutPage() {
   const [addrError, setAddrError] = useState<string | null>(null);
 
   const [notes, setNotes] = useState("");
-  const [taxInfo, setTaxInfo] = useState<CartTaxResult | null>(null);
+
+  // Tax for the order summary — resolved once per product-set change, recomputed
+  // locally on quantity/coupon edits (see useCartTax). Display only; placeOrder
+  // recomputes authoritatively at order time.
+  const taxInfo = useCartTax(
+    cart.items,
+    cart.hydrated,
+    cart.couponValid ? cart.couponDiscount : 0,
+  );
 
   const selected = addresses.find((a) => a.id === selectedId) ?? null;
 
@@ -176,33 +183,6 @@ export default function CheckoutPage() {
         // Non-fatal — placeOrder revalidates stock atomically regardless.
       });
   }, [cart]);
-
-  // Tax for the order summary. Re-fetched when the cart or its discount changes;
-  // placeOrder recomputes authoritatively at order time (this is display only).
-  useEffect(() => {
-    if (!cart.hydrated || cart.items.length === 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setTaxInfo(null);
-      return;
-    }
-    let active = true;
-    const lines = cart.items.map((i) => ({
-      productId: i.productId,
-      variantId: i.variantId,
-      quantity: i.quantity,
-    }));
-    const discount = cart.couponValid ? cart.couponDiscount : 0;
-    getCartTax(lines, discount)
-      .then((info) => {
-        if (active) setTaxInfo(info);
-      })
-      .catch(() => {
-        // Non-fatal — the tax line just won't show; the order is still correct.
-      });
-    return () => {
-      active = false;
-    };
-  }, [cart.hydrated, cart.items, cart.couponValid, cart.couponDiscount]);
 
   const startAdd = useCallback(() => {
     setEditingId("new");

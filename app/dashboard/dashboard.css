@@ -75,7 +75,11 @@
 .dashboard-shell .dash-main {
   flex: 1 1 0%;
   min-width: 0;
-  height: 100vh;
+  /* Fill the flex row (100vh minus the topbar) via align-items:stretch, which
+     also subtracts this element's top/bottom margins — an explicit height:100vh
+     here would overflow the row below the topbar and clip the bottom of the
+     page (unreachable pagination / Save buttons). */
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -83,7 +87,12 @@
   border-top-left-radius: 16px;
   background-color: #f1f2f4;
   box-shadow: -1px -1px 0 rgba(0, 0, 0, 0.03);
-  transition: all 0.2s ease-out;
+  /* Only cosmetic props — never `all`, which would animate width every frame of
+     a sidebar-resize drag and re-lay-out this whole content pane. */
+  transition:
+    border-radius 0.2s ease-out,
+    box-shadow 0.2s ease-out,
+    background-color 0.2s ease-out;
 }
 
 .dashboard-shell .dash-chat {
@@ -92,12 +101,31 @@
   border-top-left-radius: 16px;
   box-shadow: -1px -1px 0 rgba(0, 0, 0, 0.03);
   margin-left: 12px;
-  transition: all 0.2s ease-out;
+  transition:
+    box-shadow 0.2s ease-out,
+    background-color 0.2s ease-out;
 }
 
 @media (min-width: 1200px) {
   .dashboard-shell .dash-chat {
     width: 380px;
+  }
+}
+
+/* Below the 3-panel width the chat is an OVERLAY sheet, not an in-flow column,
+   so opening it never squeezes the content pane to a sliver (mirrors the
+   builder inspector's sheet). Toggle + close (X) still work everywhere. */
+@media (max-width: 1199px) {
+  .dashboard-shell .dash-chat {
+    position: fixed;
+    top: 56px;
+    right: 0;
+    bottom: 0;
+    height: auto;
+    width: min(380px, 92vw);
+    margin-left: 0;
+    z-index: 45;
+    box-shadow: var(--dash-shadow-lg);
   }
 }
 
@@ -122,7 +150,10 @@
 /* ---------- Two-pane sidebar (icon rail + sub-nav panel) ---------- */
 .dashboard-shell .dash-sidebar {
   display: flex;
-  height: 100vh;
+  /* Stretches to the flex row's height (100vh minus the topbar); a fixed
+     height:100vh would push the bottom nav items below the clip. The mobile
+     drawer rule re-sets height:100dvh for its position:fixed layout. */
+  min-height: 0;
   background: var(--dash-bg);
   border-right: none;
   position: relative;
@@ -969,8 +1000,15 @@ a.dash-status-pill:hover {
 /* ---------- Data table ---------- */
 .dashboard-shell .dash-table {
   width: 100%;
-  min-width: 800px;
   border-collapse: collapse;
+}
+
+/* Opt-in floor for genuinely wide, many-column list tables (products, orders,
+   inventory…): they scroll horizontally inside their card rather than crushing
+   columns. NOT applied to narrow embedded widgets (overview cards in a grid),
+   which must stay fluid and never force a horizontal scrollbar. */
+.dashboard-shell .dash-table-wide {
+  min-width: 800px;
 }
 
 .dashboard-shell .dash-table th {

@@ -270,7 +270,7 @@ export function InventoryManagementView({
             </p>
           </div>
         ) : (
-          <table className="dash-table">
+          <table className="dash-table dash-table-wide">
             <thead>
               <tr>
                 {canManage && (

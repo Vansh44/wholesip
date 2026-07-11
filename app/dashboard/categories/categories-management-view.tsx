@@ -145,7 +145,7 @@ export function CategoriesManagementView({
             )}
           </div>
         ) : (
-          <table className="dash-table">
+          <table className="dash-table dash-table-wide">
             <thead>
               <tr>
                 <th className="w-14">Image</th>

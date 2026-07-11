@@ -133,7 +133,7 @@ export function RolesManagementView({ roles, canManage }: Props) {
             </p>
           </div>
         ) : (
-          <table className="dash-table">
+          <table className="dash-table dash-table-wide">
             <thead>
               <tr>
                 <th>Role</th>
