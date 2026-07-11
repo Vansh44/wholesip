@@ -4,6 +4,14 @@
     {
       "path": "/api/cron/send-emails",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/plan-expiry",
+      "schedule": "15 0 * * *"
+    },
+    {
+      "path": "/api/cron/expire-pending-payments",
+      "schedule": "30 * * * *"
     }
   ]
 }

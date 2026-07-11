@@ -29,6 +29,9 @@ export interface Store {
   name: string;
   status: string;
   plan: string;
+  /** Timed plans: ISO timestamp the plan lapses (null = indefinite). Resolve
+   *  entitlements via effectivePlan(store), never raw `plan`. */
+  plan_expires_at: string | null;
   custom_domain: string | null;
   settings: Record<string, unknown>;
 }
@@ -41,7 +44,8 @@ export const WHOLESIP_STORE_ID = "a0000000-0000-4000-8000-000000000001";
 // is created or its settings/domain change.
 export const STORE_TAG = "stores";
 
-const STORE_COLUMNS = "id, slug, name, status, plan, custom_domain, settings";
+const STORE_COLUMNS =
+  "id, slug, name, status, plan, plan_expires_at, custom_domain, settings";
 
 // Cached store lookup by Host header. Returns null for platform hosts and for
 // hosts that don't map to an active store. Tolerates DB errors (returns null).
@@ -137,6 +141,7 @@ export async function getCurrentStore(): Promise<Store> {
     name: "WholeSip",
     status: "active",
     plan: "pro",
+    plan_expires_at: null,
     custom_domain: null,
     settings: {},
   };

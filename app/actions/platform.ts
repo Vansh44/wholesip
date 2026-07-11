@@ -7,13 +7,8 @@ import { STORE_TAG, WHOLESIP_STORE_ID } from "@/lib/store/resolve";
 import { getThemeDefinition } from "@/lib/themes";
 import { applyTheme } from "@/lib/themes/apply";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
-import {
-  PLAN_IDS,
-  PLAN_META,
-  normalizePlan,
-  isUpgrade,
-  type Plan,
-} from "@/lib/plans";
+import { PLAN_IDS, PLAN_META, normalizePlan, type Plan } from "@/lib/plans";
+import { currentPeriod } from "@/lib/ai/quota";
 
 // A Storemink platform operator (from platform_admins, by JWT email).
 export interface PlatformViewer {
@@ -47,9 +42,14 @@ export interface PlatformStoreRow {
   name: string;
   status: string;
   plan: string;
+  plan_expires_at: string | null; // timed plans — null = indefinite
   custom_domain: string | null;
   created_at: string;
   owner_email: string | null; // superadmin who set the store up (from admins)
+  ai_used: number; // AI generations consumed this calendar month
+  credit_balance: number; // purchased/granted AI credits remaining
+  /** BYO payment gateway state: none = not connected. Never the keys. */
+  gateway: "none" | "enabled" | "paused";
 }
 
 // Strip PostgREST filter-control chars so a search term can't break .or().
@@ -66,7 +66,9 @@ export async function listAllStores(q?: string): Promise<PlatformStoreRow[]> {
   const admin = createAdminClient();
   let query = admin
     .from("stores")
-    .select("id, slug, name, status, plan, custom_domain, created_at")
+    .select(
+      "id, slug, name, status, plan, plan_expires_at, custom_domain, created_at",
+    )
     .order("created_at", { ascending: false })
     .limit(500);
   const term = sanitize(q ?? "");
@@ -78,27 +80,68 @@ export async function listAllStores(q?: string): Promise<PlatformStoreRow[]> {
   }
 
   const stores = (data ?? []).map(
-    (s): PlatformStoreRow => ({ ...s, owner_email: null }),
+    (s): PlatformStoreRow => ({
+      ...s,
+      owner_email: null,
+      ai_used: 0,
+      credit_balance: 0,
+      gateway: "none" as const,
+    }),
   ) as PlatformStoreRow[];
 
-  // Attach the store's owner email (the superadmin created at signup). Fetched
-  // in one query and mapped back — earliest superadmin per store wins.
+  // Enrich the rows in four batch queries (never per-store): owner email,
+  // this month's AI usage, the credit balance, and the BYO gateway state.
   if (stores.length) {
-    const { data: owners } = await admin
-      .from("admins")
-      .select("store_id, email, created_at")
-      .in(
-        "store_id",
-        stores.map((s) => s.id),
-      )
-      .eq("role", "superadmin")
-      .order("created_at", { ascending: true });
-    const byStore = new Map<string, string>();
+    const ids = stores.map((s) => s.id);
+    const [{ data: owners }, { data: usage }, { data: credits }, { data: gw }] =
+      await Promise.all([
+        admin
+          .from("admins")
+          .select("store_id, email, created_at")
+          .in("store_id", ids)
+          .eq("role", "superadmin")
+          .order("created_at", { ascending: true }),
+        admin
+          .from("ai_usage")
+          .select("store_id, used")
+          .in("store_id", ids)
+          .eq("period", currentPeriod()),
+        admin
+          .from("ai_credit_balances")
+          .select("store_id, balance")
+          .in("store_id", ids),
+        admin
+          .from("store_payment_providers")
+          .select("store_id, enabled")
+          .in("store_id", ids),
+      ]);
+
+    // Earliest superadmin per store wins as "owner".
+    const ownerByStore = new Map<string, string>();
     for (const o of owners ?? []) {
       const sid = o.store_id as string;
-      if (!byStore.has(sid) && o.email) byStore.set(sid, o.email as string);
+      if (!ownerByStore.has(sid) && o.email)
+        ownerByStore.set(sid, o.email as string);
     }
-    for (const s of stores) s.owner_email = byStore.get(s.id) ?? null;
+    const usedByStore = new Map(
+      (usage ?? []).map((u) => [u.store_id as string, u.used as number]),
+    );
+    const creditsByStore = new Map(
+      (credits ?? []).map((c) => [c.store_id as string, c.balance as number]),
+    );
+    const gatewayByStore = new Map(
+      (gw ?? []).map((g) => [
+        g.store_id as string,
+        g.enabled ? ("enabled" as const) : ("paused" as const),
+      ]),
+    );
+
+    for (const s of stores) {
+      s.owner_email = ownerByStore.get(s.id) ?? null;
+      s.ai_used = usedByStore.get(s.id) ?? 0;
+      s.credit_balance = creditsByStore.get(s.id) ?? 0;
+      s.gateway = gatewayByStore.get(s.id) ?? "none";
+    }
   }
 
   return stores;
@@ -135,14 +178,17 @@ export async function setStoreStatus(
   return { success: true };
 }
 
-// Promote a store to a higher plan (platform superadmin only). UPGRADE-ONLY by
-// design: free → starter/pro, starter → pro, pro → nowhere. A paying/comped
-// merchant is never stripped of features from the console — plan DEscents will
-// arrive with billing (non-renewal → scheduled downgrade), not as a button.
-// Every change is recorded in the append-only plan_events audit log.
+// Set a store's plan (platform superadmin only) — ANY direction, optionally
+// time-boxed. Downgrades are soft (existing data is never deleted; creating
+// new rows past the smaller plan's caps is what gets blocked — lib/plans.ts).
+// `expiresAt` bounds the grant: an ISO timestamp in the future, or null for
+// indefinite. Expired plans behave as free immediately (effectivePlan) and are
+// durably flipped by /api/cron/plan-expiry. Every change is recorded in the
+// append-only plan_events audit log.
 export async function setStorePlan(
   storeId: string,
   targetPlan: string,
+  opts?: { expiresAt?: string | null },
 ): Promise<ActionResult> {
   const viewer = await getPlatformViewer();
   if (viewer?.role !== "superadmin") {
@@ -153,27 +199,39 @@ export async function setStorePlan(
   }
   const target = targetPlan as Plan;
 
+  // Free never expires (there is nothing to lapse to); paid plans may carry
+  // an expiry, which must parse and lie in the future.
+  let expiresAt: string | null = null;
+  if (target !== "free" && opts?.expiresAt != null) {
+    const parsed = new Date(opts.expiresAt);
+    if (Number.isNaN(parsed.getTime())) {
+      return { error: "Invalid expiry date." };
+    }
+    if (parsed.getTime() <= Date.now()) {
+      return { error: "The expiry date must be in the future." };
+    }
+    expiresAt = parsed.toISOString();
+  }
+
   const admin = createAdminClient();
   const { data: store } = await admin
     .from("stores")
-    .select("id, plan")
+    .select("id, plan, plan_expires_at")
     .eq("id", storeId)
     .maybeSingle();
   if (!store) return { error: "Store not found." };
 
   const current = normalizePlan(store.plan);
-  if (current === target) {
+  if (
+    current === target &&
+    (store.plan_expires_at ?? null) === (expiresAt ?? null)
+  ) {
     return { error: `This store is already on ${PLAN_META[target].name}.` };
-  }
-  if (!isUpgrade(current, target)) {
-    return {
-      error: `Plans can't be downgraded from the console (${PLAN_META[current].name} → ${PLAN_META[target].name}).`,
-    };
   }
 
   const { error } = await admin
     .from("stores")
-    .update({ plan: target, plan_source: "comp" })
+    .update({ plan: target, plan_source: "comp", plan_expires_at: expiresAt })
     .eq("id", storeId)
     .eq("plan", store.plan); // no-op if the plan changed under us (stale row)
   if (error) {
@@ -188,6 +246,11 @@ export async function setStorePlan(
     to_plan: target,
     source: "operator",
     actor: viewer.email,
+    note: expiresAt
+      ? `expires ${expiresAt.slice(0, 10)}`
+      : target === "free"
+        ? null
+        : "indefinite",
   });
   if (auditErr) console.error("setStorePlan (audit):", auditErr.message);
 
@@ -195,6 +258,98 @@ export async function setStorePlan(
   // the store's dashboard + storefront see the new plan immediately.
   revalidateTag(STORE_TAG, "max");
   return { success: true };
+}
+
+// Grant free AI credits to a store (platform superadmin only). Goes through
+// the same atomic add_ai_credits RPC as purchases, so every grant lands in the
+// append-only ai_credit_ledger with the operator's email as the ref.
+const MAX_CREDIT_GRANT = 10_000;
+
+export async function grantAiCredits(
+  storeId: string,
+  amount: number,
+  note?: string,
+): Promise<ActionResult> {
+  const viewer = await getPlatformViewer();
+  if (viewer?.role !== "superadmin") {
+    return { error: "Only a platform superadmin can grant credits." };
+  }
+  if (!Number.isInteger(amount) || amount < 1 || amount > MAX_CREDIT_GRANT) {
+    return {
+      error: `Credits must be a whole number between 1 and ${MAX_CREDIT_GRANT}.`,
+    };
+  }
+
+  const admin = createAdminClient();
+  const { data: store } = await admin
+    .from("stores")
+    .select("id")
+    .eq("id", storeId)
+    .maybeSingle();
+  if (!store) return { error: "Store not found." };
+
+  const { error } = await admin.rpc("add_ai_credits", {
+    p_store: storeId,
+    p_delta: amount,
+    p_kind: "grant",
+    p_ref: viewer.email,
+    p_note: sanitize(note ?? "").slice(0, 200) || null,
+  });
+  if (error) {
+    console.error("grantAiCredits:", error.message);
+    return { error: "Could not grant credits. Please try again." };
+  }
+  return { success: true };
+}
+
+// Per-store audit history for the console drawer: plan changes (plan_events)
+// + the AI-credit ledger. Read-only, superadmin-gated like the mutations.
+export interface StoreAuditData {
+  planEvents: Array<{
+    id: string;
+    from_plan: string | null;
+    to_plan: string;
+    source: string;
+    actor: string | null;
+    note: string | null;
+    created_at: string;
+  }>;
+  creditLedger: Array<{
+    id: string;
+    delta: number;
+    kind: string;
+    ref: string | null;
+    note: string | null;
+    created_at: string;
+  }>;
+}
+
+export async function getStoreAudit(
+  storeId: string,
+): Promise<StoreAuditData | null> {
+  const viewer = await getPlatformViewer();
+  if (viewer?.role !== "superadmin") return null;
+
+  const admin = createAdminClient();
+  const [{ data: planEvents }, { data: creditLedger }] = await Promise.all([
+    admin
+      .from("plan_events")
+      .select("id, from_plan, to_plan, source, actor, note, created_at")
+      .eq("store_id", storeId)
+      .order("created_at", { ascending: false })
+      .limit(30),
+    admin
+      .from("ai_credit_ledger")
+      .select("id, delta, kind, ref, note, created_at")
+      .eq("store_id", storeId)
+      .order("created_at", { ascending: false })
+      .limit(30),
+  ]);
+
+  return {
+    planEvents: (planEvents ?? []) as StoreAuditData["planEvents"],
+    creditLedger: (creditLedger ?? []) as StoreAuditData["creditLedger"],
+  };
 }
 
 // Any media-bucket public URL. Store media isn't namespaced by store in the

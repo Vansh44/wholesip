@@ -15,7 +15,7 @@ export interface ThemeMeta {
   category: ThemeCategory;
   /** Plan gate for the picker (undefined = every plan). Signup provisions
    *  plan "free", so gated themes render locked with an upsell note. */
-  minPlan?: "starter" | "pro";
+  minPlan?: "basic" | "pro";
   /** Bundled preview image (public/ path). */
   previewImage: string;
   /** The live demo store's slug — Preview opens https://{demoSlug}.{root}. */

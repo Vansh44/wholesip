@@ -3,7 +3,7 @@ import { brandOgImageUrl } from "@/lib/seo/og-card";
 import "./platform.css";
 
 const DESCRIPTION =
-  "The India-first store builder with everything included — storefront, blogs, reviews, coupons and email campaigns. D2C + B2B from ₹399/month. No apps to buy, no transaction fees.";
+  "The India-first store builder with everything included — storefront, blogs, reviews, coupons and email campaigns. D2C + B2B from ₹500/month. No apps to buy, no transaction fees.";
 
 // Branded share card for the platform itself. metadataBase is PLATFORM_URL
 // (set on the root layout), so this relative path resolves to storemink.com.

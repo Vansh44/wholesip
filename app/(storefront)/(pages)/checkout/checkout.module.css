@@ -373,6 +373,12 @@
 }
 
 /* ---- Payment ---- */
+.payStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .payOption {
   display: flex;
   align-items: center;
@@ -381,6 +387,24 @@
   border: 1.5px solid var(--wholesip-accent);
   border-radius: var(--wholesip-radius-control);
   background: var(--wholesip-cream);
+  width: 100%;
+  text-align: left;
+  font: inherit;
+}
+
+/* Unselected method (only rendered when the store offers a choice). */
+.payOptionMuted {
+  border-color: rgba(var(--wholesip-shadow-rgb), 0.14);
+  background: var(--wholesip-surface);
+  cursor: pointer;
+}
+
+.payOptionMuted:hover {
+  border-color: rgba(var(--wholesip-shadow-rgb), 0.3);
+}
+
+.payOptionMuted .payCheck {
+  visibility: hidden;
 }
 
 .payIcon {

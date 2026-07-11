@@ -3,11 +3,19 @@
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentStoreId } from "@/lib/store/resolve";
+import { getCurrentStore, getCurrentStoreId } from "@/lib/store/resolve";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { validateCoupon } from "./coupon-actions";
 import { CartItem } from "@/app/(storefront)/components/cart/CartProvider";
 import { computeTax } from "@/lib/billing/tax";
+import { effectivePlan, limitsFor } from "@/lib/plans";
+import { getStoreGateway } from "@/lib/payments/provider";
+import {
+  capturedPayment,
+  rzpCreateOrder,
+  rzpFetchOrderPayments,
+  verifyCheckoutSignature,
+} from "@/lib/payments/razorpay";
 import {
   rowToBillingSettings,
   rowToTaxClass,
@@ -55,8 +63,17 @@ export interface CheckoutFormData {
   notes?: string;
 }
 
+export type PaymentMethod = "cod" | "razorpay";
+
 export type CheckoutResult =
-  | { success: true; orderId: string; orderRef: string }
+  | {
+      success: true;
+      orderId: string;
+      orderRef: string;
+      /** Present for online payments — everything the client needs to open
+       *  Razorpay Standard Checkout. The amount is the SERVER-computed total. */
+      payment?: { rzpOrderId: string; keyId: string; amountPaise: number };
+    }
   | { error: string };
 
 // Normalize a coupon code the same way coupon-actions does (stored uppercased,
@@ -360,10 +377,57 @@ export async function getCartTaxRates(
   };
 }
 
+// ---- Online payments (BYO Razorpay — CODEBASE §18) -------------------------
+
+// The store's usable online gateway, or null. Three server-side conditions,
+// re-checked on EVERY call (never trusted from the client): credentials are
+// connected, the merchant has the channel enabled, and the store's EFFECTIVE
+// plan includes online payments (a lapsed plan silently reverts to COD-only
+// without touching the stored credentials).
+async function onlineGateway(
+  admin: ReturnType<typeof createAdminClient>,
+  storeId: string,
+): Promise<{ keyId: string; keySecret: string } | null> {
+  const [gateway, { data: store }] = await Promise.all([
+    getStoreGateway(storeId),
+    admin
+      .from("stores")
+      .select("plan, plan_expires_at")
+      .eq("id", storeId)
+      .maybeSingle(),
+  ]);
+  if (!gateway?.enabled) return null;
+  if (!limitsFor(effectivePlan(store ?? {})).onlinePayments) return null;
+  return gateway.creds;
+}
+
+export interface CheckoutConfig {
+  /** True when the "Pay online" option should render at checkout. */
+  onlinePayments: boolean;
+  /** The store's public Razorpay key id (needed by checkout.js). */
+  keyId: string | null;
+  /** Display name for the payment modal header. */
+  storeName: string;
+}
+
+/** What payment methods this store's checkout offers. Server-computed; the
+ *  client only uses it to decide whether to RENDER the method selector —
+ *  placeOrder re-checks everything. */
+export async function getCheckoutConfig(): Promise<CheckoutConfig> {
+  const store = await getCurrentStore();
+  const creds = await onlineGateway(createAdminClient(), store.id);
+  return {
+    onlinePayments: !!creds,
+    keyId: creds?.keyId ?? null,
+    storeName: store.name,
+  };
+}
+
 export async function placeOrder(
   form: CheckoutFormData,
   items: CartItem[],
   couponCode?: string | null,
+  paymentMethod: PaymentMethod = "cod",
 ): Promise<CheckoutResult> {
   // Authenticate the shopper with their own session (RLS-respecting client).
   const supabase = await createClient();
@@ -386,6 +450,10 @@ export async function placeOrder(
     return {
       error: "Too many checkout attempts. Please wait a moment and try again.",
     };
+  }
+
+  if (paymentMethod !== "cod" && paymentMethod !== "razorpay") {
+    return { error: "Invalid payment method." };
   }
 
   if (items.length === 0) {
@@ -426,6 +494,20 @@ export async function placeOrder(
   // and all prices/totals are re-derived from the DB below, not trusted from
   // the client — so the write is safe to run with RLS bypassed.
   const admin = createAdminClient();
+
+  // For an online payment, resolve the store's gateway UP FRONT (connected +
+  // enabled + plan allows — all server-side) so an unavailable gateway fails
+  // fast, before any coupon/stock reservation.
+  let gatewayCreds: { keyId: string; keySecret: string } | null = null;
+  if (paymentMethod === "razorpay") {
+    gatewayCreds = await onlineGateway(admin, storeId);
+    if (!gatewayCreds) {
+      return {
+        error:
+          "Online payment isn't available right now. Please choose Cash on Delivery.",
+      };
+    }
+  }
 
   // 1. Re-validate prices by fetching products from the DB (anti-tampering),
   //    scoped to the host store so another store's products can't be smuggled in.
@@ -642,7 +724,8 @@ export async function placeOrder(
       store_id: storeId,
       customer_id: user.id,
       status: "pending",
-      payment_method: "cash_on_delivery",
+      payment_method:
+        paymentMethod === "razorpay" ? "razorpay" : "cash_on_delivery",
       payment_status: "pending",
       shipping_address: shippingAddress,
       billing_address: null, // COD uses shipping as billing essentially
@@ -758,9 +841,236 @@ export async function placeOrder(
     return { error: "Failed to save order items. Please try again." };
   }
 
+  const orderRef = (order as { order_ref?: string }).order_ref ?? "";
+
+  // 6. Online payment: create the Razorpay Order for the SERVER-computed total
+  //    (never the client's) and pin its id to our order. Any failure here
+  //    unwinds the whole checkout (stock → order [items cascade] → coupon) —
+  //    a razorpay order without a rzp order id could never be paid or
+  //    reconciled. From here the order stays `payment_status: 'pending'` until
+  //    confirmOnlinePayment verifies the HMAC (or a reconcile path finds the
+  //    captured payment); the expire-pending-payments reaper cancels + restocks
+  //    it if no payment ever lands.
+  if (paymentMethod === "razorpay" && gatewayCreds) {
+    const amountPaise = Math.round(total * 100);
+    const rollback = async () => {
+      await releaseStock();
+      await admin.from("orders").delete().eq("id", order.id);
+      await releaseCoupon();
+    };
+
+    const rzpRes = await rzpCreateOrder(gatewayCreds, {
+      amountPaise,
+      receipt: orderRef || order.id,
+      notes: { order_id: order.id, store_id: storeId },
+    });
+    if (!rzpRes.ok) {
+      console.error("placeOrder (razorpay create):", rzpRes.error);
+      await rollback();
+      return {
+        error:
+          "Couldn't start the online payment. Please try again or choose Cash on Delivery.",
+      };
+    }
+
+    const { error: pinError } = await admin
+      .from("orders")
+      .update({ razorpay_order_id: rzpRes.data.id })
+      .eq("id", order.id);
+    if (pinError) {
+      console.error("placeOrder (razorpay pin):", pinError.message);
+      await rollback();
+      return {
+        error:
+          "Couldn't start the online payment. Please try again or choose Cash on Delivery.",
+      };
+    }
+
+    return {
+      success: true,
+      orderId: order.id,
+      orderRef,
+      payment: {
+        rzpOrderId: rzpRes.data.id,
+        keyId: gatewayCreds.keyId,
+        amountPaise,
+      },
+    };
+  }
+
   return {
     success: true,
     orderId: order.id,
-    orderRef: (order as { order_ref?: string }).order_ref ?? "",
+    orderRef,
   };
+}
+
+// ---- Payment confirmation & reconciliation ---------------------------------
+
+export interface ConfirmPaymentResult {
+  success?: boolean;
+  /** True once the order is marked paid (idempotent). */
+  paid?: boolean;
+  error?: string;
+}
+
+// Load an order for payment confirmation, scoped to the host store AND the
+// signed-in shopper — a customer can only ever confirm their own order.
+async function loadOwnRazorpayOrder(
+  admin: ReturnType<typeof createAdminClient>,
+  storeId: string,
+  userId: string,
+  orderId: string,
+) {
+  const { data: order } = await admin
+    .from("orders")
+    .select("id, payment_method, payment_status, razorpay_order_id")
+    .eq("id", orderId)
+    .eq("store_id", storeId)
+    .eq("customer_id", userId)
+    .maybeSingle();
+  return order as {
+    id: string;
+    payment_method: string;
+    payment_status: string;
+    razorpay_order_id: string | null;
+  } | null;
+}
+
+// Mark a razorpay order paid exactly once (conditional UPDATE — the
+// pending→paid transition is claimed atomically, so the client callback and
+// the reconcile paths can race safely).
+async function markOrderPaid(
+  admin: ReturnType<typeof createAdminClient>,
+  orderId: string,
+  rzpPaymentId: string,
+): Promise<void> {
+  const { error } = await admin
+    .from("orders")
+    .update({ payment_status: "paid", razorpay_payment_id: rzpPaymentId })
+    .eq("id", orderId)
+    .eq("payment_status", "pending");
+  if (error) console.error("markOrderPaid:", error.message);
+}
+
+/**
+ * Called by the checkout client after Razorpay Standard Checkout succeeds.
+ * Verifies the HMAC signature with the STORE's key secret (server-side) and
+ * marks the order paid. Idempotent — double calls / races with the reconcile
+ * paths are no-ops.
+ */
+export async function confirmOnlinePayment(
+  orderId: string,
+  rzpPaymentId: string,
+  rzpSignature: string,
+): Promise<ConfirmPaymentResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You must be logged in." };
+
+  if (
+    typeof orderId !== "string" ||
+    !orderId ||
+    typeof rzpPaymentId !== "string" ||
+    !rzpPaymentId ||
+    typeof rzpSignature !== "string" ||
+    !rzpSignature
+  ) {
+    return { error: "Invalid payment confirmation." };
+  }
+
+  const rl = await rateLimit(`confirm-payment:${user.id}`, {
+    max: 20,
+    windowSeconds: 60,
+  });
+  if (!rl.allowed) {
+    return { error: "Too many attempts. Please wait a moment." };
+  }
+
+  const storeId = await getCurrentStoreId();
+  const admin = createAdminClient();
+
+  const order = await loadOwnRazorpayOrder(admin, storeId, user.id, orderId);
+  if (!order || order.payment_method !== "razorpay") {
+    return { error: "Order not found." };
+  }
+  if (order.payment_status === "paid") return { success: true, paid: true };
+  if (order.payment_status !== "pending" || !order.razorpay_order_id) {
+    return { error: "This order can no longer be paid." };
+  }
+
+  const gateway = await getStoreGateway(storeId);
+  if (!gateway) {
+    return {
+      error: "Payment verification is unavailable. Please contact the store.",
+    };
+  }
+
+  const valid = verifyCheckoutSignature(
+    gateway.creds.keySecret,
+    order.razorpay_order_id,
+    rzpPaymentId,
+    rzpSignature,
+  );
+  if (!valid) {
+    console.error("confirmOnlinePayment: bad signature for order", orderId);
+    return { error: "Payment verification failed." };
+  }
+
+  await markOrderPaid(admin, orderId, rzpPaymentId);
+  return { success: true, paid: true };
+}
+
+/**
+ * Reconcile-on-read for a shopper's own PENDING razorpay order (the success/
+ * confirmation page calls this when the client callback was dropped — closed
+ * tab, network blip). Queries Razorpay directly: a captured payment there is
+ * the source of truth ⇒ mark paid.
+ */
+export async function reconcileMyOrderPayment(
+  orderId: string,
+): Promise<ConfirmPaymentResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You must be logged in." };
+  if (typeof orderId !== "string" || !orderId) {
+    return { error: "Order not found." };
+  }
+
+  const rl = await rateLimit(`reconcile-payment:${user.id}`, {
+    max: 10,
+    windowSeconds: 60,
+  });
+  if (!rl.allowed) return { error: "Too many attempts." };
+
+  const storeId = await getCurrentStoreId();
+  const admin = createAdminClient();
+
+  const order = await loadOwnRazorpayOrder(admin, storeId, user.id, orderId);
+  if (!order || order.payment_method !== "razorpay") {
+    return { error: "Order not found." };
+  }
+  if (order.payment_status === "paid") return { success: true, paid: true };
+  if (order.payment_status !== "pending" || !order.razorpay_order_id) {
+    return { success: true, paid: false };
+  }
+
+  const gateway = await getStoreGateway(storeId);
+  if (!gateway) return { success: true, paid: false };
+
+  const payments = await rzpFetchOrderPayments(
+    gateway.creds,
+    order.razorpay_order_id,
+  );
+  if (!payments.ok) return { success: true, paid: false };
+
+  const captured = capturedPayment(payments.data);
+  if (!captured) return { success: true, paid: false };
+
+  await markOrderPaid(admin, orderId, captured.id);
+  return { success: true, paid: true };
 }
