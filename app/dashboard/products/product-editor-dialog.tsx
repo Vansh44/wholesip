@@ -26,8 +26,8 @@ type Props = {
   defaultTrackInventory?: boolean;
 };
 
-// Thin Dialog wrapper around the shared ProductEditorForm. Used for the "New
-// Product" modal in the list, and reused by the intercepted edit route.
+// Thin Dialog wrapper around the shared ProductEditorForm. Used only for the
+// "New Product" modal in the list — editing is a full page ([id]/page.tsx).
 export function ProductEditorDialog({
   open,
   product,

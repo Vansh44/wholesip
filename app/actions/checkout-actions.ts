@@ -1,9 +1,10 @@
 "use server";
 
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentStoreId } from "@/lib/store/resolve";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { validateCoupon } from "./coupon-actions";
 import { CartItem } from "@/app/(storefront)/components/cart/CartProvider";
 import { computeTax } from "@/lib/billing/tax";
@@ -197,7 +198,7 @@ async function availableStock(
 }
 
 // Read a store's tax config authoritatively (uncached, store-scoped) through an
-// admin client. Used by both placeOrder (trust boundary) and getCartTax
+// admin client. Used by both placeOrder (trust boundary) and getCartTaxRates
 // (display), so both agree. Uncached on purpose: an order must reflect the tax
 // config at the exact moment it's placed, never a stale cached copy.
 async function readTaxConfig(
@@ -233,56 +234,66 @@ export interface CartTaxResult {
   byRate: Array<{ rate: number; label: string; tax: number }>;
 }
 
-// Tax for the current cart, for DISPLAY on the checkout summary. Re-prices from
-// the DB (store-scoped) and resolves each line's rate the same way placeOrder
-// does, so the shown tax matches what will be charged. `discount` is the cart's
-// applied discount (tax is computed on the discounted base). placeOrder remains
-// the authoritative recompute at order time.
-export async function getCartTax(
-  lines: Array<{
-    productId: string;
-    variantId: string | null;
-    quantity: number;
-  }>,
-  discount = 0,
-): Promise<CartTaxResult> {
-  const empty: CartTaxResult = {
-    enabled: false,
-    inclusive: false,
-    tax: 0,
-    byRate: [],
-  };
+export interface CartTaxRateLine {
+  productId: string;
+  variantId: string | null;
+  /** Authoritative per-unit price (from the DB) — the tax base. */
+  price: number;
+  /** Resolved tax rate as a percentage (0..100). */
+  rate: number;
+  /** Tax class name, for the per-rate breakdown label. */
+  label?: string;
+}
+
+export interface CartTaxRates {
+  enabled: boolean;
+  inclusive: boolean;
+  lines: CartTaxRateLine[];
+}
+
+// Resolve the store's tax config + each cart line's authoritative price and tax
+// rate for DISPLAY, WITHOUT quantity or discount. Those inputs depend only on
+// WHICH products are in the cart, so the client (`useCartTax`) fetches this once
+// per product-set change and recomputes the actual tax LOCALLY via the pure
+// `computeTax` whenever quantity or the coupon changes — quantity/discount edits
+// then cost ZERO round-trips; only adding/removing a product refetches.
+// placeOrder remains the authoritative recompute at order time.
+export async function getCartTaxRates(
+  lines: Array<{ productId: string; variantId: string | null }>,
+): Promise<CartTaxRates> {
+  const empty: CartTaxRates = { enabled: false, inclusive: false, lines: [] };
   if (!Array.isArray(lines) || lines.length === 0) return empty;
-  // Same bounds as placeOrder — this is an anonymous-callable action doing
-  // service-role reads, so reject oversized/malformed payloads before any DB
-  // work (a real cart never exceeds these; the tax line simply won't show).
+  // Same bound as placeOrder — this is an anonymous-callable action doing
+  // service-role reads, so reject oversized payloads before any DB work.
   if (lines.length > MAX_LINE_ITEMS) return empty;
   const safeLines = lines
     .map((l) => ({
       productId: typeof l?.productId === "string" ? l.productId : "",
       variantId: typeof l?.variantId === "string" ? l.variantId : null,
-      quantity:
-        Number.isInteger(l?.quantity) &&
-        l.quantity > 0 &&
-        l.quantity <= MAX_QUANTITY_PER_LINE
-          ? l.quantity
-          : 0,
     }))
-    .filter((l) => l.productId && l.quantity > 0);
+    .filter((l) => l.productId);
   if (safeLines.length === 0) return empty;
-  const safeDiscount =
-    typeof discount === "number" && Number.isFinite(discount)
-      ? Math.max(0, discount)
-      : 0;
+
+  // Anonymous-callable action doing service-role reads. The client debounces and
+  // only refetches on product-set changes, so a real shopper never approaches
+  // this — but throttle per IP so a scripted caller can't drive unbounded DB
+  // load. Generous cap (well above any human's cart activity, tolerant of shared
+  // NAT); the check runs BEFORE the tax reads, and fails OPEN on a DB hiccup.
+  // Blocked callers just get the empty result (tax hidden — display only;
+  // placeOrder recomputes authoritatively at order time).
+  const ip = clientIp(await headers());
+  const { allowed } = await rateLimit(`cart-tax:${ip}`, {
+    max: 120,
+    windowSeconds: 60,
+  });
+  if (!allowed) return empty;
 
   const storeId = await getCurrentStoreId();
   const admin = createAdminClient();
   const { billing, taxClasses } = await readTaxConfig(admin, storeId);
   if (!billing.taxEnabled) return empty;
 
-  const productIds = Array.from(
-    new Set(safeLines.map((l) => l.productId).filter(Boolean)),
-  );
+  const productIds = Array.from(new Set(safeLines.map((l) => l.productId)));
   const variantIds = Array.from(
     new Set(safeLines.map((l) => l.variantId).filter(Boolean)),
   ) as string[];
@@ -318,36 +329,34 @@ export async function getCartTax(
   );
   const classById = new Map(taxClasses.map((c) => [c.id, c]));
 
-  const taxLines = safeLines.map((l) => {
+  const resolved: CartTaxRateLine[] = safeLines.map((l) => {
     const p = pMap.get(l.productId);
-    if (!p) return { amount: 0, rate: 0 };
+    if (!p) {
+      return {
+        productId: l.productId,
+        variantId: l.variantId,
+        price: 0,
+        rate: 0,
+      };
+    }
     const price = l.variantId
       ? (vMap.get(l.variantId)?.selling_price ?? p.selling_price)
       : p.selling_price;
     const classId = p.tax_class_id ?? billing.defaultTaxClassId;
     const cls = classId ? classById.get(classId) : null;
     return {
-      amount: price * l.quantity,
+      productId: l.productId,
+      variantId: l.variantId,
+      price,
       rate: cls?.rate ?? 0,
       label: cls?.name,
     };
   });
 
-  const result = computeTax({
-    lines: taxLines,
-    discount: safeDiscount,
-    pricesIncludeTax: billing.pricesIncludeTax,
-    enabled: true,
-  });
   return {
     enabled: true,
     inclusive: billing.pricesIncludeTax,
-    tax: result.totalTax,
-    byRate: result.byRate.map((b) => ({
-      rate: b.rate,
-      label: b.label,
-      tax: b.tax,
-    })),
+    lines: resolved,
   };
 }
 

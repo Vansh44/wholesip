@@ -127,7 +127,7 @@ wholesip/
 │   │   │                      # feature-toggles (shared settings-group card, convention #9)
 │   │   ├── lib/               # access.ts, permissions.ts (role → allowed nav/actions),
 │   │   │                      # list-params.ts, use-row-selection.ts
-│   │   ├── products/          # CRUD + @modal intercepted route for quick edit
+│   │   ├── products/          # CRUD; edit = full page [id]/ (Shopify-style, no modal)
 │   │   ├── orders/            # Orders list (server-paginated) — reads order-actions
 │   │   ├── categories/ colors/ blogs/ media/   # content management
 │   │   │   └── blogs/settings/  # blog feature toggles + per-store categories/tags manager
@@ -312,7 +312,11 @@ wholesip/
    `platform/` = StoreMink itself. Don't put platform pages in the storefront group —
    the proxy rewrite depends on this separation.
 4. **Modals via intercepted routes**: dashboard list pages use the `@modal/(.)[id]`
-   parallel-route pattern (products, enquiries, users). Follow it for new entities.
+   parallel-route pattern (enquiries, users). Follow it for quick-glance detail
+   views. Products is the exception BY OWNER CHOICE: editing is a full page
+   (`/dashboard/products/[id]`, Shopify-style — no interception; hover-prefetched
+   rows + a `loading.tsx` skeleton keep it fast); only "New product" stays a
+   dialog.
 5. **Caching**: storefront reads use `unstable_cache` + tags (`lib/storefront/tags.ts`,
    `STORE_TAG`). After mutations, `revalidateTag`/`revalidatePath` accordingly.
 6. **Styling**: Tailwind v4 + CSS modules for scoped styles + a few plain `.css`
@@ -687,10 +691,15 @@ platform.ts`, superadmin-only, tested): **UPGRADE-ONLY by design** —
     tax config authoritatively via `readTaxConfig` (uncached admin, store-scoped
     — an order must reflect config at order time), resolves each line's rate,
     computes tax, and snapshots `order.tax`/`order.tax_inclusive` + per-line tax.
-    `getCartTax(lines, discount)` is the DISPLAY counterpart (same resolution)
-    shown as a Tax line in the checkout summary; the cart shows "calculated at
-    checkout". Storefront reads use cached `getStoreBillingSettings` /
-    `getStoreTaxClasses` (tag `TAGS.billing`). - **Invoices = printable HTML** (chosen over server PDF): `components/invoice/
+    `getCartTaxRates(lines)` is the DISPLAY counterpart: it resolves the tax
+    config + each line's authoritative price & rate WITHOUT quantity/discount
+    (those depend only on the product SET), so the shared client hook
+    `useCartTax` (`app/(storefront)/components/cart/useCartTax.ts`, used by the
+    checkout summary AND the grocery cart) fetches it once per product-set
+    change and recomputes the tax LOCALLY via the pure `computeTax` on every
+    quantity/coupon edit — zero round-trips except on add/remove. Storefront
+    reads use cached `getStoreBillingSettings` / `getStoreTaxClasses` (tag
+    `TAGS.billing`). - **Invoices = printable HTML** (chosen over server PDF): `components/invoice/
 InvoiceDocument` (server, presentational) + `invoice.css` (`@media print`
     isolates the sheet from all chrome) + `PrintInvoiceButton` (client
     `window.print()` → Save as PDF). Loaders in `lib/billing/invoice-data.ts`:

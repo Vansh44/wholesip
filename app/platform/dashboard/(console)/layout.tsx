@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Sora, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { getPlatformViewer } from "@/app/actions/platform";
 import { DashboardTopbar } from "@/app/dashboard/dashboard-topbar";
@@ -8,7 +8,7 @@ import { MobileNavProvider } from "@/app/dashboard/dashboard-mobile-nav";
 import type { SectionGroup } from "@/app/dashboard/lib/permissions";
 import "@/app/dashboard/dashboard.css";
 
-const dashFont = Sora({
+const dashFont = Inter({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
   variable: "--font-dash",
@@ -58,23 +58,21 @@ export default async function PlatformDashboardLayout({
 
   return (
     <div
-      className={`dashboard-shell ${dashFont.variable} ${dashMono.variable} flex`}
+      className={`dashboard-shell ${dashFont.variable} ${dashMono.variable} flex flex-col`}
     >
       <MobileNavProvider>
-        <DashboardSidebar
-          groups={navGroups}
-          logoUrl={null}
-          storeName="StoreMink Admin"
+        <DashboardTopbar
+          email={viewer.email}
+          role={viewer.role}
+          firstName=""
+          lastName=""
         />
+        <div className="flex flex-1 overflow-hidden">
+          <DashboardSidebar groups={navGroups} />
 
-        <div className="dash-main">
-          <DashboardTopbar
-            email={viewer.email}
-            role={viewer.role}
-            firstName=""
-            lastName=""
-          />
-          <div className="dash-content">{children}</div>
+          <div className="dash-main">
+            <div className="dash-content">{children}</div>
+          </div>
         </div>
       </MobileNavProvider>
 

@@ -1,76 +1,11 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { Bell, Search, ArrowUpRight, Menu } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { Bell, Search, Store, Menu, MessageSquare } from "lucide-react";
 import { TopbarProfile } from "./topbar-profile";
 import { useMobileNav } from "./dashboard-mobile-nav";
-
-const routeMeta: Record<string, { title: string; breadcrumb: string }> = {
-  "/dashboard": { title: "Dashboard", breadcrumb: "Home / Dashboard" },
-  "/dashboard/orders": { title: "Orders", breadcrumb: "Workspace / Orders" },
-  "/dashboard/products": {
-    title: "Products",
-    breadcrumb: "Workspace / Products",
-  },
-  "/dashboard/users": {
-    title: "Users",
-    breadcrumb: "Workspace / Users",
-  },
-  "/dashboard/inventory": {
-    title: "Inventory",
-    breadcrumb: "Workspace / Inventory",
-  },
-  "/dashboard/analytics": {
-    title: "Analytics",
-    breadcrumb: "Workspace / Analytics",
-  },
-  "/dashboard/blogs": { title: "Blogs", breadcrumb: "Content / Blogs" },
-  "/dashboard/blogs/settings": {
-    title: "Blog Settings",
-    breadcrumb: "Content / Blogs / Settings",
-  },
-  "/dashboard/builder/settings": {
-    title: "Website Settings",
-    breadcrumb: "Content / Website / Settings",
-  },
-  "/dashboard/marketing": {
-    title: "Marketing",
-    breadcrumb: "Content / Marketing",
-  },
-  "/dashboard/promotions": {
-    title: "Promotions",
-    breadcrumb: "Content / Promotions",
-  },
-  "/dashboard/admins": {
-    title: "Admins",
-    breadcrumb: "Administration / Admins",
-  },
-  "/dashboard/media": {
-    title: "Media Library",
-    breadcrumb: "Administration / Media Library",
-  },
-  "/dashboard/roles": {
-    title: "Roles & Permissions",
-    breadcrumb: "Administration / Roles",
-  },
-  "/dashboard/activity": {
-    title: "Activity Logs",
-    breadcrumb: "Administration / Activity Logs",
-  },
-  "/dashboard/settings": {
-    title: "Settings",
-    breadcrumb: "Administration / Settings",
-  },
-};
-
-function resolveMeta(pathname: string) {
-  if (routeMeta[pathname]) return routeMeta[pathname];
-  const match = Object.keys(routeMeta)
-    .filter((k) => k !== "/dashboard")
-    .find((k) => pathname.startsWith(k));
-  if (match) return routeMeta[match];
-  return { title: "Dashboard", breadcrumb: "Home / Dashboard" };
-}
+import { useChat } from "./chat-context";
 
 export function DashboardTopbar({
   email,
@@ -83,51 +18,80 @@ export function DashboardTopbar({
   firstName?: string | null;
   lastName?: string | null;
 }) {
-  const pathname = usePathname();
-  const { title, breadcrumb } = resolveMeta(pathname);
   const { setOpen } = useMobileNav();
+  const { isChatOpen, toggleChat } = useChat();
 
   return (
-    <header className="dash-topbar">
-      <button
-        type="button"
-        className="dash-icon-btn dash-nav-toggle md:hidden"
-        aria-label="Open navigation menu"
-        onClick={() => setOpen(true)}
-      >
-        <Menu className="h-5 w-5" />
-      </button>
-
-      <div className="min-w-0 flex-1">
-        <div className="dash-topbar-title">{title}</div>
-        <div className="dash-topbar-bc">{breadcrumb}</div>
-      </div>
-
-      <div className="dash-search-bar hidden md:flex">
-        <Search className="h-4 w-4 shrink-0 text-[var(--dash-text-3)]" />
-        <input
-          type="search"
-          placeholder="Search orders, products, customers…"
-        />
-        <kbd className="dash-search-kbd shrink-0">⌘K</kbd>
-      </div>
-
-      <div className="flex items-center gap-2">
+    <header className="dash-topbar flex items-center justify-between px-4 h-14 bg-[#1a1a1a] text-white">
+      <div className="flex items-center gap-4 min-w-[200px]">
         <button
           type="button"
-          className="dash-icon-btn"
-          aria-label="Notifications"
+          className="dash-icon-btn dash-nav-toggle md:hidden text-white hover:bg-white/10"
+          aria-label="Open navigation menu"
+          onClick={() => setOpen(true)}
         >
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-1.5 top-1.5 h-[7px] w-[7px] rounded-full border-[1.5px] border-[var(--dash-surface)] bg-[var(--dash-red)]" />
+          <Menu className="h-5 w-5" />
+        </button>
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 no-underline hover:opacity-80 transition-opacity"
+          >
+            <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md bg-[#7F4AFA]/20">
+              <Image
+                src="/icon.svg"
+                alt="StoreMink logo"
+                width={20}
+                height={20}
+                className="h-5 w-5 object-contain"
+              />
+            </div>
+            <span className="text-[17px] font-semibold tracking-tight text-white">
+              StoreMink
+            </span>
+          </Link>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 flex-1 justify-center max-w-xl">
+        <div className="dash-search-bar hidden md:flex flex-1 max-w-md bg-[#303030] hover:bg-[#3a3a3a] transition-colors border border-transparent hover:border-[#444] rounded-lg h-[34px] px-3 items-center gap-2 group cursor-text">
+          <Search className="h-4 w-4 shrink-0 text-[#a3a3a3] group-hover:text-white transition-colors" />
+          <input
+            type="search"
+            placeholder="Search"
+            className="flex-1 bg-transparent border-none outline-none text-white text-[13px] placeholder:text-[#a3a3a3]"
+          />
+          <kbd className="dash-search-kbd shrink-0 bg-[#404040] text-[#a3a3a3] text-[10px] font-medium px-1.5 py-0.5 rounded">
+            ⌘ K
+          </kbd>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1 sm:gap-3 min-w-[200px] justify-end">
+        <button
+          type="button"
+          onClick={() => window.open("/", "_blank")}
+          className="hidden sm:flex items-center gap-2 text-[#a3a3a3] hover:text-white bg-[#303030] hover:bg-[#3a3a3a] h-[34px] px-3 rounded-lg text-[13px] font-medium transition-colors"
+        >
+          <Store className="h-4 w-4" />
+          My Store
         </button>
         <button
           type="button"
-          className="dash-icon-btn hidden sm:flex"
-          aria-label="Messages"
-          onClick={() => window.open("/", "_blank")}
+          onClick={toggleChat}
+          className={`dash-icon-btn relative text-[#a3a3a3] hover:text-white w-8 h-8 rounded flex items-center justify-center transition-colors hover:bg-white/10 ${isChatOpen ? "bg-white/10 text-white" : ""}`}
+          aria-label="AI Assistant"
         >
-          <ArrowUpRight className="h-4 w-4" />
+          <MessageSquare className="h-[18px] w-[18px]" />
+        </button>
+        <button
+          type="button"
+          className="dash-icon-btn relative text-[#a3a3a3] hover:text-white w-8 h-8 rounded flex items-center justify-center transition-colors hover:bg-white/10"
+          aria-label="Notifications"
+        >
+          <Bell className="h-[18px] w-[18px]" />
+          <span className="absolute right-[5px] top-[4px] h-2 w-2 rounded-full bg-[#ff3b30] border border-[#1a1a1a]" />
         </button>
         <TopbarProfile
           email={email}

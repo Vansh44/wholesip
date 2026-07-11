@@ -148,7 +148,7 @@ export function ColorsManagementView({ colors, canManage = true }: Props) {
             )}
           </div>
         ) : (
-          <table className="dash-table">
+          <table className="dash-table dash-table-wide">
             <thead>
               <tr>
                 <th className="w-14">Swatch</th>

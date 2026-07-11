@@ -105,28 +105,19 @@ export function CategoriesManagementView({
         )}
       </header>
 
-      <div className="dash-toolbar">
-        <div className="dash-toolbar-actions">
-          <label className="dash-search-bar">
-            <Search className="h-4 w-4 shrink-0 opacity-50" />
-            <input
-              type="text"
-              placeholder="Search categories..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </label>
-        </div>
-      </div>
-
-      <div className="dash-card">
-        <div className="dash-card-header">
-          <div>
-            <div className="dash-card-title">Categories</div>
-            <div className="dash-card-sub">
-              {filtered.length}{" "}
-              {filtered.length === 1 ? "category" : "categories"}
-            </div>
+      <div className="dash-card flex flex-col">
+        <div className="dash-toolbar px-5 pt-4 pb-2 border-b border-[var(--dash-border)] mb-0 flex flex-col gap-4">
+          <div className="dash-toolbar-actions w-full flex justify-between">
+            <div></div>
+            <label className="dash-search-bar">
+              <Search className="h-4 w-4 shrink-0 opacity-50" />
+              <input
+                type="text"
+                placeholder="Search categories..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </label>
           </div>
         </div>
 
@@ -154,7 +145,7 @@ export function CategoriesManagementView({
             )}
           </div>
         ) : (
-          <table className="dash-table">
+          <table className="dash-table dash-table-wide">
             <thead>
               <tr>
                 <th className="w-14">Image</th>
