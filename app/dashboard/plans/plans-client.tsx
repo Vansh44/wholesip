@@ -22,8 +22,18 @@ import {
   startCreditPurchase,
   type AiUsagePageData,
 } from "@/app/actions/ai-credit-actions";
+import {
+  startPlanSubscription,
+  confirmSubscription,
+  cancelSubscription,
+  changePlan,
+  type SubscriptionState,
+} from "@/app/actions/subscription-actions";
 import type { CreditPack } from "@/lib/ai/credits";
-import { openRazorpayModal } from "@/lib/payments/razorpay-client";
+import {
+  openRazorpayModal,
+  openRazorpaySubscriptionModal,
+} from "@/lib/payments/razorpay-client";
 import {
   PLAN_IDS,
   PLAN_LIMITS,
@@ -76,10 +86,12 @@ function planFeatures(plan: Plan): string[] {
 
 export function PlansBillingClient({
   initialData,
+  subscription,
   packs,
   canManage,
 }: {
   initialData: AiUsagePageData;
+  subscription: SubscriptionState;
   packs: CreditPack[];
   canManage: boolean;
 }) {
@@ -89,6 +101,28 @@ export function PlansBillingClient({
   const [buyingPack, setBuyingPack] = useState<string | null>(null);
   const [period, setPeriod] = useState<"monthly" | "yearly">("monthly");
   const [upgradeTo, setUpgradeTo] = useState<Plan | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+
+  const refresh = () => startRefresh(() => router.refresh());
+
+  async function handleCancel() {
+    if (
+      !window.confirm(
+        "Cancel autopay? You keep your plan until the current cycle ends, then you'll move to Free. No further payments will be taken.",
+      )
+    ) {
+      return;
+    }
+    setCancelling(true);
+    const res = await cancelSubscription();
+    setCancelling(false);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(res.message ?? "Subscription cancelled.");
+    refresh();
+  }
 
   const { used, cap, creditBalance } = data.usage;
   const remaining = cap === null ? null : Math.max(0, cap - used);
@@ -230,6 +264,54 @@ export function PlansBillingClient({
                   : "—"}
           </Detail>
         </dl>
+
+        {/* Autopay controls / notices */}
+        {(subscription.active ||
+          subscription.cancelAtPeriodEnd ||
+          subscription.scheduledPlan) && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[rgba(17,24,39,0.08)] pt-4">
+            <p className="text-sm text-[#5b6472]">
+              {subscription.cancelAtPeriodEnd ? (
+                <>
+                  Autopay is cancelled — you keep {planMeta.name}
+                  {subscription.currentEnd
+                    ? ` until ${formatDate(subscription.currentEnd)}`
+                    : " until the cycle ends"}
+                  , then move to Free.
+                </>
+              ) : subscription.scheduledPlan ? (
+                <>
+                  {PLAN_META[normalizePlan(subscription.scheduledPlan)].name}{" "}
+                  starts at your next renewal
+                  {subscription.currentEnd
+                    ? ` (${formatDate(subscription.currentEnd)})`
+                    : ""}
+                  .
+                </>
+              ) : (
+                <>
+                  Autopay renews your {planMeta.name} plan
+                  {subscription.currentEnd
+                    ? ` on ${formatDate(subscription.currentEnd)}`
+                    : " automatically"}
+                  .
+                </>
+              )}
+            </p>
+            {canManage &&
+              subscription.active &&
+              !subscription.cancelAtPeriodEnd && (
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+                >
+                  {cancelling ? "Cancelling…" : "Cancel autopay"}
+                </button>
+              )}
+          </div>
+        )}
       </section>
 
       {/* ─────────────── 2. Credits & usage ─────────────── */}
@@ -572,7 +654,14 @@ export function PlansBillingClient({
         <UpgradeModal
           plan={upgradeTo}
           period={period}
+          currentPlan={plan}
+          purchasesAvailable={data.purchasesAvailable}
+          hasActiveSubscription={subscription.active}
           onClose={() => setUpgradeTo(null)}
+          onActivated={() => {
+            setUpgradeTo(null);
+            refresh();
+          }}
         />
       )}
     </div>
@@ -616,19 +705,88 @@ function StatusPill({
   );
 }
 
-// Self-serve plan billing isn't live yet (plans are provisioned by the
-// StoreMink team), so "upgrade" opens an info dialog rather than charging.
+// Upgrade flow, three branches:
+//   • free → paid (no subscription): authorise a fresh autopay mandate.
+//   • paid → higher paid (active subscription): change the plan on the same
+//     mandate, either NOW (prorated) or at the next renewal.
+//   • no self-serve path available: fall back to contacting support.
 function UpgradeModal({
   plan,
   period,
+  currentPlan,
+  purchasesAvailable,
+  hasActiveSubscription,
   onClose,
+  onActivated,
 }: {
   plan: Plan;
   period: "monthly" | "yearly";
+  currentPlan: Plan;
+  purchasesAvailable: boolean;
+  hasActiveSubscription: boolean;
   onClose: () => void;
+  onActivated: () => void;
 }) {
   const meta = PLAN_META[plan];
   const price = period === "yearly" ? meta.yearlyInr : meta.monthlyInr;
+  const [working, setWorking] = useState(false);
+
+  const isNewSubscription = currentPlan === "free" && purchasesAvailable;
+  const isPlanChange =
+    currentPlan !== "free" && hasActiveSubscription && purchasesAvailable;
+
+  async function subscribe() {
+    setWorking(true);
+    const start = await startPlanSubscription(plan, period);
+    if ("error" in start) {
+      toast.error(start.error);
+      setWorking(false);
+      return;
+    }
+    const opened = await openRazorpaySubscriptionModal({
+      keyId: start.keyId,
+      subscriptionId: start.subscriptionId,
+      name: "StoreMink",
+      description: `${start.planName} plan — ${period} autopay`,
+      onSuccess: async (res) => {
+        const confirmed = await confirmSubscription(
+          res.razorpay_payment_id,
+          res.razorpay_subscription_id,
+          res.razorpay_signature,
+        );
+        setWorking(false);
+        if (confirmed.error) {
+          toast.info(
+            "Mandate authorised — your plan will activate here shortly.",
+          );
+        } else {
+          toast.success(`You're on the ${meta.name} plan!`);
+        }
+        onActivated();
+      },
+      onDismiss: () => {
+        setWorking(false);
+        toast.error("Autopay setup wasn't completed.");
+      },
+    });
+    if (!opened) {
+      setWorking(false);
+      toast.error("Couldn't open the payment window. Please try again.");
+    }
+  }
+
+  async function doChange(when: "now" | "cycle_end") {
+    setWorking(true);
+    const res = await changePlan(plan, when);
+    setWorking(false);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(res.message ?? "Plan updated.");
+    onActivated();
+  }
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
@@ -656,21 +814,57 @@ function UpgradeModal({
             <X className="h-4 w-4" />
           </button>
         </div>
+
         <p className="mt-4 text-sm text-[#5b6472]">
           The {meta.name} plan is{" "}
           <span className="font-semibold text-[#111827]">
             ₹{price.toLocaleString("en-IN")}
             {period === "yearly" ? "/year" : "/month"}
           </span>
-          . Self-serve checkout is coming soon — for now our team activates plan
-          changes for you.
+          .{" "}
+          {isNewSubscription
+            ? "You'll authorise autopay once — it then renews automatically, and you can cancel anytime."
+            : isPlanChange
+              ? "Choose when to start — right away (charged now, prorated) or at your next renewal, on your existing autopay."
+              : "This change isn't self-serve yet — our team will switch it for you."}
         </p>
-        <a
-          href="mailto:support@storemink.com?subject=Upgrade%20my%20plan"
-          className="dash-btn dash-btn-primary mt-5 w-full justify-center"
-        >
-          Contact us to upgrade
-        </a>
+
+        {isNewSubscription ? (
+          <button
+            type="button"
+            onClick={subscribe}
+            disabled={working}
+            className="dash-btn dash-btn-primary mt-5 w-full justify-center"
+          >
+            {working ? "Opening…" : "Subscribe & set up autopay"}
+          </button>
+        ) : isPlanChange ? (
+          <div className="mt-5 space-y-2">
+            <button
+              type="button"
+              onClick={() => doChange("now")}
+              disabled={working}
+              className="dash-btn dash-btn-primary w-full justify-center"
+            >
+              {working ? "Working…" : `Upgrade now (prorated)`}
+            </button>
+            <button
+              type="button"
+              onClick={() => doChange("cycle_end")}
+              disabled={working}
+              className="dash-btn w-full justify-center"
+            >
+              Start at next renewal
+            </button>
+          </div>
+        ) : (
+          <a
+            href="mailto:support@storemink.com?subject=Change%20my%20plan"
+            className="dash-btn dash-btn-primary mt-5 w-full justify-center"
+          >
+            Contact us to change plan
+          </a>
+        )}
       </div>
     </div>
   );
