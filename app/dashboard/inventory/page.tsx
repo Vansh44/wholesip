@@ -6,6 +6,7 @@ import {
 } from "@/app/actions/inventory-actions";
 import { createClient } from "@/lib/supabase/server";
 import { InventoryManagementView } from "./inventory-management-view";
+import { RealtimeRefresher } from "../components/realtime-refresher";
 
 const INVENTORY_FILTERS: InventoryFilter[] = ["all", "low", "out"];
 
@@ -61,17 +62,21 @@ export default async function InventoryPage({
   }
 
   return (
-    <InventoryManagementView
-      rows={inventoryRes.rows}
-      total={inventoryRes.total}
-      categories={(categories ?? []) as { id: string; name: string }[]}
-      canManage={canManage}
-      page={page}
-      pageSize={pageSize}
-      query={q}
-      filter={filter}
-      categoryFilter={categoryId}
-      storeLowStockThreshold={inventoryRes.lowStockThreshold}
-    />
+    <>
+      {/* Live updates: stock changes the moment a checkout reserves it. */}
+      <RealtimeRefresher tables={["products", "product_variants"]} />
+      <InventoryManagementView
+        rows={inventoryRes.rows}
+        total={inventoryRes.total}
+        categories={(categories ?? []) as { id: string; name: string }[]}
+        canManage={canManage}
+        page={page}
+        pageSize={pageSize}
+        query={q}
+        filter={filter}
+        categoryFilter={categoryId}
+        storeLowStockThreshold={inventoryRes.lowStockThreshold}
+      />
+    </>
   );
 }

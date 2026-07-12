@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { getStoreBrand } from "@/lib/store/brand";
+import { getCurrentStore } from "@/lib/store/resolve";
+import { effectivePlan, PLAN_META } from "@/lib/plans";
 import { DashboardTopbar } from "./dashboard-topbar";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { MobileNavProvider } from "./dashboard-mobile-nav";
@@ -93,6 +95,13 @@ export default async function DashboardLayout({
   const canViewInventory = can(permissions, "inventory", "view", isSuperadmin);
   const lowStockAlerts = canViewInventory ? await getLowStockAlertCount() : 0;
 
+  // Store identity for the topbar (name + current plan, Shopify-style). Cached
+  // host lookup, so this adds no query. effectivePlan folds an expired timed
+  // plan back to free so the badge never overstates what the store can do.
+  const store = await getCurrentStore();
+  const planId = effectivePlan(store);
+  const planName = PLAN_META[planId].name;
+
   // Build the sidebar from the permission catalog: a section appears only when
   // the viewer can view it. The Dashboard home is always shown so everyone has
   // a landing page. Empty groups are dropped. The enquiries item gets a live
@@ -143,6 +152,9 @@ export default async function DashboardLayout({
             role={profile.role ?? ""}
             firstName={profile.first_name}
             lastName={profile.last_name}
+            storeName={store.name}
+            planId={planId}
+            planName={planName}
           />
           <div className="flex flex-1 overflow-hidden">
             <DashboardSidebar groups={navGroups} />

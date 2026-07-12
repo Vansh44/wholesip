@@ -3,6 +3,7 @@ import { getOrders } from "@/app/actions/order-actions";
 import { formatPrice } from "@/lib/pricing";
 import { Badge } from "@/components/ui/badge";
 import { DASHBOARD_PAGE_SIZE, pickPage } from "@/app/dashboard/lib/list-params";
+import { RealtimeRefresher } from "../components/realtime-refresher";
 
 interface ShippingAddress {
   firstName?: string;
@@ -48,6 +49,8 @@ export default async function OrdersPage({
   if (!orders || orders.length === 0) {
     return (
       <div className="p-8">
+        {/* Still subscribe while empty, so the FIRST order appears live. */}
+        <RealtimeRefresher tables={["orders"]} />
         <h1 className="text-2xl font-bold mb-4">Orders</h1>
         <div className="bg-white border rounded-lg p-12 text-center text-gray-500">
           No orders have been placed yet.
@@ -61,6 +64,8 @@ export default async function OrdersPage({
 
   return (
     <div className="dash-page-enter">
+      {/* Live updates: re-fetch the list when an order is placed/updated. */}
+      <RealtimeRefresher tables={["orders"]} />
       <header className="dash-page-header row">
         <div>
           <h1>Orders</h1>

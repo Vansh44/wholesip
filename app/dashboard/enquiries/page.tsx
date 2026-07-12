@@ -9,6 +9,7 @@ import {
   type EnquirySort,
 } from "./data";
 import { EnquiriesManagementView } from "./enquiries-management-view";
+import { RealtimeRefresher } from "../components/realtime-refresher";
 
 const FILTERS: EnquiryFilter[] = [
   "all",
@@ -45,20 +46,24 @@ export default async function EnquiriesPage({
   ]);
 
   return (
-    <EnquiriesManagementView
-      enquiries={data}
-      canManage={canManage}
-      stats={stats}
-      subjectOptions={subjectOptions}
-      total={total}
-      page={page}
-      pageSize={pageSize}
-      query={q}
-      status={status as "all" | EnquiryStatus}
-      subject={subject}
-      fromDate={from}
-      toDate={to}
-      sort={sort}
-    />
+    <>
+      {/* Live updates: new customer enquiries appear without a refresh. */}
+      <RealtimeRefresher tables={["enquiries"]} />
+      <EnquiriesManagementView
+        enquiries={data}
+        canManage={canManage}
+        stats={stats}
+        subjectOptions={subjectOptions}
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        query={q}
+        status={status as "all" | EnquiryStatus}
+        subject={subject}
+        fromDate={from}
+        toDate={to}
+        sort={sort}
+      />
+    </>
   );
 }
