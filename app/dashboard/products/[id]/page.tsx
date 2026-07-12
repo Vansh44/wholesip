@@ -17,14 +17,12 @@ export default async function ProductEditPage({
 
   return (
     <div className="dash-page-enter">
-      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <ProductEditPanel
-          product={data.product}
-          categories={data.categories}
-          colors={data.colors}
-          taxClasses={data.taxClasses}
-        />
-      </div>
+      <ProductEditPanel
+        product={data.product}
+        categories={data.categories}
+        colors={data.colors}
+        taxClasses={data.taxClasses}
+      />
     </div>
   );
 }

@@ -25,7 +25,7 @@ export async function getProductEditData(id: string): Promise<{
   const storeId = await getActingStoreId();
 
   const [
-    { data: product },
+    { data: product, error: productError },
     { data: categories },
     { data: colors },
     { data: taxClasses },
@@ -58,7 +58,17 @@ export async function getProductEditData(id: string): Promise<{
       .order("name", { ascending: true }),
   ]);
 
-  if (!product) return null;
+  if (!product) {
+    // Don't swallow the reason: a null here renders a 404. If the row exists
+    // (it usually does), the culprit is almost always the authenticated read
+    // being rejected (e.g. an ES256 session token PostgREST won't verify) or a
+    // store_id mismatch — both of which this log makes obvious.
+    console.error(
+      `getProductEditData: no product for id=${id} store=${storeId}`,
+      productError?.message ?? "(no error — 0 rows matched)",
+    );
+    return null;
+  }
 
   const p = product as Product;
   p.variants = (p.variants ?? []).sort((a, b) => a.sort_order - b.sort_order);

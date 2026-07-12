@@ -3,14 +3,42 @@
    of the admin and inherits any future theme change. Shopify-style settings
    cards: white surface, soft border, sticky save bar. */
 
-.billPage {
+/* .billPage is full width so the sticky header can span the whole content
+   area; the body below re-centres at a readable width. */
+.billBody {
   max-width: 820px;
+  margin: 0 auto;
 }
-.billPage h1 {
-  font-size: 22px;
+
+/* Sticky top header (mirrors the product editor): title + Save, pinned FLUSH
+   to the top of the scroll area. .dash-content has 28px top / 32px side
+   padding and position:sticky pins to its content box, so we cancel that
+   padding — the negative top/side margins pull the bar out to the container
+   edges and top:-28 makes it pin flush when scrolled. */
+.billHead {
+  position: sticky;
+  z-index: 30;
+  top: -28px;
+  margin: -28px -32px 24px;
+  padding: 14px 32px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--dash-surface);
+  border-bottom: 1px solid var(--dash-border-strong);
+}
+.billHead h1 {
+  flex: 1;
+  min-width: 0;
+  font-size: 20px;
   font-weight: 700;
-  margin: 0 0 4px;
+  margin: 0;
   color: var(--dash-text);
+}
+.billHeadActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .billPage .lead {
   color: var(--dash-text-2);
@@ -208,25 +236,9 @@
   border-top: 1px dashed var(--dash-border-strong);
 }
 
-/* Sticky save bar (Shopify-style contextual save). pointer-events pass
-   through the bar's empty area so it never swallows clicks on content
-   scrolled beneath it — only the button/status themselves are interactive. */
-.billBar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  position: sticky;
-  bottom: 0;
-  padding: 14px 0;
-  pointer-events: none;
-}
-.billBar > * {
-  pointer-events: auto;
-}
-.billBar .billSave {
-  box-shadow: 0 2px 10px rgba(17, 24, 39, 0.18);
-}
-.billBar .billStatus {
+/* Save + status live in the sticky .billHead (see above); the status keeps a
+   subtle pill so it reads next to the button. */
+.billHeadActions .billStatus {
   background: var(--dash-surface);
   border: 1px solid var(--dash-border);
   border-radius: 8px;
@@ -248,6 +260,82 @@
 .billSave:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+/* Secondary header action (Preview invoice). */
+.billGhost {
+  background: var(--dash-surface);
+  color: var(--dash-text);
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.billGhost:hover {
+  background: var(--dash-surface-2);
+}
+
+/* ---- Invoice preview modal ---- */
+.billPreviewOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+  background: rgba(17, 24, 39, 0.55);
+}
+.billPreviewPanel {
+  width: 100%;
+  max-width: 860px;
+  background: var(--dash-surface);
+  border-radius: 14px;
+  box-shadow: var(--dash-shadow-lg);
+  overflow: hidden;
+}
+.billPreviewHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--dash-border);
+  position: sticky;
+  top: 0;
+  background: var(--dash-surface);
+}
+.billPreviewTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--dash-text);
+}
+.billPreviewNote {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--dash-text-3);
+}
+.billPreviewClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--dash-border);
+  background: var(--dash-surface);
+  color: var(--dash-text-2);
+  cursor: pointer;
+}
+.billPreviewClose:hover {
+  background: var(--dash-surface-2);
+}
+/* The invoice sheet is print-styled; give it a soft canvas in the modal. */
+.billPreviewBody {
+  padding: 24px;
+  background: var(--dash-surface-2);
 }
 .billStatus.ok {
   color: var(--dash-green);
