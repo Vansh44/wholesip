@@ -8,6 +8,7 @@ import {
   sanitizeSearch,
 } from "../lib/list-params";
 import { ProductsManagementView } from "./products-management-view";
+import { RealtimeRefresher } from "../components/realtime-refresher";
 import { resolveStoreSettings } from "@/lib/settings/registry";
 
 export type ProductFilter = "all" | "published" | "drafts" | "featured";
@@ -217,20 +218,24 @@ export default async function ProductsPage({
   const list = (products ?? []) as Product[];
 
   return (
-    <ProductsManagementView
-      products={list}
-      categories={(categories ?? []) as CategoryOption[]}
-      colors={(colors ?? []) as CardColorOption[]}
-      taxClasses={(taxClasses ?? []) as TaxClassOption[]}
-      canManage={canManage}
-      counts={counts}
-      total={count ?? 0}
-      page={page}
-      pageSize={pageSize}
-      query={q}
-      filter={filter}
-      categoryFilter={categoryFilter}
-      defaultTrackInventory={defaultTrackInventory}
-    />
+    <>
+      {/* Live updates: reflect stock changes from checkout + other admins' edits. */}
+      <RealtimeRefresher tables={["products", "product_variants"]} />
+      <ProductsManagementView
+        products={list}
+        categories={(categories ?? []) as CategoryOption[]}
+        colors={(colors ?? []) as CardColorOption[]}
+        taxClasses={(taxClasses ?? []) as TaxClassOption[]}
+        canManage={canManage}
+        counts={counts}
+        total={count ?? 0}
+        page={page}
+        pageSize={pageSize}
+        query={q}
+        filter={filter}
+        categoryFilter={categoryFilter}
+        defaultTrackInventory={defaultTrackInventory}
+      />
+    </>
   );
 }
