@@ -248,9 +248,9 @@ export const SECTIONS: DashboardSection[] = [
   },
   {
     key: "ai",
-    label: "AI usage",
-    href: "/dashboard/ai",
-    icon: "ai",
+    label: "Plans & Billing",
+    href: "/dashboard/plans",
+    icon: "plans",
     group: "Administration",
     actions: ["view", "manage"],
   },

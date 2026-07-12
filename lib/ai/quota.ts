@@ -81,7 +81,7 @@ export async function consumeAiQuota(storeId: string): Promise<QuotaResult> {
   return {
     allowed: false,
     error: planAllows(plan, "basic")
-      ? `You've used all ${cap} AI generations included in the ${PLAN_META[plan].name} plan this month and have no AI credits left. Buy AI credits (Dashboard → AI usage) or upgrade your plan.`
+      ? `You've used all ${cap} AI generations included in the ${PLAN_META[plan].name} plan this month and have no AI credits left. Buy AI credits (Dashboard → Plans & Billing) or upgrade your plan.`
       : `You've used all ${cap} AI generations included in the ${PLAN_META[plan].name} plan this month. Upgrade your plan for more.`,
   };
 }
