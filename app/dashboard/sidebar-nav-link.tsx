@@ -32,6 +32,7 @@ import {
   HelpCircle,
   Receipt,
   CreditCard,
+  Gem,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -68,6 +69,7 @@ export const navIcons = {
   billing: Receipt,
   channels: CreditCard,
   ai: Sparkles,
+  plans: Gem,
 } satisfies Record<string, LucideIcon>;
 
 export type NavIconKey = keyof typeof navIcons;

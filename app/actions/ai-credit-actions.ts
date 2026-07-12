@@ -39,7 +39,12 @@ export interface AiLedgerEntry {
 
 export interface AiUsagePageData {
   usage: AiUsageSummary;
+  /** The store's EFFECTIVE plan (an expired timed plan resolves to free). */
   plan: string;
+  /** ISO expiry of a timed plan (null = indefinite). */
+  planExpiresAt: string | null;
+  /** How the plan was granted: comp / paid / trial (or null). */
+  planSource: string | null;
   /** Whether this store's plan may buy credits (basic+). */
   canBuyCredits: boolean;
   /** Whether the platform's payment account is configured at all. */
@@ -111,8 +116,9 @@ async function reconcilePendingPurchases(
   }
 }
 
-/** Everything the /dashboard/ai page renders. Also runs the pending-purchase
- *  reconcile pass so a dropped payment callback self-heals on next visit. */
+/** Everything the /dashboard/plans (Plans & Billing) page renders. Also runs
+ *  the pending-purchase reconcile pass so a dropped payment callback self-heals
+ *  on next visit. */
 export async function getAiUsagePageData(): Promise<AiUsagePageData> {
   const storeId = await getActingStoreId();
   const admin = createAdminClient();
@@ -122,7 +128,7 @@ export async function getAiUsagePageData(): Promise<AiUsagePageData> {
   const [{ data: store }, usage, { data: ledger }] = await Promise.all([
     admin
       .from("stores")
-      .select("plan, plan_expires_at")
+      .select("plan, plan_expires_at, plan_source")
       .eq("id", storeId)
       .maybeSingle(),
     getAiUsage(storeId),
@@ -138,6 +144,8 @@ export async function getAiUsagePageData(): Promise<AiUsagePageData> {
   return {
     usage,
     plan,
+    planExpiresAt: (store?.plan_expires_at as string | null) ?? null,
+    planSource: (store?.plan_source as string | null) ?? null,
     canBuyCredits: planAllows(plan, "basic"),
     purchasesAvailable: getPlatformRazorpayCreds() !== null,
     ledger: (ledger ?? []) as AiLedgerEntry[],

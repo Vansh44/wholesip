@@ -13,15 +13,24 @@ export interface RazorpaySuccess {
   razorpay_signature: string;
 }
 
+// Subscription (autopay) checkout returns the subscription id instead of an
+// order id, and the signature is over payment_id|subscription_id.
+export interface RazorpaySubscriptionSuccess {
+  razorpay_payment_id: string;
+  razorpay_subscription_id: string;
+  razorpay_signature: string;
+}
+
 interface RazorpayOptions {
   key: string;
-  amount: number; // paise
-  currency: "INR";
+  amount?: number; // paise (one-time only; subscriptions charge the plan amount)
+  currency?: "INR";
   name: string;
   description?: string;
-  order_id: string;
+  order_id?: string;
+  subscription_id?: string;
   prefill?: { name?: string; email?: string; contact?: string };
-  handler: (response: RazorpaySuccess) => void;
+  handler: (response: RazorpaySuccess & RazorpaySubscriptionSuccess) => void;
   modal?: { ondismiss?: () => void };
   theme?: { color?: string };
 }
@@ -83,6 +92,38 @@ export async function openRazorpayModal(
     name: params.name,
     description: params.description,
     order_id: params.rzpOrderId,
+    prefill: params.prefill,
+    handler: params.onSuccess,
+    modal: { ondismiss: params.onDismiss },
+    theme: params.themeColor ? { color: params.themeColor } : undefined,
+  });
+  rzp.open();
+  return true;
+}
+
+export interface OpenSubscriptionParams {
+  keyId: string;
+  subscriptionId: string;
+  name: string;
+  description?: string;
+  prefill?: { name?: string; email?: string; contact?: string };
+  themeColor?: string;
+  onSuccess: (response: RazorpaySubscriptionSuccess) => void;
+  onDismiss: () => void;
+}
+
+/** Open the Razorpay modal to authorise an autopay MANDATE for a subscription.
+ *  Resolves false when checkout.js is unavailable. */
+export async function openRazorpaySubscriptionModal(
+  params: OpenSubscriptionParams,
+): Promise<boolean> {
+  const ready = await loadRazorpayCheckout();
+  if (!ready || !window.Razorpay) return false;
+  const rzp = new window.Razorpay({
+    key: params.keyId,
+    name: params.name,
+    description: params.description,
+    subscription_id: params.subscriptionId,
     prefill: params.prefill,
     handler: params.onSuccess,
     modal: { ondismiss: params.onDismiss },

@@ -2,7 +2,12 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { createHmac } from "node:crypto";
 
 import { encryptSecret, decryptSecret } from "./crypto";
-import { capturedPayment, verifyCheckoutSignature } from "./razorpay";
+import {
+  capturedPayment,
+  verifyCheckoutSignature,
+  verifySubscriptionSignature,
+  verifyWebhookSignature,
+} from "./razorpay";
 
 const TEST_KEY = Buffer.alloc(32, 7).toString("base64");
 
@@ -115,5 +120,77 @@ describe("capturedPayment", () => {
 
   it("returns null for no attempts", () => {
     expect(capturedPayment([])).toBeNull();
+  });
+});
+
+describe("verifySubscriptionSignature", () => {
+  const secret = "test_secret";
+  const paymentId = "pay_Nabc123";
+  const subId = "sub_Ndef456";
+  // Subscription order is payment_id|subscription_id (reverse of one-time).
+  const valid = createHmac("sha256", secret)
+    .update(`${paymentId}|${subId}`)
+    .digest("hex");
+
+  it("accepts the correct HMAC", () => {
+    expect(verifySubscriptionSignature(secret, paymentId, subId, valid)).toBe(
+      true,
+    );
+  });
+
+  it("rejects the one-time operand order (order matters)", () => {
+    const swapped = createHmac("sha256", secret)
+      .update(`${subId}|${paymentId}`)
+      .digest("hex");
+    expect(verifySubscriptionSignature(secret, paymentId, subId, swapped)).toBe(
+      false,
+    );
+  });
+
+  it("rejects a wrong secret", () => {
+    const forged = createHmac("sha256", "other")
+      .update(`${paymentId}|${subId}`)
+      .digest("hex");
+    expect(verifySubscriptionSignature(secret, paymentId, subId, forged)).toBe(
+      false,
+    );
+  });
+
+  it("rejects empty inputs", () => {
+    expect(verifySubscriptionSignature("", paymentId, subId, valid)).toBe(
+      false,
+    );
+    expect(verifySubscriptionSignature(secret, "", subId, valid)).toBe(false);
+    expect(verifySubscriptionSignature(secret, paymentId, "", valid)).toBe(
+      false,
+    );
+    expect(verifySubscriptionSignature(secret, paymentId, subId, "")).toBe(
+      false,
+    );
+  });
+});
+
+describe("verifyWebhookSignature", () => {
+  const secret = "whsec_test";
+  const body = '{"event":"subscription.charged","x":1}';
+  const valid = createHmac("sha256", secret).update(body).digest("hex");
+
+  it("accepts a matching body signature", () => {
+    expect(verifyWebhookSignature(secret, body, valid)).toBe(true);
+  });
+
+  it("rejects a tampered body", () => {
+    expect(verifyWebhookSignature(secret, body + " ", valid)).toBe(false);
+  });
+
+  it("rejects a wrong secret", () => {
+    const forged = createHmac("sha256", "nope").update(body).digest("hex");
+    expect(verifyWebhookSignature(secret, body, forged)).toBe(false);
+  });
+
+  it("rejects empty inputs", () => {
+    expect(verifyWebhookSignature("", body, valid)).toBe(false);
+    expect(verifyWebhookSignature(secret, "", valid)).toBe(false);
+    expect(verifyWebhookSignature(secret, body, "")).toBe(false);
   });
 });
