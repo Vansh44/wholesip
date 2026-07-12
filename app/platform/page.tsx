@@ -190,7 +190,7 @@ export default function StoreminkLanding() {
         // The one-word spelling people actually type. Declaring it as an
         // alternate name tells Google "storemink" IS the brand — a direct signal
         // against the "did you mean storelink?" spell-correction on a new brand.
-        alternateName: "Storemink",
+        alternateName: ["Storemink", "store mink"],
         url: PLATFORM_URL,
         logo: `${PLATFORM_URL}/icon.svg`,
         description:
@@ -200,7 +200,7 @@ export default function StoreminkLanding() {
         "@type": "WebSite",
         "@id": `${PLATFORM_URL}/#website`,
         name: "StoreMink",
-        alternateName: "Storemink",
+        alternateName: ["Storemink", "store mink"],
         url: PLATFORM_URL,
         publisher: { "@id": `${PLATFORM_URL}/#organization` },
       },
