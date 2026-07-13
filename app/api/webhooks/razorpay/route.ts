@@ -3,6 +3,15 @@ import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STORE_TAG } from "@/lib/store/resolve";
 import { verifyWebhookSignature } from "@/lib/payments/razorpay";
+import { PLAN_META, normalizePlan } from "@/lib/plans";
+import {
+  resolveBillingEmail,
+  sendBillingEmail,
+  manageUrl,
+  paymentReceiptTemplate,
+  paymentFailedTemplate,
+  subscriptionCancelledTemplate,
+} from "@/lib/email/billing-emails";
 
 // Razorpay Subscription webhooks — the source of truth for recurring billing.
 // Renewals, failed charges (dunning), cancellations and plan changes all arrive
@@ -26,6 +35,7 @@ interface RzpSubEntity {
   id: string;
   status: string;
   plan_id: string | null;
+  paid_count: number | null;
   current_start: number | null;
   current_end: number | null;
 }
@@ -98,12 +108,13 @@ async function processSubscription(
 ) {
   const { data: row } = await admin
     .from("store_subscriptions")
-    .select("store_id, plan, scheduled_plan")
+    .select("store_id, plan, period, scheduled_plan")
     .eq("rzp_subscription_id", sub.id)
     .maybeSingle();
   if (!row) return; // not one of ours
 
   const storeId = row.store_id as string;
+  const period = ((row.period as string) ?? "monthly") as "monthly" | "yearly";
   const currentEnd = sub.current_end ? new Date(sub.current_end * 1000) : null;
   const currentStart = sub.current_start
     ? new Date(sub.current_start * 1000)
@@ -154,7 +165,7 @@ async function processSubscription(
       break;
 
     // A charge failed; Razorpay is retrying. Keep access (still within the paid
-    // cycle). Dunning email is Phase 3.
+    // cycle).
     case "subscription.pending":
       break;
 
@@ -178,6 +189,77 @@ async function processSubscription(
   }
 
   if (changed) revalidateTag(STORE_TAG, "max");
+
+  // Transactional emails (best-effort — a mail failure never fails the webhook).
+  await sendLifecycleEmail(storeId, eventType, plan, period, sub, currentEnd);
+}
+
+// Which event → which email. Kept out of the state switch so the plan/cycle
+// bookkeeping above stays the source of truth regardless of mail.
+async function sendLifecycleEmail(
+  storeId: string,
+  eventType: string,
+  plan: string,
+  period: "monthly" | "yearly",
+  sub: RzpSubEntity,
+  currentEnd: Date | null,
+) {
+  const needsEmail =
+    (eventType === "subscription.charged" && (sub.paid_count ?? 0) > 1) ||
+    eventType === "subscription.pending" ||
+    eventType === "subscription.halted" ||
+    eventType === "subscription.cancelled";
+  if (!needsEmail) return;
+
+  const recip = await resolveBillingEmail(storeId);
+  if (!recip) return;
+  const url = manageUrl(recip.slug);
+  const meta = PLAN_META[normalizePlan(plan)];
+  const amountInr = period === "yearly" ? meta.yearlyInr : meta.monthlyInr;
+  const cycleEnd = currentEnd?.toISOString() ?? null;
+
+  switch (eventType) {
+    case "subscription.charged": // renewal (first charge is covered by activation)
+      await sendBillingEmail(
+        recip.email,
+        paymentReceiptTemplate({
+          storeName: recip.storeName,
+          planName: meta.name,
+          amountInr,
+          period,
+          renewsOn: cycleEnd,
+          manageUrl: url,
+        }),
+      );
+      break;
+    case "subscription.pending":
+    case "subscription.halted":
+      await sendBillingEmail(
+        recip.email,
+        paymentFailedTemplate({
+          storeName: recip.storeName,
+          planName: meta.name,
+          final: eventType === "subscription.halted",
+          accessUntil:
+            eventType === "subscription.halted"
+              ? addDays(new Date(), GRACE_DAYS).toISOString()
+              : cycleEnd,
+          manageUrl: url,
+        }),
+      );
+      break;
+    case "subscription.cancelled":
+      await sendBillingEmail(
+        recip.email,
+        subscriptionCancelledTemplate({
+          storeName: recip.storeName,
+          planName: meta.name,
+          accessUntil: cycleEnd,
+          manageUrl: url,
+        }),
+      );
+      break;
+  }
 }
 
 // Set plan + expiry, UNLESS the store is on an operator comp plan — a comp

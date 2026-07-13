@@ -26,6 +26,12 @@ import {
   planAmountPaise,
   type BillingPeriod,
 } from "@/lib/payments/subscription";
+import {
+  resolveBillingEmail,
+  sendBillingEmail,
+  manageUrl,
+  planActivatedTemplate,
+} from "@/lib/email/billing-emails";
 
 const PERIODS: BillingPeriod[] = ["monthly", "yearly"];
 
@@ -253,6 +259,23 @@ export async function confirmSubscription(
   });
 
   revalidateTag(STORE_TAG, "max");
+
+  // Welcome / activation email (best-effort — never blocks activation).
+  const recip = await resolveBillingEmail(storeId);
+  if (recip) {
+    await sendBillingEmail(
+      recip.email,
+      planActivatedTemplate({
+        storeName: recip.storeName,
+        planName: PLAN_META[plan].name,
+        amountInr: planAmountPaise(plan, period) / 100,
+        period,
+        renewsOn: expiresAt.toISOString(),
+        manageUrl: manageUrl(recip.slug),
+      }),
+    );
+  }
+
   return { success: true, plan };
 }
 
