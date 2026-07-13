@@ -8,6 +8,7 @@
 
 import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { STORE_TAG } from "@/lib/store/resolve";
 import { PLAN_META, type Plan } from "@/lib/plans";
@@ -40,6 +41,30 @@ const TERMINAL = new Set(["cancelled", "completed"]);
 
 function isPaidPlan(p: string): p is Exclude<Plan, "free"> {
   return p === "basic" || p === "pro";
+}
+
+/**
+ * Signup-context authorisation. During signup the store is created on the
+ * PLATFORM host, so getActingStoreId() (host-based) can't resolve it — the
+ * caller passes the freshly-created store id and we authorise them as its
+ * superadmin directly against the admins table (service role). Returns the
+ * caller's user id, or null.
+ */
+async function assertStoreOwner(storeId: string): Promise<string | null> {
+  if (typeof storeId !== "string" || !storeId) return null;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("admins")
+    .select("role")
+    .eq("id", user.id)
+    .eq("store_id", storeId)
+    .maybeSingle();
+  return data?.role === "superadmin" ? user.id : null;
 }
 
 export interface SubscriptionState {
@@ -97,7 +122,30 @@ export async function startPlanSubscription(
 ): Promise<StartSubscriptionResult> {
   const userId = await getManagerUserId("ai");
   if (!userId) return { error: "You don't have permission to do this." };
+  const storeId = await getActingStoreId();
+  return startPlanSubscriptionForStore(storeId, plan, period);
+}
 
+/**
+ * Signup-context entry point (see assertStoreOwner). Same subscription flow as
+ * the dashboard, but the store is identified explicitly (it doesn't yet resolve
+ * from the platform host) and the caller is authorised as its superadmin.
+ */
+export async function startSignupSubscription(
+  storeId: string,
+  plan: string,
+  period: string,
+): Promise<StartSubscriptionResult> {
+  const userId = await assertStoreOwner(storeId);
+  if (!userId) return { error: "You don't have permission to do this." };
+  return startPlanSubscriptionForStore(storeId, plan, period);
+}
+
+async function startPlanSubscriptionForStore(
+  storeId: string,
+  plan: string,
+  period: string,
+): Promise<StartSubscriptionResult> {
   if (!isPaidPlan(plan)) return { error: "Choose a paid plan to subscribe." };
   if (!PERIODS.includes(period as BillingPeriod)) {
     return { error: "Invalid billing period." };
@@ -114,7 +162,6 @@ export async function startPlanSubscription(
     return { error: "Couldn't set up the plan. Please try again." };
   }
 
-  const storeId = await getActingStoreId();
   const sub = await rzpCreateSubscription(creds, {
     planId: resolved.rzpPlanId,
     totalCount: totalCyclesFor(billingPeriod),
@@ -173,7 +220,38 @@ export async function confirmSubscription(
 ): Promise<ConfirmSubscriptionResult> {
   const userId = await getManagerUserId("ai");
   if (!userId) return { error: "You don't have permission to do this." };
+  const storeId = await getActingStoreId();
+  return confirmSubscriptionForStore(
+    storeId,
+    paymentId,
+    subscriptionId,
+    signature,
+  );
+}
 
+/** Signup-context confirm (see assertStoreOwner + startSignupSubscription). */
+export async function confirmSignupSubscription(
+  storeId: string,
+  paymentId: string,
+  subscriptionId: string,
+  signature: string,
+): Promise<ConfirmSubscriptionResult> {
+  const userId = await assertStoreOwner(storeId);
+  if (!userId) return { error: "You don't have permission to do this." };
+  return confirmSubscriptionForStore(
+    storeId,
+    paymentId,
+    subscriptionId,
+    signature,
+  );
+}
+
+async function confirmSubscriptionForStore(
+  storeId: string,
+  paymentId: string,
+  subscriptionId: string,
+  signature: string,
+): Promise<ConfirmSubscriptionResult> {
   const creds = getPlatformRazorpayCreds();
   if (!creds) return { error: "Subscriptions aren't available right now." };
 
@@ -188,7 +266,6 @@ export async function confirmSubscription(
     return { error: "Payment verification failed." };
   }
 
-  const storeId = await getActingStoreId();
   const admin = createAdminClient();
 
   const { data: row } = await admin

@@ -95,35 +95,118 @@ export async function checkStoreSlugAvailability(
   return { slug, available: true };
 }
 
-export interface CreateStoreResult {
+export interface SignupResume {
+  /** Whether there's an authenticated session (email/password or Google). */
+  authenticated: boolean;
+  /** Whether this account already owns a store (→ send them to the dashboard). */
+  hasStore: boolean;
+  /** The owned store's slug, when hasStore. */
   slug?: string;
-  error?: string;
+  /** Whether the account's phone is OTP-verified already. */
+  phoneConfirmed: boolean;
+  email?: string;
+  /** Name prefill (from Google profile metadata when signing in with Google). */
+  firstName?: string;
+  lastName?: string;
 }
 
 /**
- * Provision a new store. Called AFTER the owner has OTP-verified (so there's an
- * authenticated session). Creates the store, makes the caller its superadmin,
- * and returns the slug. Runs the writes via the service role because a brand-new
- * owner isn't yet a superadmin of any store (so RLS would block them).
+ * What the signup wizard needs on load to resume: after a Google redirect (or a
+ * refreshed tab), an account may already have a session — and possibly a store.
+ * Lets the client jump straight to the phone/name step (prefilling the Google
+ * name), or bounce a finished account to its dashboard.
  */
-export async function createStore(
-  rawName: string,
-  template: string = DEFAULT_THEME_ID,
-): Promise<CreateStoreResult> {
+export async function getSignupResumeInfo(): Promise<SignupResume> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return { error: "Please verify your email before creating a store." };
+    return { authenticated: false, hasStore: false, phoneConfirmed: false };
+  }
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("admins")
+    .select("store_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  let slug: string | undefined;
+  if (existing?.store_id) {
+    const { data: store } = await admin
+      .from("stores")
+      .select("slug")
+      .eq("id", existing.store_id)
+      .maybeSingle();
+    slug = (store?.slug as string) ?? undefined;
+  }
+
+  // Best-effort name prefill from OAuth profile metadata.
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const full = String(meta.full_name || meta.name || "").trim();
+  const parts = full ? full.split(/\s+/) : [];
+  const firstName = (meta.given_name as string) || parts[0] || undefined;
+  const lastName =
+    (meta.family_name as string) ||
+    (parts.length > 1 ? parts.slice(1).join(" ") : undefined);
+
+  return {
+    authenticated: true,
+    hasStore: !!existing?.store_id,
+    slug,
+    phoneConfirmed: !!user.phone_confirmed_at,
+    email: user.email ?? undefined,
+    firstName,
+    lastName,
+  };
+}
+
+export interface CreateStoreInput {
+  /** Store display name (also seeds the subdomain slug). */
+  name: string;
+  /** Chosen theme/template id (see lib/themes/meta). */
+  template?: string;
+  /** Owner's first name (written to admins.first_name). */
+  firstName?: string;
+  /** Owner's last name (admins.last_name; optional). */
+  lastName?: string;
+  /** ISO country code the merchant sells from (settings.business.country). */
+  country?: string;
+  /** City the merchant sells from (settings.business.city; optional). */
+  city?: string;
+}
+
+export interface CreateStoreResult {
+  slug?: string;
+  storeId?: string;
+  error?: string;
+}
+
+/**
+ * Provision a new store. Called AFTER the owner has phone-OTP-verified (so
+ * there's an authenticated session — see the signup wizard). Creates the store,
+ * makes the caller its superadmin (recording their name + selling location),
+ * and returns the slug + id. Runs the writes via the service role because a
+ * brand-new owner isn't yet a superadmin of any store (so RLS would block them).
+ */
+export async function createStore(
+  input: CreateStoreInput,
+): Promise<CreateStoreResult> {
+  const rawName = input.name;
+  const template = input.template || DEFAULT_THEME_ID;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "Please sign in before creating a store." };
   }
   // The client wizard tracks verification in React state, which a caller can
-  // bypass by invoking this action directly. Re-check the authoritative flags
-  // on the auth user so a store can't be provisioned without a confirmed
-  // email AND phone.
-  if (!user.email_confirmed_at) {
-    return { error: "Please verify your email before creating a store." };
-  }
+  // bypass by invoking this action directly. Phone is the authoritative
+  // verification (email confirmation is disabled — signup is phone-only), so a
+  // store can't be provisioned without a confirmed phone number.
   if (!user.phone_confirmed_at) {
     return {
       error: "Please verify your phone number before creating a store.",
@@ -149,6 +232,15 @@ export async function createStore(
     return { error: "This account already has a store." };
   }
 
+  // Where the merchant sells from — captured at signup, non-secret (it prints on
+  // invoices later), so it lives in the anon-readable stores.settings jsonb
+  // under `business` (never a secret — convention #9).
+  const country = (input.country || "").trim().slice(0, 2).toUpperCase();
+  const city = (input.city || "").trim().slice(0, 80);
+  const business: Record<string, string> = {};
+  if (country) business.country = country;
+  if (city) business.city = city;
+
   // Create the store.
   const { data: store, error: storeErr } = await admin
     .from("stores")
@@ -157,7 +249,11 @@ export async function createStore(
       name: rawName.trim(),
       status: "active",
       plan: "free",
-      settings: { template, brand: { name: rawName.trim() } },
+      settings: {
+        template,
+        brand: { name: rawName.trim() },
+        ...(Object.keys(business).length ? { business } : {}),
+      },
     })
     .select("id, slug")
     .single();
@@ -169,12 +265,24 @@ export async function createStore(
     return { error: "Could not create your store. Please try again." };
   }
 
-  // Make the owner the store's superadmin.
+  // Make the owner the store's superadmin, recording their name (falls back to
+  // the email local-part so admins.first_name is never blank).
+  const firstName =
+    (input.firstName || "").trim() ||
+    (user.email ? user.email.split("@")[0] : "Owner");
+  const lastName = (input.lastName || "").trim() || null;
   const { error: adminErr } = await admin.from("admins").insert({
     id: user.id,
     email: user.email ?? "",
     role: "superadmin",
     store_id: store.id,
+    first_name: firstName.slice(0, 80),
+    last_name: lastName ? lastName.slice(0, 80) : null,
+    // The owner set their own password during signup — the admins column
+    // defaults force_password_reset=true (that's for INVITED staff who get a
+    // temporary password), so override it here or the owner is bounced to
+    // /auth/set-password on their first login.
+    force_password_reset: false,
   });
   if (adminErr) {
     // Roll back the store so a retry isn't blocked by the now-taken slug.
@@ -211,5 +319,5 @@ export async function createStore(
     ]);
   });
 
-  return { slug: store.slug as string };
+  return { slug: store.slug as string, storeId: store.id as string };
 }
