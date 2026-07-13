@@ -654,7 +654,6 @@ export function PlansBillingClient({
         <UpgradeModal
           plan={upgradeTo}
           period={period}
-          currentPlan={plan}
           purchasesAvailable={data.purchasesAvailable}
           hasActiveSubscription={subscription.active}
           onClose={() => setUpgradeTo(null)}
@@ -713,7 +712,6 @@ function StatusPill({
 function UpgradeModal({
   plan,
   period,
-  currentPlan,
   purchasesAvailable,
   hasActiveSubscription,
   onClose,
@@ -721,7 +719,6 @@ function UpgradeModal({
 }: {
   plan: Plan;
   period: "monthly" | "yearly";
-  currentPlan: Plan;
   purchasesAvailable: boolean;
   hasActiveSubscription: boolean;
   onClose: () => void;
@@ -731,9 +728,11 @@ function UpgradeModal({
   const price = period === "yearly" ? meta.yearlyInr : meta.monthlyInr;
   const [working, setWorking] = useState(false);
 
-  const isNewSubscription = currentPlan === "free" && purchasesAvailable;
-  const isPlanChange =
-    currentPlan !== "free" && hasActiveSubscription && purchasesAvailable;
+  // No live mandate yet (free, or an operator-granted paid plan) → start a
+  // fresh subscription for the target plan. An existing active subscription →
+  // change the plan on that same mandate (now / at renewal).
+  const isPlanChange = hasActiveSubscription && purchasesAvailable;
+  const isNewSubscription = !hasActiveSubscription && purchasesAvailable;
 
   async function subscribe() {
     setWorking(true);
