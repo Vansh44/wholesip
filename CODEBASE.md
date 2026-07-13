@@ -162,7 +162,15 @@ wholesip/
 │   │
 │   ├── platform/              # ★ STOREMINK PLATFORM (served on storemink.com via rewrite)
 │   │   ├── page.tsx           # Marketing landing page
-│   │   ├── signup/            # Store creation signup journey (template selection…)
+│   │   ├── signup/            # ★ Store creation wizard (see §19): Shopify-style
+│   │   │                      # step order — email → password (+ Continue with
+│   │   │                      # Google) → phone OTP → name → store + location →
+│   │   │                      # theme → plan (Razorpay autopay for paid plans).
+│   │   │                      # Phone-only verification (email-confirm OFF).
+│   │   ├── auth/callback/     # ★ Platform-host OAuth callback (route.ts): the
+│   │   │                      # store-host /auth/callback is unreachable here
+│   │   │                      # (proxy rewrites → /platform/*), so Google sign-in
+│   │   │                      # from /signup lands here → exchange code → /signup.
 │   │   ├── login/             # Platform login
 │   │   └── dashboard/         # Platform-admin console: stores-console, operators-console
 │   │                          # (guarded by supabase/multitenant_07_platform_admins.sql)
@@ -176,7 +184,12 @@ wholesip/
 │   │   │                      # review/enquiry/customer/customer-profile/
 │   │   │                      # account-settings/set-password/invite-user/user-management/
 │   │   │                      # user-group/role actions  (homepage-actions RETIRED — §11)
-│   │   ├── store-signup.ts    # Creates a new store (tenant onboarding)
+│   │   ├── store-signup.ts    # Store onboarding (§19): checkStoreSlugAvailability,
+│   │   │                      # createStore({name,template,firstName,lastName,
+│   │   │                      # country,city}) — writes admins name + settings.
+│   │   │                      # business location, returns {slug,storeId} —,
+│   │   │                      # getSignupResumeInfo (resume wizard after Google
+│   │   │                      # redirect / refreshed tab)
 │   │   ├── store-branding.ts  # Per-store branding updates
 │   │   ├── store-settings.ts  # Read/save per-store feature settings (see lib/settings)
 │   │   ├── blog-taxonomy-actions.ts  # Per-store blog categories/tags CRUD (+ propagation into blogs)
@@ -824,6 +837,45 @@ amountPaise}` for the modal. `confirmOnlinePayment` verifies the HMAC
     claim (exactly-once, order-actions pattern), release the coupon use,
     cancel the order. Refunds are out of scope v1 (merchant refunds from
     their own Razorpay dashboard).
+
+19. **Signup wizard (Shopify-style, `app/platform/signup/page.tsx`).** One
+    client wizard, one focused screen per step, with a progress stepper. Step
+    order: **email → password (+ Continue with Google) → phone OTP → name →
+    store + location → theme → plan**. Data model: names go to
+    `admins.first_name`/`last_name`; the selling **location** (country + city)
+    goes to `stores.settings.business` (anon-readable jsonb — non-secret, prints
+    on invoices; convention #9). Country list in `lib/countries.ts` (pure,
+    client-safe, India-first). - **Phone-only verification**: email is NOT OTP-verified — `signUp` returns a
+    session immediately (REQUIRES "Confirm email" OFF in Supabase Auth) and
+    only the phone is OTP-verified (`updateUser({phone})` → `verifyOtp`
+    `phone_change`). `createStore` enforces `phone_confirmed_at` server-side
+    (the email check was dropped). - **Google**: `signInWithOAuth` with `redirectTo` `/auth/callback?next=/signup`;
+    the proxy rewrites that to the platform-host callback
+    (`app/platform/auth/callback/route.ts`), which exchanges the code and
+    returns to `/signup`. The wizard's mount effect calls `getSignupResumeInfo`
+    — an authenticated session with no store resumes at phone (or name, if
+    phone already verified, prefilling the Google name); an account that
+    already owns a store is bounced to its dashboard. This same resume path
+    recovers a refreshed tab. Enable the Google provider + add the callback to
+    Redirect URLs in the Supabase dashboard. **Google users have NO password**,
+    so the store-host login (`app/auth/login/login-form.tsx`) ALSO offers
+    "Continue with Google" (store-host `/auth/callback` is served directly, no
+    rewrite) — otherwise a Google-created owner is locked out of the email+
+    password form. Store-subdomain OAuth requires `https://*.storemink.com/**`
+    in Supabase Redirect URLs; a Google owner can also set a password via
+    "Forgot password?". - **Plan + payment**: the plan step reuses the existing merchant subscription
+    flow (§ subscription-actions). Free finishes immediately; a paid plan
+    (Basic/Pro, monthly/yearly) creates the store first (on free), then opens
+    the Razorpay **autopay mandate** via `startSignupSubscription` /
+    `confirmSignupSubscription` (`app/actions/subscription-actions.ts`). Those
+    are signup-context wrappers: the store was just created on the PLATFORM
+    host, so `getActingStoreId` can't resolve it — the caller passes the new
+    store id and `assertStoreOwner` authorises them as its superadmin, then
+    both delegate to the SAME `startPlanSubscriptionForStore` /
+    `confirmSubscriptionForStore` cores the dashboard uses. An abandoned
+    payment leaves a working Free store (upgrade later at `/dashboard/plans`).
+    Runs on the PLATFORM's Razorpay account (env `RAZORPAY_KEY_ID` /
+    `RAZORPAY_KEY_SECRET`).
 
 ## 6. Commands
 
