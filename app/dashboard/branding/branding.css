@@ -1,5 +1,7 @@
 .brandingPage {
   max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
 }
 .brandingPage h1 {
   font-size: 22px;

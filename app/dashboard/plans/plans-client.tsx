@@ -199,7 +199,7 @@ export function PlansBillingClient({
   }
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="dash-page-enter mx-auto w-full max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-[#111827]">
           Plans &amp; Billing
@@ -845,7 +845,7 @@ function UpgradeModal({
               disabled={working}
               className="dash-btn dash-btn-primary w-full justify-center"
             >
-              {working ? "Working…" : `Upgrade now (prorated)`}
+              {working ? "Working…" : "Switch now (prorated)"}
             </button>
             <button
               type="button"
