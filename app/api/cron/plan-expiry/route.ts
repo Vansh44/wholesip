@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { STORE_TAG } from "@/lib/store/resolve";
+import { PLAN_META, normalizePlan } from "@/lib/plans";
+import {
+  resolveBillingEmail,
+  sendBillingEmail,
+  manageUrl,
+  planDowngradedTemplate,
+} from "@/lib/email/billing-emails";
 
 // Durably flips expired timed plans to free (see lib/plans.ts effectivePlan —
 // the read-time guard already treats them as free the moment they lapse; this
@@ -78,6 +85,22 @@ async function handle(request: Request) {
     const { error: auditErr } = await admin.from("plan_events").insert(events);
     if (auditErr) console.error("plan-expiry (audit):", auditErr.message);
     revalidateTag(STORE_TAG, "max");
+
+    // Tell each merchant their plan lapsed to free (best-effort).
+    await Promise.all(
+      events.map(async (ev) => {
+        const recip = await resolveBillingEmail(ev.store_id);
+        if (!recip) return;
+        await sendBillingEmail(
+          recip.email,
+          planDowngradedTemplate({
+            storeName: recip.storeName,
+            fromPlanName: PLAN_META[normalizePlan(ev.from_plan)].name,
+            manageUrl: manageUrl(recip.slug),
+          }),
+        );
+      }),
+    );
   }
 
   return NextResponse.json({ ok: true, expired: events.length });
