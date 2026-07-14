@@ -28,7 +28,7 @@ so some naming (repo name `wholesip`, the `--wholesip-*` CSS tokens, `brand/`) i
 | Email     | Resend + nodemailer (`lib/email/`), Vercel cron `/api/cron/send-emails` (daily, `vercel.json`)                                                                                                                                   |
 | AI        | Gemini (`lib/ai/gemini.ts`); per-store brand voice (`lib/ai/brand-voice.ts` + `store_brand_profiles`) with plan-capped usage metering (`lib/ai/quota.ts`); task prompts in `brand/tasks/`                                        |
 | Testing   | Vitest + Testing Library + jsdom, coverage via v8 (`coverage/` is generated output — never edit)                                                                                                                                 |
-| Deploy    | Vercel; CI on GitHub Actions (`.github/workflows/ci.yml`: lint → typecheck → test → prettier → build)                                                                                                                            |
+| Deploy    | Vercel (current); **migrating to Google Cloud Run** (Dockerfile + cloudbuild.yaml, GCP Phase 4 — see docs/gcp-migration-phase4-cloud-run.md). CI on GitHub Actions (`.github/workflows/ci.yml`: lint → typecheck → test → prettier → build) |
 
 ## 3. Multi-tenancy architecture (the core concept)
 
@@ -66,9 +66,15 @@ wholesip/
 ├── AGENTS.md / CLAUDE.md      # Agent instructions (CLAUDE.md just imports AGENTS.md)
 ├── CODEBASE.md                # ← this file
 ├── proxy.ts                   # Edge middleware: host routing + auth gates (see §3)
-├── next.config.ts             # Image formats, brand/ file tracing, optimizePackageImports
+├── next.config.ts             # output:"standalone" (Cloud Run), image formats, brand/
+│                              # file tracing, optimizePackageImports
+├── Dockerfile / .dockerignore / cloudbuild.yaml  # ★ Cloud Run container (GCP Phase 4 —
+│                              # see docs/gcp-migration-phase4-cloud-run.md). Multi-stage
+│                              # standalone build; NEXT_PUBLIC_* are build args, secrets
+│                              # runtime-only. Build linux/amd64 (Cloud Build or --platform).
 ├── vercel.json                # Crons: send-emails + plan-expiry (daily),
-│                              # expire-pending-payments (daily on Hobby)
+│                              # expire-pending-payments (daily on Hobby) — moving to
+│                              # Cloud Scheduler at Cloud Run cutover (Phase 4)
 ├── vitest.config.ts / vitest.setup.ts / vitest.server-only-stub.ts
 ├── eslint.config.mjs / postcss.config.mjs / tsconfig.json / components.json
 │

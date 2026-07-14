@@ -1,0 +1,30 @@
+# Keep the build context small and never ship local state / secrets.
+node_modules
+.next
+.git
+.github
+coverage
+npm-debug.log*
+
+# Local env & secrets — provided at runtime by Cloud Run, never baked in.
+.env
+.env.*
+!.env.example
+
+# Editor / OS / tooling
+.vscode
+.idea
+.DS_Store
+.claude
+
+# Docs & tests aren't needed in the runtime image.
+*.md
+docs
+**/*.test.ts
+**/*.test.tsx
+
+# ...but brand/tasks/*.md ARE read at runtime by the AI actions (traced into
+# .next/standalone via outputFileTracingIncludes) — keep them in the context.
+!brand
+!brand/tasks
+!brand/tasks/*.md
