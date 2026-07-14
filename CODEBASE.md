@@ -227,10 +227,12 @@ wholesip/
 │       ├── og/                # Dynamic branded OG card (ImageResponse; ?d=JSON
 │       │                      # {title,subtitle,color}) — default share image for
 │       │                      # homepage/custom pages/platform (lib/seo/og-card.ts)
-│       └── upload/            # Image upload → Supabase Storage (sharp → WebP);
+│       └── upload/            # Image upload (sharp → WebP) → GCS when GCS_BUCKET
+│           │                  # set, else Supabase Storage (dual backend, §7/Phase 3)
 │           └── sign-video/    # signed-URL minting for VIDEO uploads (≤50MB,
 │                              # client uploads DIRECTLY to storage — serverless
-│                              # routes can't proxy large bodies)
+│                              # routes can't proxy large bodies). Returns a
+│                              # provider-tagged response (gcs: PUT url | supabase: token)
 │
 ├── lib/
 │   ├── store/                 # ★ Tenancy (see §3): host.ts, resolve.ts, brand.ts
@@ -243,7 +245,14 @@ wholesip/
 │   │   ├── admin.ts           #   Service-role client (bypasses RLS — server only!)
 │   │   ├── public.ts          #   Anonymous client (cacheable, no cookies)
 │   │   ├── middleware.ts      #   updateSession() used by proxy.ts (JWT claims fast-path)
-│   │   ├── storage.ts / storage-cleanup.ts
+│   │   ├── storage.ts         #   client upload helpers (uploadImage/uploadVideo);
+│   │   │                      #   uploadVideo handles gcs (PUT) + supabase (token) shapes
+│   │   ├── storage-cleanup.ts #   ★ provider-AWARE orphan cleanup (§7/Phase 3): parses &
+│   │                          #   deletes BOTH Supabase + GCS URLs (deleteStorageUrls)
+│   ├── storage/               # ★ Google Cloud Storage media backend (GCP Phase 3):
+│   │                          # gcs.ts — gcsConfigured/gcsUploadObject/gcsSignUploadUrl/
+│   │                          # gcsDeletePaths/gcsPublicUrl/gcsPathFromUrl. ADC auth
+│   │                          # (or GCP_SA_KEY); public bucket. Lazy SDK import. Tested.
 │   ├── storefront/            # queries.ts (cached storefront reads — getPublishedPage/
 │   │                          # getPublishedPageSlugs, named columns only), tags.ts
 │   │                          # (cache tags incl. TAGS.pages)
@@ -949,6 +958,19 @@ npm run format      # prettier --write
     dev points at staging.
 - **Vercel**: hosting + cron. Wildcard domain `*.storemink.com` → store subdomains.
 - **Resend**: transactional email + custom-domain DNS verification.
+- **Google Cloud Storage** (media, GCP migration Phase 3 — `lib/storage/gcs.ts`):
+  when **`GCS_BUCKET`** is set, new image/video uploads go to that GCS bucket
+  (public, uniform bucket-level access) and public URLs are
+  `https://storage.googleapis.com/<bucket>/<path>`; otherwise uploads fall back
+  to Supabase Storage (bucket `media`). Auth via ADC (Cloud Run default SA, or
+  local `gcloud auth application-default login`); optional base64 SA JSON
+  **`GCP_SA_KEY`** for hosts without ADC (Vercel) — and REQUIRED to sign video
+  upload URLs off Cloud Run. Existing Supabase URLs keep serving; cleanup,
+  OG-proxy (`api/og-image` SSRF allowlist), the OG-proxy gate (`lib/og-image.ts`)
+  and `next.config.ts` image `remotePatterns` all recognise BOTH URL formats
+  during the transition. Bucket needs CORS (PUT from the app origin) for direct
+  video uploads. No bulk migration of existing objects yet (a pre-decommission
+  backfill copies old objects + rewrites DB URLs).
 - **Gemini / Vertex AI**: AI copy generation (`lib/ai/gemini.ts`, dual backend).
   When **`GCP_PROJECT_ID`** is set, `callGemini` routes through **Vertex AI** using
   Application Default Credentials (ADC — no API key; automatic on Cloud Run, local

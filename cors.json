@@ -1,0 +1,14 @@
+[
+  {
+    "origin": [
+      "http://localhost:3000",
+      "https://storemink.com",
+      "https://*.storemink.com",
+      "https://*.staging.storemink.com",
+      "https://staging.storemink.com"
+    ],
+    "method": ["PUT"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]

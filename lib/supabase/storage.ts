@@ -110,15 +110,37 @@ export async function uploadVideo(file: File, options: UploadOptions = {}) {
     body: JSON.stringify({ type: file.type, size: file.size, folder }),
   });
   const signed = (await signRes.json().catch(() => ({}))) as {
+    provider?: "gcs" | "supabase";
+    uploadUrl?: string;
     path?: string;
     token?: string;
     publicUrl?: string;
     error?: string;
   };
-  if (!signRes.ok || !signed.path || !signed.token || !signed.publicUrl) {
+  if (!signRes.ok || !signed.publicUrl) {
     throw new Error(signed.error || `Upload failed (${signRes.status}).`);
   }
 
+  // GCS: PUT the file directly to the v4 signed URL (Content-Type must match
+  // what was signed). Supabase: upload via the token flow.
+  if (signed.provider === "gcs") {
+    if (!signed.uploadUrl) {
+      throw new Error(`Upload failed (${signRes.status}).`);
+    }
+    const put = await fetch(signed.uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    if (!put.ok) {
+      throw new Error(`Upload failed (${put.status}).`);
+    }
+    return signed.publicUrl;
+  }
+
+  if (!signed.path || !signed.token) {
+    throw new Error(signed.error || `Upload failed (${signRes.status}).`);
+  }
   const supabase = createClient();
   const { error } = await supabase.storage
     .from(bucketName)

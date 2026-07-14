@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimit } from "@/lib/rate-limit";
+import { gcsConfigured, gcsUploadObject } from "@/lib/storage/gcs";
+import { logError } from "@/lib/observability/logger";
 
 // Run on the Node runtime; uploads happen server-side via the user's cookie
 // session. This avoids the browser @supabase/ssr Web-Locks auth contention
@@ -130,6 +132,20 @@ export async function POST(request: Request) {
   const fileName = `${Math.random().toString(36).substring(2, 12)}_${Date.now()}.${ext}`;
   const filePath = folder ? `${folder}/${fileName}` : fileName;
 
+  // Google Cloud Storage when configured (Phase 3), else Supabase Storage.
+  if (gcsConfigured) {
+    try {
+      const url = await gcsUploadObject(filePath, bytes, contentType);
+      return NextResponse.json({ url });
+    } catch (err) {
+      logError("upload: GCS upload failed", err, { path: filePath });
+      return NextResponse.json(
+        { error: "Upload failed. Please try again." },
+        { status: 500 },
+      );
+    }
+  }
+
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .upload(filePath, bytes, {
@@ -139,7 +155,7 @@ export async function POST(request: Request) {
     });
 
   if (error) {
-    console.error("Upload error:", error);
+    logError("upload: Supabase upload failed", error, { path: filePath });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

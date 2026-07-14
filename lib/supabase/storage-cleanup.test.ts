@@ -3,6 +3,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("./admin", () => ({ createAdminClient: vi.fn() }));
+vi.mock("@/lib/observability/logger", () => ({ logError: vi.fn() }));
+// Provider-aware cleanup: mock the GCS side so we can assert routing without
+// the SDK. gcsPathFromUrl mirrors the real parser; gcsDeletePaths is a spy.
+vi.mock("@/lib/storage/gcs", () => ({
+  GCS_PUBLIC_HOST: "storage.googleapis.com",
+  gcsPathFromUrl: (url: string) => {
+    const m = /storage\.googleapis\.com\/[^/]+\/(.+)$/.exec(url || "");
+    return m ? m[1] : null;
+  },
+  gcsDeletePaths: vi.fn().mockResolvedValue(undefined),
+}));
 
 import {
   pathFromPublicUrl,
@@ -10,6 +21,7 @@ import {
   deleteStorageUrls,
 } from "./storage-cleanup";
 import { createAdminClient } from "./admin";
+import { gcsDeletePaths } from "@/lib/storage/gcs";
 
 // storage-cleanup.ts — keeps Supabase Storage in sync with the DB. The two
 // pure helpers are easy to test; deleteStorageUrls() is best-effort, so we
@@ -62,6 +74,30 @@ describe("extractMediaUrlsFromHtml", () => {
     const html = `<img src="https://cdn.other.com/img.png" />`;
     expect(extractMediaUrlsFromHtml(html)).toEqual([]);
   });
+
+  // GCS public URLs (post Phase 3) are managed too — the host sits right after
+  // https:// with no prefix, which the `*` leading match handles.
+  it("extracts Google Cloud Storage public URLs", () => {
+    const html = `
+      <img src="https://storage.googleapis.com/storemink-media/blog/a.webp" />
+      <img src="https://storage.googleapis.com/storemink-media/blog/nested/b.webp" />
+    `;
+    expect(extractMediaUrlsFromHtml(html).sort()).toEqual([
+      "https://storage.googleapis.com/storemink-media/blog/a.webp",
+      "https://storage.googleapis.com/storemink-media/blog/nested/b.webp",
+    ]);
+  });
+
+  it("extracts a mix of Supabase and GCS URLs", () => {
+    const html = `
+      <img src="https://x.example.com/storage/v1/object/public/media/s.png" />
+      <img src="https://storage.googleapis.com/bkt/g.webp" />
+    `;
+    expect(extractMediaUrlsFromHtml(html).sort()).toEqual([
+      "https://storage.googleapis.com/bkt/g.webp",
+      "https://x.example.com/storage/v1/object/public/media/s.png",
+    ]);
+  });
 });
 
 // deleteStorageUrls — best-effort batch removal via the service-role client.
@@ -104,5 +140,24 @@ describe("deleteStorageUrls", () => {
         "https://x.example.com/storage/v1/object/public/media/x.png",
       ]),
     ).resolves.toBeUndefined();
+  });
+
+  // GCS URLs route to the GCS SDK, not Supabase remove.
+  it("routes GCS URLs to gcsDeletePaths", async () => {
+    await deleteStorageUrls([
+      "https://storage.googleapis.com/bkt/folder/v.mp4",
+    ]);
+    expect(gcsDeletePaths).toHaveBeenCalledWith(["folder/v.mp4"]);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  // A mixed batch is split across both backends.
+  it("splits a mixed batch across Supabase and GCS", async () => {
+    await deleteStorageUrls([
+      "https://x.example.com/storage/v1/object/public/media/a.png",
+      "https://storage.googleapis.com/bkt/b.webp",
+    ]);
+    expect(remove).toHaveBeenCalledWith(["a.png"]);
+    expect(gcsDeletePaths).toHaveBeenCalledWith(["b.webp"]);
   });
 });

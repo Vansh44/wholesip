@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/rate-limit";
+import {
+  gcsConfigured,
+  gcsSignUploadUrl,
+  gcsPublicUrl,
+} from "@/lib/storage/gcs";
+import { logError } from "@/lib/observability/logger";
 
 // Signed-URL flow for VIDEO uploads. Videos are far too big to proxy through
 // a serverless route (Vercel caps request bodies at ~4.5 MB), so instead:
@@ -77,12 +83,31 @@ export async function POST(request: Request) {
   const fileName = `${Math.random().toString(36).substring(2, 12)}_${Date.now()}.${EXT_BY_TYPE[type]}`;
   const filePath = folder ? `${folder}/${fileName}` : fileName;
 
+  // Google Cloud Storage when configured (Phase 3): a v4 signed PUT URL the
+  // client uploads to directly. Else Supabase's signed-upload token flow.
+  if (gcsConfigured) {
+    try {
+      const uploadUrl = await gcsSignUploadUrl(filePath, type);
+      return NextResponse.json({
+        provider: "gcs",
+        uploadUrl,
+        publicUrl: gcsPublicUrl(filePath),
+      });
+    } catch (err) {
+      logError("sign-video: GCS signing failed", err, { path: filePath });
+      return NextResponse.json(
+        { error: "Could not start the upload. Please try again." },
+        { status: 500 },
+      );
+    }
+  }
+
   const admin = createAdminClient();
   const { data, error } = await admin.storage
     .from(BUCKET)
     .createSignedUploadUrl(filePath);
   if (error || !data) {
-    console.error("Signed upload URL error:", error);
+    logError("sign-video: Supabase signing failed", error, { path: filePath });
     return NextResponse.json(
       { error: "Could not start the upload. Please try again." },
       { status: 500 },
@@ -91,6 +116,7 @@ export async function POST(request: Request) {
 
   const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(filePath);
   return NextResponse.json({
+    provider: "supabase",
     path: data.path,
     token: data.token,
     publicUrl: pub.publicUrl,

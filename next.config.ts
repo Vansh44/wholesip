@@ -19,6 +19,13 @@ const nextConfig: NextConfig = {
         port: "",
         pathname: "/storage/v1/object/public/**",
       },
+      // Google Cloud Storage (media backend, GCP migration Phase 3).
+      {
+        protocol: "https",
+        hostname: "storage.googleapis.com",
+        port: "",
+        pathname: "/**",
+      },
     ],
     // DEV ONLY: on DNS64/NAT64 networks (common on Indian ISPs) public hosts
     // resolve to 64:ff9b::/96 addresses, which Next 16's image-optimizer SSRF

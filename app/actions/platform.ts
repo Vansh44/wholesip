@@ -352,11 +352,15 @@ export async function getStoreAudit(
   };
 }
 
-// Any media-bucket public URL. Store media isn't namespaced by store in the
-// bucket, so we can't purge by prefix — instead we scrape every media URL out
-// of the store's own rows (product images, blog bodies, brand logo, page
-// sections…) before the DB rows cascade away, then delete those files.
-const MEDIA_URL_RE = /https?:\/\/[^"'\s)]+\/object\/public\/media\/[^"'\s)]+/g;
+// Any managed media public URL — Supabase (…/object/public/media/…) OR Google
+// Cloud Storage (storage.googleapis.com/<bucket>/…), since a store's media may
+// straddle both during the Phase 3 migration. Store media isn't namespaced by
+// store in the bucket, so we can't purge by prefix — instead we scrape every
+// media URL out of the store's own rows (product images, blog bodies, brand
+// logo, page sections…) before the DB rows cascade away, then delete those
+// files (deleteStorageUrls routes each URL to the right backend).
+const MEDIA_URL_RE =
+  /https?:\/\/[^"'\s)]*(?:\/object\/public\/media\/|storage\.googleapis\.com\/[^/"'\s)]+\/)[^"'\s)]+/g;
 
 // PERMANENTLY delete a store and everything belonging to it (platform
 // superadmin only). Irreversible. Every store-scoped table FKs stores(id) with
