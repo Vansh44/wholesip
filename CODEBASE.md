@@ -271,8 +271,15 @@ wholesip/
 │   │                          # ticker, faq_accordion, rich_text + custom_code (see §11)
 │   ├── menus.ts               # ★ Per-store nav (§11): StoreMenus types, DEFAULT_MENUS,
 │   │                          # normalize/sanitize. Read cached via getStoreMenus.
-│   ├── ai/gemini.ts           # Gemini client for AI copy
+│   ├── ai/gemini.ts           # Gemini/Vertex AI client for AI copy (dual backend, §7);
+│   │                          # emits ai.generate telemetry (latency + tokens) via observability
 │   ├── ai/credits.ts          # ★ AI credit pack catalog (pure — the one place to reprice)
+│   ├── observability/         # ★ Structured logging for Google Cloud (GCP migration Phase 2):
+│   │                          # logger.ts — logInfo/logWarn/logError emit Cloud Logging-
+│   │                          # compatible JSON (severity+message) in prod, readable lines in
+│   │                          # dev; edge-safe (console+JSON only, no deps). Auto-ingested by
+│   │                          # Cloud Logging + Error Reporting once on Cloud Run (Phase 4).
+│   │                          # First adopters: lib/ai/gemini.ts + proxy.ts 500 catch. Tested.
 │   ├── payments/              # ★ Online payments (§18): crypto.ts (AES-256-GCM cred
 │   │                          # encryption), razorpay.ts (server fetch client + HMAC verify,
 │   │                          # tested), provider.ts (store/platform cred loaders),
@@ -942,7 +949,15 @@ npm run format      # prettier --write
     dev points at staging.
 - **Vercel**: hosting + cron. Wildcard domain `*.storemink.com` → store subdomains.
 - **Resend**: transactional email + custom-domain DNS verification.
-- **Gemini**: AI copy generation.
+- **Gemini / Vertex AI**: AI copy generation (`lib/ai/gemini.ts`, dual backend).
+  When **`GCP_PROJECT_ID`** is set, `callGemini` routes through **Vertex AI** using
+  Application Default Credentials (ADC — no API key; automatic on Cloud Run, local
+  dev via `gcloud auth application-default login`), at **`GCP_LOCATION`** (default
+  `global`). Otherwise it falls back to the Gemini Developer API via
+  **`GEMINI_API_KEY`**. Same request/response shape both ways; callers see the
+  unchanged `{text,error}` contract. This is Phase 1 of the GCP migration (see
+  `docs/gcp-migration-phase5-6.md`); needs `google-auth-library` +
+  `roles/aiplatform.user` on the runtime credentials.
 - **Razorpay** (§18, §16): two SEPARATE credential sets. Per-store BYO gateway
   creds live in the DB (`store_payment_providers`, encrypted with env
   **`PAYMENT_CRED_KEY`** — 32-byte base64; generate with

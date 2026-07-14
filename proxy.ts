@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { parseHost, isHelpHost } from "@/lib/store/host";
+import { logError } from "@/lib/observability/logger";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -126,7 +127,7 @@ export async function proxy(request: NextRequest) {
 
     return supabaseResponse;
   } catch (error: unknown) {
-    console.error("Middleware exception:", error);
+    logError("proxy: middleware exception", error, { path: pathname, host });
     return new NextResponse(
       JSON.stringify({ error: "Internal Server Error" }),
       {
