@@ -901,6 +901,45 @@ npm run format      # prettier --write
   These auth sends happen client-side against Supabase, so the app's Postgres
   `rateLimit()` can't cover them — the console controls are the real boundary.
   App-side password floor is 8 chars (`app/platform/signup/page.tsx`).
+- **Auth / OAuth setup (Supabase console — per environment; NOT in code).** The
+  signup wizard (§19) + store login (`app/auth/login`) both need this configured
+  per Supabase project, or Google sign-in / phone-only signup silently break:
+  - **Confirm email = OFF** (Authentication → Providers → Email). Phone-only
+    signup relies on `signUp` returning a session immediately; with confirm on,
+    no session is issued and the phone step (and store login for password users)
+    stalls. Password-user recovery aside, this MUST be off.
+  - **Google provider = ON** (Authentication → Providers → Google) with a Client
+    ID/secret from a Google Cloud OAuth **Web** client. In Google Cloud, the
+    client's **Authorised redirect URIs** must list each project's Supabase
+    callback `https://<project-ref>.supabase.co/auth/v1/callback` (this is the
+    ONLY Google-side URL — app domains never go in Google). One Google client
+    can serve multiple Supabase projects (list each project's callback).
+  - **SMS provider configured** (Authentication → Providers → Phone, e.g. Twilio)
+    or the phone OTP never sends.
+  - **Redirect URLs** (Authentication → URL Configuration) — where Supabase may
+    send the browser back AFTER auth. Store hosts are `{slug}.{ROOT_DOMAIN}`
+    (`lib/store/host.ts`), so BOTH the platform host (signup) AND a
+    wildcard-subdomain (store dashboards) are needed. A missing store-subdomain
+    entry makes Supabase fall back to the **Site URL** → the user lands on the
+    platform host's operator login instead of their store. Matrix:
+    - **local dev** (uses the staging project): `http://localhost:3000/**` +
+      `http://*.localhost:3000/**` (store subdomains are `{slug}.localhost:3000`).
+      NB cross-subdomain cookies are flaky on `localhost` — the seamless
+      signup→dashboard handoff is reliable only on real domains.
+    - **staging** (`NEXT_PUBLIC_ROOT_DOMAIN=staging.storemink.com`, so stores are
+      `{slug}.staging.storemink.com` — TWO levels): `https://staging.storemink.com/**`
+      - `https://*.staging.storemink.com/**`. `*.staging.storemink.com` needs its
+        OWN wildcard DNS + TLS cert (a `*.storemink.com` cert does NOT cover a
+        two-level subdomain). Set the project's **Site URL** to
+        `https://staging.storemink.com`.
+    - **production**: `https://storemink.com/**` + `https://*.storemink.com/**`
+      (+ `https://www.storemink.com/**` if www serves the platform). Site URL
+      `https://storemink.com`.
+  - **Isolation**: keep each Supabase project's Redirect URLs scoped to its own
+    env's domains — don't cross-list localhost/staging into production (a staging
+    build could otherwise complete auth against prod). The staging project
+    intentionally holds BOTH localhost and `staging.storemink.com` because local
+    dev points at staging.
 - **Vercel**: hosting + cron. Wildcard domain `*.storemink.com` → store subdomains.
 - **Resend**: transactional email + custom-domain DNS verification.
 - **Gemini**: AI copy generation.
