@@ -270,7 +270,8 @@ wholesip/
 │   │                          # dashboard/enquiries/data.ts), reviews, blog-taxonomy,
 │   │                          # coupons, blogs (actions + dashboard list + settings +
 │   │                          # lib/blog-taxonomy.ts — fetchBlogTaxonomy(storeId), no
-│   │                          # client param), addresses, products (actions + dashboard
+│   │                          # client param), addresses, billing, store-settings,
+│   │                          # store-branding, products (actions + dashboard
 │   │                          # list/editor via products/columns.ts maps; sku/sku_no
 │   │                          # trigger-owned → insert type asserted), orders
 │   │                          # (order-actions.ts incl.
