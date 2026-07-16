@@ -6,6 +6,7 @@ import { TAGS } from "@/lib/storefront/tags";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import { withUser } from "@/lib/db/client";
+import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
 import { categories } from "@/drizzle/schema";
 
 // ---------------------------------------------------------------------------
@@ -44,29 +45,6 @@ function slugify(text: string): string {
 // RLS enforces a baseline at the DB layer too; this is the app-layer gate.
 async function getAdminUserId(): Promise<string | null> {
   return getManagerUserId("categories");
-}
-
-const UNIQUE_VIOLATION = "23505";
-
-// Drizzle may surface the pg error directly or wrapped (DrizzleQueryError with
-// the pg error as `cause`), so check both places for the SQLSTATE code.
-function pgErrorCode(err: unknown): string | undefined {
-  if (!err || typeof err !== "object") return undefined;
-  const e = err as { code?: string; cause?: { code?: string } };
-  return e.code ?? e.cause?.code;
-}
-
-function isUniqueViolation(err: unknown): boolean {
-  return pgErrorCode(err) === UNIQUE_VIOLATION;
-}
-
-// Prefer the underlying pg message (the wrapper's message embeds the SQL).
-function dbErrorMessage(err: unknown, fallback: string): string {
-  if (err && typeof err === "object") {
-    const e = err as { message?: string; cause?: { message?: string } };
-    return e.cause?.message ?? e.message ?? fallback;
-  }
-  return fallback;
 }
 
 async function resolveSlug(

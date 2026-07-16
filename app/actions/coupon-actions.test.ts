@@ -1,19 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock } from "./_test-helpers";
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
   unstable_cache: vi.fn((fn) => fn),
 }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("@/lib/supabase/public", () => ({ createPublicClient: vi.fn() }));
 vi.mock("@/lib/store/resolve", () => ({ getCurrentStore: vi.fn() }));
+vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
   getViewerContext: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
+}));
+
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withUser: vi.fn((_identity: any, fn: any) => fn(dbHolder.current.db)),
+  withService: vi.fn((fn: any) => fn(dbHolder.current.db)),
+  withAnon: vi.fn((fn: any) => fn(dbHolder.current.db)),
 }));
 
 import {
@@ -24,11 +32,9 @@ import {
   getAvailableStorefrontCoupons,
   toggleCouponVisibility,
 } from "./coupon-actions";
-import { createClient } from "@/lib/supabase/server";
-import { createPublicClient } from "@/lib/supabase/public";
 import { getCurrentStore } from "@/lib/store/resolve";
+import { getServerUser } from "@/lib/auth/server-user";
 import { getManagerUserId, getViewerContext } from "@/app/dashboard/lib/access";
-import { makeChain, makeSupabase } from "./_test-helpers";
 
 const STORE = "a0000000-0000-4000-8000-000000000001";
 
@@ -45,19 +51,45 @@ const validForm = {
   show_on_storefront: false,
 };
 
-// coupon-actions.ts covers admin CRUD and the storefront validation path.
-// Code normalisation (uppercase, no whitespace) and date / usage / minimum
-// checks live here.
-describe("coupon-actions", () => {
-  let supabase: any;
+// Scan a Drizzle SQL object's query chunks for a column reference by name —
+// lets tests assert which filters a where-clause carries without rendering
+// SQL. Only follows queryChunks (never a column's parent table, which would
+// falsely match every column of the table).
+function sqlMentionsColumn(sqlObj: any, colName: string): boolean {
+  const walk = (o: any): boolean => {
+    if (!o || typeof o !== "object") return false;
+    if (Array.isArray(o)) return o.some(walk);
+    if (o.table && o.name === colName) return true; // a Column chunk
+    if (o.queryChunks) return walk(o.queryChunks);
+    return false;
+  };
+  return walk(sqlObj);
+}
 
+// A currently-redeemable coupon row in the shape the aliased selects return.
+const okRow = {
+  id: "c-ok",
+  code: "OK",
+  description: "ten off",
+  discount_type: "percentage",
+  discount_value: 10,
+  min_order_amount: 0,
+  valid_from: null,
+  valid_until: null,
+  max_uses: 0,
+  used_count: 0,
+};
+
+// coupon-actions.ts covers admin CRUD (withUser, RLS-gated) and the storefront
+// validation/discovery paths (withAnon; withUser when signed in). Code
+// normalisation and date / usage / minimum checks live here.
+describe("coupon-actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    supabase = makeSupabase({
-      coupons: makeChain({ data: { id: "x" }, error: null }),
-    });
-    vi.mocked(createClient).mockResolvedValue(supabase);
+    dbHolder.current = makeDbMock({ returning: [{ id: "x" }] });
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+    // Default caller is an anonymous shopper.
+    vi.mocked(getServerUser).mockResolvedValue(null);
   });
 
   describe("createCoupon", () => {
@@ -103,18 +135,34 @@ describe("coupon-actions", () => {
     // Normalisation: trimmed, uppercased, no internal whitespace.
     it("normalises the code (trim, uppercase, strip whitespace)", async () => {
       await createCoupon({ ...validForm, code: "  save 10  " });
-      const inserted = supabase._tables.coupons.insert.mock.calls[0][0];
-      expect(inserted.code).toBe("SAVE10");
+      expect(dbHolder.current.calls.values[0].code).toBe("SAVE10");
+      expect(dbHolder.current.calls.values[0].storeId).toBe(STORE);
     });
 
     // 23505 duplicate-key → friendly message instead of raw DB error.
     it("returns friendly error on unique-violation", async () => {
-      supabase._tables.coupons = makeChain({
-        data: null,
-        error: { code: "23505", message: "dup" },
+      dbHolder.current.db.insert = vi.fn(() => {
+        throw Object.assign(new Error("Failed query"), {
+          cause: Object.assign(new Error("dup"), { code: "23505" }),
+        });
       });
       const result = await createCoupon(validForm);
       expect(result.error).toMatch(/already exists/i);
+    });
+
+    // Group restrictions are replaced (clear + insert) after the save.
+    it("syncs group restrictions after creating", async () => {
+      const result = await createCoupon({
+        ...validForm,
+        restricted_group_ids: ["g1", "g2"],
+      });
+      expect(result.success).toBe(true);
+      // delete #1 = the clear; values #2 = the fresh links.
+      expect(dbHolder.current.calls.delete).toHaveLength(1);
+      expect(dbHolder.current.calls.values[1]).toEqual([
+        { couponId: "x", groupId: "g1", storeId: STORE },
+        { couponId: "x", groupId: "g2", storeId: STORE },
+      ]);
     });
   });
 
@@ -149,41 +197,42 @@ describe("coupon-actions", () => {
     it("deletes the coupon by id", async () => {
       const result = await deleteCoupon("id");
       expect(result.success).toBe(true);
-      expect(supabase._tables.coupons.delete).toHaveBeenCalled();
+      expect(dbHolder.current.calls.delete).toHaveLength(1);
     });
   });
 
   // validateCoupon() — callable by anonymous shoppers. RLS hides DISABLED
   // coupons, so this layer adds date / usage / minimum-order checks and turns
   // them into specific user-facing messages.
+  // Select order: #1 = the coupon row, #2 = the group-restriction links.
   describe("validateCoupon", () => {
     // Empty code never gets a DB call.
     it("rejects empty code", async () => {
       const result = await validateCoupon("   ", 500);
       expect(result.error).toMatch(/enter a coupon/i);
+      expect(dbHolder.current.calls.select).toHaveLength(0);
     });
 
     // Code not found (or hidden by RLS because it's disabled).
     it("returns invalid when not found", async () => {
-      supabase._tables.coupons = makeChain({ data: null, error: null });
+      dbHolder.current = makeDbMock({ selectQueue: [[]] });
       const result = await validateCoupon("NOPE", 500);
       expect(result.error).toMatch(/invalid or expired/i);
     });
 
     // valid_from in the future → not yet active.
     it("rejects when not yet active (valid_from in the future)", async () => {
-      supabase._tables.coupons = makeChain({
-        data: {
-          code: "FUTURE",
-          discount_type: "percentage",
-          discount_value: 10,
-          min_order_amount: 0,
-          max_uses: 0,
-          used_count: 0,
-          valid_from: new Date(Date.now() + 86400_000).toISOString(),
-          valid_until: null,
-        },
-        error: null,
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [
+            {
+              ...okRow,
+              code: "FUTURE",
+              valid_from: new Date(Date.now() + 86400_000).toISOString(),
+            },
+          ],
+          [],
+        ],
       });
       const result = await validateCoupon("FUTURE", 500);
       expect(result.error).toMatch(/isn.?t active yet/i);
@@ -191,18 +240,17 @@ describe("coupon-actions", () => {
 
     // valid_until already past → expired.
     it("rejects when expired", async () => {
-      supabase._tables.coupons = makeChain({
-        data: {
-          code: "OLD",
-          discount_type: "percentage",
-          discount_value: 10,
-          min_order_amount: 0,
-          max_uses: 0,
-          used_count: 0,
-          valid_from: null,
-          valid_until: new Date(Date.now() - 86400_000).toISOString(),
-        },
-        error: null,
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [
+            {
+              ...okRow,
+              code: "OLD",
+              valid_until: new Date(Date.now() - 86400_000).toISOString(),
+            },
+          ],
+          [],
+        ],
       });
       const result = await validateCoupon("OLD", 500);
       expect(result.error).toMatch(/expired/i);
@@ -210,18 +258,11 @@ describe("coupon-actions", () => {
 
     // Usage cap hit — surfaces the "limit reached" message.
     it("rejects when usage cap is reached", async () => {
-      supabase._tables.coupons = makeChain({
-        data: {
-          code: "FULL",
-          discount_type: "percentage",
-          discount_value: 10,
-          min_order_amount: 0,
-          max_uses: 5,
-          used_count: 5,
-          valid_from: null,
-          valid_until: null,
-        },
-        error: null,
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [{ ...okRow, code: "FULL", max_uses: 5, used_count: 5 }],
+          [],
+        ],
       });
       const result = await validateCoupon("FULL", 500);
       expect(result.error).toMatch(/usage limit/i);
@@ -229,38 +270,55 @@ describe("coupon-actions", () => {
 
     // Subtotal below minimum order → message includes the amount-to-add.
     it("rejects when subtotal is below the minimum order", async () => {
-      supabase._tables.coupons = makeChain({
-        data: {
-          code: "BIG",
-          discount_type: "fixed",
-          discount_value: 100,
-          min_order_amount: 1000,
-          max_uses: 0,
-          used_count: 0,
-          valid_from: null,
-          valid_until: null,
-        },
-        error: null,
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [
+            {
+              ...okRow,
+              code: "BIG",
+              discount_type: "fixed",
+              discount_value: 100,
+              min_order_amount: 1000,
+            },
+          ],
+          [],
+        ],
       });
       const result = await validateCoupon("BIG", 500);
       expect(result.error).toMatch(/Add ₹500 more/i);
     });
 
+    // A group-restricted coupon requires sign-in.
+    it("requires sign-in for a group-restricted coupon", async () => {
+      dbHolder.current = makeDbMock({
+        selectQueue: [[{ ...okRow, code: "VIP" }], [{ group_id: "g1" }]],
+      });
+      const result = await validateCoupon("VIP", 500);
+      expect(result.error).toMatch(/sign in/i);
+    });
+
+    // Signed in but not a member of any linked group → not available.
+    it("rejects a signed-in non-member of the restricted groups", async () => {
+      vi.mocked(getServerUser).mockResolvedValue({
+        id: "user-9",
+        email: null,
+        phone: null,
+        phoneConfirmed: false,
+        metadata: {},
+      });
+      dbHolder.current = makeDbMock({
+        // #1 coupon, #2 links, #3 memberships (none).
+        selectQueue: [[{ ...okRow, code: "VIP" }], [{ group_id: "g1" }], []],
+      });
+      const result = await validateCoupon("VIP", 500);
+      expect(result.error).toMatch(/isn.?t available for your account/i);
+    });
+
     // Happy path — returns the rule fields so the cart can recompute the
     // discount locally as quantities change.
     it("returns the applied coupon rule on success", async () => {
-      supabase._tables.coupons = makeChain({
-        data: {
-          code: "SAVE10",
-          discount_type: "percentage",
-          discount_value: 10,
-          min_order_amount: 0,
-          max_uses: 0,
-          used_count: 0,
-          valid_from: null,
-          valid_until: null,
-        },
-        error: null,
+      dbHolder.current = makeDbMock({
+        selectQueue: [[{ ...okRow, code: "SAVE10" }], []],
       });
       const result = await validateCoupon("save10", 1000);
       expect(result.coupon).toEqual({
@@ -272,21 +330,9 @@ describe("coupon-actions", () => {
     });
   });
 
-  // getAvailableStorefrontCoupons() — the cart's coupon-discovery list. Runs on
-  // the cacheable public client; only ACTIVE, currently-redeemable coupons show.
+  // getAvailableStorefrontCoupons() — the cart's coupon-discovery list. Runs in
+  // the anonymous scope; only ACTIVE, currently-redeemable coupons show.
   describe("getAvailableStorefrontCoupons", () => {
-    const okRow = {
-      code: "OK",
-      description: "ten off",
-      discount_type: "percentage",
-      discount_value: 10,
-      min_order_amount: 0,
-      valid_from: null,
-      valid_until: null,
-      max_uses: 0,
-      used_count: 0,
-    };
-
     beforeEach(() => {
       vi.mocked(getCurrentStore).mockResolvedValue({
         id: STORE,
@@ -297,9 +343,9 @@ describe("coupon-actions", () => {
 
     it("returns only currently-redeemable coupons and filters to visible ones by default", async () => {
       const now = Date.now();
-      const publicClient = makeSupabase({
-        coupons: makeChain(undefined, {
-          data: [
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [
             okRow,
             {
               ...okRow,
@@ -308,10 +354,8 @@ describe("coupon-actions", () => {
             },
             { ...okRow, code: "USEDUP", max_uses: 5, used_count: 5 },
           ],
-          error: null,
-        }),
+        ],
       });
-      vi.mocked(createPublicClient).mockReturnValue(publicClient as any);
 
       const result = await getAvailableStorefrontCoupons();
       expect(result.map((c) => c.code)).toEqual(["OK"]);
@@ -320,11 +364,10 @@ describe("coupon-actions", () => {
         discount_value: 10,
         min_order_amount: 0,
       });
-      // showAll off → only storefront-visible coupons.
-      expect(publicClient._tables.coupons.eq).toHaveBeenCalledWith(
-        "show_on_storefront",
-        true,
-      );
+      // showAll off → the query filters on show_on_storefront.
+      expect(
+        sqlMentionsColumn(dbHolder.current.calls.where[0], "show_on_storefront"),
+      ).toBe(true);
     });
 
     it("skips the visibility filter when marketing.showAllCoupons is on", async () => {
@@ -333,16 +376,12 @@ describe("coupon-actions", () => {
         settings: { features: { "marketing.showAllCoupons": true } },
         plan: "free",
       } as any);
-      const publicClient = makeSupabase({
-        coupons: makeChain(undefined, { data: [], error: null }),
-      });
-      vi.mocked(createPublicClient).mockReturnValue(publicClient as any);
+      dbHolder.current = makeDbMock({ selectQueue: [[]] });
 
       await getAvailableStorefrontCoupons();
-      expect(publicClient._tables.coupons.eq).not.toHaveBeenCalledWith(
-        "show_on_storefront",
-        true,
-      );
+      expect(
+        sqlMentionsColumn(dbHolder.current.calls.where[0], "show_on_storefront"),
+      ).toBe(false);
     });
   });
 
@@ -350,7 +389,7 @@ describe("coupon-actions", () => {
   // store-scoped so no admin can flip another store's coupon.
   describe("toggleCouponVisibility", () => {
     it("rejects an unauthenticated caller", async () => {
-      vi.mocked(getViewerContext).mockResolvedValue(null);
+      vi.mocked(getViewerContext).mockResolvedValue(null as any);
       const result = await toggleCouponVisibility("c1", true);
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -373,16 +412,19 @@ describe("coupon-actions", () => {
         isSuperadmin: true,
         storeId: STORE,
       } as any);
+      vi.mocked(getServerUser).mockResolvedValue({
+        id: "user-1",
+        email: null,
+        phone: null,
+        phoneConfirmed: false,
+        metadata: {},
+      });
       const result = await toggleCouponVisibility("c1", true);
       expect(result.success).toBe(true);
-      expect(supabase._tables.coupons.update).toHaveBeenCalledWith({
-        show_on_storefront: true,
-      });
-      expect(supabase._tables.coupons.eq).toHaveBeenCalledWith("id", "c1");
-      expect(supabase._tables.coupons.eq).toHaveBeenCalledWith(
-        "store_id",
-        STORE,
-      );
+      expect(dbHolder.current.calls.set[0]).toEqual({ showOnStorefront: true });
+      expect(
+        sqlMentionsColumn(dbHolder.current.calls.where[0], "store_id"),
+      ).toBe(true);
     });
   });
 });

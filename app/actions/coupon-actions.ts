@@ -1,7 +1,11 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { and, eq, inArray } from "drizzle-orm";
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
+import { withAnon, withUser, type Db } from "@/lib/db/client";
+import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
+import { coupons, couponUserGroups, userGroupMembers } from "@/drizzle/schema";
+import { getServerUser } from "@/lib/auth/server-user";
 import {
   getManagerUserId,
   getActingStoreId,
@@ -9,6 +13,8 @@ import {
 } from "@/app/dashboard/lib/access";
 import { can } from "@/app/dashboard/lib/permissions";
 import { TAGS } from "@/lib/storefront/tags";
+import { getCurrentStore } from "@/lib/store/resolve";
+import { resolveStoreSettings } from "@/lib/settings/registry";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,12 +71,6 @@ async function getAdminUserId(): Promise<string | null> {
   return getManagerUserId("marketing");
 }
 
-const UNIQUE_VIOLATION = "23505";
-
-function isUniqueViolation(error: { code?: string } | null): boolean {
-  return error?.code === UNIQUE_VIOLATION;
-}
-
 // Turn a date input ("" | "yyyy-mm-dd") into an ISO timestamp or null.
 function toTimestamp(value: string): string | null {
   const v = value?.trim();
@@ -84,18 +84,18 @@ function buildRow(form: CouponFormData, userId: string, creating: boolean) {
   return {
     code: normalizeCode(form.code),
     description: form.description.trim() || null,
-    discount_type: form.discount_type,
-    discount_value: num(form.discount_value),
-    min_order_amount: num(form.min_order_amount),
-    max_uses: Number.isFinite(form.max_uses)
+    discountType: form.discount_type,
+    discountValue: num(form.discount_value),
+    minOrderAmount: num(form.min_order_amount),
+    maxUses: Number.isFinite(form.max_uses)
       ? Math.trunc(Math.max(0, form.max_uses))
       : 0,
     status: form.status,
-    valid_from: toTimestamp(form.valid_from),
-    valid_until: toTimestamp(form.valid_until),
-    show_on_storefront: form.show_on_storefront,
-    updated_by: userId,
-    ...(creating ? { created_by: userId } : {}),
+    validFrom: toTimestamp(form.valid_from),
+    validUntil: toTimestamp(form.valid_until),
+    showOnStorefront: form.show_on_storefront,
+    updatedBy: userId,
+    ...(creating ? { createdBy: userId } : {}),
   };
 }
 
@@ -119,85 +119,91 @@ function revalidateCoupons() {
   revalidateTag(TAGS.coupons, "max");
 }
 
-type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
-
 // Replace a coupon's group restrictions with `groupIds` (clear + insert).
-// Empty list leaves the coupon public. Best-effort: a missing
-// coupon_user_groups table (not yet migrated) is logged, not fatal — the
-// coupon itself still saves.
+// Empty list leaves the coupon public. Best-effort: a failure (e.g. table not
+// yet migrated) is logged, not fatal — the coupon itself still saves. Runs
+// under the admin's identity so RLS applies.
 async function syncCouponGroups(
-  supabase: SupabaseServerClient,
+  userId: string,
   couponId: string,
   groupIds: string[] | undefined,
   storeId: string,
 ): Promise<void> {
   const ids = Array.from(new Set((groupIds ?? []).filter(Boolean)));
 
-  const { error: delError } = await supabase
-    .from("coupon_user_groups")
-    .delete()
-    .eq("coupon_id", couponId);
-  if (delError) {
-    console.error("syncCouponGroups (clear) error:", delError);
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db
+        .delete(couponUserGroups)
+        .where(eq(couponUserGroups.couponId, couponId)),
+    );
+  } catch (err) {
+    console.error("syncCouponGroups (clear) error:", err);
     return;
   }
 
   if (ids.length === 0) return;
 
-  const rows = ids.map((group_id) => ({
-    coupon_id: couponId,
-    group_id,
-    store_id: storeId,
+  const rows = ids.map((groupId) => ({
+    couponId,
+    groupId,
+    storeId,
   }));
-  const { error: insError } = await supabase
-    .from("coupon_user_groups")
-    .insert(rows);
-  if (insError) console.error("syncCouponGroups (insert) error:", insError);
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db.insert(couponUserGroups).values(rows),
+    );
+  } catch (err) {
+    console.error("syncCouponGroups (insert) error:", err);
+  }
 }
 
 // Returns an error message if a group-restricted coupon can't be used by the
-// current caller, or null when it's allowed (incl. public coupons). Runs on
-// the shopper's session client: coupon_user_groups is publicly readable, and
-// user_group_members is RLS-scoped to the signed-in customer's own rows.
-async function checkGroupRestriction(
-  supabase: SupabaseServerClient,
-  couponId: string,
-): Promise<string | null> {
-  const { data: links, error: linksError } = await supabase
-    .from("coupon_user_groups")
-    .select("group_id")
-    .eq("coupon_id", couponId);
-
-  if (linksError) {
+// current caller, or null when it's allowed (incl. public coupons). The links
+// are publicly readable (anon scope); membership is checked under the
+// signed-in customer's identity, where RLS scopes user_group_members to their
+// own rows.
+async function checkGroupRestriction(couponId: string): Promise<string | null> {
+  let groupIds: string[];
+  try {
+    const links = await withAnon((db) =>
+      db
+        .select({ group_id: couponUserGroups.groupId })
+        .from(couponUserGroups)
+        .where(eq(couponUserGroups.couponId, couponId)),
+    );
+    groupIds = links.map((l) => l.group_id);
+  } catch (err) {
     // Table not migrated / unreadable: treat the coupon as public rather than
     // blocking a legitimate code.
-    console.error("checkGroupRestriction (links) error:", linksError);
+    console.error("checkGroupRestriction (links) error:", err);
     return null;
   }
 
-  const groupIds = (links ?? []).map((l) => l.group_id as string);
   if (groupIds.length === 0) return null; // public coupon
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return "Sign in to use this coupon.";
 
-  const { data: memberships, error: memError } = await supabase
-    .from("user_group_members")
-    .select("group_id")
-    .eq("user_id", user.id)
-    .in("group_id", groupIds);
-
-  if (memError) {
-    console.error("checkGroupRestriction (membership) error:", memError);
+  try {
+    const memberships = await withUser({ uid: user.id }, (db) =>
+      db
+        .select({ group_id: userGroupMembers.groupId })
+        .from(userGroupMembers)
+        .where(
+          and(
+            eq(userGroupMembers.userId, user.id),
+            inArray(userGroupMembers.groupId, groupIds),
+          ),
+        ),
+    );
+    if (memberships.length === 0)
+      return "This coupon isn’t available for your account.";
+    return null;
+  } catch (err) {
+    console.error("checkGroupRestriction (membership) error:", err);
     return "Could not verify this coupon for your account. Please try again.";
   }
-
-  if (!memberships || memberships.length === 0)
-    return "This coupon isn’t available for your account.";
-
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +213,6 @@ async function checkGroupRestriction(
 export async function createCoupon(
   form: CouponFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
@@ -215,28 +220,31 @@ export async function createCoupon(
   const invalid = validateForm(form);
   if (invalid) return { error: invalid };
 
-  const { data, error } = await supabase
-    .from("coupons")
-    .insert({ ...buildRow(form, userId, true), store_id: storeId })
-    .select()
-    .single();
-
-  if (error) {
-    if (isUniqueViolation(error))
+  let created: Record<string, unknown>;
+  try {
+    const [row] = await withUser({ uid: userId }, (db) =>
+      db
+        .insert(coupons)
+        .values({ ...buildRow(form, userId, true), storeId })
+        .returning(),
+    );
+    created = row as Record<string, unknown>;
+  } catch (err) {
+    if (isUniqueViolation(err))
       return { error: "A coupon with that code already exists." };
-    console.error("createCoupon error:", error);
-    return { error: error.message };
+    console.error("createCoupon error:", err);
+    return { error: dbErrorMessage(err, "Failed to create coupon.") };
   }
 
   await syncCouponGroups(
-    supabase,
-    (data as { id: string }).id,
+    userId,
+    created.id as string,
     form.restricted_group_ids,
     storeId,
   );
 
   revalidateCoupons();
-  return { success: true, data: data as Record<string, unknown> };
+  return { success: true, data: created };
 }
 
 // ---------------------------------------------------------------------------
@@ -247,7 +255,6 @@ export async function updateCoupon(
   id: string,
   form: CouponFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
@@ -255,19 +262,22 @@ export async function updateCoupon(
   const invalid = validateForm(form);
   if (invalid) return { error: invalid };
 
-  const { error } = await supabase
-    .from("coupons")
-    .update(buildRow(form, userId, false))
-    .eq("id", id);
-
-  if (error) {
-    if (isUniqueViolation(error))
+  try {
+    // RLS (is_store_admin) confines the update to the caller's own store.
+    await withUser({ uid: userId }, (db) =>
+      db
+        .update(coupons)
+        .set(buildRow(form, userId, false))
+        .where(eq(coupons.id, id)),
+    );
+  } catch (err) {
+    if (isUniqueViolation(err))
       return { error: "A coupon with that code already exists." };
-    console.error("updateCoupon error:", error);
-    return { error: error.message };
+    console.error("updateCoupon error:", err);
+    return { error: dbErrorMessage(err, "Failed to update coupon.") };
   }
 
-  await syncCouponGroups(supabase, id, form.restricted_group_ids, storeId);
+  await syncCouponGroups(userId, id, form.restricted_group_ids, storeId);
 
   revalidateCoupons();
   return { success: true };
@@ -278,15 +288,17 @@ export async function updateCoupon(
 // ---------------------------------------------------------------------------
 
 export async function deleteCoupon(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
 
-  const { error } = await supabase.from("coupons").delete().eq("id", id);
-
-  if (error) {
-    console.error("deleteCoupon error:", error);
-    return { error: error.message };
+  try {
+    // RLS (is_store_admin) confines the delete to the caller's own store.
+    await withUser({ uid: userId }, (db) =>
+      db.delete(coupons).where(eq(coupons.id, id)),
+    );
+  } catch (err) {
+    console.error("deleteCoupon error:", err);
+    return { error: dbErrorMessage(err, "Failed to delete coupon.") };
   }
 
   revalidateCoupons();
@@ -310,18 +322,47 @@ export async function validateCoupon(
   if (!code) return { error: "Enter a coupon code." };
 
   const storeId = await getActingStoreId();
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("coupons")
-    .select(
-      "id, code, discount_type, discount_value, min_order_amount, max_uses, used_count, valid_from, valid_until",
-    )
-    .eq("code", code)
-    .eq("store_id", storeId)
-    .maybeSingle();
 
-  if (error) {
-    console.error("validateCoupon error:", error);
+  let data:
+    | {
+        id: string;
+        code: string;
+        discount_type: string;
+        discount_value: number;
+        min_order_amount: number;
+        max_uses: number;
+        used_count: number;
+        valid_from: string | null;
+        valid_until: string | null;
+      }
+    | undefined;
+  try {
+    // Signed-in callers run under their identity (same RLS view as the old
+    // cookie client — e.g. a store admin can validate their own disabled
+    // code); everyone else is anonymous (active coupons only).
+    const run = (db: Db) =>
+      db
+        .select({
+          id: coupons.id,
+          code: coupons.code,
+          discount_type: coupons.discountType,
+          discount_value: coupons.discountValue,
+          min_order_amount: coupons.minOrderAmount,
+          max_uses: coupons.maxUses,
+          used_count: coupons.usedCount,
+          valid_from: coupons.validFrom,
+          valid_until: coupons.validUntil,
+        })
+        .from(coupons)
+        .where(and(eq(coupons.code, code), eq(coupons.storeId, storeId)))
+        .limit(1);
+    const user = await getServerUser();
+    const rows = user
+      ? await withUser({ uid: user.id, email: user.email }, run)
+      : await withAnon(run);
+    data = rows[0];
+  } catch (err) {
+    console.error("validateCoupon error:", err);
     return { error: "Could not check that code. Please try again." };
   }
   if (!data) return { error: "Invalid or expired coupon code." };
@@ -329,7 +370,7 @@ export async function validateCoupon(
   // Group restriction: a coupon linked to one or more user groups can only be
   // applied by a signed-in customer who belongs to one of them. Public coupons
   // (no links) skip this entirely.
-  const restriction = await checkGroupRestriction(supabase, data.id as string);
+  const restriction = await checkGroupRestriction(data.id);
   if (restriction) return { error: restriction };
 
   const now = Date.now();
@@ -362,10 +403,6 @@ export async function validateCoupon(
 // ---------------------------------------------------------------------------
 // Storefront Discovery
 // ---------------------------------------------------------------------------
-import { unstable_cache } from "next/cache";
-import { createPublicClient } from "@/lib/supabase/public";
-import { getCurrentStore } from "@/lib/store/resolve";
-import { resolveStoreSettings } from "@/lib/settings/registry";
 
 export interface AvailableCoupon {
   code: string;
@@ -375,48 +412,58 @@ export interface AvailableCoupon {
   min_order_amount: number;
 }
 
-// Cached, cookieless read of a store's shopper-visible coupons. Runs on the
-// anonymous public client (only ACTIVE coupons are anon-readable via RLS, and
-// we return no admin-only columns), so it is safe to serve from a shared cache.
+// Cached, cookieless read of a store's shopper-visible coupons. Runs in the
+// anonymous scope (only ACTIVE coupons are anon-readable via RLS, and we
+// return no admin-only columns), so it is safe to serve from a shared cache.
 // Keyed by (storeId, showAll) — each store + toggle state gets its own entry —
 // and tagged TAGS.coupons so any coupon create/edit/delete/visibility change
 // (revalidateCoupons) busts it. Called from CouponField on mount; caching keeps
 // that from hitting the DB on every page load.
 const getStorefrontCouponsCached = unstable_cache(
   async (storeId: string, showAll: boolean): Promise<AvailableCoupon[]> => {
-    const supabase = createPublicClient();
-    let query = supabase
-      .from("coupons")
-      .select(
-        "code, description, discount_type, discount_value, min_order_amount, valid_from, valid_until, max_uses, used_count",
-      )
-      .eq("store_id", storeId)
-      .eq("status", "active");
-
+    const conds = [eq(coupons.storeId, storeId), eq(coupons.status, "active")];
     if (!showAll) {
-      query = query.eq("show_on_storefront", true);
+      conds.push(eq(coupons.showOnStorefront, true));
     }
 
-    const { data, error } = await query;
-    if (error) {
-      console.error("getStorefrontCoupons:", error.message);
-      return [];
-    }
-    if (!data) return [];
-
-    const now = Date.now();
-    type DBRow = {
+    let rows: {
       code: string;
       description: string | null;
-      discount_type: DiscountType;
+      discount_type: string;
       discount_value: number;
       min_order_amount: number;
       valid_from: string | null;
       valid_until: string | null;
       max_uses: number;
       used_count: number;
-    };
-    return (data as unknown as DBRow[])
+    }[];
+    try {
+      rows = await withAnon((db) =>
+        db
+          .select({
+            code: coupons.code,
+            description: coupons.description,
+            discount_type: coupons.discountType,
+            discount_value: coupons.discountValue,
+            min_order_amount: coupons.minOrderAmount,
+            valid_from: coupons.validFrom,
+            valid_until: coupons.validUntil,
+            max_uses: coupons.maxUses,
+            used_count: coupons.usedCount,
+          })
+          .from(coupons)
+          .where(and(...conds)),
+      );
+    } catch (err) {
+      console.error(
+        "getStorefrontCoupons:",
+        err instanceof Error ? err.message : err,
+      );
+      return [];
+    }
+
+    const now = Date.now();
+    return rows
       .filter((c) => {
         if (c.valid_from && new Date(c.valid_from).getTime() > now)
           return false;
@@ -428,7 +475,7 @@ const getStorefrontCouponsCached = unstable_cache(
       .map((c) => ({
         code: c.code,
         description: c.description,
-        discount_type: c.discount_type,
+        discount_type: c.discount_type as DiscountType,
         discount_value: Number(c.discount_value) || 0,
         min_order_amount: Number(c.min_order_amount) || 0,
       }));
@@ -457,15 +504,22 @@ export async function toggleCouponVisibility(
     return { error: "You don't have permission to manage coupons." };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("coupons")
-    .update({ show_on_storefront: show })
-    .eq("id", id)
-    .eq("store_id", ctx.storeId);
+  const user = await getServerUser();
+  if (!user) return { error: "Not authenticated" };
 
-  if (error) {
-    console.error("toggleCouponVisibility:", error.message);
+  try {
+    // Explicit store scope on top of RLS — no admin can flip another store's coupon.
+    await withUser({ uid: user.id }, (db) =>
+      db
+        .update(coupons)
+        .set({ showOnStorefront: show })
+        .where(and(eq(coupons.id, id), eq(coupons.storeId, ctx.storeId))),
+    );
+  } catch (err) {
+    console.error(
+      "toggleCouponVisibility:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Failed to update coupon visibility." };
   }
 

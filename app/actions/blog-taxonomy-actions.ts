@@ -1,7 +1,10 @@
 "use server";
 
+import { and, arrayContains, eq } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { withUser } from "@/lib/db/client";
+import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
+import { blogCategories, blogTags, blogs } from "@/drizzle/schema";
 import { TAGS } from "@/lib/storefront/tags";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 
@@ -20,21 +23,18 @@ export interface ActionResult {
   error?: string;
 }
 
-const TABLE: Record<TaxonomyKind, "blog_categories" | "blog_tags"> = {
-  category: "blog_categories",
-  tag: "blog_tags",
-};
+const TABLE = {
+  category: blogCategories,
+  tag: blogTags,
+} as const;
 
 // The blogs text[] column that carries this kind's values.
-const BLOG_COLUMN: Record<TaxonomyKind, "categories" | "tags"> = {
-  category: "categories",
-  tag: "tags",
-};
+const BLOG_COLUMN = {
+  category: blogs.categories,
+  tag: blogs.tags,
+} as const;
 
 const MAX_NAME_LENGTH = 40;
-
-// Postgres unique_violation — the (store_id, lower(name)) unique index.
-const UNIQUE_VIOLATION = "23505";
 
 function normalizeName(raw: string): string {
   return raw.trim().replace(/\s+/g, " ");
@@ -62,42 +62,55 @@ function revalidateTaxonomy() {
   revalidateTag(TAGS.blogTaxonomy, "max");
 }
 
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
-
 /**
  * Rewrite the blogs that reference `oldName` in the kind's text[] column:
  * rename it to `newName`, or remove it when `newName` is null. Store-scoped;
- * runs under the admin's session so RLS still applies.
+ * runs under the admin's identity so RLS still applies.
  */
 async function propagateToBlogs(
-  supabase: SupabaseClient,
+  userId: string,
   storeId: string,
   kind: TaxonomyKind,
   oldName: string,
   newName: string | null,
 ): Promise<void> {
   const column = BLOG_COLUMN[kind];
-  const { data, error } = await supabase
-    .from("blogs")
-    .select(`id, ${column}`)
-    .eq("store_id", storeId)
-    .contains(column, [oldName]);
-  if (error) {
-    console.error("propagateToBlogs select:", error.message);
+  let rows: { id: string; values: string[] | null }[];
+  try {
+    rows = await withUser({ uid: userId }, (db) =>
+      db
+        .select({ id: blogs.id, values: column })
+        .from(blogs)
+        .where(
+          and(eq(blogs.storeId, storeId), arrayContains(column, [oldName])),
+        ),
+    );
+  } catch (err) {
+    console.error(
+      "propagateToBlogs select:",
+      err instanceof Error ? err.message : err,
+    );
     return;
   }
 
-  for (const row of (data ?? []) as unknown as Record<string, unknown>[]) {
-    const current = (row[column] ?? []) as string[];
+  for (const row of rows) {
+    const current = row.values ?? [];
     const next = newName
       ? [...new Set(current.map((v) => (v === oldName ? newName : v)))]
       : current.filter((v) => v !== oldName);
-    const { error: updateError } = await supabase
-      .from("blogs")
-      .update({ [column]: next })
-      .eq("id", row.id as string);
-    if (updateError)
-      console.error("propagateToBlogs update:", updateError.message);
+    try {
+      await withUser({ uid: userId }, (db) =>
+        db
+          .update(blogs)
+          .set(kind === "category" ? { categories: next } : { tags: next })
+          .where(eq(blogs.id, row.id)),
+      );
+    } catch (err) {
+      console.error(
+        "propagateToBlogs update:",
+        err instanceof Error ? err.message : err,
+      );
+    }
   }
 }
 
@@ -117,15 +130,15 @@ export async function createBlogTaxonomyItem(
   const invalid = validateName(kind, name);
   if (invalid) return { error: invalid };
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from(TABLE[kind])
-    .insert({ store_id: storeId, name });
-
-  if (error) {
-    if (error.code === UNIQUE_VIOLATION) return { error: duplicateError(name) };
-    console.error("createBlogTaxonomyItem error:", error);
-    return { error: error.message };
+  try {
+    // RLS (is_store_admin) gates the insert against the caller's store.
+    await withUser({ uid: userId }, (db) =>
+      db.insert(TABLE[kind]).values({ storeId, name }),
+    );
+  } catch (err) {
+    if (isUniqueViolation(err)) return { error: duplicateError(name) };
+    console.error("createBlogTaxonomyItem error:", err);
+    return { error: dbErrorMessage(err, "Failed to create.") };
   }
 
   revalidateTaxonomy();
@@ -149,29 +162,32 @@ export async function renameBlogTaxonomyItem(
   const invalid = validateName(kind, name);
   if (invalid) return { error: invalid };
 
-  const supabase = await createClient();
-  const { data: existing } = await supabase
-    .from(TABLE[kind])
-    .select("name")
-    .eq("id", id)
-    .eq("store_id", storeId)
-    .single();
+  const table = TABLE[kind];
+  const existingRows = await withUser({ uid: userId }, (db) =>
+    db
+      .select({ name: table.name })
+      .from(table)
+      .where(and(eq(table.id, id), eq(table.storeId, storeId)))
+      .limit(1),
+  );
+  const existing = existingRows[0];
   if (!existing) return { error: "Not found. Please refresh and try again." };
   if (existing.name === name) return { success: true };
 
-  const { error } = await supabase
-    .from(TABLE[kind])
-    .update({ name })
-    .eq("id", id)
-    .eq("store_id", storeId);
-
-  if (error) {
-    if (error.code === UNIQUE_VIOLATION) return { error: duplicateError(name) };
-    console.error("renameBlogTaxonomyItem error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db
+        .update(table)
+        .set({ name })
+        .where(and(eq(table.id, id), eq(table.storeId, storeId))),
+    );
+  } catch (err) {
+    if (isUniqueViolation(err)) return { error: duplicateError(name) };
+    console.error("renameBlogTaxonomyItem error:", err);
+    return { error: dbErrorMessage(err, "Failed to rename.") };
   }
 
-  await propagateToBlogs(supabase, storeId, kind, existing.name, name);
+  await propagateToBlogs(userId, storeId, kind, existing.name, name);
   revalidateTaxonomy();
   return { success: true };
 }
@@ -189,27 +205,29 @@ export async function deleteBlogTaxonomyItem(
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
 
-  const supabase = await createClient();
-  const { data: existing } = await supabase
-    .from(TABLE[kind])
-    .select("name")
-    .eq("id", id)
-    .eq("store_id", storeId)
-    .single();
+  const table = TABLE[kind];
+  const existingRows = await withUser({ uid: userId }, (db) =>
+    db
+      .select({ name: table.name })
+      .from(table)
+      .where(and(eq(table.id, id), eq(table.storeId, storeId)))
+      .limit(1),
+  );
+  const existing = existingRows[0];
   if (!existing) return { error: "Not found. Please refresh and try again." };
 
-  const { error } = await supabase
-    .from(TABLE[kind])
-    .delete()
-    .eq("id", id)
-    .eq("store_id", storeId);
-
-  if (error) {
-    console.error("deleteBlogTaxonomyItem error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db
+        .delete(table)
+        .where(and(eq(table.id, id), eq(table.storeId, storeId))),
+    );
+  } catch (err) {
+    console.error("deleteBlogTaxonomyItem error:", err);
+    return { error: dbErrorMessage(err, "Failed to delete.") };
   }
 
-  await propagateToBlogs(supabase, storeId, kind, existing.name, null);
+  await propagateToBlogs(userId, storeId, kind, existing.name, null);
   revalidateTaxonomy();
   return { success: true };
 }
