@@ -115,11 +115,18 @@ export interface DbMock {
     set: any[];
     delete: any[];
     where: any[];
+    select: any[];
+    onConflict: any[];
   };
 }
 
-export function makeDbMock(opts: { returning?: any[] } = {}): DbMock {
+export function makeDbMock(
+  opts: { returning?: any[]; selectQueue?: any[][] } = {},
+): DbMock {
   const returning = opts.returning ?? [{ id: "row-1" }];
+  // Each db.select() consumes the next entry (an action doing a slug lookup
+  // then an image prefetch gets queue[0] then queue[1]); empty queue → [].
+  const selectQueue = [...(opts.selectQueue ?? [])];
   const calls: DbMock["calls"] = {
     insert: [],
     values: [],
@@ -127,6 +134,8 @@ export function makeDbMock(opts: { returning?: any[] } = {}): DbMock {
     set: [],
     delete: [],
     where: [],
+    select: [],
+    onConflict: [],
   };
 
   // A thenable step that also exposes .where()/.returning() terminals, so both
@@ -137,11 +146,42 @@ export function makeDbMock(opts: { returning?: any[] } = {}): DbMock {
       calls.where.push(c);
       return step(result);
     }),
+    onConflictDoUpdate: vi.fn((c: any) => {
+      calls.onConflict.push(c);
+      return step(result);
+    }),
+    onConflictDoNothing: vi.fn((c: any) => {
+      calls.onConflict.push(c);
+      return step(result);
+    }),
     returning: vi.fn(async () => returning),
     then: (resolve: any) => Promise.resolve(result).then(resolve),
   });
 
+  // A fully-chainable select step; awaiting it resolves to `rows`.
+  const selectStep = (rows: any[]): any => {
+    const s: any = {
+      from: vi.fn(() => s),
+      where: vi.fn((c: any) => {
+        calls.where.push(c);
+        return s;
+      }),
+      leftJoin: vi.fn(() => s),
+      innerJoin: vi.fn(() => s),
+      groupBy: vi.fn(() => s),
+      orderBy: vi.fn(() => s),
+      limit: vi.fn(() => s),
+      offset: vi.fn(() => s),
+      then: (resolve: any) => Promise.resolve(rows).then(resolve),
+    };
+    return s;
+  };
+
   const db: any = {
+    select: vi.fn((projection?: any) => {
+      calls.select.push(projection);
+      return selectStep(selectQueue.length ? selectQueue.shift()! : []);
+    }),
     insert: vi.fn((t: any) => {
       calls.insert.push(t);
       return {

@@ -265,6 +265,12 @@ wholesip/
 │   │                          # withUser({uid,email}) (SET LOCAL ROLE app_user + app.current_user_id
 │   │                          # GUC → auth.uid() shim), withAnon (no GUC). Schema in drizzle/
 │   │                          # (introspected). See docs/gcp-migration-phase5-6.md.
+│   │                          # Ported so far: colors, categories, enquiries (incl.
+│   │                          # dashboard/enquiries/data.ts), reviews, and the FULL
+│   │                          # storefront read path (lib/store/resolve.ts,
+│   │                          # lib/storefront/queries.ts, shop/[slug] + blogs/[slug]
+│   │                          # pages — all withAnon; getBlog withUser for previews).
+│   │                          # drizzle/schema.ts numeric cols use mode:'number'.
 │   ├── auth/                  # ★ server-user.ts — getServerUser() identity seam (GCP Phase 5/6):
 │   │                          # the ONE place server code reads the authed user; feeds withUser.
 │   │                          # Wraps Supabase auth now; swaps to Identity Platform in Phase 6.

@@ -1,5 +1,18 @@
 import { unstable_cache } from "next/cache";
-import { createPublicClient } from "@/lib/supabase/public";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { withAnon } from "@/lib/db/client";
+import {
+  blogCategories,
+  blogTags,
+  blogs,
+  categories,
+  productVariants,
+  products,
+  storeBillingSettings,
+  storeMenus,
+  storePages,
+  taxClasses,
+} from "@/drizzle/schema";
 import { TAGS } from "@/lib/storefront/tags";
 import type { PageSectionItem } from "@/lib/sections/registry";
 import { normalizeMenus, type StoreMenus } from "@/lib/menus";
@@ -13,7 +26,8 @@ import {
 // ---------------------------------------------------------------------------
 // Cached PUBLIC storefront reads.
 //
-// These wrap the cookie-free anon client (lib/supabase/public.ts) in
+// These wrap the anonymous DB scope (withAnon — RLS enforced with no identity,
+// so only the public published/active policy branches match) in
 // `unstable_cache` so the storefront's hot (pages) (home, shop, blog index,
 // product detail) no longer hit Postgres on every request — the previous model
 // re-ran every query per visit because the (pages) were `force-dynamic`.
@@ -88,39 +102,83 @@ export interface BlogCardRow {
   featured: boolean;
 }
 
-// Columns the shop + homepage product cards actually render. Deliberately NOT
-// `*` / `variants(*)` — we only need pricing-relevant variant fields.
-const PRODUCT_CARD_COLUMNS =
-  "id, name, slug, description, category_id, base_price, selling_price, image_url, status, featured, sort_order, card_color, track_inventory, stock, low_stock_threshold, allow_backorder, category:categories(name), variants:product_variants(base_price, selling_price, special_price, sort_order, track_inventory, stock, low_stock_threshold, allow_backorder)";
-
-// Blog card columns — crucially excludes `content` (full article HTML), which
-// the listing/cards never render but `select('*')` used to ship for every post.
-const BLOG_CARD_COLUMNS =
-  "id, title, slug, excerpt, cover_image_url, author, published_at, reading_time, tags, categories, featured";
-
 export const getPublishedProducts = unstable_cache(
   async (storeId: string): Promise<ProductCardRow[]> => {
-    const supabase = createPublicClient();
-    const { data, error } = await supabase
-      .from("products")
-      .select(PRODUCT_CARD_COLUMNS)
-      .eq("store_id", storeId)
-      .eq("status", "published")
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: false });
-    if (error) {
-      console.error("getPublishedProducts:", error.message);
+    try {
+      return await withAnon(async (db) => {
+        // Columns the shop + homepage product cards actually render (aliased to
+        // the snake_case shape the components expect). Deliberately NOT every
+        // column — we only need pricing-relevant fields. The category name is
+        // flattened via the join so cards read `product.category` directly.
+        const rows = await db
+          .select({
+            id: products.id,
+            name: products.name,
+            slug: products.slug,
+            description: products.description,
+            category_id: products.categoryId,
+            base_price: products.basePrice,
+            selling_price: products.sellingPrice,
+            image_url: products.imageUrl,
+            status: products.status,
+            featured: products.featured,
+            sort_order: products.sortOrder,
+            card_color: products.cardColor,
+            track_inventory: products.trackInventory,
+            stock: products.stock,
+            low_stock_threshold: products.lowStockThreshold,
+            allow_backorder: products.allowBackorder,
+            category: categories.name,
+          })
+          .from(products)
+          .leftJoin(categories, eq(products.categoryId, categories.id))
+          .where(
+            and(eq(products.storeId, storeId), eq(products.status, "published")),
+          )
+          .orderBy(asc(products.sortOrder), desc(products.createdAt));
+
+        if (rows.length === 0) return [];
+
+        // Pricing-relevant variant fields for all listed products in one query,
+        // grouped in JS (replaces the PostgREST embedded `variants:(...)`).
+        const variantRows = await db
+          .select({
+            product_id: productVariants.productId,
+            base_price: productVariants.basePrice,
+            selling_price: productVariants.sellingPrice,
+            special_price: productVariants.specialPrice,
+            sort_order: productVariants.sortOrder,
+            track_inventory: productVariants.trackInventory,
+            stock: productVariants.stock,
+            low_stock_threshold: productVariants.lowStockThreshold,
+            allow_backorder: productVariants.allowBackorder,
+          })
+          .from(productVariants)
+          .where(
+            inArray(
+              productVariants.productId,
+              rows.map((r) => r.id),
+            ),
+          );
+
+        const byProduct = new Map<string, ProductCardRow["variants"]>();
+        for (const { product_id, ...variant } of variantRows) {
+          const list = byProduct.get(product_id) ?? [];
+          list.push(variant);
+          byProduct.set(product_id, list);
+        }
+        return rows.map((r) => ({
+          ...r,
+          variants: byProduct.get(r.id) ?? [],
+        }));
+      });
+    } catch (err) {
+      console.error(
+        "getPublishedProducts:",
+        err instanceof Error ? err.message : err,
+      );
       return [];
     }
-    // PostgREST returns the embedded category as a nested object; flatten it to
-    // a plain name string so cards can read `product.category` directly.
-    const rows = (data ?? []) as unknown as (Omit<
-      ProductCardRow,
-      "category"
-    > & {
-      category: { name: string } | null;
-    })[];
-    return rows.map((r) => ({ ...r, category: r.category?.name ?? null }));
   },
   ["storefront-published-products"],
   { tags: [TAGS.products], revalidate: REVALIDATE },
@@ -128,19 +186,29 @@ export const getPublishedProducts = unstable_cache(
 
 export const getActiveCategories = unstable_cache(
   async (storeId: string): Promise<CategoryRow[]> => {
-    const supabase = createPublicClient();
-    const { data, error } = await supabase
-      .from("categories")
-      .select("id, name, slug, image_url, sort_order")
-      .eq("store_id", storeId)
-      .eq("status", "active")
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true });
-    if (error) {
-      console.error("getActiveCategories:", error.message);
+    try {
+      return await withAnon((db) =>
+        db
+          .select({
+            id: categories.id,
+            name: categories.name,
+            slug: categories.slug,
+            image_url: categories.imageUrl,
+            sort_order: categories.sortOrder,
+          })
+          .from(categories)
+          .where(
+            and(eq(categories.storeId, storeId), eq(categories.status, "active")),
+          )
+          .orderBy(asc(categories.sortOrder), asc(categories.name)),
+      );
+    } catch (err) {
+      console.error(
+        "getActiveCategories:",
+        err instanceof Error ? err.message : err,
+      );
       return [];
     }
-    return (data ?? []) as CategoryRow[];
   },
   ["storefront-active-categories"],
   { tags: [TAGS.categories], revalidate: REVALIDATE },
@@ -148,18 +216,37 @@ export const getActiveCategories = unstable_cache(
 
 export const getPublishedBlogCards = unstable_cache(
   async (storeId: string): Promise<BlogCardRow[]> => {
-    const supabase = createPublicClient();
-    const { data, error } = await supabase
-      .from("blogs")
-      .select(BLOG_CARD_COLUMNS)
-      .eq("store_id", storeId)
-      .eq("status", "published")
-      .order("published_at", { ascending: false });
-    if (error) {
-      console.error("getPublishedBlogCards:", error.message);
+    try {
+      // Crucially excludes `content` (full article HTML), which the
+      // listing/cards never render but `select('*')` used to ship per post.
+      const rows = await withAnon((db) =>
+        db
+          .select({
+            id: blogs.id,
+            title: blogs.title,
+            slug: blogs.slug,
+            excerpt: blogs.excerpt,
+            cover_image_url: blogs.coverImageUrl,
+            author: blogs.author,
+            published_at: blogs.publishedAt,
+            reading_time: blogs.readingTime,
+            tags: blogs.tags,
+            categories: blogs.categories,
+            featured: blogs.featured,
+          })
+          .from(blogs)
+          .where(and(eq(blogs.storeId, storeId), eq(blogs.status, "published")))
+          .orderBy(desc(blogs.publishedAt)),
+      );
+      // tags is nullable at the DB level; cards expect an array.
+      return rows.map((r) => ({ ...r, tags: r.tags ?? [] }));
+    } catch (err) {
+      console.error(
+        "getPublishedBlogCards:",
+        err instanceof Error ? err.message : err,
+      );
       return [];
     }
-    return (data ?? []) as BlogCardRow[];
   },
   ["storefront-published-blog-cards"],
   { tags: [TAGS.blogs], revalidate: REVALIDATE },
@@ -171,25 +258,32 @@ export const getBlogTaxonomyNames = unstable_cache(
   async (
     storeId: string,
   ): Promise<{ categories: string[]; tags: string[] }> => {
-    const supabase = createPublicClient();
-    const [cats, tags] = await Promise.all([
-      supabase
-        .from("blog_categories")
-        .select("name")
-        .eq("store_id", storeId)
-        .order("name", { ascending: true }),
-      supabase
-        .from("blog_tags")
-        .select("name")
-        .eq("store_id", storeId)
-        .order("name", { ascending: true }),
-    ]);
-    if (cats.error) console.error("getBlogTaxonomyNames:", cats.error.message);
-    if (tags.error) console.error("getBlogTaxonomyNames:", tags.error.message);
-    return {
-      categories: ((cats.data ?? []) as { name: string }[]).map((r) => r.name),
-      tags: ((tags.data ?? []) as { name: string }[]).map((r) => r.name),
-    };
+    try {
+      return await withAnon(async (db) => {
+        const [cats, tags] = await Promise.all([
+          db
+            .select({ name: blogCategories.name })
+            .from(blogCategories)
+            .where(eq(blogCategories.storeId, storeId))
+            .orderBy(asc(blogCategories.name)),
+          db
+            .select({ name: blogTags.name })
+            .from(blogTags)
+            .where(eq(blogTags.storeId, storeId))
+            .orderBy(asc(blogTags.name)),
+        ]);
+        return {
+          categories: cats.map((r) => r.name),
+          tags: tags.map((r) => r.name),
+        };
+      });
+    } catch (err) {
+      console.error(
+        "getBlogTaxonomyNames:",
+        err instanceof Error ? err.message : err,
+      );
+      return { categories: [], tags: [] };
+    }
   },
   ["storefront-blog-taxonomy"],
   { tags: [TAGS.blogTaxonomy], revalidate: REVALIDATE },
@@ -211,18 +305,32 @@ export interface PublishedPage {
 
 export const getPublishedPage = unstable_cache(
   async (storeId: string, slug: string): Promise<PublishedPage | null> => {
-    const supabase = createPublicClient();
-    const { data, error } = await supabase
-      .from("store_pages")
-      .select(
-        "id, slug, title, seo_title, seo_description, seo_noindex, published_sections",
-      )
-      .eq("store_id", storeId)
-      .eq("slug", slug)
-      .eq("status", "published")
-      .maybeSingle();
-    if (error || !data) return null;
-    return data as unknown as PublishedPage;
+    try {
+      const rows = await withAnon((db) =>
+        db
+          .select({
+            id: storePages.id,
+            slug: storePages.slug,
+            title: storePages.title,
+            seo_title: storePages.seoTitle,
+            seo_description: storePages.seoDescription,
+            seo_noindex: storePages.seoNoindex,
+            published_sections: storePages.publishedSections,
+          })
+          .from(storePages)
+          .where(
+            and(
+              eq(storePages.storeId, storeId),
+              eq(storePages.slug, slug),
+              eq(storePages.status, "published"),
+            ),
+          )
+          .limit(1),
+      );
+      return (rows[0] as unknown as PublishedPage | undefined) ?? null;
+    } catch {
+      return null;
+    }
   },
   ["storefront-store-page"],
   { tags: [TAGS.pages], revalidate: REVALIDATE },
@@ -233,14 +341,22 @@ export const getPublishedPage = unstable_cache(
 // by the storefront layout → MenuProvider → Header/Footer.
 export const getStoreMenus = unstable_cache(
   async (storeId: string): Promise<StoreMenus> => {
-    const supabase = createPublicClient();
-    const { data, error } = await supabase
-      .from("store_menus")
-      .select("header, footer_groups, footer_legal")
-      .eq("store_id", storeId)
-      .maybeSingle();
-    if (error || !data) return normalizeMenus(null);
-    return normalizeMenus(data);
+    try {
+      const rows = await withAnon((db) =>
+        db
+          .select({
+            header: storeMenus.header,
+            footer_groups: storeMenus.footerGroups,
+            footer_legal: storeMenus.footerLegal,
+          })
+          .from(storeMenus)
+          .where(eq(storeMenus.storeId, storeId))
+          .limit(1),
+      );
+      return normalizeMenus(rows[0] ?? null);
+    } catch {
+      return normalizeMenus(null);
+    }
   },
   ["storefront-store-menus"],
   { tags: [TAGS.menus], revalidate: REVALIDATE },
@@ -251,15 +367,23 @@ export const getStoreMenus = unstable_cache(
 // renderer. Empty when the store has none / the table is missing.
 export const getStoreTaxClasses = unstable_cache(
   async (storeId: string): Promise<TaxClass[]> => {
-    const supabase = createPublicClient();
-    const { data, error } = await supabase
-      .from("tax_classes")
-      .select("id, name, rate, sort_order")
-      .eq("store_id", storeId)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true });
-    if (error || !data) return [];
-    return data.map((r) => rowToTaxClass(r as Record<string, unknown>));
+    try {
+      const rows = await withAnon((db) =>
+        db
+          .select({
+            id: taxClasses.id,
+            name: taxClasses.name,
+            rate: taxClasses.rate,
+            sort_order: taxClasses.sortOrder,
+          })
+          .from(taxClasses)
+          .where(eq(taxClasses.storeId, storeId))
+          .orderBy(asc(taxClasses.sortOrder), asc(taxClasses.name)),
+      );
+      return rows.map((r) => rowToTaxClass(r as Record<string, unknown>));
+    } catch {
+      return [];
+    }
   },
   ["storefront-tax-classes"],
   { tags: [TAGS.billing], revalidate: REVALIDATE },
@@ -269,14 +393,36 @@ export const getStoreTaxClasses = unstable_cache(
 // for a store with no row (tax off, generic invoice), so callers never null-check.
 export const getStoreBillingSettings = unstable_cache(
   async (storeId: string): Promise<BillingSettings> => {
-    const supabase = createPublicClient();
-    const { data, error } = await supabase
-      .from("store_billing_settings")
-      .select("*")
-      .eq("store_id", storeId)
-      .maybeSingle();
-    if (error || !data) return rowToBillingSettings(null);
-    return rowToBillingSettings(data as Record<string, unknown>);
+    try {
+      const rows = await withAnon((db) =>
+        db
+          .select({
+            store_id: storeBillingSettings.storeId,
+            tax_enabled: storeBillingSettings.taxEnabled,
+            prices_include_tax: storeBillingSettings.pricesIncludeTax,
+            default_tax_class_id: storeBillingSettings.defaultTaxClassId,
+            business_name: storeBillingSettings.businessName,
+            business_address: storeBillingSettings.businessAddress,
+            tax_id: storeBillingSettings.taxId,
+            contact_email: storeBillingSettings.contactEmail,
+            contact_phone: storeBillingSettings.contactPhone,
+            logo_url: storeBillingSettings.logoUrl,
+            invoice_prefix: storeBillingSettings.invoicePrefix,
+            accent_color: storeBillingSettings.accentColor,
+            footer_note: storeBillingSettings.footerNote,
+            terms: storeBillingSettings.terms,
+            template: storeBillingSettings.template,
+          })
+          .from(storeBillingSettings)
+          .where(eq(storeBillingSettings.storeId, storeId))
+          .limit(1),
+      );
+      return rowToBillingSettings(
+        (rows[0] as Record<string, unknown> | undefined) ?? null,
+      );
+    } catch {
+      return rowToBillingSettings(null);
+    }
   },
   ["storefront-billing-settings"],
   { tags: [TAGS.billing], revalidate: REVALIDATE },
@@ -285,23 +431,30 @@ export const getStoreBillingSettings = unstable_cache(
 // Published page slugs for the current store — used by the sitemap.
 export const getPublishedPageSlugs = unstable_cache(
   async (storeId: string): Promise<{ slug: string; updated_at: string }[]> => {
-    const supabase = createPublicClient();
-    const { data, error } = await supabase
-      .from("store_pages")
-      .select("slug, updated_at, seo_noindex")
-      .eq("store_id", storeId)
-      .eq("status", "published");
-    if (error) return [];
-    // The homepage sentinel (slug '') is served by `/`, not as a custom page.
-    // Pages the merchant flagged noindex must not appear in the sitemap either —
-    // a sitemap that advertises URLs it also asks crawlers to skip is a bad
-    // signal.
-    const rows = (data ?? []) as {
-      slug: string;
-      updated_at: string;
-      seo_noindex: boolean;
-    }[];
-    return rows.filter((r) => !!r.slug && !r.seo_noindex);
+    try {
+      const rows = await withAnon((db) =>
+        db
+          .select({
+            slug: storePages.slug,
+            updated_at: storePages.updatedAt,
+            seo_noindex: storePages.seoNoindex,
+          })
+          .from(storePages)
+          .where(
+            and(
+              eq(storePages.storeId, storeId),
+              eq(storePages.status, "published"),
+            ),
+          ),
+      );
+      // The homepage sentinel (slug '') is served by `/`, not as a custom page.
+      // Pages the merchant flagged noindex must not appear in the sitemap either —
+      // a sitemap that advertises URLs it also asks crawlers to skip is a bad
+      // signal.
+      return rows.filter((r) => !!r.slug && !r.seo_noindex);
+    } catch {
+      return [];
+    }
   },
   ["storefront-store-page-slugs"],
   { tags: [TAGS.pages], revalidate: REVALIDATE },
