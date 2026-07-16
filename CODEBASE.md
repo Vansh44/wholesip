@@ -259,6 +259,15 @@ wholesip/
 │   │                          # gcs.ts — gcsConfigured/gcsUploadObject/gcsSignUploadUrl/
 │   │                          # gcsDeletePaths/gcsPublicUrl/gcsPathFromUrl. ADC auth
 │   │                          # (or GCP_SA_KEY); public bucket. Lazy SDK import. Tested.
+│   ├── db/                    # ★ Cloud SQL data layer (GCP Phase 5, IN PROGRESS — NOT yet
+│   │                          # the active path; app still on Supabase). client.ts: Drizzle
+│   │                          # over pg Pool w/ the 2A tenancy model — withService (BYPASSRLS),
+│   │                          # withUser({uid,email}) (SET LOCAL ROLE app_user + app.current_user_id
+│   │                          # GUC → auth.uid() shim), withAnon (no GUC). Schema in drizzle/
+│   │                          # (introspected). See docs/gcp-migration-phase5-6.md.
+│   ├── auth/                  # ★ server-user.ts — getServerUser() identity seam (GCP Phase 5/6):
+│   │                          # the ONE place server code reads the authed user; feeds withUser.
+│   │                          # Wraps Supabase auth now; swaps to Identity Platform in Phase 6.
 │   ├── storefront/            # queries.ts (cached storefront reads — getPublishedPage/
 │   │                          # getPublishedPageSlugs, named columns only), tags.ts
 │   │                          # (cache tags incl. TAGS.pages)
