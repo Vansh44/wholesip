@@ -1,9 +1,11 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { eq } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { TAGS } from "@/lib/storefront/tags";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
+import { withUser } from "@/lib/db/client";
+import { cardColors } from "@/drizzle/schema";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,7 +62,6 @@ function revalidateColors() {
 export async function createCardColor(
   formData: CardColorFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
@@ -69,23 +70,27 @@ export async function createCardColor(
   const hex = normalizeHex(formData.hex);
   if (!hex) return { error: "Enter a valid hex colour (e.g. #f4dfe0)." };
 
-  const { data, error } = await supabase
-    .from("card_colors")
-    .insert({
-      name: formData.name.trim(),
-      hex,
-      sort_order: formData.sort_order ?? 0,
-      store_id: storeId,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("createCardColor error:", error);
-    return { error: error.message };
+  try {
+    // RLS (is_store_admin) gates the insert against the caller's store.
+    const [row] = await withUser({ uid: userId }, (db) =>
+      db
+        .insert(cardColors)
+        .values({
+          name: formData.name.trim(),
+          hex,
+          sortOrder: formData.sort_order ?? 0,
+          storeId,
+        })
+        .returning(),
+    );
+    revalidateColors();
+    return { success: true, data: row as Record<string, unknown> };
+  } catch (err) {
+    console.error("createCardColor error:", err);
+    return {
+      error: err instanceof Error ? err.message : "Failed to create colour.",
+    };
   }
-  revalidateColors();
-  return { success: true, data: data as Record<string, unknown> };
 }
 
 // ---------------------------------------------------------------------------
@@ -96,7 +101,6 @@ export async function updateCardColor(
   id: string,
   formData: CardColorFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
 
@@ -104,21 +108,27 @@ export async function updateCardColor(
   const hex = normalizeHex(formData.hex);
   if (!hex) return { error: "Enter a valid hex colour (e.g. #f4dfe0)." };
 
-  const { error } = await supabase
-    .from("card_colors")
-    .update({
-      name: formData.name.trim(),
-      hex,
-      sort_order: formData.sort_order ?? 0,
-    })
-    .eq("id", id);
-
-  if (error) {
-    console.error("updateCardColor error:", error);
-    return { error: error.message };
+  try {
+    // No store filter needed: RLS (is_store_admin) confines the update to the
+    // caller's own store; updated_at is maintained by the DB trigger.
+    await withUser({ uid: userId }, (db) =>
+      db
+        .update(cardColors)
+        .set({
+          name: formData.name.trim(),
+          hex,
+          sortOrder: formData.sort_order ?? 0,
+        })
+        .where(eq(cardColors.id, id)),
+    );
+    revalidateColors();
+    return { success: true };
+  } catch (err) {
+    console.error("updateCardColor error:", err);
+    return {
+      error: err instanceof Error ? err.message : "Failed to update colour.",
+    };
   }
-  revalidateColors();
-  return { success: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -128,15 +138,20 @@ export async function updateCardColor(
 // entry is removed — deleting a shade just takes it out of the dropdown.
 
 export async function deleteCardColor(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
 
-  const { error } = await supabase.from("card_colors").delete().eq("id", id);
-  if (error) {
-    console.error("deleteCardColor error:", error);
-    return { error: error.message };
+  try {
+    // RLS (is_store_admin) confines the delete to the caller's own store.
+    await withUser({ uid: userId }, (db) =>
+      db.delete(cardColors).where(eq(cardColors.id, id)),
+    );
+    revalidateColors();
+    return { success: true };
+  } catch (err) {
+    console.error("deleteCardColor error:", err);
+    return {
+      error: err instanceof Error ? err.message : "Failed to delete colour.",
+    };
   }
-  revalidateColors();
-  return { success: true };
 }

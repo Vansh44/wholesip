@@ -91,6 +91,84 @@ export function makeChain(
  *     customers: makeChain({ data: { first_name: "A" }, error: null }),
  *   });
  */
+// ---------------------------------------------------------------------------
+// Mock Drizzle db (GCP migration Phase 5). Mirrors the fragment of the Drizzle
+// query API our ported server actions use, recording the args so tests can
+// assert on insert/update payloads without a real database. Pair it with a
+// mock of `@/lib/db/client` whose with* runners invoke the callback with .db:
+//
+//   const dbHolder = vi.hoisted(() => ({ current: null as any }));
+//   vi.mock("@/lib/db/client", () => ({
+//     withUser: vi.fn((_id: any, fn: any) => fn(dbHolder.current.db)),
+//     withService: vi.fn((fn: any) => fn(dbHolder.current.db)),
+//     withAnon: vi.fn((fn: any) => fn(dbHolder.current.db)),
+//   }));
+//   beforeEach(() => { dbHolder.current = makeDbMock({ returning: [{ id: "c1" }] }); });
+// ---------------------------------------------------------------------------
+
+export interface DbMock {
+  db: any;
+  calls: {
+    insert: any[];
+    values: any[];
+    update: any[];
+    set: any[];
+    delete: any[];
+    where: any[];
+  };
+}
+
+export function makeDbMock(opts: { returning?: any[] } = {}): DbMock {
+  const returning = opts.returning ?? [{ id: "row-1" }];
+  const calls: DbMock["calls"] = {
+    insert: [],
+    values: [],
+    update: [],
+    set: [],
+    delete: [],
+    where: [],
+  };
+
+  // A thenable step that also exposes .where()/.returning() terminals, so both
+  // `await db.update().set().where()` and `db.insert().values().returning()`
+  // resolve correctly.
+  const step = (result: any): any => ({
+    where: vi.fn((c: any) => {
+      calls.where.push(c);
+      return step(result);
+    }),
+    returning: vi.fn(async () => returning),
+    then: (resolve: any) => Promise.resolve(result).then(resolve),
+  });
+
+  const db: any = {
+    insert: vi.fn((t: any) => {
+      calls.insert.push(t);
+      return {
+        values: vi.fn((v: any) => {
+          calls.values.push(v);
+          return step(returning);
+        }),
+      };
+    }),
+    update: vi.fn((t: any) => {
+      calls.update.push(t);
+      return {
+        set: vi.fn((v: any) => {
+          calls.set.push(v);
+          return step({ rowCount: 1 });
+        }),
+      };
+    }),
+    delete: vi.fn((t: any) => {
+      calls.delete.push(t);
+      return step({ rowCount: 1 });
+    }),
+  };
+
+  return { db, calls };
+}
+
 export function makeSupabase(
   tables: Record<string, ChainMock> = {},
   user: any = { id: "user-1" },
