@@ -1,49 +1,38 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock, sqlParamValues } from "./_test-helpers";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
   getActingStoreId: vi.fn(async () => STORE),
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  // Promise.resolve() assimilates the thenable query steps into real
+  // promises, so the action's .catch() calls work like production.
+  withUser: vi.fn((_identity: any, fn: any) =>
+    Promise.resolve(fn(dbHolder.current.db)),
+  ),
+  withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+  withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+}));
 
 import { getOrders, updateOrderStatus } from "./order-actions";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
-import { makeChain, makeSupabase } from "./_test-helpers";
 
 const STORE = "a0000000-0000-4000-8000-000000000001";
 
+// order-actions.ts — the dashboard orders list (withUser + explicit store
+// scope) and the allowlisted status update with the exactly-once cancel
+// restock (atomic reserved→released claim + release_stock RPC).
 describe("order-actions", () => {
-  let supabase: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    supabase = makeSupabase({
-      orders: makeChain(
-        { data: { id: "o1", status: "pending" }, error: null },
-        {
-          data: [{ id: "o1", total: 100 }],
-          count: 3,
-          error: null,
-        },
-      ),
-      order_items: makeChain(undefined, {
-        data: [{ product_id: "p1", variant_id: "v1", quantity: 2 }],
-        error: null,
-      }),
-    });
-    vi.mocked(createClient).mockResolvedValue(supabase);
-
-    const admin = {
-      rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
-    };
-    vi.mocked(createAdminClient).mockReturnValue(admin as any);
+    dbHolder.current = makeDbMock({ returning: [{ id: "o1" }] });
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
   });
 
@@ -54,30 +43,31 @@ describe("order-actions", () => {
       const result = await getOrders();
       expect(result.error).toMatch(/not authenticated/i);
       expect(result.orders).toEqual([]);
-      expect(supabase.from).not.toHaveBeenCalled();
+      expect(dbHolder.current.calls.select).toHaveLength(0);
     });
 
     // Happy path — store-scoped, returns rows + total count.
     it("returns store-scoped, paginated orders with a total", async () => {
+      dbHolder.current = makeDbMock({
+        selectQueue: [[{ id: "o1", total: 100 }], [{ n: 3 }]],
+      });
       const result = await getOrders(1, 50);
       expect(result.error).toBeUndefined();
       expect(result.orders).toEqual([{ id: "o1", total: 100 }]);
       expect(result.total).toBe(3);
-      expect(supabase._tables.orders.eq).toHaveBeenCalledWith(
-        "store_id",
-        STORE,
-      );
-      // Never selects the whole row / the order_items join for the list.
-      expect(supabase._tables.orders.select.mock.calls[0][0]).not.toContain(
-        "order_items",
-      );
+      // List + count queries, both store-scoped.
+      expect(dbHolder.current.calls.where).toHaveLength(2);
+      // Never selects the order_items join for the list.
+      expect(
+        Object.keys(dbHolder.current.calls.select[0] ?? {}),
+      ).not.toContain("order_items");
     });
 
     // Page size is clamped so a client can't request an unbounded range.
     it("clamps an oversized page size", async () => {
       await getOrders(1, 100000);
-      // range(from, from + size - 1) → size capped at 100 → (0, 99).
-      expect(supabase._tables.orders.range).toHaveBeenCalledWith(0, 99);
+      expect(dbHolder.current.calls.limit[0]).toBe(100);
+      expect(dbHolder.current.calls.offset[0]).toBe(0);
     });
   });
 
@@ -93,7 +83,7 @@ describe("order-actions", () => {
     it("rejects an unknown order status", async () => {
       const result = await updateOrderStatus("o1", "hacked");
       expect(result.error).toMatch(/invalid order status/i);
-      expect(supabase.from).not.toHaveBeenCalled();
+      expect(dbHolder.current.calls.update).toHaveLength(0);
     });
 
     // Payment status is allowlisted too.
@@ -108,26 +98,23 @@ describe("order-actions", () => {
       expect(result.error).toMatch(/invalid order/i);
     });
 
-    // Happy path — update is scoped to id AND store.
+    // Happy path — update is scoped to id AND store (where carries both).
     it("updates a valid status scoped to the store", async () => {
       const result = await updateOrderStatus("o1", "shipped", "paid");
       expect(result.success).toBe(true);
-      expect(supabase._tables.orders.update).toHaveBeenCalledWith({
+      expect(dbHolder.current.calls.set[0]).toEqual({
         status: "shipped",
-        payment_status: "paid",
+        paymentStatus: "paid",
       });
-      expect(supabase._tables.orders.eq).toHaveBeenCalledWith("id", "o1");
-      expect(supabase._tables.orders.eq).toHaveBeenCalledWith(
-        "store_id",
-        STORE,
-      );
+      expect(dbHolder.current.calls.where).toHaveLength(1);
     });
 
     it("restocks a reserved order exactly once when cancelled", async () => {
-      // Order is 'reserved', so the conditional claim UPDATE matches one row.
-      supabase._tables.orders = makeChain(undefined, {
-        data: [{ id: "o1" }],
-        error: null,
+      // Order is 'reserved', so the conditional claim UPDATE matches one row
+      // (returning [{id}]); the line items then feed release_stock.
+      dbHolder.current = makeDbMock({
+        returning: [{ id: "o1" }],
+        selectQueue: [[{ product_id: "p1", variant_id: "v1", quantity: 2 }]],
       });
 
       const result = await updateOrderStatus("o1", "cancelled");
@@ -135,36 +122,28 @@ describe("order-actions", () => {
 
       // The release is claimed atomically: stock_status flips reserved→released
       // in a single conditional UPDATE, so it can never fire twice.
-      expect(supabase._tables.orders.update).toHaveBeenCalledWith({
-        stock_status: "released",
+      expect(dbHolder.current.calls.set[0]).toEqual({
+        stockStatus: "released",
       });
-      expect(supabase._tables.orders.eq).toHaveBeenCalledWith(
-        "stock_status",
-        "reserved",
-      );
 
-      const admin = vi.mocked(createAdminClient)();
-      expect(admin.rpc).toHaveBeenCalledWith("release_stock", {
-        p_store: STORE,
-        p_product: "p1",
-        p_variant: "v1",
-        p_qty: 2,
-        p_order: "o1",
-        p_reason: "order_cancelled",
-      });
+      // One release_stock RPC per line item, with the line's exact values.
+      expect(dbHolder.current.calls.execute).toHaveLength(1);
+      const params = sqlParamValues(dbHolder.current.calls.execute[0]);
+      expect(params).toEqual([STORE, "p1", "v1", 2, "o1", "order_cancelled"]);
+
+      // The status update itself still lands.
+      expect(dbHolder.current.calls.set[1]).toEqual({ status: "cancelled" });
     });
 
     it("does not restock an order whose stock was never reserved or already released", async () => {
       // stock_status is not 'reserved' (a legacy 'none' order, or one already
       // 'released' by a prior cancel/reinstate), so the claim UPDATE matches no
-      // row — guards both the phantom restock (#2) and the double restock (#3).
-      supabase._tables.orders = makeChain(undefined, { data: [], error: null });
+      // row — guards both the phantom restock and the double restock.
+      dbHolder.current = makeDbMock({ returning: [] });
 
       const result = await updateOrderStatus("o1", "cancelled");
       expect(result.success).toBe(true);
-
-      const admin = vi.mocked(createAdminClient)();
-      expect(admin.rpc).not.toHaveBeenCalled();
+      expect(dbHolder.current.calls.execute).toHaveLength(0);
     });
   });
 });

@@ -99,9 +99,12 @@ export function makeChain(
 //
 //   const dbHolder = vi.hoisted(() => ({ current: null as any }));
 //   vi.mock("@/lib/db/client", () => ({
-//     withUser: vi.fn((_id: any, fn: any) => fn(dbHolder.current.db)),
-//     withService: vi.fn((fn: any) => fn(dbHolder.current.db)),
-//     withAnon: vi.fn((fn: any) => fn(dbHolder.current.db)),
+//     // Promise.resolve() assimilates the thenable query steps into REAL
+//     // promises, so action code may call .catch() on a with* result.
+//     withUser: vi.fn((_id: any, fn: any) =>
+//       Promise.resolve(fn(dbHolder.current.db))),
+//     withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+//     withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
 //   }));
 //   beforeEach(() => { dbHolder.current = makeDbMock({ returning: [{ id: "c1" }] }); });
 // ---------------------------------------------------------------------------
@@ -117,16 +120,25 @@ export interface DbMock {
     where: any[];
     select: any[];
     onConflict: any[];
+    execute: any[];
+    limit: any[];
+    offset: any[];
   };
 }
 
 export function makeDbMock(
-  opts: { returning?: any[]; selectQueue?: any[][] } = {},
+  opts: {
+    returning?: any[];
+    selectQueue?: any[][];
+    executeQueue?: any[][];
+  } = {},
 ): DbMock {
   const returning = opts.returning ?? [{ id: "row-1" }];
   // Each db.select() consumes the next entry (an action doing a slug lookup
   // then an image prefetch gets queue[0] then queue[1]); empty queue → [].
   const selectQueue = [...(opts.selectQueue ?? [])];
+  // Each db.execute() (raw-SQL RPC calls) consumes the next `.rows` entry.
+  const executeQueue = [...(opts.executeQueue ?? [])];
   const calls: DbMock["calls"] = {
     insert: [],
     values: [],
@@ -136,6 +148,9 @@ export function makeDbMock(
     where: [],
     select: [],
     onConflict: [],
+    execute: [],
+    limit: [],
+    offset: [],
   };
 
   // A thenable step that also exposes .where()/.returning() terminals, so both
@@ -170,8 +185,14 @@ export function makeDbMock(
       innerJoin: vi.fn(() => s),
       groupBy: vi.fn(() => s),
       orderBy: vi.fn(() => s),
-      limit: vi.fn(() => s),
-      offset: vi.fn(() => s),
+      limit: vi.fn((n: any) => {
+        calls.limit.push(n);
+        return s;
+      }),
+      offset: vi.fn((n: any) => {
+        calls.offset.push(n);
+        return s;
+      }),
       then: (resolve: any) => Promise.resolve(rows).then(resolve),
     };
     return s;
@@ -181,6 +202,10 @@ export function makeDbMock(
     select: vi.fn((projection?: any) => {
       calls.select.push(projection);
       return selectStep(selectQueue.length ? selectQueue.shift()! : []);
+    }),
+    execute: vi.fn(async (query: any) => {
+      calls.execute.push(query);
+      return { rows: executeQueue.length ? executeQueue.shift()! : [] };
     }),
     insert: vi.fn((t: any) => {
       calls.insert.push(t);
@@ -207,6 +232,34 @@ export function makeDbMock(
   };
 
   return { db, calls };
+}
+
+/**
+ * The bound parameter VALUES of a Drizzle SQL object, in order — lets tests
+ * assert what a raw-SQL RPC call (db.execute) was invoked with. In a sql``
+ * template, interpolated values sit INLINE in queryChunks as raw primitives
+ * (incl. null); literal SQL text is a StringChunk whose `value` is an array.
+ */
+export function sqlParamValues(sqlObj: any): any[] {
+  const out: any[] = [];
+  const walk = (chunk: any) => {
+    if (chunk === null || typeof chunk !== "object") {
+      out.push(chunk); // a raw bound value
+      return;
+    }
+    if (Array.isArray(chunk)) {
+      chunk.forEach(walk);
+      return;
+    }
+    if (chunk.queryChunks) {
+      walk(chunk.queryChunks); // nested SQL
+      return;
+    }
+    if (Array.isArray(chunk.value)) return; // StringChunk (literal SQL text)
+    if ("value" in chunk) out.push(chunk.value); // Param wrapper
+  };
+  if (sqlObj?.queryChunks) walk(sqlObj.queryChunks);
+  return out;
 }
 
 export function makeSupabase(

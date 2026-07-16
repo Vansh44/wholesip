@@ -270,7 +270,10 @@ wholesip/
 │   │                          # dashboard/enquiries/data.ts), reviews, blog-taxonomy,
 │   │                          # coupons, blogs (actions + dashboard list + settings +
 │   │                          # lib/blog-taxonomy.ts — fetchBlogTaxonomy(storeId), no
-│   │                          # client param), addresses, and the FULL storefront read path
+│   │                          # client param), addresses, orders (order-actions.ts incl.
+│   │                          # the cancel-restock claim + release_stock RPC), inventory
+│   │                          # (incl. adjust_stock RPC via named-arg sql), and the FULL
+│   │                          # storefront read path
 │   │                          # (lib/store/resolve.ts, lib/storefront/queries.ts,
 │   │                          # shop/[slug] + blogs/[slug] pages — all withAnon;
 │   │                          # getBlog withUser for previews).
