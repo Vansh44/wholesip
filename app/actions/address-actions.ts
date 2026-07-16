@@ -1,11 +1,14 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { and, count, desc, eq } from "drizzle-orm";
+import { withUser } from "@/lib/db/client";
+import { customerAddresses } from "@/drizzle/schema";
+import { getServerUser } from "@/lib/auth/server-user";
 import { getCurrentStoreId } from "@/lib/store/resolve";
 
 // Saved shipping addresses for the storefront checkout address book. All reads
-// and writes run on the shopper's own session (RLS-scoped to user_id), so a
-// customer can only ever see or change their own addresses.
+// and writes run under the shopper's own identity (RLS-scoped to user_id), so
+// a customer can only ever see or change their own addresses.
 
 export interface AddressInput {
   firstName: string;
@@ -35,8 +38,21 @@ export interface SavedAddress {
   is_default: boolean;
 }
 
-const ADDRESS_COLUMNS =
-  "id, first_name, last_name, email, phone, address_line1, address_line2, city, state, postal_code, country, is_default";
+// Aliased select preserving the snake_case shape the checkout/profile expect.
+const ADDRESS_COLUMNS = {
+  id: customerAddresses.id,
+  first_name: customerAddresses.firstName,
+  last_name: customerAddresses.lastName,
+  email: customerAddresses.email,
+  phone: customerAddresses.phone,
+  address_line1: customerAddresses.addressLine1,
+  address_line2: customerAddresses.addressLine2,
+  city: customerAddresses.city,
+  state: customerAddresses.state,
+  postal_code: customerAddresses.postalCode,
+  country: customerAddresses.country,
+  is_default: customerAddresses.isDefault,
+};
 
 const MAX_LEN = 200;
 function clean(value: string | undefined, max = MAX_LEN): string {
@@ -62,40 +78,40 @@ function requiredError(input: AddressInput): string | null {
 // Cleaned, length-capped row WITHOUT the is_default flag (callers set that).
 function toAddressRow(input: AddressInput, userId: string, storeId: string) {
   return {
-    user_id: userId,
-    store_id: storeId,
-    first_name: clean(input.firstName),
-    last_name: clean(input.lastName) || null,
+    userId,
+    storeId,
+    firstName: clean(input.firstName),
+    lastName: clean(input.lastName) || null,
     email: clean(input.email) || null,
     phone: clean(input.phone) || null,
-    address_line1: clean(input.addressLine1),
-    address_line2: clean(input.addressLine2) || null,
+    addressLine1: clean(input.addressLine1),
+    addressLine2: clean(input.addressLine2) || null,
     city: clean(input.city),
     state: clean(input.state),
-    postal_code: clean(input.postalCode),
+    postalCode: clean(input.postalCode),
     country: clean(input.country),
   };
 }
 
 export async function getMyAddresses(): Promise<SavedAddress[]> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return [];
 
-  const { data, error } = await supabase
-    .from("customer_addresses")
-    .select(ADDRESS_COLUMNS)
-    .eq("user_id", user.id)
-    .order("is_default", { ascending: false })
-    .order("updated_at", { ascending: false });
-
-  if (error) {
-    console.error("getMyAddresses:", error.message);
+  try {
+    return await withUser({ uid: user.id }, (db) =>
+      db
+        .select(ADDRESS_COLUMNS)
+        .from(customerAddresses)
+        .where(eq(customerAddresses.userId, user.id))
+        .orderBy(
+          desc(customerAddresses.isDefault),
+          desc(customerAddresses.updatedAt),
+        ),
+    );
+  } catch (err) {
+    console.error("getMyAddresses:", err instanceof Error ? err.message : err);
     return [];
   }
-  return (data ?? []) as SavedAddress[];
 }
 
 // Checkout "remember this address": dedups by content and makes it the default
@@ -103,57 +119,60 @@ export async function getMyAddresses(): Promise<SavedAddress[]> {
 export async function saveAddress(
   input: AddressInput,
 ): Promise<{ success?: boolean; error?: string; id?: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "You must be signed in." };
 
   const invalid = requiredError(input);
   if (invalid) return { error: invalid };
 
   const storeId = await getCurrentStoreId();
-  const row = { ...toAddressRow(input, user.id, storeId), is_default: true };
+  const row = { ...toAddressRow(input, user.id, storeId), isDefault: true };
 
-  // The address just used becomes the default; clear the flag on the others so
-  // it prefills next time.
-  await supabase
-    .from("customer_addresses")
-    .update({ is_default: false })
-    .eq("user_id", user.id);
+  try {
+    // One transaction: clear the old default, dedup, then update-or-insert —
+    // the whole address-book mutation lands (or rolls back) atomically.
+    const id = await withUser({ uid: user.id }, async (db) => {
+      // The address just used becomes the default; clear the flag on the
+      // others so it prefills next time.
+      await db
+        .update(customerAddresses)
+        .set({ isDefault: false })
+        .where(eq(customerAddresses.userId, user.id));
 
-  // Dedup: update an identical existing address rather than inserting a copy.
-  const { data: existing } = await supabase
-    .from("customer_addresses")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("address_line1", row.address_line1)
-    .eq("city", row.city)
-    .eq("postal_code", row.postal_code)
-    .maybeSingle();
+      // Dedup: update an identical existing address rather than inserting a copy.
+      const existingRows = await db
+        .select({ id: customerAddresses.id })
+        .from(customerAddresses)
+        .where(
+          and(
+            eq(customerAddresses.userId, user.id),
+            eq(customerAddresses.addressLine1, row.addressLine1),
+            eq(customerAddresses.city, row.city),
+            eq(customerAddresses.postalCode, row.postalCode),
+          ),
+        )
+        .limit(1);
+      const existing = existingRows[0];
 
-  if (existing) {
-    const { error } = await supabase
-      .from("customer_addresses")
-      .update(row)
-      .eq("id", existing.id);
-    if (error) {
-      console.error("saveAddress update:", error.message);
-      return { error: "Could not save address." };
-    }
-    return { success: true, id: existing.id as string };
-  }
+      if (existing) {
+        await db
+          .update(customerAddresses)
+          .set(row)
+          .where(eq(customerAddresses.id, existing.id));
+        return existing.id;
+      }
 
-  const { data: inserted, error } = await supabase
-    .from("customer_addresses")
-    .insert(row)
-    .select("id")
-    .single();
-  if (error || !inserted) {
-    console.error("saveAddress insert:", error?.message);
+      const [inserted] = await db
+        .insert(customerAddresses)
+        .values(row)
+        .returning({ id: customerAddresses.id });
+      return inserted.id;
+    });
+    return { success: true, id };
+  } catch (err) {
+    console.error("saveAddress:", err instanceof Error ? err.message : err);
     return { error: "Could not save address." };
   }
-  return { success: true, id: inserted.id as string };
 }
 
 // Address-book add (no id) or edit (id) — explicit, no content dedup. A brand
@@ -162,10 +181,7 @@ export async function upsertAddress(
   input: AddressInput,
   addressId?: string,
 ): Promise<{ success?: boolean; error?: string; id?: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "You must be signed in." };
 
   const invalid = requiredError(input);
@@ -175,35 +191,51 @@ export async function upsertAddress(
   const row = toAddressRow(input, user.id, storeId);
 
   if (addressId) {
-    const { error } = await supabase
-      .from("customer_addresses")
-      .update(row)
-      .eq("id", addressId)
-      .eq("user_id", user.id);
-    if (error) {
-      console.error("upsertAddress update:", error.message);
+    try {
+      await withUser({ uid: user.id }, (db) =>
+        db
+          .update(customerAddresses)
+          .set(row)
+          .where(
+            and(
+              eq(customerAddresses.id, addressId),
+              eq(customerAddresses.userId, user.id),
+            ),
+          ),
+      );
+      return { success: true, id: addressId };
+    } catch (err) {
+      console.error(
+        "upsertAddress update:",
+        err instanceof Error ? err.message : err,
+      );
       return { error: "Could not save address." };
     }
-    return { success: true, id: addressId };
   }
 
-  // First address for this customer defaults to true so checkout can prefill.
-  const { count } = await supabase
-    .from("customer_addresses")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id);
-  const isFirst = (count ?? 0) === 0;
+  try {
+    const id = await withUser({ uid: user.id }, async (db) => {
+      // First address for this customer defaults to true so checkout can prefill.
+      const [countRow] = await db
+        .select({ n: count() })
+        .from(customerAddresses)
+        .where(eq(customerAddresses.userId, user.id));
+      const isFirst = (countRow?.n ?? 0) === 0;
 
-  const { data: inserted, error } = await supabase
-    .from("customer_addresses")
-    .insert({ ...row, is_default: isFirst })
-    .select("id")
-    .single();
-  if (error || !inserted) {
-    console.error("upsertAddress insert:", error?.message);
+      const [inserted] = await db
+        .insert(customerAddresses)
+        .values({ ...row, isDefault: isFirst })
+        .returning({ id: customerAddresses.id });
+      return inserted.id;
+    });
+    return { success: true, id };
+  } catch (err) {
+    console.error(
+      "upsertAddress insert:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not save address." };
   }
-  return { success: true, id: inserted.id as string };
 }
 
 export async function setDefaultAddress(
@@ -212,29 +244,35 @@ export async function setDefaultAddress(
   if (typeof id !== "string" || !id.trim())
     return { error: "Invalid address." };
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "You must be signed in." };
 
-  // Clear every default for this customer, then set the chosen one (own-row).
-  await supabase
-    .from("customer_addresses")
-    .update({ is_default: false })
-    .eq("user_id", user.id);
-
-  const { error } = await supabase
-    .from("customer_addresses")
-    .update({ is_default: true })
-    .eq("id", id)
-    .eq("user_id", user.id);
-
-  if (error) {
-    console.error("setDefaultAddress:", error.message);
+  try {
+    // Clear every default for this customer, then set the chosen one
+    // (own-row) — atomically, so there is never a moment with two defaults.
+    await withUser({ uid: user.id }, async (db) => {
+      await db
+        .update(customerAddresses)
+        .set({ isDefault: false })
+        .where(eq(customerAddresses.userId, user.id));
+      await db
+        .update(customerAddresses)
+        .set({ isDefault: true })
+        .where(
+          and(
+            eq(customerAddresses.id, id),
+            eq(customerAddresses.userId, user.id),
+          ),
+        );
+    });
+    return { success: true };
+  } catch (err) {
+    console.error(
+      "setDefaultAddress:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not update default address." };
   }
-  return { success: true };
 }
 
 export async function deleteAddress(
@@ -243,21 +281,23 @@ export async function deleteAddress(
   if (typeof id !== "string" || !id.trim())
     return { error: "Invalid address." };
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "You must be signed in." };
 
-  const { error } = await supabase
-    .from("customer_addresses")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", user.id);
-
-  if (error) {
-    console.error("deleteAddress:", error.message);
+  try {
+    await withUser({ uid: user.id }, (db) =>
+      db
+        .delete(customerAddresses)
+        .where(
+          and(
+            eq(customerAddresses.id, id),
+            eq(customerAddresses.userId, user.id),
+          ),
+        ),
+    );
+    return { success: true };
+  } catch (err) {
+    console.error("deleteAddress:", err instanceof Error ? err.message : err);
     return { error: "Could not delete address." };
   }
-  return { success: true };
 }

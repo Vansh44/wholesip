@@ -2,7 +2,9 @@
 // old hardcoded PREDEFINED_CATEGORIES / PREDEFINED_TAGS lists. Blogs store
 // plain names in their text[] columns, so consumers work with names; ids are
 // only needed by the dashboard manager (rename/delete).
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { asc, eq } from "drizzle-orm";
+import { withAnon } from "@/lib/db/client";
+import { blogCategories, blogTags } from "@/drizzle/schema";
 
 export interface TaxonomyItem {
   id: string;
@@ -15,31 +17,32 @@ export interface BlogTaxonomy {
 }
 
 /**
- * Both taxonomy lists for a store, alphabetical. Works with any client
- * (reads are public under RLS); errors degrade to empty lists so a missing
- * table can never take a page down.
+ * Both taxonomy lists for a store, alphabetical. Reads are public under RLS
+ * (anonymous scope); errors degrade to empty lists so a missing table can
+ * never take a page down.
  */
-export async function fetchBlogTaxonomy(
-  supabase: SupabaseClient,
-  storeId: string,
-): Promise<BlogTaxonomy> {
-  const [cats, tags] = await Promise.all([
-    supabase
-      .from("blog_categories")
-      .select("id, name")
-      .eq("store_id", storeId)
-      .order("name", { ascending: true }),
-    supabase
-      .from("blog_tags")
-      .select("id, name")
-      .eq("store_id", storeId)
-      .order("name", { ascending: true }),
-  ]);
-  if (cats.error)
-    console.error("fetchBlogTaxonomy categories:", cats.error.message);
-  if (tags.error) console.error("fetchBlogTaxonomy tags:", tags.error.message);
-  return {
-    categories: (cats.data ?? []) as TaxonomyItem[],
-    tags: (tags.data ?? []) as TaxonomyItem[],
-  };
+export async function fetchBlogTaxonomy(storeId: string): Promise<BlogTaxonomy> {
+  try {
+    return await withAnon(async (db) => {
+      const [categories, tags] = await Promise.all([
+        db
+          .select({ id: blogCategories.id, name: blogCategories.name })
+          .from(blogCategories)
+          .where(eq(blogCategories.storeId, storeId))
+          .orderBy(asc(blogCategories.name)),
+        db
+          .select({ id: blogTags.id, name: blogTags.name })
+          .from(blogTags)
+          .where(eq(blogTags.storeId, storeId))
+          .orderBy(asc(blogTags.name)),
+      ]);
+      return { categories, tags };
+    });
+  } catch (err) {
+    console.error(
+      "fetchBlogTaxonomy:",
+      err instanceof Error ? err.message : err,
+    );
+    return { categories: [], tags: [] };
+  }
 }

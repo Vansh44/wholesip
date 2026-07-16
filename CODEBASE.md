@@ -268,7 +268,9 @@ wholesip/
 │   │                          # errors.ts: pg error helpers (isUniqueViolation etc).
 │   │                          # Ported so far: colors, categories, enquiries (incl.
 │   │                          # dashboard/enquiries/data.ts), reviews, blog-taxonomy,
-│   │                          # coupons, and the FULL storefront read path
+│   │                          # coupons, blogs (actions + dashboard list + settings +
+│   │                          # lib/blog-taxonomy.ts — fetchBlogTaxonomy(storeId), no
+│   │                          # client param), addresses, and the FULL storefront read path
 │   │                          # (lib/store/resolve.ts, lib/storefront/queries.ts,
 │   │                          # shop/[slug] + blogs/[slug] pages — all withAnon;
 │   │                          # getBlog withUser for previews).

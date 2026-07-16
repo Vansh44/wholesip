@@ -1,13 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock } from "./_test-helpers";
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
@@ -37,6 +36,16 @@ vi.mock("@/lib/settings/resolve", () => ({
     "pages.customCode": true,
   })),
 }));
+vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
+vi.mock("@/lib/blog-taxonomy", () => ({ fetchBlogTaxonomy: vi.fn() }));
+
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withUser: vi.fn((_identity: any, fn: any) => fn(dbHolder.current.db)),
+  withService: vi.fn((fn: any) => fn(dbHolder.current.db)),
+  withAnon: vi.fn((fn: any) => fn(dbHolder.current.db)),
+}));
 
 import {
   createBlog,
@@ -53,16 +62,15 @@ import {
   bulkSetBlogFeatured,
   bulkDeleteBlogs,
 } from "./blog-actions";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getServerUser } from "@/lib/auth/server-user";
+import { fetchBlogTaxonomy } from "@/lib/blog-taxonomy";
 import { getStoreSettings } from "@/lib/settings/resolve";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import {
   sendBlogApprovedEmail,
   sendBlogRejectedEmail,
 } from "@/lib/email/blog-notifications";
-import { makeChain, makeSupabase } from "./_test-helpers";
 
 const blogForm = {
   title: "Hello",
@@ -89,40 +97,31 @@ const customerForm = {
   tags: ["Indian Food"],
 };
 
-// blog-actions.ts is the largest action file — admin CRUD, the customer
-// submission workflow, and the approve/reject email notifications.
-describe("blog-actions", () => {
-  let supabase: any;
-  let admin: any;
+const ada = { first_name: "Ada", last_name: "Lovelace" };
+const serverUser = {
+  id: "user-1",
+  email: "ada@example.com",
+  phone: null,
+  phoneConfirmed: true,
+  metadata: {},
+};
 
+// blog-actions.ts is the largest action file — admin CRUD, the customer
+// submission workflow, and the approve/reject email notifications. Admin +
+// customer writes run through withUser (RLS-enforced); the direct-publish
+// promotion and contact lookups run through withService.
+describe("blog-actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    supabase = makeSupabase({
-      blogs: makeChain({ data: { id: "b1" }, error: null }),
-      users: makeChain({
-        data: { id: "user-1", first_name: "Ada", last_name: "Lovelace" },
-        error: null,
-      }),
-      // The store's blog taxonomy — customer submissions are validated
-      // against these per-store lists (blog_taxonomy.sql).
-      blog_categories: makeChain(
-        { data: null, error: null },
-        { data: [{ id: "c1", name: "Recipes" }], error: null },
-      ),
-      blog_tags: makeChain(
-        { data: null, error: null },
-        { data: [{ id: "t1", name: "Indian Food" }], error: null },
-      ),
-    });
-    vi.mocked(createClient).mockResolvedValue(supabase);
-    admin = makeSupabase({
-      users: makeChain({
-        data: { email: "ada@example.com", first_name: "Ada" },
-        error: null,
-      }),
-    });
-    vi.mocked(createAdminClient).mockReturnValue(admin);
+    dbHolder.current = makeDbMock({ returning: [{ id: "b1" }] });
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+    vi.mocked(getServerUser).mockResolvedValue(serverUser);
+    // The store's blog taxonomy — customer submissions are validated
+    // against these per-store lists (blog_taxonomy.sql).
+    vi.mocked(fetchBlogTaxonomy).mockResolvedValue({
+      categories: [{ id: "c1", name: "Recipes" }],
+      tags: [{ id: "t1", name: "Indian Food" }],
+    });
   });
 
   describe("bulk operations", () => {
@@ -140,29 +139,25 @@ describe("blog-actions", () => {
     it("bulkSetBlogStatus publishes the selected ids", async () => {
       const r = await bulkSetBlogStatus(["b1", "b2"], "published");
       expect(r.success).toBe(true);
-      const chain = supabase._tables.blogs;
-      expect(chain.update).toHaveBeenCalledWith(
-        expect.objectContaining({ status: "published" }),
-      );
+      const set = dbHolder.current.calls.set[0];
+      expect(set.status).toBe("published");
       // published_at is set when publishing.
-      expect(chain.update.mock.calls[0][0].published_at).toBeTruthy();
-      expect(chain.in).toHaveBeenCalledWith("id", ["b1", "b2"]);
+      expect(set.publishedAt).toBeTruthy();
+      expect(dbHolder.current.calls.where).toHaveLength(1);
     });
 
     it("bulkSetBlogStatus clears published_at when unpublishing", async () => {
       await bulkSetBlogStatus(["b1"], "draft");
-      const chain = supabase._tables.blogs;
-      expect(chain.update.mock.calls[0][0]).toMatchObject({
+      expect(dbHolder.current.calls.set[0]).toMatchObject({
         status: "draft",
-        published_at: null,
+        publishedAt: null,
       });
     });
 
     it("bulkSetBlogStatus surfaces a DB error", async () => {
-      supabase._tables.blogs = makeChain(
-        { data: null, error: null },
-        { data: null, error: { message: "boom" } },
-      );
+      dbHolder.current.db.update = vi.fn(() => {
+        throw new Error("boom");
+      });
       const r = await bulkSetBlogStatus(["b1"], "published");
       expect(r.error).toBe("boom");
     });
@@ -170,19 +165,14 @@ describe("blog-actions", () => {
     it("bulkSetBlogFeatured updates the featured flag for the ids", async () => {
       const r = await bulkSetBlogFeatured(["b1", "b2"], true);
       expect(r.success).toBe(true);
-      const chain = supabase._tables.blogs;
-      expect(chain.update).toHaveBeenCalledWith(
-        expect.objectContaining({ featured: true }),
-      );
-      expect(chain.in).toHaveBeenCalledWith("id", ["b1", "b2"]);
+      expect(dbHolder.current.calls.set[0]).toMatchObject({ featured: true });
+      expect(dbHolder.current.calls.where).toHaveLength(1);
     });
 
     it("bulkDeleteBlogs deletes the ids and cleans up storage", async () => {
       const r = await bulkDeleteBlogs(["b1", "b2"]);
       expect(r.success).toBe(true);
-      const chain = supabase._tables.blogs;
-      expect(chain.delete).toHaveBeenCalled();
-      expect(chain.in).toHaveBeenCalledWith("id", ["b1", "b2"]);
+      expect(dbHolder.current.calls.delete).toHaveLength(1);
       expect(deleteStorageUrls).toHaveBeenCalled();
     });
 
@@ -193,10 +183,9 @@ describe("blog-actions", () => {
     });
 
     it("bulkDeleteBlogs surfaces a DB error", async () => {
-      supabase._tables.blogs = makeChain(
-        { data: null, error: null },
-        { data: null, error: { message: "nope" } },
-      );
+      dbHolder.current.db.delete = vi.fn(() => {
+        throw new Error("nope");
+      });
       const r = await bulkDeleteBlogs(["b1"]);
       expect(r.error).toBe("nope");
     });
@@ -216,25 +205,36 @@ describe("blog-actions", () => {
         ...blogForm,
         content: "<p>" + "word ".repeat(400) + "</p>",
       });
-      const insert = supabase._tables.blogs.insert.mock.calls[0][0];
       // 400 words at 200 wpm = 2.
-      expect(insert.reading_time).toBe(2);
+      expect(dbHolder.current.calls.values[0].readingTime).toBe(2);
     });
 
     // Drafts get published_at = null; published rows get a timestamp.
     it("publishes immediately when status=published", async () => {
       await createBlog({ ...blogForm, status: "published" });
-      const insert = supabase._tables.blogs.insert.mock.calls[0][0];
-      expect(insert.published_at).not.toBeNull();
+      expect(dbHolder.current.calls.values[0].publishedAt).not.toBeNull();
     });
 
-    // 23505 unique-violation on slug → retries with bumped slug (NOT shown
-    // here because the mock returns success). We just verify the call
-    // succeeds with the first available slug derived from the title.
     it("uses a slug derived from the title", async () => {
       await createBlog({ ...blogForm, title: "Hello World" });
-      const insert = supabase._tables.blogs.insert.mock.calls[0][0];
-      expect(insert.slug).toBe("hello-world");
+      expect(dbHolder.current.calls.values[0].slug).toBe("hello-world");
+    });
+
+    // A concurrent insert wins the slug between pre-check and insert → the
+    // unique violation triggers a retry with the next slug in a NEW txn.
+    it("retries with a bumped slug on a unique-violation insert", async () => {
+      const realInsert = dbHolder.current.db.insert;
+      let attempts = 0;
+      dbHolder.current.db.insert = vi.fn((t: any) => {
+        if (attempts++ === 0)
+          throw Object.assign(new Error("Failed query"), {
+            cause: Object.assign(new Error("dup"), { code: "23505" }),
+          });
+        return realInsert(t);
+      });
+      const result = await createBlog({ ...blogForm, title: "Hello" });
+      expect(result.success).toBe(true);
+      expect(dbHolder.current.calls.values[0].slug).toBe("hello-2");
     });
   });
 
@@ -248,18 +248,23 @@ describe("blog-actions", () => {
 
     // Approving a customer submission via the editor (status flip
     // pending_review → published) triggers the "your blog is live" email.
+    // Selects: #1 resolveSlug, #2 current blog, #3 the author's contact.
     it("emails the author when promoting a customer submission to published", async () => {
-      // Pre-fetch returns the customer submission's current state.
-      supabase._tables.blogs = makeChain({
-        data: {
-          status: "pending_review",
-          published_at: null,
-          submitted_by: "cust-1",
-          is_customer_submission: true,
-          cover_image_url: null,
-          content: null,
-        },
-        error: null,
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [],
+          [
+            {
+              status: "pending_review",
+              published_at: null,
+              submitted_by: "cust-1",
+              is_customer_submission: true,
+              cover_image_url: null,
+              content: null,
+            },
+          ],
+          [{ email: "ada@example.com", firstName: "Ada" }],
+        ],
       });
       await updateBlog("b1", { ...blogForm, status: "published" });
       expect(sendBlogApprovedEmail).toHaveBeenCalled();
@@ -267,16 +272,20 @@ describe("blog-actions", () => {
 
     // Updating a regular published post should NOT trigger the customer email.
     it("does not email when updating a non-customer submission", async () => {
-      supabase._tables.blogs = makeChain({
-        data: {
-          status: "draft",
-          published_at: null,
-          submitted_by: null,
-          is_customer_submission: false,
-          cover_image_url: null,
-          content: null,
-        },
-        error: null,
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [],
+          [
+            {
+              status: "draft",
+              published_at: null,
+              submitted_by: null,
+              is_customer_submission: false,
+              cover_image_url: null,
+              content: null,
+            },
+          ],
+        ],
       });
       await updateBlog("b1", { ...blogForm, status: "published" });
       expect(sendBlogApprovedEmail).not.toHaveBeenCalled();
@@ -291,18 +300,26 @@ describe("blog-actions", () => {
 
     // Sets status + stamps published_at.
     it("publishBlog updates status and stamps published_at", async () => {
-      await publishBlog("b1");
-      const updateArg = supabase._tables.blogs.update.mock.calls[0][0];
-      expect(updateArg.status).toBe("published");
-      expect(updateArg.published_at).not.toBeNull();
+      const r = await publishBlog("b1");
+      expect(r.success).toBe(true);
+      const set = dbHolder.current.calls.set[0];
+      expect(set.status).toBe("published");
+      expect(set.publishedAt).not.toBeNull();
+    });
+
+    // No matching row (RLS or already deleted) → a friendly error.
+    it("publishBlog errors when the blog is not found", async () => {
+      dbHolder.current = makeDbMock({ returning: [] });
+      const r = await publishBlog("b1");
+      expect(r.error).toMatch(/not found/i);
     });
 
     // Clears published_at on unpublish.
     it("unpublishBlog clears published_at", async () => {
       await unpublishBlog("b1");
-      const updateArg = supabase._tables.blogs.update.mock.calls[0][0];
-      expect(updateArg.status).toBe("draft");
-      expect(updateArg.published_at).toBeNull();
+      const set = dbHolder.current.calls.set[0];
+      expect(set.status).toBe("draft");
+      expect(set.publishedAt).toBeNull();
     });
   });
 
@@ -316,19 +333,30 @@ describe("blog-actions", () => {
     // Happy path — the action deletes the row (storage cleanup is async and
     // best-effort).
     it("deletes the blog and returns success", async () => {
+      dbHolder.current = makeDbMock({
+        selectQueue: [[{ cover_image_url: null, content: null }]],
+      });
       const result = await deleteBlog("b1");
       expect(result.success).toBe(true);
-      expect(supabase._tables.blogs.delete).toHaveBeenCalled();
+      expect(dbHolder.current.calls.delete).toHaveLength(1);
     });
   });
 
   // submitCustomerBlog — the public-facing endpoint used by signed-in
   // users from /blogs/write. Inserts the row with status
   // pending_review, populated via the customer's profile name.
+  // Selects: #1 the customer profile, #2 resolveSlug.
   describe("submitCustomerBlog", () => {
+    beforeEach(() => {
+      dbHolder.current = makeDbMock({
+        returning: [{ id: "b1" }],
+        selectQueue: [[ada], []],
+      });
+    });
+
     // Anonymous visitors are blocked from this action.
     it("rejects unauthenticated callers", async () => {
-      supabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      vi.mocked(getServerUser).mockResolvedValue(null);
       const result = await submitCustomerBlog(customerForm);
       expect(result.error).toMatch(/sign in/i);
     });
@@ -336,7 +364,7 @@ describe("blog-actions", () => {
     // Without a users row the action stops — a signed-in admin can't
     // accidentally hit this endpoint.
     it("rejects when customer profile is missing", async () => {
-      supabase._tables.users = makeChain({ data: null, error: null });
+      dbHolder.current = makeDbMock({ selectQueue: [[]] });
       const result = await submitCustomerBlog(customerForm);
       expect(result.error).toMatch(/profile/i);
     });
@@ -376,7 +404,7 @@ describe("blog-actions", () => {
         categories: ["Made Up"],
       });
       expect(result.error).toMatch(/category/i);
-      expect(supabase._tables.blogs.insert).not.toHaveBeenCalled();
+      expect(dbHolder.current.calls.insert).toHaveLength(0);
     });
 
     it("drops unknown names but keeps valid ones", async () => {
@@ -385,7 +413,7 @@ describe("blog-actions", () => {
         categories: ["Recipes", "Made Up"],
         tags: ["Indian Food", "Nope"],
       });
-      const inserted = supabase._tables.blogs.insert.mock.calls[0][0];
+      const inserted = dbHolder.current.calls.values[0];
       expect(inserted.categories).toEqual(["Recipes"]);
       expect(inserted.tags).toEqual(["Indian Food"]);
     });
@@ -393,21 +421,17 @@ describe("blog-actions", () => {
     // A store that has not defined any taxonomy doesn't block submissions on
     // the (hidden) pickers.
     it("allows empty categories/tags when the store defines none", async () => {
-      supabase._tables.blog_categories = makeChain(
-        { data: null, error: null },
-        { data: [], error: null },
-      );
-      supabase._tables.blog_tags = makeChain(
-        { data: null, error: null },
-        { data: [], error: null },
-      );
+      vi.mocked(fetchBlogTaxonomy).mockResolvedValue({
+        categories: [],
+        tags: [],
+      });
       const result = await submitCustomerBlog({
         ...customerForm,
         categories: [],
         tags: [],
       });
       expect(result.success).toBe(true);
-      const inserted = supabase._tables.blogs.insert.mock.calls[0][0];
+      const inserted = dbHolder.current.calls.values[0];
       expect(inserted.categories).toEqual([]);
       expect(inserted.tags).toEqual([]);
     });
@@ -415,14 +439,14 @@ describe("blog-actions", () => {
     // Happy path — inserts as pending_review with the user as submitter.
     it("inserts with status=pending_review and is_customer_submission=true", async () => {
       await submitCustomerBlog(customerForm);
-      const inserted = supabase._tables.blogs.insert.mock.calls[0][0];
+      const inserted = dbHolder.current.calls.values[0];
       expect(inserted.status).toBe("pending_review");
-      expect(inserted.is_customer_submission).toBe(true);
-      expect(inserted.submitted_by).toBe("user-1");
+      expect(inserted.isCustomerSubmission).toBe(true);
+      expect(inserted.submittedBy).toBe("user-1");
       // Author name is composed from the customer's first + last name.
       expect(inserted.author).toBe("Ada Lovelace");
-      // Approval flow ON (default): no service-role promotion happens.
-      expect(admin._tables.blogs?.update ?? vi.fn()).not.toHaveBeenCalled();
+      // Approval flow ON (default): no service-scope promotion happens.
+      expect(dbHolder.current.calls.update).toHaveLength(0);
     });
 
     // Store setting: submissions switched off → the action refuses outright.
@@ -437,12 +461,12 @@ describe("blog-actions", () => {
       });
       const result = await submitCustomerBlog(customerForm);
       expect(result.error).toMatch(/disabled/i);
-      expect(supabase._tables.blogs.insert).not.toHaveBeenCalled();
+      expect(dbHolder.current.calls.insert).toHaveLength(0);
     });
 
     // Store setting: approval flow off → the pending insert is promoted to
-    // published via the service-role client (RLS blocks customers from
-    // inserting published rows directly).
+    // published via the service scope (RLS blocks customers from inserting
+    // published rows directly).
     it("publishes immediately when the store does not require approval", async () => {
       vi.mocked(getStoreSettings).mockResolvedValueOnce({
         "blogs.customerSubmissions": true,
@@ -456,13 +480,12 @@ describe("blog-actions", () => {
       expect(result.success).toBe(true);
 
       // Insert still goes in as pending_review (RLS-compatible)…
-      const inserted = supabase._tables.blogs.insert.mock.calls[0][0];
-      expect(inserted.status).toBe("pending_review");
+      expect(dbHolder.current.calls.values[0].status).toBe("pending_review");
 
-      // …then the admin client flips it live.
-      const promote = admin._tables.blogs.update.mock.calls[0][0];
+      // …then the service scope flips it live.
+      const promote = dbHolder.current.calls.set[0];
       expect(promote.status).toBe("published");
-      expect(promote.published_at).toBeTruthy();
+      expect(promote.publishedAt).toBeTruthy();
     });
   });
 
@@ -478,9 +501,9 @@ describe("blog-actions", () => {
 
     // Email is best-effort — verify it's attempted on success.
     it("emails the author after approval", async () => {
-      supabase._tables.blogs = makeChain({
-        data: { title: "T", slug: "t", submitted_by: "cust-1" },
-        error: null,
+      dbHolder.current = makeDbMock({
+        returning: [{ title: "T", slug: "t", submitted_by: "cust-1" }],
+        selectQueue: [[{ email: "ada@example.com", firstName: "Ada" }]],
       });
       await approveCustomerBlog("b1");
       expect(sendBlogApprovedEmail).toHaveBeenCalledWith(
@@ -490,6 +513,14 @@ describe("blog-actions", () => {
           slug: "t",
         }),
       );
+    });
+
+    // No matching pending row → a friendly error, no email.
+    it("errors when the blog is no longer pending review", async () => {
+      dbHolder.current = makeDbMock({ returning: [] });
+      const result = await approveCustomerBlog("b1");
+      expect(result.error).toMatch(/no longer pending/i);
+      expect(sendBlogApprovedEmail).not.toHaveBeenCalled();
     });
   });
 
@@ -504,10 +535,13 @@ describe("blog-actions", () => {
     });
 
     // Verify the rejection email path triggers when there's a submitter.
+    // Selects: #1 the pending row, #2 the author's contact.
     it("emails the author after rejection", async () => {
-      supabase._tables.blogs = makeChain({
-        data: { title: "T", submitted_by: "cust-1" },
-        error: null,
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [{ title: "T", submitted_by: "cust-1" }],
+          [{ email: "ada@example.com", firstName: "Ada" }],
+        ],
       });
       await rejectCustomerBlog("b1");
       expect(sendBlogRejectedEmail).toHaveBeenCalled();
@@ -519,7 +553,7 @@ describe("blog-actions", () => {
   describe("revertCustomerBlogToDraft", () => {
     // Anonymous visitors blocked.
     it("rejects unauthenticated callers", async () => {
-      supabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      vi.mocked(getServerUser).mockResolvedValue(null);
       const result = await revertCustomerBlogToDraft("b1");
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -527,7 +561,7 @@ describe("blog-actions", () => {
     // When no row matches the ownership + status filter the action fails
     // loudly (better than silently doing nothing).
     it("returns error when no matching pending row exists", async () => {
-      supabase._tables.blogs = makeChain({ data: [], error: null });
+      dbHolder.current = makeDbMock({ returning: [] });
       const result = await revertCustomerBlogToDraft("b1");
       expect(result.error).toMatch(/couldn.?t move/i);
     });
@@ -537,7 +571,7 @@ describe("blog-actions", () => {
   describe("deleteCustomerBlog", () => {
     // Anonymous visitors blocked.
     it("rejects unauthenticated callers", async () => {
-      supabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      vi.mocked(getServerUser).mockResolvedValue(null);
       const result = await deleteCustomerBlog("b1");
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -545,7 +579,7 @@ describe("blog-actions", () => {
     // When no row is removed (e.g. it was already published or doesn't belong
     // to the caller) the action surfaces a friendly error.
     it("returns error when no row was removed", async () => {
-      supabase._tables.blogs = makeChain({ data: [], error: null });
+      dbHolder.current = makeDbMock({ returning: [] });
       const result = await deleteCustomerBlog("b1");
       expect(result.error).toMatch(/couldn.?t delete/i);
     });
