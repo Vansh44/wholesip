@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock } from "./_test-helpers";
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
-  // Pulled in transitively via @/lib/site → @/lib/store/resolve, which wraps
-  // reads in unstable_cache at module load.
+  // Pulled in transitively via @/lib/site, which wraps reads in
+  // unstable_cache at module load.
   unstable_cache: (fn: unknown) => fn,
 }));
 vi.mock("next/server", () => ({ after: vi.fn() }));
@@ -17,7 +18,6 @@ vi.mock("@/lib/seo/search-engines", () => ({
   pingIndexNow: vi.fn(),
   submitSitemapToGoogle: vi.fn(),
 }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
@@ -41,6 +41,18 @@ vi.mock("@/lib/ai/gemini", () => ({
   brandSystemText: vi.fn((b: string) => b),
 }));
 
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  // Promise.resolve() assimilates the thenable query steps into real
+  // promises, so the action's .catch() calls work like production.
+  withUser: vi.fn((_identity: any, fn: any) =>
+    Promise.resolve(fn(dbHolder.current.db)),
+  ),
+  withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+  withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+}));
+
 import {
   createProduct,
   updateProduct,
@@ -51,13 +63,11 @@ import {
   bulkSetProductFeatured,
   bulkDeleteProducts,
 } from "./product-actions";
-import { createClient } from "@/lib/supabase/server";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import { getBrandSoulForStore } from "@/lib/ai/brand-voice";
 import { consumeAiQuota } from "@/lib/ai/quota";
 import { callGemini } from "@/lib/ai/gemini";
-import { makeChain, makeSupabase } from "./_test-helpers";
 
 const validForm = {
   name: "Almonds",
@@ -77,19 +87,26 @@ const validForm = {
   variants: [],
 };
 
-// product-actions.ts is the catalog's biggest action file. Tests cover
-// validation, slug collision retries, variant replacement, storage cleanup,
-// publish toggling, and the Gemini-backed AI description endpoint.
-describe("product-actions", () => {
-  let supabase: any;
+const smallVariant = {
+  name: "Small",
+  base_price: 100,
+  selling_price: 80,
+  special_price: null,
+  stock: 10,
+  sku: "SM",
+  images: [],
+};
 
+// product-actions.ts is the catalog's biggest action file. Tests cover
+// validation, variant replacement, storage cleanup, publish toggling, and the
+// Gemini-backed AI description endpoint. All writes run through withUser
+// (RLS-enforced).
+describe("product-actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    supabase = makeSupabase({
-      products: makeChain({ data: { id: "p1", slug: "almonds" }, error: null }),
-      product_variants: makeChain({ data: null, error: null }),
+    dbHolder.current = makeDbMock({
+      returning: [{ id: "p1", slug: "almonds" }],
     });
-    vi.mocked(createClient).mockResolvedValue(supabase);
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
   });
 
@@ -108,44 +125,38 @@ describe("product-actions", () => {
     it("bulkToggleProductPublish publishes the selected ids", async () => {
       const r = await bulkToggleProductPublish(["p1", "p2"], true);
       expect(r.success).toBe(true);
-      const chain = supabase._tables.products;
-      expect(chain.update.mock.calls[0][0]).toMatchObject({
+      expect(dbHolder.current.calls.set[0]).toMatchObject({
         status: "published",
       });
-      expect(chain.update.mock.calls[0][0].published_at).toBeTruthy();
-      expect(chain.in).toHaveBeenCalledWith("id", ["p1", "p2"]);
+      expect(dbHolder.current.calls.set[0].publishedAt).toBeTruthy();
+      expect(dbHolder.current.calls.where).toHaveLength(1);
     });
 
     it("bulkToggleProductPublish unpublishes (clears published_at)", async () => {
       await bulkToggleProductPublish(["p1"], false);
-      expect(supabase._tables.products.update.mock.calls[0][0]).toMatchObject({
+      expect(dbHolder.current.calls.set[0]).toMatchObject({
         status: "draft",
-        published_at: null,
+        publishedAt: null,
       });
     });
 
     it("bulkSetProductFeatured sets the featured flag", async () => {
       const r = await bulkSetProductFeatured(["p1"], true);
       expect(r.success).toBe(true);
-      expect(supabase._tables.products.update).toHaveBeenCalledWith(
-        expect.objectContaining({ featured: true }),
-      );
+      expect(dbHolder.current.calls.set[0]).toMatchObject({ featured: true });
     });
 
     it("bulkDeleteProducts deletes the ids and cleans up storage", async () => {
       const r = await bulkDeleteProducts(["p1", "p2"]);
       expect(r.success).toBe(true);
-      const chain = supabase._tables.products;
-      expect(chain.delete).toHaveBeenCalled();
-      expect(chain.in).toHaveBeenCalledWith("id", ["p1", "p2"]);
+      expect(dbHolder.current.calls.delete).toHaveLength(1);
       expect(deleteStorageUrls).toHaveBeenCalled();
     });
 
     it("bulkDeleteProducts surfaces a DB error", async () => {
-      supabase._tables.products = makeChain(
-        { data: { id: "p1", slug: "almonds" }, error: null },
-        { data: null, error: { message: "boom" } },
-      );
+      dbHolder.current.db.delete = vi.fn(() => {
+        throw new Error("boom");
+      });
       const r = await bulkDeleteProducts(["p1"]);
       expect(r.error).toBe("boom");
     });
@@ -188,14 +199,12 @@ describe("product-actions", () => {
     // Publishing now stamps published_at; drafts leave it null.
     it("sets published_at when status is published", async () => {
       await createProduct({ ...validForm, status: "published" });
-      const insert = supabase._tables.products.insert.mock.calls[0][0];
-      expect(insert.published_at).not.toBeNull();
+      expect(dbHolder.current.calls.values[0].publishedAt).not.toBeNull();
     });
 
     it("leaves published_at null when status is draft", async () => {
       await createProduct({ ...validForm, status: "draft" });
-      const insert = supabase._tables.products.insert.mock.calls[0][0];
-      expect(insert.published_at).toBeNull();
+      expect(dbHolder.current.calls.values[0].publishedAt).toBeNull();
     });
 
     // Pricing normalisation: when selling > base, selling is clamped to base.
@@ -205,30 +214,22 @@ describe("product-actions", () => {
         base_price: 100,
         selling_price: 200,
       });
-      const insert = supabase._tables.products.insert.mock.calls[0][0];
-      expect(insert.selling_price).toBe(100);
+      expect(dbHolder.current.calls.values[0].sellingPrice).toBe(100);
     });
 
     // Variant reconcile path — verifies that after the product row succeeds,
-    // the reconcile fetches existing variant ids, updates/inserts/deletes.
+    // the reconcile fetches existing variant ids, then inserts the new rows.
+    // Selects: #1 resolveSlug, #2 existing variant ids.
     it("reconciles variants after product is created", async () => {
-      await createProduct({
-        ...validForm,
-        variants: [
-          {
-            name: "Small",
-            base_price: 100,
-            selling_price: 80,
-            special_price: null,
-            stock: 10,
-            sku: "SM",
-            images: [],
-          },
-        ],
+      await createProduct({ ...validForm, variants: [smallVariant] });
+      expect(dbHolder.current.calls.select).toHaveLength(2);
+      // values[0] = the product row, values[1] = the variant insert batch.
+      expect(dbHolder.current.calls.values[1]).toHaveLength(1);
+      expect(dbHolder.current.calls.values[1][0]).toMatchObject({
+        name: "Small",
+        productId: "p1",
+        storeId: "a0000000-0000-4000-8000-000000000001",
       });
-      // Reconcile: select existing ids, then insert new (no existing for create).
-      expect(supabase._tables.product_variants.select).toHaveBeenCalled();
-      expect(supabase._tables.product_variants.insert).toHaveBeenCalled();
     });
 
     // Variants without a name are filtered out — they're rows the user added
@@ -237,28 +238,11 @@ describe("product-actions", () => {
       await createProduct({
         ...validForm,
         variants: [
-          {
-            name: "",
-            base_price: 100,
-            selling_price: 80,
-            special_price: null,
-            stock: 1,
-            sku: "",
-            images: [],
-          },
-          {
-            name: "Medium",
-            base_price: 100,
-            selling_price: 80,
-            special_price: null,
-            stock: 1,
-            sku: "",
-            images: [],
-          },
+          { ...smallVariant, name: "", stock: 1, sku: "" },
+          { ...smallVariant, name: "Medium", stock: 1, sku: "" },
         ],
       });
-      const inserted =
-        supabase._tables.product_variants.insert.mock.calls[0][0];
+      const inserted = dbHolder.current.calls.values[1];
       expect(inserted).toHaveLength(1);
       expect(inserted[0].name).toBe("Medium");
     });
@@ -269,21 +253,10 @@ describe("product-actions", () => {
       await createProduct({
         ...validForm,
         variants: [
-          {
-            name: "500ml",
-            base_price: 100,
-            selling_price: 80,
-            // intentionally above base — must clamp.
-            special_price: 1000,
-            stock: 1,
-            sku: "",
-            images: [],
-          },
+          { ...smallVariant, name: "500ml", special_price: 1000, stock: 1 },
         ],
       });
-      const inserted =
-        supabase._tables.product_variants.insert.mock.calls[0][0];
-      expect(inserted[0].special_price).toBe(100);
+      expect(dbHolder.current.calls.values[1][0].specialPrice).toBe(100);
     });
 
     // special_price null / 0 means "no sale" — must persist as NULL, not 0,
@@ -292,59 +265,32 @@ describe("product-actions", () => {
       await createProduct({
         ...validForm,
         variants: [
-          {
-            name: "A",
-            base_price: 100,
-            selling_price: 80,
-            special_price: 0,
-            stock: 1,
-            sku: "",
-            images: [],
-          },
-          {
-            name: "B",
-            base_price: 100,
-            selling_price: 80,
-            special_price: null,
-            stock: 1,
-            sku: "",
-            images: [],
-          },
+          { ...smallVariant, name: "A", special_price: 0, stock: 1 },
+          { ...smallVariant, name: "B", special_price: null, stock: 1 },
         ],
       });
-      const inserted =
-        supabase._tables.product_variants.insert.mock.calls[0][0];
-      expect(inserted[0].special_price).toBeNull();
-      expect(inserted[1].special_price).toBeNull();
+      const inserted = dbHolder.current.calls.values[1];
+      expect(inserted[0].specialPrice).toBeNull();
+      expect(inserted[1].specialPrice).toBeNull();
     });
 
     // Reconcile preserves variant id through sanitizeVariants.
     it("preserves variant id for existing variants in reconcile", async () => {
       // Simulate editing a product that has existing variants.
-      supabase._tables.product_variants = makeChain(
-        { data: null, error: null },
-        { data: [{ id: "v-existing" }], error: null },
-      );
+      dbHolder.current = makeDbMock({
+        returning: [{ id: "p1", slug: "almonds" }],
+        selectQueue: [[], [{ id: "v-existing" }]],
+      });
       await createProduct({
         ...validForm,
         variants: [
-          {
-            id: "v-existing",
-            name: "Existing",
-            base_price: 100,
-            selling_price: 80,
-            special_price: null,
-            stock: 5,
-            sku: "EX",
-            images: [],
-          },
+          { ...smallVariant, id: "v-existing", name: "Existing", stock: 5 },
         ],
       });
-      // Should have called update (not insert) for the existing variant,
-      // and the update should NOT include 'stock' (stock is never overwritten).
-      expect(supabase._tables.product_variants.update).toHaveBeenCalled();
-      const updateArg =
-        supabase._tables.product_variants.update.mock.calls[0][0];
+      // Should have issued an update (not insert) for the existing variant,
+      // and the update must NOT include 'stock' (stock is never overwritten)
+      // or 'id'.
+      const updateArg = dbHolder.current.calls.set[0];
       expect(updateArg).not.toHaveProperty("stock");
       expect(updateArg).not.toHaveProperty("id");
       expect(updateArg.name).toBe("Existing");
@@ -361,18 +307,15 @@ describe("product-actions", () => {
 
     // published_at is preserved on re-save of a published product (so the
     // original publish timestamp doesn't get reset to "now" on every edit).
+    // Selects: #1 resolveSlug, #2 the current row's published_at, then the
+    // image-URL prefetches.
     it("preserves existing published_at on update", async () => {
       const original = "2025-01-01T00:00:00.000Z";
-      // Two product reads happen (slug lookup returns [], single returns the
-      // existing row). makeChain returns the same shape for both — that's
-      // fine because slug lookup ignores published_at.
-      supabase._tables.products = makeChain({
-        data: { published_at: original },
-        error: null,
+      dbHolder.current = makeDbMock({
+        selectQueue: [[], [{ published_at: original }]],
       });
       await updateProduct("p1", { ...validForm, status: "published" });
-      const updateArg = supabase._tables.products.update.mock.calls[0][0];
-      expect(updateArg.published_at).toBe(original);
+      expect(dbHolder.current.calls.set[0].publishedAt).toBe(original);
     });
   });
 
@@ -386,15 +329,11 @@ describe("product-actions", () => {
 
     // Storage cleanup is fire-and-forget — verifies it's called with the
     // image URLs gathered before the delete.
+    // Selects: #1 the product's images, #2 its variants' images.
     it("purges referenced image files after deleting the row", async () => {
       const url = "https://x.com/object/public/media/p.png";
-      supabase._tables.products = makeChain({
-        data: { image_url: url, images: [] },
-        error: null,
-      });
-      supabase._tables.product_variants = makeChain({
-        data: [],
-        error: null,
+      dbHolder.current = makeDbMock({
+        selectQueue: [[{ image_url: url, images: [] }], []],
       });
       const result = await deleteProduct("p1");
       expect(result.success).toBe(true);
@@ -414,19 +353,29 @@ describe("product-actions", () => {
 
     // Publishing flips status + sets published_at.
     it("publishes (status=published, sets published_at)", async () => {
-      await toggleProductPublish("p1", true);
-      const updateArg = supabase._tables.products.update.mock.calls[0][0];
+      dbHolder.current = makeDbMock({ returning: [{ slug: "almonds" }] });
+      const result = await toggleProductPublish("p1", true);
+      expect(result.success).toBe(true);
+      const updateArg = dbHolder.current.calls.set[0];
       expect(updateArg.status).toBe("published");
-      expect(updateArg.published_at).not.toBeNull();
+      expect(updateArg.publishedAt).not.toBeNull();
     });
 
     // Unpublishing clears published_at — keeps the published_at semantically
     // "last time we went live".
     it("unpublishes (status=draft, clears published_at)", async () => {
+      dbHolder.current = makeDbMock({ returning: [{ slug: "almonds" }] });
       await toggleProductPublish("p1", false);
-      const updateArg = supabase._tables.products.update.mock.calls[0][0];
+      const updateArg = dbHolder.current.calls.set[0];
       expect(updateArg.status).toBe("draft");
-      expect(updateArg.published_at).toBeNull();
+      expect(updateArg.publishedAt).toBeNull();
+    });
+
+    // No matching row (RLS or already deleted) → a friendly error.
+    it("errors when the product is not found", async () => {
+      dbHolder.current = makeDbMock({ returning: [] });
+      const result = await toggleProductPublish("p1", true);
+      expect(result.error).toMatch(/not found/i);
     });
   });
 

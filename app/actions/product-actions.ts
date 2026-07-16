@@ -1,10 +1,17 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { and, eq, inArray, like, ne } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { after } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
+import { withUser } from "@/lib/db/client";
+import {
+  isUniqueViolation,
+  pgErrorCode,
+  dbErrorMessage,
+} from "@/lib/db/errors";
+import { productVariants, products } from "@/drizzle/schema";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
 import { getStoreUrl } from "@/lib/site";
@@ -82,29 +89,26 @@ async function getAdminUserId(): Promise<string | null> {
   return getManagerUserId("products");
 }
 
-const UNIQUE_VIOLATION = "23505";
-
-function isUniqueViolation(error: { code?: string } | null): boolean {
-  return error?.code === UNIQUE_VIOLATION;
-}
-
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
-
 async function resolveSlug(
-  supabase: SupabaseClient,
+  uid: string,
   base: string,
   storeId: string,
   excludeId?: string,
 ) {
-  let query = supabase
-    .from("products")
-    .select("slug")
-    .eq("store_id", storeId)
-    .like("slug", `${base}%`);
-  if (excludeId) query = query.neq("id", excludeId);
-  const { data } = await query;
+  const conds = [
+    eq(products.storeId, storeId),
+    like(products.slug, `${base}%`),
+  ];
+  if (excludeId) conds.push(ne(products.id, excludeId));
 
-  const taken = new Set((data ?? []).map((p: { slug: string }) => p.slug));
+  const rows = await withUser({ uid }, (db) =>
+    db
+      .select({ slug: products.slug })
+      .from(products)
+      .where(and(...conds)),
+  );
+
+  const taken = new Set(rows.map((p) => p.slug));
   let counter = 2;
   let slug = base;
   while (taken.has(slug)) {
@@ -132,7 +136,7 @@ function normalizePrices(base: number, selling: number) {
   const b = Number.isFinite(base) && base > 0 ? base : 0;
   let s = Number.isFinite(selling) && selling > 0 ? selling : b;
   if (b > 0 && s > b) s = b;
-  return { base_price: b, selling_price: s };
+  return { basePrice: b, sellingPrice: s };
 }
 
 // Keep only valid variant rows (a name is required) and normalise numbers.
@@ -153,21 +157,21 @@ function sanitizeVariants(variants: VariantFormData[]) {
         v.special_price > 0
       ) {
         special =
-          prices.base_price > 0
-            ? Math.min(v.special_price, prices.base_price)
+          prices.basePrice > 0
+            ? Math.min(v.special_price, prices.basePrice)
             : v.special_price;
       }
       return {
         id: v.id || undefined, // pass through existing variant id for reconcile
         name: v.name.trim(),
         ...prices,
-        special_price: special,
+        specialPrice: special,
         stock: Number.isFinite(v.stock) ? Math.trunc(v.stock) : 0,
         // SKU is system-generated & locked — set by the DB trigger on insert
         // and immutable thereafter, so the form never writes it.
         images,
-        image_url: images[0] ?? null, // keep the legacy single image in sync
-        sort_order: i,
+        imageUrl: images[0] ?? null, // keep the legacy single image in sync
+        sortOrder: i,
       };
     });
 }
@@ -175,9 +179,10 @@ function sanitizeVariants(variants: VariantFormData[]) {
 // Reconcile strategy: UPDATE existing variants by id, INSERT new ones (no id),
 // DELETE removed ones. Stock is NEVER overwritten by the product form — stock
 // flows only through inventory RPCs. Variant ids are stable so order_items
-// references and the stock_movements ledger are preserved.
+// references and the stock_movements ledger are preserved. Runs under the
+// admin's identity (RLS applies); returns an error message or null.
 async function replaceVariants(
-  supabase: SupabaseClient,
+  uid: string,
   productId: string,
   variants: VariantFormData[],
   storeId: string,
@@ -185,15 +190,19 @@ async function replaceVariants(
   const rows = sanitizeVariants(variants);
 
   // 1. Fetch existing variant ids for this product.
-  const { data: existing, error: fetchError } = await supabase
-    .from("product_variants")
-    .select("id")
-    .eq("product_id", productId);
-  if (fetchError) return fetchError.message;
+  let existingIds: Set<string>;
+  try {
+    const existing = await withUser({ uid }, (db) =>
+      db
+        .select({ id: productVariants.id })
+        .from(productVariants)
+        .where(eq(productVariants.productId, productId)),
+    );
+    existingIds = new Set(existing.map((v) => v.id));
+  } catch (err) {
+    return dbErrorMessage(err, "Failed to read existing variants.");
+  }
 
-  const existingIds = new Set(
-    (existing ?? []).map((v: { id: string }) => v.id),
-  );
   const formIds = new Set(rows.filter((r) => r.id).map((r) => r.id!));
 
   // 2. UPDATE existing variants (matched by id). Never overwrite stock —
@@ -203,12 +212,21 @@ async function replaceVariants(
     if (!row.id || !existingIds.has(row.id)) continue;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _id, stock: _stock, ...updates } = row;
-    const { error } = await supabase
-      .from("product_variants")
-      .update(updates)
-      .eq("id", row.id)
-      .eq("product_id", productId);
-    if (error) return error.message;
+    try {
+      await withUser({ uid }, (db) =>
+        db
+          .update(productVariants)
+          .set(updates)
+          .where(
+            and(
+              eq(productVariants.id, row.id!),
+              eq(productVariants.productId, productId),
+            ),
+          ),
+      );
+    } catch (err) {
+      return dbErrorMessage(err, "Failed to update a variant.");
+    }
   }
 
   // 3. INSERT new variants (no id in form data).
@@ -217,11 +235,20 @@ async function replaceVariants(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const inserts = newRows.map(({ id: _id, ...r }) => ({
       ...r,
-      product_id: productId,
-      store_id: storeId,
+      productId,
+      storeId,
     }));
-    const { error } = await supabase.from("product_variants").insert(inserts);
-    if (error) return error.message;
+    try {
+      await withUser({ uid }, (db) =>
+        db
+          .insert(productVariants)
+          // sku / variant_no are NOT NULL but owned by the BEFORE-INSERT
+          // trigger — never sent by the app, so the type is asserted.
+          .values(inserts as (typeof productVariants.$inferInsert)[]),
+      );
+    } catch (err) {
+      return dbErrorMessage(err, "Failed to add a variant.");
+    }
   }
 
   // 4. DELETE variants removed from the editor. The ON DELETE RESTRICT
@@ -229,19 +256,21 @@ async function replaceVariants(
   //    that has existing orders — surface a friendly message.
   const toDelete = [...existingIds].filter((id) => !formIds.has(id));
   if (toDelete.length > 0) {
-    const { error } = await supabase
-      .from("product_variants")
-      .delete()
-      .in("id", toDelete);
-    if (error) {
+    try {
+      await withUser({ uid }, (db) =>
+        db
+          .delete(productVariants)
+          .where(inArray(productVariants.id, toDelete)),
+      );
+    } catch (err) {
       // RESTRICT FK violation — variant has order references.
       if (
-        error.code === "23503" ||
-        error.message?.toLowerCase().includes("violates foreign key")
+        pgErrorCode(err) === "23503" ||
+        dbErrorMessage(err, "").toLowerCase().includes("violates foreign key")
       ) {
         return "Cannot delete one or more variants because they have existing orders. Disable them instead.";
       }
-      return error.message;
+      return dbErrorMessage(err, "Failed to delete a variant.");
     }
   }
 
@@ -269,37 +298,41 @@ async function notifyProductPublished(
 }
 
 // ---------------------------------------------------------------------------
-// Storage cleanup — keep Supabase Storage in sync when images are removed.
-// Uploads add files to the `media` bucket; removing an image only drops its
-// URL from the DB, so the file would otherwise be orphaned. On save we delete
-// the files that are no longer referenced; on delete we remove them all.
+// Storage cleanup — keep media storage in sync when images are removed.
+// Uploads add files to storage; removing an image only drops its URL from the
+// DB, so the file would otherwise be orphaned. On save we delete the files
+// that are no longer referenced; on delete we remove them all.
 // (deleteStorageUrls lives in lib/supabase/storage-cleanup, shared by actions.)
 // ---------------------------------------------------------------------------
 
 // All image URLs currently referenced by a product (primary + gallery + every
 // variant's primary + gallery). Resilient: returns [] on any error.
 async function fetchProductImageUrls(
-  supabase: SupabaseClient,
+  uid: string,
   productId: string,
 ): Promise<string[]> {
   const urls: string[] = [];
   try {
-    const { data: p } = await supabase
-      .from("products")
-      .select("image_url, images")
-      .eq("id", productId)
-      .single();
+    const [p] = await withUser({ uid }, (db) =>
+      db
+        .select({ image_url: products.imageUrl, images: products.images })
+        .from(products)
+        .where(eq(products.id, productId))
+        .limit(1),
+    );
     if (p?.image_url) urls.push(p.image_url);
     if (Array.isArray(p?.images)) urls.push(...p.images);
 
-    const { data: vs } = await supabase
-      .from("product_variants")
-      .select("*")
-      .eq("product_id", productId);
-    for (const v of (vs ?? []) as Array<{
-      image_url?: string | null;
-      images?: string[] | null;
-    }>) {
+    const vs = await withUser({ uid }, (db) =>
+      db
+        .select({
+          image_url: productVariants.imageUrl,
+          images: productVariants.images,
+        })
+        .from(productVariants)
+        .where(eq(productVariants.productId, productId)),
+    );
+    for (const v of vs) {
       if (v.image_url) urls.push(v.image_url);
       if (Array.isArray(v.images)) urls.push(...v.images);
     }
@@ -316,7 +349,6 @@ async function fetchProductImageUrls(
 export async function createProduct(
   formData: ProductFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
@@ -329,63 +361,72 @@ export async function createProduct(
     return { error: "SEO title and description are required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId);
+  const { slug: firstSlug, bump } = await resolveSlug(userId, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
     name: formData.name.trim(),
     slug: s,
     description: formData.description.trim() || null,
-    category_id: formData.category_id || null,
+    categoryId: formData.category_id || null,
     ...normalizePrices(formData.base_price, formData.selling_price),
-    image_url: formData.image_url || null,
+    imageUrl: formData.image_url || null,
     images: formData.images ?? [],
     status: formData.status,
     featured: formData.featured,
-    sort_order: formData.sort_order ?? 0,
-    card_color: formData.card_color?.trim() || null,
-    seo_title: formData.seo_title.trim() || null,
-    seo_description: formData.seo_description.trim() || null,
-    published_at:
+    sortOrder: formData.sort_order ?? 0,
+    cardColor: formData.card_color?.trim() || null,
+    seoTitle: formData.seo_title.trim() || null,
+    seoDescription: formData.seo_description.trim() || null,
+    publishedAt:
       formData.status === "published" ? new Date().toISOString() : null,
-    created_by: userId,
-    updated_by: userId,
-    store_id: storeId,
-    track_inventory: formData.track_inventory ?? false,
-    allow_backorder: formData.allow_backorder ?? false,
-    low_stock_threshold: formData.low_stock_threshold ?? null,
-    tax_class_id: formData.tax_class_id || null,
+    createdBy: userId,
+    updatedBy: userId,
+    storeId,
+    trackInventory: formData.track_inventory ?? false,
+    allowBackorder: formData.allow_backorder ?? false,
+    lowStockThreshold: formData.low_stock_threshold ?? null,
+    taxClassId: formData.tax_class_id || null,
     // sku / sku_no are set by the DB trigger (system-generated & locked).
   });
 
+  // Own transaction per attempt (a unique violation aborts the transaction it
+  // happens in). RLS (is_store_admin) gates the insert.
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
-    const { data, error } = await supabase
-      .from("products")
-      .insert(row(slug))
-      .select()
-      .single();
-
-    if (!error) {
-      const variantError = await replaceVariants(
-        supabase,
-        data.id,
-        formData.variants,
-        storeId,
+    let inserted: Record<string, unknown>;
+    try {
+      const [row0] = await withUser({ uid: userId }, (db) =>
+        db
+          .insert(products)
+          // sku / sku_no are NOT NULL but owned by the BEFORE-INSERT trigger
+          // (identifiers_04_triggers.sql) — the app must never send them, so
+          // the insert type is asserted past those two columns.
+          .values(row(slug) as typeof products.$inferInsert)
+          .returning(),
       );
-      if (variantError) {
-        console.error("createProduct variants error:", variantError);
-        return { error: `Product saved but variants failed: ${variantError}` };
+      inserted = row0 as Record<string, unknown>;
+    } catch (err) {
+      if (!isUniqueViolation(err)) {
+        console.error("createProduct error:", err);
+        return { error: dbErrorMessage(err, "Failed to create product.") };
       }
-      revalidateProduct(slug);
-      await notifyProductPublished(slug, formData.status === "published");
-      return { success: true, data: data as Record<string, unknown> };
+      slug = bump(slug);
+      continue;
     }
 
-    if (!isUniqueViolation(error)) {
-      console.error("createProduct error:", error);
-      return { error: error.message };
+    const variantError = await replaceVariants(
+      userId,
+      inserted.id as string,
+      formData.variants,
+      storeId,
+    );
+    if (variantError) {
+      console.error("createProduct variants error:", variantError);
+      return { error: `Product saved but variants failed: ${variantError}` };
     }
-    slug = bump(slug);
+    revalidateProduct(slug);
+    await notifyProductPublished(slug, formData.status === "published");
+    return { success: true, data: inserted };
   }
 
   return { error: "Could not generate a unique slug. Please try again." };
@@ -399,7 +440,6 @@ export async function updateProduct(
   id: string,
   formData: ProductFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
@@ -413,18 +453,21 @@ export async function updateProduct(
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
   const { slug: firstSlug, bump } = await resolveSlug(
-    supabase,
+    userId,
     base,
     storeId,
     id,
   );
   let slug = firstSlug;
 
-  const { data: current } = await supabase
-    .from("products")
-    .select("published_at")
-    .eq("id", id)
-    .single();
+  const currentRows = await withUser({ uid: userId }, (db) =>
+    db
+      .select({ published_at: products.publishedAt })
+      .from(products)
+      .where(eq(products.id, id))
+      .limit(1),
+  );
+  const current = currentRows[0];
 
   const publishedAt =
     formData.status === "published"
@@ -435,62 +478,64 @@ export async function updateProduct(
     name: formData.name.trim(),
     slug: s,
     description: formData.description.trim() || null,
-    category_id: formData.category_id || null,
+    categoryId: formData.category_id || null,
     ...normalizePrices(formData.base_price, formData.selling_price),
-    image_url: formData.image_url || null,
+    imageUrl: formData.image_url || null,
     images: formData.images ?? [],
     status: formData.status,
     featured: formData.featured,
-    sort_order: formData.sort_order ?? 0,
-    card_color: formData.card_color?.trim() || null,
-    seo_title: formData.seo_title.trim() || null,
-    seo_description: formData.seo_description.trim() || null,
-    published_at: publishedAt,
-    updated_by: userId,
-    track_inventory: formData.track_inventory ?? false,
-    allow_backorder: formData.allow_backorder ?? false,
-    low_stock_threshold: formData.low_stock_threshold ?? null,
-    tax_class_id: formData.tax_class_id || null,
+    sortOrder: formData.sort_order ?? 0,
+    cardColor: formData.card_color?.trim() || null,
+    seoTitle: formData.seo_title.trim() || null,
+    seoDescription: formData.seo_description.trim() || null,
+    publishedAt,
+    updatedBy: userId,
+    trackInventory: formData.track_inventory ?? false,
+    allowBackorder: formData.allow_backorder ?? false,
+    lowStockThreshold: formData.low_stock_threshold ?? null,
+    taxClassId: formData.tax_class_id || null,
     // sku is system-generated & locked (DB trigger) — never overwritten here.
   });
 
   // Images referenced before this save — compared against what survives so any
   // removed file can be purged from storage.
-  const oldImageUrls = await fetchProductImageUrls(supabase, id);
+  const oldImageUrls = await fetchProductImageUrls(userId, id);
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
-    const { error } = await supabase
-      .from("products")
-      .update(row(slug))
-      .eq("id", id);
-
-    if (!error) {
-      const variantError = await replaceVariants(
-        supabase,
-        id,
-        formData.variants,
-        storeId,
+    try {
+      // Own transaction per attempt; RLS confines the update to the caller's
+      // own store.
+      await withUser({ uid: userId }, (db) =>
+        db.update(products).set(row(slug)).where(eq(products.id, id)),
       );
-      if (variantError) {
-        console.error("updateProduct variants error:", variantError);
-        return {
-          error: `Product saved but variants failed: ${variantError}`,
-        };
+    } catch (err) {
+      if (!isUniqueViolation(err)) {
+        console.error("updateProduct error:", err);
+        return { error: dbErrorMessage(err, "Failed to update product.") };
       }
-      // Purge files that are no longer referenced after the save.
-      const kept = new Set(await fetchProductImageUrls(supabase, id));
-      await deleteStorageUrls(oldImageUrls.filter((u) => !kept.has(u)));
-
-      revalidateProduct(slug);
-      await notifyProductPublished(slug, formData.status === "published");
-      return { success: true };
+      slug = bump(slug);
+      continue;
     }
 
-    if (!isUniqueViolation(error)) {
-      console.error("updateProduct error:", error);
-      return { error: error.message };
+    const variantError = await replaceVariants(
+      userId,
+      id,
+      formData.variants,
+      storeId,
+    );
+    if (variantError) {
+      console.error("updateProduct variants error:", variantError);
+      return {
+        error: `Product saved but variants failed: ${variantError}`,
+      };
     }
-    slug = bump(slug);
+    // Purge files that are no longer referenced after the save.
+    const kept = new Set(await fetchProductImageUrls(userId, id));
+    await deleteStorageUrls(oldImageUrls.filter((u) => !kept.has(u)));
+
+    revalidateProduct(slug);
+    await notifyProductPublished(slug, formData.status === "published");
+    return { success: true };
   }
 
   return { error: "Could not generate a unique slug. Please try again." };
@@ -501,18 +546,19 @@ export async function updateProduct(
 // ---------------------------------------------------------------------------
 
 export async function deleteProduct(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // Collect the product's images before deleting (variants cascade in the DB).
-  const imageUrls = await fetchProductImageUrls(supabase, id);
+  const imageUrls = await fetchProductImageUrls(userId, id);
 
-  const { error } = await supabase.from("products").delete().eq("id", id);
-
-  if (error) {
-    console.error("deleteProduct error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db.delete(products).where(eq(products.id, id)),
+    );
+  } catch (err) {
+    console.error("deleteProduct error:", err);
+    return { error: dbErrorMessage(err, "Failed to delete product.") };
   }
 
   // Files won't cascade — remove them from storage too.
@@ -530,28 +576,30 @@ export async function toggleProductPublish(
   id: string,
   publish: boolean,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
 
-  const { data, error } = await supabase
-    .from("products")
-    .update({
-      status: publish ? "published" : "draft",
-      published_at: publish ? new Date().toISOString() : null,
-      updated_by: userId,
-    })
-    .eq("id", id)
-    .select("slug")
-    .single();
-
-  if (error) {
-    console.error("toggleProductPublish error:", error);
-    return { error: error.message };
+  let updated: { slug: string } | undefined;
+  try {
+    [updated] = await withUser({ uid: userId }, (db) =>
+      db
+        .update(products)
+        .set({
+          status: publish ? "published" : "draft",
+          publishedAt: publish ? new Date().toISOString() : null,
+          updatedBy: userId,
+        })
+        .where(eq(products.id, id))
+        .returning({ slug: products.slug }),
+    );
+  } catch (err) {
+    console.error("toggleProductPublish error:", err);
+    return { error: dbErrorMessage(err, "Failed to update product.") };
   }
+  if (!updated) return { error: "Product not found." };
 
-  revalidateProduct(data?.slug);
-  await notifyProductPublished(data?.slug, publish);
+  revalidateProduct(updated.slug);
+  await notifyProductPublished(updated.slug, publish);
   return { success: true };
 }
 
@@ -564,23 +612,24 @@ export async function bulkToggleProductPublish(
   ids: string[],
   publish: boolean,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   if (ids.length === 0) return { error: "Nothing selected." };
 
-  const { error } = await supabase
-    .from("products")
-    .update({
-      status: publish ? "published" : "draft",
-      published_at: publish ? new Date().toISOString() : null,
-      updated_by: userId,
-    })
-    .in("id", ids);
-
-  if (error) {
-    console.error("bulkToggleProductPublish error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db
+        .update(products)
+        .set({
+          status: publish ? "published" : "draft",
+          publishedAt: publish ? new Date().toISOString() : null,
+          updatedBy: userId,
+        })
+        .where(inArray(products.id, ids)),
+    );
+  } catch (err) {
+    console.error("bulkToggleProductPublish error:", err);
+    return { error: dbErrorMessage(err, "Failed to update products.") };
   }
   revalidateProduct();
   return { success: true };
@@ -591,19 +640,20 @@ export async function bulkSetProductFeatured(
   ids: string[],
   featured: boolean,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   if (ids.length === 0) return { error: "Nothing selected." };
 
-  const { error } = await supabase
-    .from("products")
-    .update({ featured, updated_by: userId })
-    .in("id", ids);
-
-  if (error) {
-    console.error("bulkSetProductFeatured error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db
+        .update(products)
+        .set({ featured, updatedBy: userId })
+        .where(inArray(products.id, ids)),
+    );
+  } catch (err) {
+    console.error("bulkSetProductFeatured error:", err);
+    return { error: dbErrorMessage(err, "Failed to update products.") };
   }
   revalidateProduct();
   return { success: true };
@@ -611,7 +661,6 @@ export async function bulkSetProductFeatured(
 
 /** Permanently delete many products, cleaning up their storage assets. */
 export async function bulkDeleteProducts(ids: string[]): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   if (ids.length === 0) return { error: "Nothing selected." };
@@ -620,13 +669,16 @@ export async function bulkDeleteProducts(ids: string[]): Promise<ActionResult> {
   // do not).
   const urls: string[] = [];
   for (const id of ids) {
-    urls.push(...(await fetchProductImageUrls(supabase, id)));
+    urls.push(...(await fetchProductImageUrls(userId, id)));
   }
 
-  const { error } = await supabase.from("products").delete().in("id", ids);
-  if (error) {
-    console.error("bulkDeleteProducts error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db.delete(products).where(inArray(products.id, ids)),
+    );
+  } catch (err) {
+    console.error("bulkDeleteProducts error:", err);
+    return { error: dbErrorMessage(err, "Failed to delete products.") };
   }
   await deleteStorageUrls(urls);
   revalidateProduct();
