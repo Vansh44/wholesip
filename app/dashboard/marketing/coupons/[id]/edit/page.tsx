@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { and, asc, eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { couponUserGroups, coupons, userGroups } from "@/drizzle/schema";
 import { requireSectionAccess, getActingStoreId } from "../../../../lib/access";
 import { CouponForm } from "../../coupon-form";
+import { COUPON_COLUMNS } from "../../page";
 import type { Coupon, CouponGroup } from "../../page";
 
 export default async function EditCouponPage({
@@ -12,35 +15,45 @@ export default async function EditCouponPage({
   await requireSectionAccess("marketing", "manage");
   const { id } = await params;
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
-  const [{ data: coupon, error }, { data: groups }, { data: links }] =
-    await Promise.all([
-      supabase
-        .from("coupons")
-        .select("*")
-        .eq("id", id)
-        .eq("store_id", storeId)
-        .maybeSingle(),
-      supabase
-        .from("user_groups")
-        .select("id, name, color")
-        .order("name", { ascending: true }),
-      supabase
-        .from("coupon_user_groups")
-        .select("group_id")
-        .eq("store_id", storeId)
-        .eq("coupon_id", id),
+  const result = await withService(async (db) => {
+    const [couponRows, groupRows, linkRows] = await Promise.all([
+      db
+        .select(COUPON_COLUMNS)
+        .from(coupons)
+        .where(and(eq(coupons.id, id), eq(coupons.storeId, storeId)))
+        .limit(1),
+      db
+        .select({
+          id: userGroups.id,
+          name: userGroups.name,
+          color: userGroups.color,
+        })
+        .from(userGroups)
+        .orderBy(asc(userGroups.name)),
+      db
+        .select({ group_id: couponUserGroups.groupId })
+        .from(couponUserGroups)
+        .where(
+          and(
+            eq(couponUserGroups.storeId, storeId),
+            eq(couponUserGroups.couponId, id),
+          ),
+        ),
     ]);
+    return {
+      coupon: couponRows[0],
+      groups: groupRows as CouponGroup[],
+      links: linkRows,
+    };
+  }).catch(() => null);
 
-  if (error || !coupon) notFound();
+  if (!result?.coupon) notFound();
 
   const enriched: Coupon = {
-    ...(coupon as Omit<Coupon, "restricted_group_ids">),
-    restricted_group_ids: (links ?? []).map((l) => l.group_id as string),
+    ...(result.coupon as unknown as Omit<Coupon, "restricted_group_ids">),
+    restricted_group_ids: result.links.map((l) => l.group_id),
   };
 
-  return (
-    <CouponForm coupon={enriched} groups={(groups ?? []) as CouponGroup[]} />
-  );
+  return <CouponForm coupon={enriched} groups={result.groups} />;
 }

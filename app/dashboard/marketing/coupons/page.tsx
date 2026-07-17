@@ -1,14 +1,33 @@
-import { createClient } from "@/lib/supabase/server";
+import { and, asc, count as countFn, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { couponUserGroups, coupons, userGroups } from "@/drizzle/schema";
 import { requireSectionAccess, getActingStoreId } from "../../lib/access";
 import {
   DASHBOARD_PAGE_SIZE,
-  ilikeOr,
   pickPage,
   pickParam,
   sanitizeSearch,
 } from "../../lib/list-params";
 import { CouponsManagementView } from "./coupons-management-view";
 import { getStoreSettingsForEditor } from "@/app/actions/store-settings";
+
+// Aliased select preserving the snake_case Coupon shape the view expects.
+export const COUPON_COLUMNS = {
+  id: coupons.id,
+  code: coupons.code,
+  description: coupons.description,
+  discount_type: coupons.discountType,
+  discount_value: coupons.discountValue,
+  min_order_amount: coupons.minOrderAmount,
+  max_uses: coupons.maxUses,
+  used_count: coupons.usedCount,
+  status: coupons.status,
+  valid_from: coupons.validFrom,
+  valid_until: coupons.validUntil,
+  show_on_storefront: coupons.showOnStorefront,
+  created_at: coupons.createdAt,
+  updated_at: coupons.updatedAt,
+};
 
 export interface Coupon {
   id: string;
@@ -50,69 +69,90 @@ export default async function CouponsPage({
   const pageSize = DASHBOARD_PAGE_SIZE;
   const from = (page - 1) * pageSize;
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
 
-  let query = supabase
-    .from("coupons")
-    .select("*", { count: "exact" })
-    .eq("store_id", storeId)
-    .order("created_at", { ascending: false });
-
+  const conds = [eq(coupons.storeId, storeId)];
   const term = sanitizeSearch(q);
-  if (term) query = query.or(ilikeOr(["code", "description"], term));
+  if (term) {
+    const pat = `%${term}%`;
+    conds.push(
+      or(ilike(coupons.code, pat), ilike(coupons.description, pat))!,
+    );
+  }
+  const whereExpr = and(...conds);
 
-  const {
-    data: coupons,
-    error,
-    count,
-  } = await query.range(from, from + pageSize - 1);
+  let couponRows: Record<string, unknown>[];
+  let total: number;
+  let groups: CouponGroup[];
+  let links: { coupon_id: string; group_id: string }[];
+  try {
+    ({ couponRows, total, groups, links } = await withService(async (db) => {
+      const [couponRows, countRows, groupRows] = await Promise.all([
+        db
+          .select(COUPON_COLUMNS)
+          .from(coupons)
+          .where(whereExpr)
+          .orderBy(desc(coupons.createdAt))
+          .limit(pageSize)
+          .offset(from),
+        db.select({ n: countFn() }).from(coupons).where(whereExpr),
+        db
+          .select({
+            id: userGroups.id,
+            name: userGroups.name,
+            color: userGroups.color,
+          })
+          .from(userGroups)
+          .orderBy(asc(userGroups.name)),
+      ]);
 
-  if (error) {
+      // The coupon→group links for the coupons ON THIS PAGE only.
+      const pageCouponIds = couponRows.map((c) => c.id as string);
+      const links = pageCouponIds.length
+        ? await db
+            .select({
+              coupon_id: couponUserGroups.couponId,
+              group_id: couponUserGroups.groupId,
+            })
+            .from(couponUserGroups)
+            .where(
+              and(
+                eq(couponUserGroups.storeId, storeId),
+                inArray(couponUserGroups.couponId, pageCouponIds),
+              ),
+            )
+        : [];
+
+      return {
+        couponRows: couponRows as Record<string, unknown>[],
+        total: countRows[0]?.n ?? 0,
+        groups: groupRows as CouponGroup[],
+        links,
+      };
+    }));
+  } catch (err) {
+    console.error("CouponsPage load error:", err);
     return (
       <div className="max-w-md border border-destructive/20 bg-destructive/5 p-6 text-sm text-destructive">
         <div className="mb-1 flex items-center gap-2 font-semibold">
           <span>⚠️</span> Failed to load coupons
         </div>
         <p className="leading-relaxed text-destructive/80">
-          Make sure the <code>coupons</code> table exists (run{" "}
-          <code>supabase/coupons_table.sql</code> in the SQL Editor) and that
-          you have the correct permissions.
+          Could not load the coupons. Please try again.
         </p>
       </div>
     );
   }
 
-  // User groups (for the restriction picker) and the coupon→group links for the
-  // coupons ON THIS PAGE only. Both are best-effort: if those tables aren't
-  // migrated yet, coupons still load and simply behave as public.
-  const pageCouponIds = (coupons ?? []).map((c) => c.id as string);
-  const [groupsRes, linksRes] = await Promise.all([
-    supabase
-      .from("user_groups")
-      .select("id, name, color")
-      .order("name", { ascending: true }),
-    pageCouponIds.length
-      ? supabase
-          .from("coupon_user_groups")
-          .select("coupon_id, group_id")
-          .eq("store_id", storeId)
-          .in("coupon_id", pageCouponIds)
-      : Promise.resolve({
-          data: [] as { coupon_id: string; group_id: string }[],
-        }),
-  ]);
-
   const linksByCoupon = new Map<string, string[]>();
-  for (const link of linksRes.data ?? []) {
-    const cid = link.coupon_id as string;
-    const list = linksByCoupon.get(cid) ?? [];
-    list.push(link.group_id as string);
-    linksByCoupon.set(cid, list);
+  for (const link of links) {
+    const list = linksByCoupon.get(link.coupon_id) ?? [];
+    list.push(link.group_id);
+    linksByCoupon.set(link.coupon_id, list);
   }
 
-  const enriched: Coupon[] = (coupons ?? []).map((c) => ({
-    ...(c as Omit<Coupon, "restricted_group_ids">),
+  const enriched: Coupon[] = couponRows.map((c) => ({
+    ...(c as unknown as Omit<Coupon, "restricted_group_ids">),
     restricted_group_ids: linksByCoupon.get(c.id as string) ?? [],
   }));
 
@@ -124,9 +164,9 @@ export default async function CouponsPage({
   return (
     <CouponsManagementView
       coupons={enriched}
-      groups={(groupsRes.data ?? []) as CouponGroup[]}
+      groups={groups}
       canManage={canManage}
-      total={count ?? 0}
+      total={total}
       page={page}
       pageSize={pageSize}
       query={q}
