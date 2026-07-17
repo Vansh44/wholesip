@@ -1,8 +1,10 @@
 "use server";
 
+import { and, desc, eq, ne } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { after } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService } from "@/lib/db/client";
+import { storePages } from "@/drizzle/schema";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { getStoreUrl } from "@/lib/site";
 import { pingIndexNow } from "@/lib/seo/search-engines";
@@ -20,12 +22,12 @@ import {
 // ---------------------------------------------------------------------------
 // Website-builder page actions.
 //
-// All reads/writes use the SERVICE-ROLE client because the draft `sections`
-// column is revoked from anon+authenticated at the DB layer (see
-// store_pages.sql) — RLS/column grants can't be the gate here. So
-// getManagerUserId("builder") IS the trust boundary, and every query is
-// explicitly scoped by store_id (service role bypasses RLS). Never select or
-// return draft `sections` to a caller that hasn't passed this gate.
+// All reads/writes use the SERVICE scope because the draft `sections` column
+// is revoked from anon+authenticated at the DB layer (see store_pages.sql) —
+// RLS/column grants can't be the gate here. So getManagerUserId("builder") IS
+// the trust boundary, and every query is explicitly scoped by store_id (the
+// service scope bypasses RLS). Never select or return draft `sections` to a
+// caller that hasn't passed this gate.
 // ---------------------------------------------------------------------------
 
 export interface ActionResult {
@@ -51,6 +53,16 @@ export interface PageDraft extends PageListItem {
   seo_noindex: boolean;
   sections: PageSectionItem[];
 }
+
+// Aliased select preserving the snake_case list-row shape.
+const PAGE_LIST_COLUMNS = {
+  id: storePages.id,
+  slug: storePages.slug,
+  title: storePages.title,
+  status: storePages.status,
+  updated_at: storePages.updatedAt,
+  published_at: storePages.publishedAt,
+};
 
 function revalidatePage(slug: string) {
   revalidatePath("/dashboard/builder");
@@ -93,18 +105,21 @@ export async function listPages(): Promise<PageListItem[]> {
   const userId = await getManagerUserId("builder");
   if (!userId) return [];
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("store_pages")
-    .select("id, slug, title, status, updated_at, published_at")
-    .eq("store_id", storeId)
-    .neq("slug", "") // hide the homepage sentinel from the pages list
-    .order("updated_at", { ascending: false });
-  if (error) {
-    console.error("listPages error:", error.message);
+  try {
+    const rows = await withService((db) =>
+      db
+        .select(PAGE_LIST_COLUMNS)
+        .from(storePages)
+        .where(
+          and(eq(storePages.storeId, storeId), ne(storePages.slug, "")), // hide the homepage sentinel
+        )
+        .orderBy(desc(storePages.updatedAt)),
+    );
+    return rows as PageListItem[];
+  } catch (err) {
+    console.error("listPages error:", err instanceof Error ? err.message : err);
     return [];
   }
-  return (data ?? []) as PageListItem[];
 }
 
 /**
@@ -118,52 +133,64 @@ export async function ensureHomepage(): Promise<PageListItem | null> {
   const userId = await getManagerUserId("builder");
   if (!userId) return null;
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
-  const { data: existing } = await admin
-    .from("store_pages")
-    .select("id, slug, title, status, updated_at, published_at")
-    .eq("store_id", storeId)
-    .eq("slug", "")
-    .maybeSingle();
-  if (existing) return existing as PageListItem;
+  try {
+    const existingRows = await withService((db) =>
+      db
+        .select(PAGE_LIST_COLUMNS)
+        .from(storePages)
+        .where(and(eq(storePages.storeId, storeId), eq(storePages.slug, "")))
+        .limit(1),
+    );
+    if (existingRows[0]) return existingRows[0] as PageListItem;
 
-  const { data: created, error } = await admin
-    .from("store_pages")
-    .insert({
-      store_id: storeId,
-      slug: "",
-      title: "Home",
-      status: "draft",
-      sections: [],
-      published_sections: [],
-      created_by: userId,
-      updated_by: userId,
-    })
-    .select("id, slug, title, status, updated_at, published_at")
-    .single();
-  if (error) {
-    console.error("ensureHomepage error:", error.message);
+    const [created] = await withService((db) =>
+      db
+        .insert(storePages)
+        .values({
+          storeId,
+          slug: "",
+          title: "Home",
+          status: "draft",
+          sections: [],
+          publishedSections: [],
+          createdBy: userId,
+          updatedBy: userId,
+        })
+        .returning(PAGE_LIST_COLUMNS),
+    );
+    return (created as PageListItem) ?? null;
+  } catch (err) {
+    console.error(
+      "ensureHomepage error:",
+      err instanceof Error ? err.message : err,
+    );
     return null;
   }
-  return created as PageListItem;
 }
 
 export async function getPageDraft(id: string): Promise<PageDraft | null> {
   const userId = await getManagerUserId("builder");
   if (!userId) return null;
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("store_pages")
-    .select(
-      "id, slug, title, status, updated_at, published_at, seo_title, seo_description, seo_noindex, sections",
-    )
-    .eq("store_id", storeId)
-    .eq("id", id)
-    .maybeSingle();
-  if (error || !data) return null;
-  return data as unknown as PageDraft;
+  try {
+    const rows = await withService((db) =>
+      db
+        .select({
+          ...PAGE_LIST_COLUMNS,
+          seo_title: storePages.seoTitle,
+          seo_description: storePages.seoDescription,
+          seo_noindex: storePages.seoNoindex,
+          sections: storePages.sections,
+        })
+        .from(storePages)
+        .where(and(eq(storePages.storeId, storeId), eq(storePages.id, id)))
+        .limit(1),
+    );
+    return (rows[0] as unknown as PageDraft | undefined) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // --- Mutations --------------------------------------------------------------
@@ -181,37 +208,39 @@ export async function createPage(
   const slug = slugResult.slug;
   const title = (rawTitle || "").trim() || slug;
 
-  const admin = createAdminClient();
-  const { data: existing } = await admin
-    .from("store_pages")
-    .select("id")
-    .eq("store_id", storeId)
-    .eq("slug", slug)
-    .maybeSingle();
-  if (existing)
-    return { error: `A page with the slug "${slug}" already exists.` };
+  try {
+    const existing = await withService((db) =>
+      db
+        .select({ id: storePages.id })
+        .from(storePages)
+        .where(and(eq(storePages.storeId, storeId), eq(storePages.slug, slug)))
+        .limit(1),
+    );
+    if (existing[0])
+      return { error: `A page with the slug "${slug}" already exists.` };
 
-  const { data, error } = await admin
-    .from("store_pages")
-    .insert({
-      store_id: storeId,
-      slug,
-      title,
-      status: "draft",
-      sections: [],
-      published_sections: [],
-      created_by: userId,
-      updated_by: userId,
-    })
-    .select("id")
-    .single();
-  if (error) {
-    console.error("createPage error:", error.message);
+    const [created] = await withService((db) =>
+      db
+        .insert(storePages)
+        .values({
+          storeId,
+          slug,
+          title,
+          status: "draft",
+          sections: [],
+          publishedSections: [],
+          createdBy: userId,
+          updatedBy: userId,
+        })
+        .returning({ id: storePages.id }),
+    );
+
+    revalidatePage(slug);
+    return { success: true, data: { id: created.id } };
+  } catch (err) {
+    console.error("createPage error:", err instanceof Error ? err.message : err);
     return { error: "Could not create the page. Please try again." };
   }
-
-  revalidatePage(slug);
-  return { success: true, data: { id: data.id } };
 }
 
 export async function updatePageMeta(
@@ -227,53 +256,73 @@ export async function updatePageMeta(
   const userId = await getManagerUserId("builder");
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
-  const { data: page } = await admin
-    .from("store_pages")
-    .select("slug")
-    .eq("store_id", storeId)
-    .eq("id", id)
-    .maybeSingle();
+  const pageRows = await withService((db) =>
+    db
+      .select({ slug: storePages.slug })
+      .from(storePages)
+      .where(and(eq(storePages.storeId, storeId), eq(storePages.id, id)))
+      .limit(1),
+  ).catch(() => []);
+  const page = pageRows[0];
   if (!page) return { error: "Page not found." };
   // The homepage sentinel's slug is immutable and it's never renamed here.
   const isHomepage = page.slug === "";
 
-  const update: Record<string, unknown> = { updated_by: userId };
+  const update: {
+    updatedBy: string;
+    slug?: string;
+    title?: string;
+    seoTitle?: string;
+    seoDescription?: string;
+    seoNoindex?: boolean;
+  } = { updatedBy: userId };
 
   if (fields.slug !== undefined && !isHomepage) {
     const slugResult = validatePageSlug(fields.slug);
     if ("error" in slugResult) return { error: slugResult.error };
     if (slugResult.slug !== page.slug) {
-      const { data: clash } = await admin
-        .from("store_pages")
-        .select("id")
-        .eq("store_id", storeId)
-        .eq("slug", slugResult.slug)
-        .maybeSingle();
-      if (clash) return { error: `The slug "${slugResult.slug}" is taken.` };
+      const clashRows = await withService((db) =>
+        db
+          .select({ id: storePages.id })
+          .from(storePages)
+          .where(
+            and(
+              eq(storePages.storeId, storeId),
+              eq(storePages.slug, slugResult.slug),
+            ),
+          )
+          .limit(1),
+      ).catch(() => []);
+      if (clashRows[0])
+        return { error: `The slug "${slugResult.slug}" is taken.` };
       update.slug = slugResult.slug;
     }
   }
   if (fields.title !== undefined) update.title = fields.title.trim();
   if (fields.seo_title !== undefined)
-    update.seo_title = fields.seo_title.trim();
+    update.seoTitle = fields.seo_title.trim();
   if (fields.seo_description !== undefined)
-    update.seo_description = fields.seo_description.trim();
+    update.seoDescription = fields.seo_description.trim();
   if (fields.seo_noindex !== undefined)
-    update.seo_noindex = !!fields.seo_noindex;
+    update.seoNoindex = !!fields.seo_noindex;
 
-  const { error } = await admin
-    .from("store_pages")
-    .update(update)
-    .eq("store_id", storeId)
-    .eq("id", id);
-  if (error) {
-    console.error("updatePageMeta error:", error.message);
+  try {
+    await withService((db) =>
+      db
+        .update(storePages)
+        .set(update)
+        .where(and(eq(storePages.storeId, storeId), eq(storePages.id, id))),
+    );
+  } catch (err) {
+    console.error(
+      "updatePageMeta error:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not save. Please try again." };
   }
 
-  revalidatePage((update.slug as string) ?? page.slug);
+  revalidatePage(update.slug ?? page.slug);
   return { success: true };
 }
 
@@ -285,14 +334,15 @@ export async function savePageDraft(
   const userId = await getManagerUserId("builder");
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
-  const { data: page } = await admin
-    .from("store_pages")
-    .select("slug, updated_at")
-    .eq("store_id", storeId)
-    .eq("id", id)
-    .maybeSingle();
+  const pageRows = await withService((db) =>
+    db
+      .select({ slug: storePages.slug, updated_at: storePages.updatedAt })
+      .from(storePages)
+      .where(and(eq(storePages.storeId, storeId), eq(storePages.id, id)))
+      .limit(1),
+  ).catch(() => []);
+  const page = pageRows[0];
   if (!page) return { error: "Page not found." };
 
   // Stale-tab guard: refuse to clobber edits saved from another tab/session.
@@ -311,23 +361,26 @@ export async function savePageDraft(
   const processed = await processSections(rawSections, "draft");
   if ("error" in processed) return { error: processed.error };
 
-  // .select() returns the trigger-stamped updated_at in the same round trip —
+  // .returning() gives the trigger-stamped updated_at in the same round trip —
   // the client feeds it back as the next expectedUpdatedAt (stale-tab token).
   // No revalidatePath here: autosave fires every few seconds and the builder
   // list doesn't need per-keystroke freshness (create/publish/delete revalidate).
-  const { data: saved, error } = await admin
-    .from("store_pages")
-    .update({ sections: processed.sections, updated_by: userId })
-    .eq("store_id", storeId)
-    .eq("id", id)
-    .select("updated_at")
-    .single();
-  if (error) {
-    console.error("savePageDraft error:", error.message);
+  try {
+    const [saved] = await withService((db) =>
+      db
+        .update(storePages)
+        .set({ sections: processed.sections, updatedBy: userId })
+        .where(and(eq(storePages.storeId, storeId), eq(storePages.id, id)))
+        .returning({ updated_at: storePages.updatedAt }),
+    );
+    return { success: true, data: { updated_at: saved.updated_at } };
+  } catch (err) {
+    console.error(
+      "savePageDraft error:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not save the draft. Please try again." };
   }
-
-  return { success: true, data: { updated_at: saved.updated_at as string } };
 }
 
 export async function publishPage(
@@ -337,14 +390,19 @@ export async function publishPage(
   const userId = await getManagerUserId("builder");
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
-  const { data: page } = await admin
-    .from("store_pages")
-    .select("slug, sections, updated_at")
-    .eq("store_id", storeId)
-    .eq("id", id)
-    .maybeSingle();
+  const pageRows = await withService((db) =>
+    db
+      .select({
+        slug: storePages.slug,
+        sections: storePages.sections,
+        updated_at: storePages.updatedAt,
+      })
+      .from(storePages)
+      .where(and(eq(storePages.storeId, storeId), eq(storePages.id, id)))
+      .limit(1),
+  ).catch(() => []);
+  const page = pageRows[0];
   if (!page) return { error: "Page not found." };
 
   // Same stale-tab guard as savePageDraft — publishing from a tab that hasn't
@@ -362,21 +420,29 @@ export async function publishPage(
   const processed = await processSections(page.sections, "publish");
   if ("error" in processed) return { error: processed.error };
 
-  const { data: saved, error } = await admin
-    .from("store_pages")
-    .update({
-      published_sections: processed.sections,
-      sections: processed.sections,
-      status: "published",
-      published_at: new Date().toISOString(),
-      updated_by: userId,
-    })
-    .eq("store_id", storeId)
-    .eq("id", id)
-    .select("updated_at, published_at")
-    .single();
-  if (error) {
-    console.error("publishPage error:", error.message);
+  let saved: { updated_at: string; published_at: string | null };
+  try {
+    [saved] = await withService((db) =>
+      db
+        .update(storePages)
+        .set({
+          publishedSections: processed.sections,
+          sections: processed.sections,
+          status: "published",
+          publishedAt: new Date().toISOString(),
+          updatedBy: userId,
+        })
+        .where(and(eq(storePages.storeId, storeId), eq(storePages.id, id)))
+        .returning({
+          updated_at: storePages.updatedAt,
+          published_at: storePages.publishedAt,
+        }),
+    );
+  } catch (err) {
+    console.error(
+      "publishPage error:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not publish. Please try again." };
   }
 
@@ -392,7 +458,7 @@ export async function publishPage(
   return {
     success: true,
     data: {
-      updated_at: saved.updated_at as string,
+      updated_at: saved.updated_at,
       published_at: saved.published_at as string,
     },
   };
@@ -402,23 +468,29 @@ export async function unpublishPage(id: string): Promise<ActionResult> {
   const userId = await getManagerUserId("builder");
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
-  const { data: page } = await admin
-    .from("store_pages")
-    .select("slug")
-    .eq("store_id", storeId)
-    .eq("id", id)
-    .maybeSingle();
+  const pageRows = await withService((db) =>
+    db
+      .select({ slug: storePages.slug })
+      .from(storePages)
+      .where(and(eq(storePages.storeId, storeId), eq(storePages.id, id)))
+      .limit(1),
+  ).catch(() => []);
+  const page = pageRows[0];
   if (!page) return { error: "Page not found." };
 
-  const { error } = await admin
-    .from("store_pages")
-    .update({ status: "draft", updated_by: userId })
-    .eq("store_id", storeId)
-    .eq("id", id);
-  if (error) {
-    console.error("unpublishPage error:", error.message);
+  try {
+    await withService((db) =>
+      db
+        .update(storePages)
+        .set({ status: "draft", updatedBy: userId })
+        .where(and(eq(storePages.storeId, storeId), eq(storePages.id, id))),
+    );
+  } catch (err) {
+    console.error(
+      "unpublishPage error:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not unpublish. Please try again." };
   }
 
@@ -430,25 +502,30 @@ export async function deletePage(id: string): Promise<ActionResult> {
   const userId = await getManagerUserId("builder");
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
-  const { data: page } = await admin
-    .from("store_pages")
-    .select("slug")
-    .eq("store_id", storeId)
-    .eq("id", id)
-    .maybeSingle();
+  const pageRows = await withService((db) =>
+    db
+      .select({ slug: storePages.slug })
+      .from(storePages)
+      .where(and(eq(storePages.storeId, storeId), eq(storePages.id, id)))
+      .limit(1),
+  ).catch(() => []);
+  const page = pageRows[0];
   if (!page) return { error: "Page not found." };
   // The homepage sentinel is never deletable through the builder.
   if (page.slug === "") return { error: "The homepage can't be deleted." };
 
-  const { error } = await admin
-    .from("store_pages")
-    .delete()
-    .eq("store_id", storeId)
-    .eq("id", id);
-  if (error) {
-    console.error("deletePage error:", error.message);
+  try {
+    await withService((db) =>
+      db
+        .delete(storePages)
+        .where(and(eq(storePages.storeId, storeId), eq(storePages.id, id))),
+    );
+  } catch (err) {
+    console.error(
+      "deletePage error:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not delete the page. Please try again." };
   }
 

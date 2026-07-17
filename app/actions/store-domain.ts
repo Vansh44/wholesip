@@ -1,8 +1,10 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
 import { Resend } from "resend";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService } from "@/lib/db/client";
+import { stores } from "@/drizzle/schema";
 import {
   getActingStoreId,
   getManagerUserId,
@@ -11,7 +13,7 @@ import {
 import { STORE_TAG } from "@/lib/store/resolve";
 
 // Domain config is a Settings surface: reads require `view`, mutations `manage`.
-// Every write here uses the service-role client (RLS-bypassing), so the gate is
+// Every write here uses the service scope (RLS-bypassing), so the gate is
 // the ONLY thing standing between a low-priv store member and the store's domain.
 const DOMAIN_SECTION = "settings";
 
@@ -46,6 +48,21 @@ function clean(v: string | null | undefined): string | null {
   return s ? s : null;
 }
 
+// The acting store's domain fields.
+async function readStoreDomainRow(storeId: string) {
+  const rows = await withService((db) =>
+    db
+      .select({
+        custom_domain: stores.customDomain,
+        settings: stores.settings,
+      })
+      .from(stores)
+      .where(eq(stores.id, storeId))
+      .limit(1),
+  );
+  return rows[0];
+}
+
 /**
  * Retrieves the current custom domain and its resend verification status (if available).
  */
@@ -59,17 +76,16 @@ export async function getCustomDomainDetails(): Promise<{
   }
 
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
+  let row: Awaited<ReturnType<typeof readStoreDomainRow>> | undefined;
+  try {
+    row = await readStoreDomainRow(storeId);
+  } catch (err) {
+    console.error("getCustomDomainDetails:", err);
+  }
 
-  const { data } = await admin
-    .from("stores")
-    .select("custom_domain, settings")
-    .eq("id", storeId)
-    .single();
-
-  const settings = (data?.settings as Record<string, unknown>) ?? {};
+  const settings = (row?.settings as Record<string, unknown>) ?? {};
   return {
-    domain: data?.custom_domain ?? null,
+    domain: row?.custom_domain ?? null,
     resendDomainId: (settings.resend_domain_id as string) ?? null,
   };
 }
@@ -85,15 +101,15 @@ export async function updateCustomDomain(
   }
 
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
   const cleanDomain = clean(domainName);
 
   // 1. Get existing info
-  const { data: store } = await admin
-    .from("stores")
-    .select("custom_domain, settings")
-    .eq("id", storeId)
-    .single();
+  let store: Awaited<ReturnType<typeof readStoreDomainRow>> | undefined;
+  try {
+    store = await readStoreDomainRow(storeId);
+  } catch {
+    return { error: "Failed to load the store. Please try again." };
+  }
 
   const settings = ((store?.settings as Record<string, unknown>) ??
     {}) as Record<string, unknown>;
@@ -145,15 +161,18 @@ export async function updateCustomDomain(
   delete newSettings.custom_domain_verified;
   delete newSettings.resend_domain_verified;
 
-  const { error } = await admin
-    .from("stores")
-    .update({
-      custom_domain: cleanDomain,
-      settings: newSettings,
-    })
-    .eq("id", storeId);
-
-  if (error) {
+  try {
+    await withService((db) =>
+      db
+        .update(stores)
+        .set({ customDomain: cleanDomain, settings: newSettings })
+        .where(eq(stores.id, storeId)),
+    );
+  } catch (err) {
+    console.error(
+      "updateCustomDomain:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Failed to save domain in database." };
   }
 
@@ -195,13 +214,14 @@ export async function getResendDomainStatus(
  */
 async function syncDomainVerified(isVerified: boolean): Promise<void> {
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
-  const { data: store } = await admin
-    .from("stores")
-    .select("custom_domain, settings")
-    .eq("id", storeId)
-    .single();
+  let store: Awaited<ReturnType<typeof readStoreDomainRow>> | undefined;
+  try {
+    store = await readStoreDomainRow(storeId);
+  } catch (err) {
+    console.error("syncDomainVerified read:", err);
+    return;
+  }
 
   // Only meaningful for a store that actually has a custom domain set.
   if (!store?.custom_domain) return;
@@ -210,16 +230,23 @@ async function syncDomainVerified(isVerified: boolean): Promise<void> {
     {}) as Record<string, unknown>;
   if (settings.custom_domain_verified === isVerified) return;
 
-  await admin
-    .from("stores")
-    .update({
-      settings: {
-        ...settings,
-        custom_domain_verified: isVerified,
-        resend_domain_verified: isVerified,
-      },
-    })
-    .eq("id", storeId);
+  try {
+    await withService((db) =>
+      db
+        .update(stores)
+        .set({
+          settings: {
+            ...settings,
+            custom_domain_verified: isVerified,
+            resend_domain_verified: isVerified,
+          },
+        })
+        .where(eq(stores.id, storeId)),
+    );
+  } catch (err) {
+    console.error("syncDomainVerified:", err);
+    return;
+  }
 
   revalidateTag(STORE_TAG, "max");
 }

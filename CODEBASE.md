@@ -271,7 +271,11 @@ wholesip/
 │   │                          # coupons, blogs (actions + dashboard list + settings +
 │   │                          # lib/blog-taxonomy.ts — fetchBlogTaxonomy(storeId), no
 │   │                          # client param), addresses, billing, store-settings,
-│   │                          # store-branding, products (actions + dashboard
+│   │                          # store-branding, pages/menus (page-actions +
+│   │                          # menu-actions + lib/pages/preview.ts — builder write
+│   │                          # side), brand-voice (+ lib/ai/brand-voice.ts +
+│   │                          # lib/ai/quota.ts), store-domain, payment-provider,
+│   │                          # products (actions + dashboard
 │   │                          # list/editor via products/columns.ts maps; sku/sku_no
 │   │                          # trigger-owned → insert type asserted), orders
 │   │                          # (order-actions.ts incl.
