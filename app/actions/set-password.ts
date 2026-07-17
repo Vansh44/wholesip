@@ -1,6 +1,10 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/auth/server-user";
+import { withUser } from "@/lib/db/client";
+import { admins } from "@/drizzle/schema";
 import { redirect } from "next/navigation";
 
 export async function setPassword(formData: FormData) {
@@ -26,6 +30,7 @@ export async function setPassword(formData: FormData) {
     return { error: "A valid verified phone number is required." };
   }
 
+  // The password + session flow stays on Supabase auth until Phase 6.
   const supabase = await createClient();
 
   // Set the password first — if this fails we must NOT clear the
@@ -38,26 +43,22 @@ export async function setPassword(formData: FormData) {
     return { error: updateError.message };
   }
 
-  // Get current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
 
   if (user) {
-    // Check if phone matches the one in auth to ensure it was verified
-    // User verified it on frontend via updateUser and verifyOtp which sets user.phone
-    // But sometimes formatting might differ slightly, so we just trust the formData
-    // since the UI forced them to verify. But better: update profiles with the frontend one.
-
-    await supabase
-      .from("admins")
-      .update({
-        force_password_reset: false,
-        first_name: firstName.trim(),
-        last_name: lastName ? lastName.trim() : null,
-        phone: phone.trim(),
-      })
-      .eq("id", user.id);
+    // Update the admin's own profile row (RLS own-row) — clears the reset flag
+    // and stores the verified name/phone.
+    await withUser({ uid: user.id }, (db) =>
+      db
+        .update(admins)
+        .set({
+          forcePasswordReset: false,
+          firstName: firstName.trim(),
+          lastName: lastName ? lastName.trim() : null,
+          phone: phone.trim(),
+        })
+        .where(eq(admins.id, user.id)),
+    );
 
     // Mint a fresh JWT so the custom access token hook re-reads the now-cleared
     // force_password_reset flag into the claims; otherwise the claims-based

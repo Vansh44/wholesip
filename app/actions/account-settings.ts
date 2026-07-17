@@ -1,6 +1,10 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/auth/server-user";
+import { withUser } from "@/lib/db/client";
+import { admins } from "@/drizzle/schema";
 
 type Result = { error?: string; success?: boolean };
 
@@ -13,22 +17,19 @@ export async function updateProfileName(formData: FormData): Promise<Result> {
     return { error: "First name is required." };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { error } = await supabase
-    .from("admins")
-    .update({
-      first_name: firstName,
-      last_name: lastName || null,
-    })
-    .eq("id", user.id);
-
-  if (error) {
-    console.error("Failed to update profile name:", error);
+  try {
+    // Own-row update (admins RLS lets a user edit their own row).
+    await withUser({ uid: user.id }, (db) =>
+      db
+        .update(admins)
+        .set({ firstName, lastName: lastName || null })
+        .where(eq(admins.id, user.id)),
+    );
+  } catch (err) {
+    console.error("Failed to update profile name:", err);
     return { error: "Couldn't save your name. Please try again." };
   }
 
@@ -39,6 +40,7 @@ export async function updateProfileName(formData: FormData): Promise<Result> {
  * Change the signed-in admin's password. The current password is re-verified
  * with signInWithPassword first (Supabase lets a recent session update the
  * password without it, but we require it like Notion/Linear do for safety).
+ * This is a pure auth flow — it stays on Supabase auth until Phase 6.
  */
 export async function changePassword(formData: FormData): Promise<Result> {
   const currentPassword = (formData.get("currentPassword") as string) || "";
@@ -58,12 +60,10 @@ export async function changePassword(formData: FormData): Promise<Result> {
     return { error: "New password must be different from the current one." };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user?.email) return { error: "Not authenticated." };
 
+  const supabase = await createClient();
   // Re-verify the current password.
   const { error: verifyError } = await supabase.auth.signInWithPassword({
     email: user.email,
@@ -89,10 +89,7 @@ export async function changePassword(formData: FormData): Promise<Result> {
  * We only accept the number that auth has actually recorded as verified.
  */
 export async function setVerifiedPhone(phone: string): Promise<Result> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "Not authenticated." };
 
   const normalized = phone.trim();
@@ -103,13 +100,12 @@ export async function setVerifiedPhone(phone: string): Promise<Result> {
     }
   }
 
-  const { error } = await supabase
-    .from("admins")
-    .update({ phone: normalized })
-    .eq("id", user.id);
-
-  if (error) {
-    console.error("Failed to save verified phone:", error);
+  try {
+    await withUser({ uid: user.id }, (db) =>
+      db.update(admins).set({ phone: normalized }).where(eq(admins.id, user.id)),
+    );
+  } catch (err) {
+    console.error("Failed to save verified phone:", err);
     return { error: "Couldn't save your phone number. Please try again." };
   }
 

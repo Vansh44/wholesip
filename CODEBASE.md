@@ -278,8 +278,9 @@ wholesip/
 │   │                          # customers (customer-actions + customer-profile +
 │   │                          # dashboard/users/data.ts — customer_admin view; auth
 │   │                          # admin ops stay on Supabase till Phase 6), user-groups
-│   │                          # (+ dashboard data), roles (requireRolesManager →
-│   │                          # getServerUser+withUser gate; writes withService),
+│   │                          # (+ dashboard data), roles (+ roles/admins pages),
+│   │                          # account-settings + set-password (own-row admin
+│   │                          # updates → withUser; pw/session on Supabase till Ph6),
 │   │                          # products (actions + dashboard
 │   │                          # list/editor via products/columns.ts maps; sku/sku_no
 │   │                          # trigger-owned → insert type asserted), orders

@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock } from "./_test-helpers";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 // next/navigation.redirect throws to halt rendering — model that here.
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(() => {
@@ -10,10 +12,20 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withUser: vi.fn((_identity: any, fn: any) =>
+    Promise.resolve(fn(dbHolder.current.db)),
+  ),
+  withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+  withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+}));
+
 import { setPassword } from "./set-password";
 import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/auth/server-user";
 import { redirect } from "next/navigation";
-import { makeChain, makeSupabase } from "./_test-helpers";
 
 function makeFormData(fields: Record<string, string | null | undefined>) {
   const fd = new FormData();
@@ -24,7 +36,9 @@ function makeFormData(fields: Record<string, string | null | undefined>) {
 }
 
 // set-password.ts — the action behind /auth/set-password, which an invited
-// user lands on after their first sign-in (force_password_reset=true).
+// user lands on after their first sign-in (force_password_reset=true). The
+// password + session steps stay on Supabase auth; the admins own-row update
+// is on Drizzle (withUser).
 describe("setPassword", () => {
   let supabase: any;
   const validForm = {
@@ -37,10 +51,21 @@ describe("setPassword", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    supabase = makeSupabase({
-      admins: makeChain({ data: null, error: null }),
-    });
+    dbHolder.current = makeDbMock();
+    supabase = {
+      auth: {
+        updateUser: vi.fn().mockResolvedValue({ data: {}, error: null }),
+        refreshSession: vi.fn().mockResolvedValue({ error: null }),
+      },
+    };
     vi.mocked(createClient).mockResolvedValue(supabase);
+    vi.mocked(getServerUser).mockResolvedValue({
+      id: "user-1",
+      email: "ada@example.com",
+      phone: null,
+      phoneConfirmed: false,
+      metadata: {},
+    } as any);
   });
 
   // Field validation runs before any auth call.
@@ -87,7 +112,7 @@ describe("setPassword", () => {
     });
     const result = await setPassword(makeFormData(validForm));
     expect(result?.error).toMatch(/password rejected/i);
-    expect(supabase._tables.admins.update).not.toHaveBeenCalled();
+    expect(dbHolder.current.calls.update).toHaveLength(0);
   });
 
   // Happy path — set password, clear flag, refresh JWT, then redirect to
@@ -100,9 +125,9 @@ describe("setPassword", () => {
     expect(supabase.auth.updateUser).toHaveBeenCalledWith({
       password: "supersecret",
     });
-    const updatePayload = supabase._tables.admins.update.mock.calls[0][0];
-    expect(updatePayload.force_password_reset).toBe(false);
-    expect(updatePayload.first_name).toBe("Ada");
+    const updatePayload = dbHolder.current.calls.set[0];
+    expect(updatePayload.forcePasswordReset).toBe(false);
+    expect(updatePayload.firstName).toBe("Ada");
     // refreshSession mints a fresh JWT with the cleared flag, so the
     // middleware doesn't bounce the user back here.
     expect(supabase.auth.refreshSession).toHaveBeenCalled();
