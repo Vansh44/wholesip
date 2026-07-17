@@ -189,17 +189,12 @@ export async function getCustomerStats(): Promise<CustomerStats> {
             .select({ n: count() })
             .from(users)
             .where(
-              and(
-                eq(users.storeId, storeId),
-                gte(users.createdAt, cutoff),
-              ),
+              and(eq(users.storeId, storeId), gte(users.createdAt, cutoff)),
             ),
           db
             .select({ n: count() })
             .from(users)
-            .where(
-              and(eq(users.storeId, storeId), isNotNull(users.email)),
-            ),
+            .where(and(eq(users.storeId, storeId), isNotNull(users.email))),
           db
             .select({ n: count() })
             .from(customerAdmin)

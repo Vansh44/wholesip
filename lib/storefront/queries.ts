@@ -133,7 +133,10 @@ export const getPublishedProducts = unstable_cache(
           .from(products)
           .leftJoin(categories, eq(products.categoryId, categories.id))
           .where(
-            and(eq(products.storeId, storeId), eq(products.status, "published")),
+            and(
+              eq(products.storeId, storeId),
+              eq(products.status, "published"),
+            ),
           )
           .orderBy(asc(products.sortOrder), desc(products.createdAt));
 
@@ -198,7 +201,10 @@ export const getActiveCategories = unstable_cache(
           })
           .from(categories)
           .where(
-            and(eq(categories.storeId, storeId), eq(categories.status, "active")),
+            and(
+              eq(categories.storeId, storeId),
+              eq(categories.status, "active"),
+            ),
           )
           .orderBy(asc(categories.sortOrder), asc(categories.name)),
       );

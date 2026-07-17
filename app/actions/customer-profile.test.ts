@@ -113,7 +113,9 @@ describe("updateCustomerProfile", () => {
   });
 
   it("omits phone entirely when auth has no phone", async () => {
-    vi.mocked(getServerUser).mockResolvedValue(serverUser({ phone: null }) as any);
+    vi.mocked(getServerUser).mockResolvedValue(
+      serverUser({ phone: null }) as any,
+    );
     await updateCustomerProfile(makeFormData({ firstName: "Ada" }));
     expect(dbHolder.current.calls.values[0].phone).toBeUndefined();
   });

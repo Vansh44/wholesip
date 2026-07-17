@@ -29,6 +29,7 @@ Verified: `npm run build` produces `.next/standalone/server.js` with `brand/task
 ## Steps
 
 ### 1. Enable APIs
+
 ```bash
 gcloud services enable \
   run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com \
@@ -37,12 +38,14 @@ gcloud services enable \
 ```
 
 ### 2. Artifact Registry repo
+
 ```bash
 gcloud artifacts repositories create storemink \
   --repository-format=docker --location=asia-south1
 ```
 
 ### 3. Runtime service account (this is what replaces the API keys)
+
 ```bash
 gcloud iam service-accounts create storemink-run --display-name="StoreMink Cloud Run"
 SA=storemink-run@storemink-prod.iam.gserviceaccount.com
@@ -55,9 +58,11 @@ done
 gcloud storage buckets add-iam-policy-binding gs://storemink-media \
   --member="serviceAccount:$SA" --role=roles/storage.objectAdmin
 ```
+
 `aiplatform.user` → Vertex works with no API key. `objectAdmin` + `tokenCreator` → GCS uploads AND signed video URLs work with no `GCP_SA_KEY`.
 
 ### 4. Secrets → Secret Manager
+
 ```bash
 # one per secret; repeat for each name in the "Runtime secrets" list
 printf %s "$VALUE" | gcloud secrets create SUPABASE_SERVICE_ROLE_KEY --data-file=-
@@ -65,6 +70,7 @@ printf %s "$VALUE" | gcloud secrets create SUPABASE_SERVICE_ROLE_KEY --data-file
 ```
 
 ### 5. Build & push the image (Cloud Build — amd64, no local Docker)
+
 ```bash
 gcloud builds submit --config cloudbuild.yaml --substitutions=\
 _NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co,\
@@ -74,6 +80,7 @@ _NEXT_PUBLIC_APP_URL=https://storemink.com
 ```
 
 ### 6. Deploy to Cloud Run
+
 ```bash
 gcloud run deploy storemink-web \
   --image=asia-south1-docker.pkg.dev/storemink-prod/storemink/web:latest \
@@ -83,21 +90,27 @@ gcloud run deploy storemink-web \
   --set-env-vars=GCP_PROJECT_ID=storemink-prod,GCP_LOCATION=global,GCS_BUCKET=storemink-media,NEXT_PUBLIC_ROOT_DOMAIN=storemink.com,NEXT_PUBLIC_APP_URL=https://storemink.com,NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co,NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon>,RESEND_FROM_DOMAIN=<domain> \
   --set-secrets=SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,PAYMENT_CRED_KEY=PAYMENT_CRED_KEY:latest,RAZORPAY_KEY_ID=RAZORPAY_KEY_ID:latest,RAZORPAY_KEY_SECRET=RAZORPAY_KEY_SECRET:latest,RAZORPAY_WEBHOOK_SECRET=RAZORPAY_WEBHOOK_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest,CRON_SECRET=CRON_SECRET:latest
 ```
+
 `min-instances=1` avoids cold starts (the middleware + Supabase session check runs per request). Tune later.
 
 ### 7. Smoke-test BEFORE DNS (the Host-header trick)
+
 `proxy.ts` routes by Host, and a raw `*.run.app` host is treated as an unknown
 custom domain. So test with an explicit Host header:
+
 ```bash
 URL=$(gcloud run services describe storemink-web --region=asia-south1 --format='value(status.url)')
 curl -sI -H "Host: storemink.com"        $URL/            # platform landing
 curl -sI -H "Host: wholesip.storemink.com" $URL/shop       # a store storefront
 ```
+
 Check Cloud Logging (Phase 2's structured logs now auto-ingest here) + Error Reporting for issues.
 
 ### 8. Wildcard domain `*.storemink.com` (the involved part)
+
 Cloud Run domain mapping has **no wildcard support**, so front it with an
 External Application Load Balancer + Certificate Manager wildcard cert:
+
 1. **Certificate Manager**: a Google-managed cert for `storemink.com` **and**
    `*.storemink.com` via **DNS authorization** (add the CNAME it gives you).
 2. **Serverless NEG** → the `storemink-web` Cloud Run service.
@@ -107,8 +120,10 @@ External Application Load Balancer + Certificate Manager wildcard cert:
 Keep Vercel live throughout; flip DNS only when curl tests pass. **Rollback = revert DNS to Vercel.**
 
 ### 9. Cron jobs → Cloud Scheduler (replaces `vercel.json` crons)
+
 Do this at cutover (don't double-run with Vercel crons). For each of
 `send-emails`, `plan-expiry`, `expire-pending-payments`:
+
 ```bash
 gcloud scheduler jobs create http cron-send-emails \
   --location=asia-south1 --schedule="0 3 * * *" \
@@ -116,10 +131,12 @@ gcloud scheduler jobs create http cron-send-emails \
   --http-method=GET \
   --headers="Authorization=Bearer <CRON_SECRET>"
 ```
+
 Then delete the `crons` block from `vercel.json`. (Consider OIDC auth instead of
 the bearer secret once stable.)
 
 ## Notes carried forward
+
 - **Middleware now runs in Node** (standalone), not an edge runtime — this
   removes the Phase 6 edge-signing concern: `firebase-admin` can run in
   `proxy.ts` on Cloud Run if we choose.

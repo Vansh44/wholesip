@@ -238,7 +238,10 @@ export async function createPage(
     revalidatePage(slug);
     return { success: true, data: { id: created.id } };
   } catch (err) {
-    console.error("createPage error:", err instanceof Error ? err.message : err);
+    console.error(
+      "createPage error:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not create the page. Please try again." };
   }
 }
@@ -300,8 +303,7 @@ export async function updatePageMeta(
     }
   }
   if (fields.title !== undefined) update.title = fields.title.trim();
-  if (fields.seo_title !== undefined)
-    update.seoTitle = fields.seo_title.trim();
+  if (fields.seo_title !== undefined) update.seoTitle = fields.seo_title.trim();
   if (fields.seo_description !== undefined)
     update.seoDescription = fields.seo_description.trim();
   if (fields.seo_noindex !== undefined)

@@ -156,10 +156,7 @@ async function getRelatedBlogs(blog: Blog, storeId: string): Promise<Blog[]> {
     }
     return related;
   } catch (err) {
-    console.error(
-      "getRelatedBlogs:",
-      err instanceof Error ? err.message : err,
-    );
+    console.error("getRelatedBlogs:", err instanceof Error ? err.message : err);
     return [];
   }
 }

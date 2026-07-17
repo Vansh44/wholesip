@@ -81,9 +81,7 @@ export async function consumeAiQuota(storeId: string): Promise<QuotaResult> {
   let spent: boolean;
   try {
     const res = await withService((db) =>
-      db.execute(
-        sql`select try_spend_ai_credit(p_store => ${storeId}) as ok`,
-      ),
+      db.execute(sql`select try_spend_ai_credit(p_store => ${storeId}) as ok`),
     );
     spent = (res.rows[0] as { ok: boolean } | undefined)?.ok === true;
   } catch (err) {
@@ -139,8 +137,7 @@ export async function getAiUsage(storeId: string): Promise<AiUsageSummary> {
       ]);
       return {
         used: usageRows[0]?.used ?? 0,
-        cap: limitsFor(effectivePlan(storeRows[0] ?? {}))
-          .aiGenerationsPerMonth,
+        cap: limitsFor(effectivePlan(storeRows[0] ?? {})).aiGenerationsPerMonth,
         creditBalance: creditRows[0]?.balance ?? 0,
       };
     });

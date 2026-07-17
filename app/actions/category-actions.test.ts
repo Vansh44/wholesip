@@ -81,7 +81,10 @@ describe("category-actions", () => {
     });
 
     it("inserts trimmed fields and the acting store id", async () => {
-      const result = await createCategory({ ...validForm, name: "  Skincare  " });
+      const result = await createCategory({
+        ...validForm,
+        name: "  Skincare  ",
+      });
       const inserted = dbHolder.current.calls.values[0];
       expect(inserted.name).toBe("Skincare");
       expect(inserted.storeId).toBe("a0000000-0000-4000-8000-000000000001");

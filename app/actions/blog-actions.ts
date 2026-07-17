@@ -566,8 +566,7 @@ export async function bulkSetBlogStatus(
         .update(blogs)
         .set({
           status,
-          publishedAt:
-            status === "published" ? new Date().toISOString() : null,
+          publishedAt: status === "published" ? new Date().toISOString() : null,
           updatedBy: userId,
         })
         .where(inArray(blogs.id, ids)),

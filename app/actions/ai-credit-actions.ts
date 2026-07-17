@@ -294,7 +294,10 @@ export async function startCreditPurchase(
     await withService((db) =>
       db
         .update(aiCreditPurchases)
-        .set({ rzpOrderId: rzpRes.data.id, updatedAt: new Date().toISOString() })
+        .set({
+          rzpOrderId: rzpRes.data.id,
+          updatedAt: new Date().toISOString(),
+        })
         .where(eq(aiCreditPurchases.id, purchaseId)),
     );
   } catch (err) {

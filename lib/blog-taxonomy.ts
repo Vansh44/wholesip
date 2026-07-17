@@ -21,7 +21,9 @@ export interface BlogTaxonomy {
  * (anonymous scope); errors degrade to empty lists so a missing table can
  * never take a page down.
  */
-export async function fetchBlogTaxonomy(storeId: string): Promise<BlogTaxonomy> {
+export async function fetchBlogTaxonomy(
+  storeId: string,
+): Promise<BlogTaxonomy> {
   try {
     return await withAnon(async (db) => {
       const [categories, tags] = await Promise.all([

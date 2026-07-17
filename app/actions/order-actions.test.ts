@@ -58,9 +58,9 @@ describe("order-actions", () => {
       // List + count queries, both store-scoped.
       expect(dbHolder.current.calls.where).toHaveLength(2);
       // Never selects the order_items join for the list.
-      expect(
-        Object.keys(dbHolder.current.calls.select[0] ?? {}),
-      ).not.toContain("order_items");
+      expect(Object.keys(dbHolder.current.calls.select[0] ?? {})).not.toContain(
+        "order_items",
+      );
     });
 
     // Page size is clamped so a client can't request an unbounded range.

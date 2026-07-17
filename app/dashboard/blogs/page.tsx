@@ -105,8 +105,7 @@ export default async function BlogsPage({
   const storeId = await getActingStoreId();
 
   const conds = [eq(blogsTable.storeId, storeId)];
-  if (filter === "published")
-    conds.push(eq(blogsTable.status, "published"));
+  if (filter === "published") conds.push(eq(blogsTable.status, "published"));
   else if (filter === "drafts") conds.push(eq(blogsTable.status, "draft"));
   else if (filter === "pending")
     conds.push(eq(blogsTable.status, "pending_review"));
@@ -132,47 +131,44 @@ export default async function BlogsPage({
   let featuredCount: number;
   let taxonomy: Awaited<ReturnType<typeof fetchBlogTaxonomy>>;
   try {
-    [{ rows, total, statusRows, featuredCount }, taxonomy] = await Promise.all(
-      [
-        withService(async (db) => {
-          const [rows, countRows, statusRows, featuredRows] =
-            await Promise.all([
-              db
-                .select(LIST_COLUMNS)
-                .from(blogsTable)
-                .where(whereExpr)
-                .orderBy(desc(blogsTable.createdAt))
-                .limit(pageSize)
-                .offset(offset),
-              db.select({ n: count() }).from(blogsTable).where(whereExpr),
-              // One grouped count for the status tabs instead of a head-count
-              // per tab; featured is a separate dimension.
-              db
-                .select({ status: blogsTable.status, n: count() })
-                .from(blogsTable)
-                .where(eq(blogsTable.storeId, storeId))
-                .groupBy(blogsTable.status),
-              db
-                .select({ n: count() })
-                .from(blogsTable)
-                .where(
-                  and(
-                    eq(blogsTable.storeId, storeId),
-                    eq(blogsTable.featured, true),
-                  ),
-                ),
-            ]);
-          return {
-            rows: rows as Omit<Blog, "content" | "submitter_name">[],
-            total: countRows[0]?.n ?? 0,
-            statusRows,
-            featuredCount: featuredRows[0]?.n ?? 0,
-          };
-        }),
-        // This store's category/tag options for the editor dialog.
-        fetchBlogTaxonomy(storeId),
-      ],
-    );
+    [{ rows, total, statusRows, featuredCount }, taxonomy] = await Promise.all([
+      withService(async (db) => {
+        const [rows, countRows, statusRows, featuredRows] = await Promise.all([
+          db
+            .select(LIST_COLUMNS)
+            .from(blogsTable)
+            .where(whereExpr)
+            .orderBy(desc(blogsTable.createdAt))
+            .limit(pageSize)
+            .offset(offset),
+          db.select({ n: count() }).from(blogsTable).where(whereExpr),
+          // One grouped count for the status tabs instead of a head-count
+          // per tab; featured is a separate dimension.
+          db
+            .select({ status: blogsTable.status, n: count() })
+            .from(blogsTable)
+            .where(eq(blogsTable.storeId, storeId))
+            .groupBy(blogsTable.status),
+          db
+            .select({ n: count() })
+            .from(blogsTable)
+            .where(
+              and(
+                eq(blogsTable.storeId, storeId),
+                eq(blogsTable.featured, true),
+              ),
+            ),
+        ]);
+        return {
+          rows: rows as Omit<Blog, "content" | "submitter_name">[],
+          total: countRows[0]?.n ?? 0,
+          statusRows,
+          featuredCount: featuredRows[0]?.n ?? 0,
+        };
+      }),
+      // This store's category/tag options for the editor dialog.
+      fetchBlogTaxonomy(storeId),
+    ]);
   } catch (err) {
     console.error("BlogsPage load error:", err);
     return (

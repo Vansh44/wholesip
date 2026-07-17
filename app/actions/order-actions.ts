@@ -73,7 +73,10 @@ export async function getOrders(
           .orderBy(desc(orders.createdAt))
           .limit(safeSize)
           .offset(from),
-        db.select({ n: count() }).from(orders).where(eq(orders.storeId, storeId)),
+        db
+          .select({ n: count() })
+          .from(orders)
+          .where(eq(orders.storeId, storeId)),
       ]);
       return { rows, total: countRows[0]?.n ?? 0 };
     });

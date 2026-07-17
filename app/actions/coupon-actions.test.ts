@@ -366,7 +366,10 @@ describe("coupon-actions", () => {
       });
       // showAll off → the query filters on show_on_storefront.
       expect(
-        sqlMentionsColumn(dbHolder.current.calls.where[0], "show_on_storefront"),
+        sqlMentionsColumn(
+          dbHolder.current.calls.where[0],
+          "show_on_storefront",
+        ),
       ).toBe(true);
     });
 
@@ -380,7 +383,10 @@ describe("coupon-actions", () => {
 
       await getAvailableStorefrontCoupons();
       expect(
-        sqlMentionsColumn(dbHolder.current.calls.where[0], "show_on_storefront"),
+        sqlMentionsColumn(
+          dbHolder.current.calls.where[0],
+          "show_on_storefront",
+        ),
       ).toBe(false);
     });
   });

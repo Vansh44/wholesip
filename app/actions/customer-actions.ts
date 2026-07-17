@@ -108,7 +108,9 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
   if (authError) {
     try {
       await withService((db) =>
-        db.delete(users).where(and(eq(users.id, id), eq(users.storeId, storeId))),
+        db
+          .delete(users)
+          .where(and(eq(users.id, id), eq(users.storeId, storeId))),
       );
     } catch (err) {
       console.error("Failed to delete orphaned customer row:", err);

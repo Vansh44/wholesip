@@ -93,7 +93,10 @@ describe("inviteUser", () => {
         admin: {
           createUser: vi
             .fn()
-            .mockResolvedValue({ data: { user: { id: "new-user" } }, error: null }),
+            .mockResolvedValue({
+              data: { user: { id: "new-user" } },
+              error: null,
+            }),
           deleteUser: vi.fn().mockResolvedValue({ error: null }),
         },
       },

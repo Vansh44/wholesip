@@ -102,7 +102,10 @@ export async function setVerifiedPhone(phone: string): Promise<Result> {
 
   try {
     await withUser({ uid: user.id }, (db) =>
-      db.update(admins).set({ phone: normalized }).where(eq(admins.id, user.id)),
+      db
+        .update(admins)
+        .set({ phone: normalized })
+        .where(eq(admins.id, user.id)),
     );
   } catch (err) {
     console.error("Failed to save verified phone:", err);

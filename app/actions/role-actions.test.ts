@@ -177,11 +177,7 @@ describe("role-actions", () => {
     });
 
     it("deletes a deletable role with no holders", async () => {
-      setup([
-        SUPERADMIN,
-        [{ slug: "editor", is_system: false }],
-        [{ n: 0 }],
-      ]);
+      setup([SUPERADMIN, [{ slug: "editor", is_system: false }], [{ n: 0 }]]);
       const result = await deleteRole("editor-id");
       expect(result.success).toBe(true);
       expect(dbHolder.current.calls.delete).toHaveLength(1);

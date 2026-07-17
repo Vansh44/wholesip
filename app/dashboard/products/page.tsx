@@ -1,4 +1,14 @@
-import { and, asc, count, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  or,
+} from "drizzle-orm";
 import { withService } from "@/lib/db/client";
 import {
   cardColors,
@@ -267,7 +277,12 @@ export default async function ProductsPage({
     }) as unknown as Product[];
     total = result.total;
 
-    counts = { all: 0, published: 0, drafts: 0, featured: result.featuredCount };
+    counts = {
+      all: 0,
+      published: 0,
+      drafts: 0,
+      featured: result.featuredCount,
+    };
     for (const row of result.statusRows) {
       counts.all += row.n;
       if (row.status === "published") counts.published = row.n;

@@ -57,12 +57,14 @@ export async function inviteUser(formData: FormData) {
     return { error: "Not authenticated." };
   }
 
-  const callerRows = await withUser({ uid: caller.id, email: caller.email }, (db) =>
-    db
-      .select({ role: admins.role, store_id: admins.storeId })
-      .from(admins)
-      .where(eq(admins.id, caller.id))
-      .limit(1),
+  const callerRows = await withUser(
+    { uid: caller.id, email: caller.email },
+    (db) =>
+      db
+        .select({ role: admins.role, store_id: admins.storeId })
+        .from(admins)
+        .where(eq(admins.id, caller.id))
+        .limit(1),
   ).catch(() => []);
   const callerProfile = callerRows[0];
 

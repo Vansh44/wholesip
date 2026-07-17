@@ -52,7 +52,9 @@ describe("account-settings", () => {
     dbHolder.current = makeDbMock();
     supabase = {
       auth: {
-        signInWithPassword: vi.fn().mockResolvedValue({ data: {}, error: null }),
+        signInWithPassword: vi
+          .fn()
+          .mockResolvedValue({ data: {}, error: null }),
         updateUser: vi.fn().mockResolvedValue({ data: {}, error: null }),
       },
     };

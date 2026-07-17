@@ -258,9 +258,7 @@ async function replaceVariants(
   if (toDelete.length > 0) {
     try {
       await withUser({ uid }, (db) =>
-        db
-          .delete(productVariants)
-          .where(inArray(productVariants.id, toDelete)),
+        db.delete(productVariants).where(inArray(productVariants.id, toDelete)),
       );
     } catch (err) {
       // RESTRICT FK violation — variant has order references.

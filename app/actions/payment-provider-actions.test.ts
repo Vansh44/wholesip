@@ -132,10 +132,7 @@ describe("setRazorpayEnabled", () => {
 describe("getChannelState", () => {
   it("returns the key id and enabled state — never the secret", async () => {
     dbHolder.current = makeDbMock({
-      selectQueue: [
-        [{ key_id: KEY_ID, enabled: true }],
-        [storeRow("basic")],
-      ],
+      selectQueue: [[{ key_id: KEY_ID, enabled: true }], [storeRow("basic")]],
     });
     const state = await getChannelState();
     expect(state).toEqual({

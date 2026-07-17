@@ -218,9 +218,7 @@ export async function deleteBlogTaxonomyItem(
 
   try {
     await withUser({ uid: userId }, (db) =>
-      db
-        .delete(table)
-        .where(and(eq(table.id, id), eq(table.storeId, storeId))),
+      db.delete(table).where(and(eq(table.id, id), eq(table.storeId, storeId))),
     );
   } catch (err) {
     console.error("deleteBlogTaxonomyItem error:", err);

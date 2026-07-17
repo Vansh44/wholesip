@@ -84,10 +84,7 @@ describe("getBrandSoulForStore", () => {
 
   it("treats a whitespace-only saved guide as unset", async () => {
     dbHolder.current = makeDbMock({
-      selectQueue: [
-        [{ content_md: "   " }],
-        [{ name: "Echos", settings: {} }],
-      ],
+      selectQueue: [[{ content_md: "   " }], [{ name: "Echos", settings: {} }]],
     });
     expect(await getBrandSoulForStore("s1")).toContain("**Echos**");
   });

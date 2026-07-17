@@ -77,14 +77,21 @@ export async function deleteUser(userId: string): Promise<Result> {
   return { success: true };
 }
 
-export async function changeUserRole(userId: string, role: string): Promise<Result> {
+export async function changeUserRole(
+  userId: string,
+  role: string,
+): Promise<Result> {
   const gate = await requireSuperadminCaller();
   if ("error" in gate) return gate;
 
   // The target role must be a real, defined role. Fall back to the two
   // built-in roles when the roles table hasn't been seeded yet.
   const roleRows = await withService((db) =>
-    db.select({ slug: roles.slug }).from(roles).where(eq(roles.slug, role)).limit(1),
+    db
+      .select({ slug: roles.slug })
+      .from(roles)
+      .where(eq(roles.slug, role))
+      .limit(1),
   ).catch(() => []);
   if (!roleRows[0] && !["superadmin", "member"].includes(role)) {
     return { error: "Invalid role" };

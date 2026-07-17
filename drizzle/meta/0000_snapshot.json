@@ -120,12 +120,8 @@
           "tableFrom": "admins",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -134,12 +130,8 @@
           "tableFrom": "admins",
           "tableTo": "admins",
           "schemaTo": "public",
-          "columnsFrom": [
-            "invited_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["invited_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -157,42 +149,32 @@
           "name": "Update admins",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "(( SELECT is_store_superadmin(admins.store_id) AS is_store_superadmin) OR (( SELECT auth.uid() AS uid) = id))"
         },
         "Superadmins can insert profiles": {
           "name": "Superadmins can insert profiles",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Superadmins can delete profiles": {
           "name": "Superadmins can delete profiles",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Read admins": {
           "name": "Read admins",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Auth admin can read admins for token hook": {
           "name": "Auth admin can read admins for token hook",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "supabase_auth_admin"
-          ]
+          "to": ["supabase_auth_admin"]
         }
       },
       "isRLSEnabled": true
@@ -229,12 +211,8 @@
           "tableFrom": "ai_credit_balances",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -354,12 +332,8 @@
           "tableFrom": "ai_credit_ledger",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -492,12 +466,8 @@
           "tableFrom": "ai_credit_purchases",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -505,9 +475,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "ai_credit_purchases_rzp_order_id_key": {
-          "columns": [
-            "rzp_order_id"
-          ],
+          "columns": ["rzp_order_id"],
           "nullsNotDistinct": false,
           "name": "ai_credit_purchases_rzp_order_id_key"
         }
@@ -623,12 +591,8 @@
           "tableFrom": "blog_categories",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -646,34 +610,26 @@
           "name": "Public can read blog categories",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "true"
         },
         "Admins can update blog categories": {
           "name": "Admins can update blog categories",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can insert blog categories": {
           "name": "Admins can insert blog categories",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can delete blog categories": {
           "name": "Admins can delete blog categories",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -791,12 +747,8 @@
           "tableFrom": "blog_comments",
           "tableTo": "blogs",
           "schemaTo": "public",
-          "columnsFrom": [
-            "blog_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["blog_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -805,12 +757,8 @@
           "tableFrom": "blog_comments",
           "tableTo": "users",
           "schemaTo": "public",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -819,12 +767,8 @@
           "tableFrom": "blog_comments",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -842,26 +786,20 @@
           "name": "Customers can insert own comment",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "withCheck": "((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1\n   FROM users\n  WHERE ((users.id = ( SELECT auth.uid() AS uid)) AND (users.store_id = blog_comments.store_id)))))"
         },
         "Customers can delete own comment": {
           "name": "Customers can delete own comment",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Anyone can read blog comments": {
           "name": "Anyone can read blog comments",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -950,12 +888,8 @@
           "tableFrom": "blog_likes",
           "tableTo": "blogs",
           "schemaTo": "public",
-          "columnsFrom": [
-            "blog_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["blog_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -964,12 +898,8 @@
           "tableFrom": "blog_likes",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -977,11 +907,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "blog_likes_blog_visitor_reaction_key": {
-          "columns": [
-            "blog_id",
-            "visitor_id",
-            "reaction"
-          ],
+          "columns": ["blog_id", "visitor_id", "reaction"],
           "nullsNotDistinct": false,
           "name": "blog_likes_blog_visitor_reaction_key"
         }
@@ -997,9 +923,7 @@
           "name": "Anyone can read blog likes",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "true"
         }
       },
@@ -1067,12 +991,8 @@
           "tableFrom": "blog_tags",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1090,34 +1010,26 @@
           "name": "Public can read blog tags",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "true"
         },
         "Admins can update blog tags": {
           "name": "Admins can update blog tags",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can insert blog tags": {
           "name": "Admins can insert blog tags",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can delete blog tags": {
           "name": "Admins can delete blog tags",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -1478,12 +1390,8 @@
           "tableFrom": "blogs",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1492,12 +1400,8 @@
           "tableFrom": "blogs",
           "tableTo": "users",
           "schemaTo": "public",
-          "columnsFrom": [
-            "submitted_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["submitted_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1505,10 +1409,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "blogs_store_slug_key": {
-          "columns": [
-            "slug",
-            "store_id"
-          ],
+          "columns": ["slug", "store_id"],
           "nullsNotDistinct": false,
           "name": "blogs_store_slug_key"
         }
@@ -1519,9 +1420,7 @@
           "name": "Update blogs",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "withCheck": "(( SELECT is_store_admin(blogs.store_id) AS is_store_admin) OR ((submitted_by = ( SELECT auth.uid() AS uid)) AND (is_customer_submission = true) AND (status = ANY (ARRAY['draft'::text, 'pending_review'::text]))))",
           "using": "(( SELECT is_store_admin(blogs.store_id) AS is_store_admin) OR ((submitted_by = ( SELECT auth.uid() AS uid)) AND (is_customer_submission = true) AND (status = ANY (ARRAY['draft'::text, 'pending_review'::text]))))"
         },
@@ -1529,25 +1428,19 @@
           "name": "Read blogs",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Insert blogs": {
           "name": "Insert blogs",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Delete blogs": {
           "name": "Delete blogs",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -1643,12 +1536,8 @@
           "tableFrom": "card_colors",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1661,34 +1550,26 @@
           "name": "Anyone can read card_colors",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "true"
         },
         "Admins can update card_colors": {
           "name": "Admins can update card_colors",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can insert card_colors": {
           "name": "Admins can insert card_colors",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can delete card_colors": {
           "name": "Admins can delete card_colors",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -1819,12 +1700,8 @@
           "tableFrom": "categories",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1832,10 +1709,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "categories_store_slug_key": {
-          "columns": [
-            "slug",
-            "store_id"
-          ],
+          "columns": ["slug", "store_id"],
           "nullsNotDistinct": false,
           "name": "categories_store_slug_key"
         }
@@ -1846,34 +1720,26 @@
           "name": "Read categories",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "((status = 'active'::text) OR ( SELECT is_store_admin(categories.store_id) AS is_store_admin))"
         },
         "Admins can update categories": {
           "name": "Admins can update categories",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can insert categories": {
           "name": "Admins can insert categories",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can delete categories": {
           "name": "Admins can delete categories",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -2099,12 +1965,8 @@
           "tableFrom": "coupons",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2112,10 +1974,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "coupons_store_code_key": {
-          "columns": [
-            "code",
-            "store_id"
-          ],
+          "columns": ["code", "store_id"],
           "nullsNotDistinct": false,
           "name": "coupons_store_code_key"
         }
@@ -2126,34 +1985,26 @@
           "name": "Read coupons",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "((status = 'active'::text) OR ( SELECT is_store_admin(coupons.store_id) AS is_store_admin))"
         },
         "Admins can update coupons": {
           "name": "Admins can update coupons",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can insert coupons": {
           "name": "Admins can insert coupons",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can delete coupons": {
           "name": "Admins can delete coupons",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -2288,12 +2139,8 @@
           "tableFrom": "customer_addresses",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2302,12 +2149,8 @@
           "tableFrom": "customer_addresses",
           "tableTo": "users",
           "schemaTo": "public",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2320,34 +2163,26 @@
           "name": "Customers delete own addresses",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "authenticated"
-          ],
+          "to": ["authenticated"],
           "using": "(user_id = auth.uid())"
         },
         "Customers update own addresses": {
           "name": "Customers update own addresses",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "authenticated"
-          ]
+          "to": ["authenticated"]
         },
         "Customers read own addresses": {
           "name": "Customers read own addresses",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "authenticated"
-          ]
+          "to": ["authenticated"]
         },
         "Customers insert own addresses": {
           "name": "Customers insert own addresses",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "authenticated"
-          ]
+          "to": ["authenticated"]
         }
       },
       "isRLSEnabled": true
@@ -2466,12 +2301,8 @@
           "tableFrom": "email_campaign_recipients",
           "tableTo": "email_campaigns",
           "schemaTo": "public",
-          "columnsFrom": [
-            "campaign_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["campaign_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2480,12 +2311,8 @@
           "tableFrom": "email_campaign_recipients",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2623,12 +2450,8 @@
           "tableFrom": "email_campaigns",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2792,12 +2615,8 @@
           "tableFrom": "enquiries",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2810,26 +2629,20 @@
           "name": "Users can read own enquiries",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "(( SELECT auth.uid() AS uid) = created_by)"
         },
         "Users can insert own enquiry": {
           "name": "Users can insert own enquiry",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins read store enquiries": {
           "name": "Admins read store enquiries",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "authenticated"
-          ]
+          "to": ["authenticated"]
         }
       },
       "isRLSEnabled": true
@@ -2933,12 +2746,8 @@
           "tableFrom": "homepage_sections",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2951,34 +2760,26 @@
           "name": "Anyone can read homepage_sections",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "true"
         },
         "Admins can update homepage_sections": {
           "name": "Admins can update homepage_sections",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can insert homepage_sections": {
           "name": "Admins can insert homepage_sections",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can delete homepage_sections": {
           "name": "Admins can delete homepage_sections",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -3097,12 +2898,8 @@
           "tableFrom": "order_items",
           "tableTo": "orders",
           "schemaTo": "public",
-          "columnsFrom": [
-            "order_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["order_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3111,12 +2908,8 @@
           "tableFrom": "order_items",
           "tableTo": "products",
           "schemaTo": "public",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -3125,12 +2918,8 @@
           "tableFrom": "order_items",
           "tableTo": "product_variants",
           "schemaTo": "public",
-          "columnsFrom": [
-            "variant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["variant_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -3143,18 +2932,14 @@
           "name": "Customers can view own order items",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "authenticated"
-          ],
+          "to": ["authenticated"],
           "using": "(order_id IN ( SELECT orders.id\n   FROM orders\n  WHERE (orders.customer_id = auth.uid())))"
         },
         "Admins can view and manage store order items": {
           "name": "Admins can view and manage store order items",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "authenticated"
-          ]
+          "to": ["authenticated"]
         }
       },
       "isRLSEnabled": true
@@ -3442,12 +3227,8 @@
           "tableFrom": "orders",
           "tableTo": "users",
           "schemaTo": "public",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["customer_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3456,12 +3237,8 @@
           "tableFrom": "orders",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3479,18 +3256,14 @@
           "name": "Customers can view own orders",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "authenticated"
-          ],
+          "to": ["authenticated"],
           "using": "(customer_id = auth.uid())"
         },
         "Admins can view and manage store orders": {
           "name": "Admins can view and manage store orders",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "authenticated"
-          ]
+          "to": ["authenticated"]
         }
       },
       "isRLSEnabled": true
@@ -3581,12 +3354,8 @@
           "tableFrom": "plan_events",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3652,9 +3421,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "platform_admins_email_key": {
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "nullsNotDistinct": false,
           "name": "platform_admins_email_key"
         }
@@ -3670,9 +3437,7 @@
           "name": "Update platform_admins",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "withCheck": "( SELECT is_platform_superadmin() AS is_platform_superadmin)",
           "using": "( SELECT is_platform_superadmin() AS is_platform_superadmin)"
         },
@@ -3680,25 +3445,19 @@
           "name": "Read platform_admins",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Insert platform_admins": {
           "name": "Insert platform_admins",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Delete platform_admins": {
           "name": "Delete platform_admins",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -3836,12 +3595,8 @@
           "tableFrom": "product_reviews",
           "tableTo": "users",
           "schemaTo": "public",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3850,12 +3605,8 @@
           "tableFrom": "product_reviews",
           "tableTo": "products",
           "schemaTo": "public",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3864,12 +3615,8 @@
           "tableFrom": "product_reviews",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3877,10 +3624,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "product_reviews_product_id_customer_id_key": {
-          "columns": [
-            "product_id",
-            "user_id"
-          ],
+          "columns": ["product_id", "user_id"],
           "nullsNotDistinct": false,
           "name": "product_reviews_product_id_customer_id_key"
         }
@@ -3896,9 +3640,7 @@
           "name": "Customers can update own review",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "withCheck": "(user_id = ( SELECT auth.uid() AS uid))",
           "using": "(user_id = ( SELECT auth.uid() AS uid))"
         },
@@ -3906,25 +3648,19 @@
           "name": "Customers can insert own review",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Customers can delete own review": {
           "name": "Customers can delete own review",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Anyone can read reviews": {
           "name": "Anyone can read reviews",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -4131,12 +3867,8 @@
           "tableFrom": "product_variants",
           "tableTo": "products",
           "schemaTo": "public",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4145,12 +3877,8 @@
           "tableFrom": "product_variants",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4163,34 +3891,26 @@
           "name": "Read product_variants",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "((EXISTS ( SELECT 1\n   FROM products\n  WHERE ((products.id = product_variants.product_id) AND (products.status = 'published'::text)))) OR ( SELECT is_store_admin(product_variants.store_id) AS is_store_admin))"
         },
         "Admins can update variants": {
           "name": "Admins can update variants",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can insert variants": {
           "name": "Admins can insert variants",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can delete variants": {
           "name": "Admins can delete variants",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -4625,12 +4345,8 @@
           "tableFrom": "products",
           "tableTo": "categories",
           "schemaTo": "public",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -4639,12 +4355,8 @@
           "tableFrom": "products",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4653,12 +4365,8 @@
           "tableFrom": "products",
           "tableTo": "tax_classes",
           "schemaTo": "public",
-          "columnsFrom": [
-            "tax_class_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tax_class_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -4666,10 +4374,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "products_store_slug_key": {
-          "columns": [
-            "slug",
-            "store_id"
-          ],
+          "columns": ["slug", "store_id"],
           "nullsNotDistinct": false,
           "name": "products_store_slug_key"
         }
@@ -4680,34 +4385,26 @@
           "name": "Read products",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "((status = 'published'::text) OR ( SELECT is_store_admin(products.store_id) AS is_store_admin))"
         },
         "Admins can update products": {
           "name": "Admins can update products",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can insert products": {
           "name": "Admins can insert products",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can delete products": {
           "name": "Admins can delete products",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -4880,12 +4577,8 @@
           "tableFrom": "roles",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4893,10 +4586,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "roles_store_slug_key": {
-          "columns": [
-            "slug",
-            "store_id"
-          ],
+          "columns": ["slug", "store_id"],
           "nullsNotDistinct": false,
           "name": "roles_store_slug_key"
         }
@@ -4907,9 +4597,7 @@
           "name": "Superadmins can update roles",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "withCheck": "( SELECT is_store_superadmin(roles.store_id) AS is_store_superadmin)",
           "using": "( SELECT is_store_superadmin(roles.store_id) AS is_store_superadmin)"
         },
@@ -4917,25 +4605,19 @@
           "name": "Superadmins can insert roles",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Superadmins can delete roles": {
           "name": "Superadmins can delete roles",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Authenticated can read roles": {
           "name": "Authenticated can read roles",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -5074,12 +4756,8 @@
           "tableFrom": "stock_movements",
           "tableTo": "orders",
           "schemaTo": "public",
-          "columnsFrom": [
-            "order_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["order_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -5088,12 +4766,8 @@
           "tableFrom": "stock_movements",
           "tableTo": "products",
           "schemaTo": "public",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["product_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5102,12 +4776,8 @@
           "tableFrom": "stock_movements",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5116,12 +4786,8 @@
           "tableFrom": "stock_movements",
           "tableTo": "product_variants",
           "schemaTo": "public",
-          "columnsFrom": [
-            "variant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["variant_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -5134,9 +4800,7 @@
           "name": "Store admins can read stock_movements",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "( SELECT is_store_admin(stock_movements.store_id) AS is_store_admin)"
         }
       },
@@ -5262,12 +4926,8 @@
           "tableFrom": "store_billing_settings",
           "tableTo": "tax_classes",
           "schemaTo": "public",
-          "columnsFrom": [
-            "default_tax_class_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["default_tax_class_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -5276,12 +4936,8 @@
           "tableFrom": "store_billing_settings",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5294,9 +4950,7 @@
           "name": "Store admins manage store_billing_settings",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "withCheck": "( SELECT is_store_admin(store_billing_settings.store_id) AS is_store_admin)",
           "using": "( SELECT is_store_admin(store_billing_settings.store_id) AS is_store_admin)"
         },
@@ -5304,9 +4958,7 @@
           "name": "Anyone can read store_billing_settings",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -5356,12 +5008,8 @@
           "tableFrom": "store_brand_profiles",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5404,12 +5052,8 @@
           "tableFrom": "store_counters",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5472,12 +5116,8 @@
           "tableFrom": "store_menus",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5490,9 +5130,7 @@
           "name": "Store admins manage store_menus",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "withCheck": "( SELECT is_store_admin(store_menus.store_id) AS is_store_admin)",
           "using": "( SELECT is_store_admin(store_menus.store_id) AS is_store_admin)"
         },
@@ -5500,9 +5138,7 @@
           "name": "Anyone can read store_menus",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -5643,12 +5279,8 @@
           "tableFrom": "store_pages",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5656,10 +5288,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "store_pages_store_id_slug_key": {
-          "columns": [
-            "store_id",
-            "slug"
-          ],
+          "columns": ["store_id", "slug"],
           "nullsNotDistinct": false,
           "name": "store_pages_store_id_slug_key"
         }
@@ -5679,34 +5308,26 @@
           "name": "Public read published store_pages",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "((status = 'published'::text) OR ( SELECT is_store_admin(store_pages.store_id) AS is_store_admin))"
         },
         "Admins update store_pages": {
           "name": "Admins update store_pages",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins insert store_pages": {
           "name": "Admins insert store_pages",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins delete store_pages": {
           "name": "Admins delete store_pages",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -5769,12 +5390,8 @@
           "tableFrom": "store_payment_providers",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5895,12 +5512,8 @@
           "tableFrom": "store_subscriptions",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5908,9 +5521,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "store_subscriptions_rzp_subscription_id_key": {
-          "columns": [
-            "rzp_subscription_id"
-          ],
+          "columns": ["rzp_subscription_id"],
           "nullsNotDistinct": false,
           "name": "store_subscriptions_rzp_subscription_id_key"
         }
@@ -6056,16 +5667,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "stores_slug_key": {
-          "columns": [
-            "slug"
-          ],
+          "columns": ["slug"],
           "nullsNotDistinct": false,
           "name": "stores_slug_key"
         },
         "stores_custom_domain_key": {
-          "columns": [
-            "custom_domain"
-          ],
+          "columns": ["custom_domain"],
           "nullsNotDistinct": false,
           "name": "stores_custom_domain_key"
         }
@@ -6089,9 +5696,7 @@
           "name": "Update stores",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "withCheck": "( SELECT is_store_superadmin(stores.id) AS is_store_superadmin)",
           "using": "( SELECT is_store_superadmin(stores.id) AS is_store_superadmin)"
         },
@@ -6099,25 +5704,19 @@
           "name": "Read stores",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Insert stores": {
           "name": "Insert stores",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Delete stores": {
           "name": "Delete stores",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -6221,12 +5820,8 @@
           "tableFrom": "tax_classes",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6244,9 +5839,7 @@
           "name": "Store admins manage tax_classes",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "withCheck": "( SELECT is_store_admin(tax_classes.store_id) AS is_store_admin)",
           "using": "( SELECT is_store_admin(tax_classes.store_id) AS is_store_admin)"
         },
@@ -6254,9 +5847,7 @@
           "name": "Anyone can read tax_classes",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -6374,12 +5965,8 @@
           "tableFrom": "user_groups",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6387,10 +5974,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "user_groups_store_name_key": {
-          "columns": [
-            "name",
-            "store_id"
-          ],
+          "columns": ["name", "store_id"],
           "nullsNotDistinct": false,
           "name": "user_groups_store_name_key"
         }
@@ -6401,9 +5985,7 @@
           "name": "Admins update user_groups",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "withCheck": "( SELECT is_store_admin(user_groups.store_id) AS is_store_admin)",
           "using": "( SELECT is_store_admin(user_groups.store_id) AS is_store_admin)"
         },
@@ -6411,25 +5993,19 @@
           "name": "Admins insert user_groups",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins delete user_groups": {
           "name": "Admins delete user_groups",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins can read user_groups": {
           "name": "Admins can read user_groups",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -6578,12 +6154,8 @@
           "tableFrom": "users",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6591,18 +6163,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "users_store_phone_key": {
-          "columns": [
-            "phone",
-            "store_id"
-          ],
+          "columns": ["phone", "store_id"],
           "nullsNotDistinct": false,
           "name": "users_store_phone_key"
         },
         "users_store_email_key": {
-          "columns": [
-            "email",
-            "store_id"
-          ],
+          "columns": ["email", "store_id"],
           "nullsNotDistinct": false,
           "name": "users_store_email_key"
         }
@@ -6613,9 +6179,7 @@
           "name": "Customers can update own row",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "withCheck": "(( SELECT auth.uid() AS uid) = id)",
           "using": "(( SELECT auth.uid() AS uid) = id)"
         },
@@ -6623,25 +6187,19 @@
           "name": "Customers can read own row",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Customers can insert own row": {
           "name": "Customers can insert own row",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Auth admin can read users for token hook": {
           "name": "Auth admin can read users for token hook",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "supabase_auth_admin"
-          ]
+          "to": ["supabase_auth_admin"]
         }
       },
       "isRLSEnabled": true
@@ -6677,12 +6235,8 @@
           "tableFrom": "ai_usage",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6690,10 +6244,7 @@
       "compositePrimaryKeys": {
         "ai_usage_pkey": {
           "name": "ai_usage_pkey",
-          "columns": [
-            "store_id",
-            "period"
-          ]
+          "columns": ["store_id", "period"]
         }
       },
       "uniqueConstraints": {},
@@ -6780,12 +6331,8 @@
           "tableFrom": "coupon_user_groups",
           "tableTo": "coupons",
           "schemaTo": "public",
-          "columnsFrom": [
-            "coupon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["coupon_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -6794,12 +6341,8 @@
           "tableFrom": "coupon_user_groups",
           "tableTo": "user_groups",
           "schemaTo": "public",
-          "columnsFrom": [
-            "group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["group_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -6808,12 +6351,8 @@
           "tableFrom": "coupon_user_groups",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6821,10 +6360,7 @@
       "compositePrimaryKeys": {
         "coupon_user_groups_pkey": {
           "name": "coupon_user_groups_pkey",
-          "columns": [
-            "coupon_id",
-            "group_id"
-          ]
+          "columns": ["coupon_id", "group_id"]
         }
       },
       "uniqueConstraints": {},
@@ -6834,34 +6370,26 @@
           "name": "Public can read coupon group links",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "true"
         },
         "Admins update coupon group links": {
           "name": "Admins update coupon group links",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins insert coupon group links": {
           "name": "Admins insert coupon group links",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins delete coupon group links": {
           "name": "Admins delete coupon group links",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true
@@ -6907,11 +6435,7 @@
       "compositePrimaryKeys": {
         "razorpay_plans_pkey": {
           "name": "razorpay_plans_pkey",
-          "columns": [
-            "plan",
-            "period",
-            "amount_paise"
-          ]
+          "columns": ["plan", "period", "amount_paise"]
         }
       },
       "uniqueConstraints": {},
@@ -7036,12 +6560,8 @@
           "tableFrom": "user_group_members",
           "tableTo": "users",
           "schemaTo": "public",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -7050,12 +6570,8 @@
           "tableFrom": "user_group_members",
           "tableTo": "user_groups",
           "schemaTo": "public",
-          "columnsFrom": [
-            "group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["group_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -7064,12 +6580,8 @@
           "tableFrom": "user_group_members",
           "tableTo": "stores",
           "schemaTo": "public",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["store_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7077,10 +6589,7 @@
       "compositePrimaryKeys": {
         "user_group_members_pkey": {
           "name": "user_group_members_pkey",
-          "columns": [
-            "group_id",
-            "user_id"
-          ]
+          "columns": ["group_id", "user_id"]
         }
       },
       "uniqueConstraints": {},
@@ -7090,34 +6599,26 @@
           "name": "Read memberships",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT is_store_admin(user_group_members.store_id) AS is_store_admin))"
         },
         "Admins update memberships": {
           "name": "Admins update memberships",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins insert memberships": {
           "name": "Admins insert memberships",
           "as": "PERMISSIVE",
           "for": "INSERT",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         },
         "Admins delete memberships": {
           "name": "Admins delete memberships",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": [
-            "public"
-          ]
+          "to": ["public"]
         }
       },
       "isRLSEnabled": true

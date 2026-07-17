@@ -197,7 +197,8 @@ export async function updateCategory(
         db.update(categories).set(row(slug)).where(eq(categories.id, id)),
       );
       const newImage = formData.image_url || null;
-      if (oldImage && oldImage !== newImage) await deleteStorageUrls([oldImage]);
+      if (oldImage && oldImage !== newImage)
+        await deleteStorageUrls([oldImage]);
       revalidateCatalog();
       return { success: true };
     } catch (err) {

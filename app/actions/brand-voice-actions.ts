@@ -82,10 +82,7 @@ export async function saveBrandVoice(input: {
         }),
     );
   } catch (err) {
-    console.error(
-      "saveBrandVoice:",
-      err instanceof Error ? err.message : err,
-    );
+    console.error("saveBrandVoice:", err instanceof Error ? err.message : err);
     return { error: "Could not save your brand voice. Please try again." };
   }
   return { success: true };
