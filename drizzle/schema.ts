@@ -1930,6 +1930,7 @@ export const storeSubscriptions = pgTable(
     }),
     mandateMaxPaise: integer("mandate_max_paise"),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false).notNull(),
+    scheduledPlan: text("scheduled_plan"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),

@@ -6,9 +6,11 @@
 // webhooks. Billing runs on the PLATFORM's Razorpay account (revenue is
 // StoreMink's), never a store's BYO checkout gateway.
 
+import { and, eq } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/auth/server-user";
+import { withService } from "@/lib/db/client";
+import { admins, planEvents, storeSubscriptions, stores } from "@/drizzle/schema";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { STORE_TAG } from "@/lib/store/resolve";
 import { PLAN_META, type Plan } from "@/lib/plans";
@@ -47,24 +49,21 @@ function isPaidPlan(p: string): p is Exclude<Plan, "free"> {
  * Signup-context authorisation. During signup the store is created on the
  * PLATFORM host, so getActingStoreId() (host-based) can't resolve it — the
  * caller passes the freshly-created store id and we authorise them as its
- * superadmin directly against the admins table (service role). Returns the
- * caller's user id, or null.
+ * superadmin directly against the admins table. Returns the caller's user id,
+ * or null.
  */
 async function assertStoreOwner(storeId: string): Promise<string | null> {
   if (typeof storeId !== "string" || !storeId) return null;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return null;
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("admins")
-    .select("role")
-    .eq("id", user.id)
-    .eq("store_id", storeId)
-    .maybeSingle();
-  return data?.role === "superadmin" ? user.id : null;
+  const rows = await withService((db) =>
+    db
+      .select({ role: admins.role })
+      .from(admins)
+      .where(and(eq(admins.id, user.id), eq(admins.storeId, storeId)))
+      .limit(1),
+  ).catch(() => []);
+  return rows[0]?.role === "superadmin" ? user.id : null;
 }
 
 export interface SubscriptionState {
@@ -80,22 +79,30 @@ export interface SubscriptionState {
 
 export async function getSubscriptionState(): Promise<SubscriptionState> {
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("store_subscriptions")
-    .select(
-      "plan, period, status, current_end, cancel_at_period_end, scheduled_plan, rzp_subscription_id",
-    )
-    .eq("store_id", storeId)
-    .maybeSingle();
-  const status = (data?.status as string) ?? null;
+  const rows = await withService((db) =>
+    db
+      .select({
+        plan: storeSubscriptions.plan,
+        period: storeSubscriptions.period,
+        status: storeSubscriptions.status,
+        current_end: storeSubscriptions.currentEnd,
+        cancel_at_period_end: storeSubscriptions.cancelAtPeriodEnd,
+        scheduled_plan: storeSubscriptions.scheduledPlan,
+        rzp_subscription_id: storeSubscriptions.rzpSubscriptionId,
+      })
+      .from(storeSubscriptions)
+      .where(eq(storeSubscriptions.storeId, storeId))
+      .limit(1),
+  ).catch(() => []);
+  const data = rows[0];
+  const status = data?.status ?? null;
   return {
-    plan: (data?.plan as string) ?? null,
+    plan: data?.plan ?? null,
     period: (data?.period as BillingPeriod) ?? null,
     status,
-    currentEnd: (data?.current_end as string) ?? null,
+    currentEnd: data?.current_end ?? null,
     cancelAtPeriodEnd: !!data?.cancel_at_period_end,
-    scheduledPlan: (data?.scheduled_plan as string) ?? null,
+    scheduledPlan: data?.scheduled_plan ?? null,
     active: !!data?.rzp_subscription_id && !TERMINAL.has(status ?? ""),
   };
 }
@@ -172,23 +179,32 @@ async function startPlanSubscriptionForStore(
     return { error: "Couldn't start the subscription. Please try again." };
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.from("store_subscriptions").upsert(
-    {
-      store_id: storeId,
-      plan,
-      period: billingPeriod,
-      rzp_subscription_id: sub.data.id,
-      rzp_plan_id: resolved.rzpPlanId,
-      status: sub.data.status || "created",
-      mandate_max_paise: mandateMaxPaise(),
-      cancel_at_period_end: false,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "store_id" },
-  );
-  if (error) {
-    console.error("startPlanSubscription (persist):", error.message);
+  const subFields = {
+    plan,
+    period: billingPeriod,
+    rzpSubscriptionId: sub.data.id,
+    rzpPlanId: resolved.rzpPlanId,
+    status: sub.data.status || "created",
+    mandateMaxPaise: mandateMaxPaise(),
+    cancelAtPeriodEnd: false,
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    // One row per store: upsert keyed on store_id.
+    await withService((db) =>
+      db
+        .insert(storeSubscriptions)
+        .values({ storeId, ...subFields })
+        .onConflictDoUpdate({
+          target: storeSubscriptions.storeId,
+          set: subFields,
+        }),
+    );
+  } catch (err) {
+    console.error(
+      "startPlanSubscription (persist):",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Couldn't start the subscription. Please try again." };
   }
 
@@ -266,17 +282,22 @@ async function confirmSubscriptionForStore(
     return { error: "Payment verification failed." };
   }
 
-  const admin = createAdminClient();
-
-  const { data: row } = await admin
-    .from("store_subscriptions")
-    .select("plan, period, rzp_subscription_id")
-    .eq("store_id", storeId)
-    .maybeSingle();
+  const subRows = await withService((db) =>
+    db
+      .select({
+        plan: storeSubscriptions.plan,
+        period: storeSubscriptions.period,
+        rzp_subscription_id: storeSubscriptions.rzpSubscriptionId,
+      })
+      .from(storeSubscriptions)
+      .where(eq(storeSubscriptions.storeId, storeId))
+      .limit(1),
+  ).catch(() => []);
+  const row = subRows[0];
   if (!row || row.rzp_subscription_id !== subscriptionId) {
     return { error: "Subscription not found for this store." };
   }
-  const plan = row.plan as string;
+  const plan = row.plan;
   if (!isPaidPlan(plan)) return { error: "Invalid subscription." };
 
   // Ask Razorpay for the authoritative state + cycle end (never trust the
@@ -293,47 +314,54 @@ async function confirmSubscriptionForStore(
     ? new Date(currentEndUnix * 1000)
     : fallbackExpiry(period);
 
-  await admin
-    .from("store_subscriptions")
-    .update({
-      status,
-      current_start: currentStartUnix
-        ? new Date(currentStartUnix * 1000).toISOString()
-        : null,
-      current_end: expiresAt.toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("store_id", storeId);
+  // Update the subscription row + activate the plan + audit, atomically.
+  try {
+    await withService(async (db) => {
+      await db
+        .update(storeSubscriptions)
+        .set({
+          status,
+          currentStart: currentStartUnix
+            ? new Date(currentStartUnix * 1000).toISOString()
+            : null,
+          currentEnd: expiresAt.toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(storeSubscriptions.storeId, storeId));
 
-  // Activate the plan (idempotent — re-confirm just re-sets the same values).
-  const { data: current } = await admin
-    .from("stores")
-    .select("plan")
-    .eq("id", storeId)
-    .maybeSingle();
+      // Activate the plan (idempotent — re-confirm just re-sets the same values).
+      const curRows = await db
+        .select({ plan: stores.plan })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1);
 
-  const { error: planErr } = await admin
-    .from("stores")
-    .update({
-      plan,
-      plan_expires_at: expiresAt.toISOString(),
-      plan_source: "paid",
-    })
-    .eq("id", storeId);
-  if (planErr) {
-    console.error("confirmSubscription (plan):", planErr.message);
+      await db
+        .update(stores)
+        .set({
+          plan,
+          planExpiresAt: expiresAt.toISOString(),
+          planSource: "paid",
+        })
+        .where(eq(stores.id, storeId));
+
+      // Audit trail (best-effort, same txn).
+      await db.insert(planEvents).values({
+        storeId,
+        fromPlan: curRows[0]?.plan ?? null,
+        toPlan: plan,
+        source: "paid",
+        actor: "subscription",
+        note: `subscription ${subscriptionId} activated (${period})`,
+      });
+    });
+  } catch (err) {
+    console.error(
+      "confirmSubscription (plan):",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Payment succeeded but activating the plan failed." };
   }
-
-  // Audit trail (best-effort).
-  await admin.from("plan_events").insert({
-    store_id: storeId,
-    from_plan: (current?.plan as string) ?? null,
-    to_plan: plan,
-    source: "paid",
-    actor: "subscription",
-    note: `subscription ${subscriptionId} activated (${period})`,
-  });
 
   revalidateTag(STORE_TAG, "max");
 
@@ -382,40 +410,43 @@ export async function cancelSubscription(): Promise<SubscriptionActionResult> {
   if (!creds) return { error: "Subscriptions aren't available right now." };
 
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
-  const { data: row } = await admin
-    .from("store_subscriptions")
-    .select("rzp_subscription_id, status")
-    .eq("store_id", storeId)
-    .maybeSingle();
+  const rows = await withService((db) =>
+    db
+      .select({
+        rzp_subscription_id: storeSubscriptions.rzpSubscriptionId,
+        status: storeSubscriptions.status,
+      })
+      .from(storeSubscriptions)
+      .where(eq(storeSubscriptions.storeId, storeId))
+      .limit(1),
+  ).catch(() => []);
+  const row = rows[0];
 
   if (!row?.rzp_subscription_id) {
     return { error: "No active subscription to cancel." };
   }
-  if (TERMINAL.has((row.status as string) ?? "")) {
+  if (TERMINAL.has(row.status ?? "")) {
     return { error: "This subscription is already cancelled." };
   }
 
   // cancel_at_cycle_end = true → stop future charges, keep access to cycle end.
-  const res = await rzpCancelSubscription(
-    creds,
-    row.rzp_subscription_id as string,
-    true,
-  );
+  const res = await rzpCancelSubscription(creds, row.rzp_subscription_id, true);
   if (!res.ok) {
     console.error("cancelSubscription:", res.error);
     return { error: "Couldn't cancel the subscription. Please try again." };
   }
 
-  await admin
-    .from("store_subscriptions")
-    .update({
-      cancel_at_period_end: true,
-      status: res.data.status || "active",
-      scheduled_plan: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("store_id", storeId);
+  await withService((db) =>
+    db
+      .update(storeSubscriptions)
+      .set({
+        cancelAtPeriodEnd: true,
+        status: res.data.status || "active",
+        scheduledPlan: null,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(storeSubscriptions.storeId, storeId)),
+  ).catch((err) => console.error("cancelSubscription (persist):", err));
 
   // Access + plan_expires_at are left as-is: the store keeps its plan until the
   // paid cycle ends, then the cron downgrades to free.
@@ -447,14 +478,22 @@ export async function changePlan(
   if (!creds) return { error: "Subscriptions aren't available right now." };
 
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
-  const { data: row } = await admin
-    .from("store_subscriptions")
-    .select("rzp_subscription_id, plan, period, status, mandate_max_paise")
-    .eq("store_id", storeId)
-    .maybeSingle();
+  const rows = await withService((db) =>
+    db
+      .select({
+        rzp_subscription_id: storeSubscriptions.rzpSubscriptionId,
+        plan: storeSubscriptions.plan,
+        period: storeSubscriptions.period,
+        status: storeSubscriptions.status,
+        mandate_max_paise: storeSubscriptions.mandateMaxPaise,
+      })
+      .from(storeSubscriptions)
+      .where(eq(storeSubscriptions.storeId, storeId))
+      .limit(1),
+  ).catch(() => []);
+  const row = rows[0];
 
-  if (!row?.rzp_subscription_id || TERMINAL.has((row.status as string) ?? "")) {
+  if (!row?.rzp_subscription_id || TERMINAL.has(row.status ?? "")) {
     return { error: "No active subscription to change." };
   }
   if (row.plan === targetPlan) {
@@ -469,7 +508,7 @@ export async function changePlan(
   // A higher charge than the authorised mandate can't be auto-debited — the
   // merchant would need to re-authorise (we set the mandate to the top plan at
   // signup, so this should never trigger, but guard anyway).
-  const mandateMax = (row.mandate_max_paise as number) ?? 0;
+  const mandateMax = row.mandate_max_paise ?? 0;
   if (mandateMax > 0 && targetAmount > mandateMax) {
     return {
       error:
@@ -481,11 +520,10 @@ export async function changePlan(
   if (!resolved)
     return { error: "Couldn't set up the plan. Please try again." };
 
-  const res = await rzpUpdateSubscription(
-    creds,
-    row.rzp_subscription_id as string,
-    { planId: resolved.rzpPlanId, scheduleChangeAt },
-  );
+  const res = await rzpUpdateSubscription(creds, row.rzp_subscription_id, {
+    planId: resolved.rzpPlanId,
+    scheduleChangeAt,
+  });
   if (!res.ok) {
     console.error("changePlan:", res.error);
     return { error: "Couldn't change the plan. Please try again." };
@@ -496,41 +534,53 @@ export async function changePlan(
     const currentEnd = res.data.current_end
       ? new Date(res.data.current_end * 1000)
       : fallbackExpiry(period);
-    await admin
-      .from("store_subscriptions")
-      .update({
-        plan: targetPlan,
-        rzp_plan_id: resolved.rzpPlanId,
-        scheduled_plan: null,
-        current_end: currentEnd.toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("store_id", storeId);
 
-    const { data: cur } = await admin
-      .from("stores")
-      .select("plan, plan_source")
-      .eq("id", storeId)
-      .maybeSingle();
-    if (cur?.plan_source !== "comp") {
-      await admin
-        .from("stores")
-        .update({
-          plan: targetPlan,
-          plan_expires_at: currentEnd.toISOString(),
-          plan_source: "paid",
-        })
-        .eq("id", storeId);
-      await admin.from("plan_events").insert({
-        store_id: storeId,
-        from_plan: (cur?.plan as string) ?? null,
-        to_plan: targetPlan,
-        source: "paid",
-        actor: "subscription",
-        note: "plan change (now)",
+    let planActivated = false;
+    try {
+      planActivated = await withService(async (db) => {
+        await db
+          .update(storeSubscriptions)
+          .set({
+            plan: targetPlan,
+            rzpPlanId: resolved.rzpPlanId,
+            scheduledPlan: null,
+            currentEnd: currentEnd.toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(storeSubscriptions.storeId, storeId));
+
+        const curRows = await db
+          .select({ plan: stores.plan, plan_source: stores.planSource })
+          .from(stores)
+          .where(eq(stores.id, storeId))
+          .limit(1);
+        const cur = curRows[0];
+        // An operator comp must never be overwritten by a billing change.
+        if (cur?.plan_source === "comp") return false;
+        await db
+          .update(stores)
+          .set({
+            plan: targetPlan,
+            planExpiresAt: currentEnd.toISOString(),
+            planSource: "paid",
+          })
+          .where(eq(stores.id, storeId));
+        await db.insert(planEvents).values({
+          storeId,
+          fromPlan: cur?.plan ?? null,
+          toPlan: targetPlan,
+          source: "paid",
+          actor: "subscription",
+          note: "plan change (now)",
+        });
+        return true;
       });
-      revalidateTag(STORE_TAG, "max");
+    } catch (err) {
+      console.error("changePlan (persist now):", err);
     }
+    // Only bust the store cache when the store's plan actually changed
+    // (matches the original — a comp plan is left untouched).
+    if (planActivated) revalidateTag(STORE_TAG, "max");
     return {
       success: true,
       message: `You're now on the ${PLAN_META[targetPlan].name} plan.`,
@@ -538,13 +588,12 @@ export async function changePlan(
   }
 
   // Scheduled for cycle end — record it; the webhook applies it at renewal.
-  await admin
-    .from("store_subscriptions")
-    .update({
-      scheduled_plan: targetPlan,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("store_id", storeId);
+  await withService((db) =>
+    db
+      .update(storeSubscriptions)
+      .set({ scheduledPlan: targetPlan, updatedAt: new Date().toISOString() })
+      .where(eq(storeSubscriptions.storeId, storeId)),
+  ).catch((err) => console.error("changePlan (persist scheduled):", err));
   return {
     success: true,
     message: `${PLAN_META[targetPlan].name} will start at your next renewal.`,
