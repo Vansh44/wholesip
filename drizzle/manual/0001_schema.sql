@@ -1,3 +1,10 @@
+-- Phase 5 — FAITHFUL full schema for a fresh Cloud SQL DB (pg_dump --schema-only
+-- from the source Postgres). Apply AFTER 0000_compat_setup.sql. This is the
+-- reproducible source of truth: 38 functions, 43 tables, 99 COMPLETE RLS
+-- policies (incl. is_store_admin WITH CHECK), 21 triggers, indexes. The
+-- drizzle-kit baseline can't reproduce these — see README.md. (One line,
+-- 'CREATE SCHEMA public;', is stripped: public already exists in Cloud SQL.)
+
 --
 -- PostgreSQL database dump
 --
@@ -23,7 +30,6 @@ SET row_security = off;
 -- Name: public; Type: SCHEMA; Schema: -; Owner: -
 --
 
-CREATE SCHEMA public;
 
 
 --

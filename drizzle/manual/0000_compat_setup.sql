@@ -1,9 +1,13 @@
 -- Phase 5 — prepare a fresh Postgres (Cloud SQL) to accept our schema + the 2A
--- tenancy model. Run this ONCE before applying the Drizzle migrations
--- (drizzle/0000_*.sql) on a new environment (local/staging/prod). Idempotent.
---
--- Why hand-written (not drizzle-generated): extensions, the auth.uid()/email()
--- shim, and roles aren't part of Drizzle's tracked table schema.
+-- tenancy model. Apply the drizzle/manual/ files IN ORDER on a new environment
+-- (local/staging/prod) — see drizzle/manual/README.md:
+--   0000_compat_setup.sql  → this file (extensions, shim, roles, stub)
+--   0001_schema.sql        → the full faithful schema (functions/tables/policies/triggers)
+--   0002_postflight.sql    → drop the auth.users scaffold + final grants
+-- Idempotent. NOTE: the drizzle-kit baseline (drizzle/0000_*.sql) is NOT used to
+-- build a DB — it drops function/trigger definitions AND some policy WITH CHECK
+-- expressions on introspection, so it would create insecure RLS. It survives
+-- only as drizzle-kit's snapshot for generating FUTURE incremental migrations.
 
 -- 1. Extensions the schema depends on (pg_trgm backs the users trigram indexes).
 CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public;
@@ -21,6 +25,16 @@ CREATE OR REPLACE FUNCTION auth.email() RETURNS text
   LANGUAGE sql STABLE AS $$
     SELECT NULLIF(current_setting('app.current_user_email', true), '')
   $$;
+
+-- 2b. Stub auth.users so 0001_schema.sql's FOREIGN KEY … REFERENCES auth.users
+--     statements load. It's a load-time scaffold only — 0002_postflight.sql
+--     drops these FKs and this table (identity lives outside the DB: Supabase
+--     now, Identity Platform in Phase 6, so the DB must not own that reference).
+CREATE TABLE IF NOT EXISTS auth.users (
+  id uuid PRIMARY KEY,
+  email text,
+  phone text
+);
 
 -- 3. Supabase roles the dumped RLS policies target (NOLOGIN placeholders).
 DO $$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
