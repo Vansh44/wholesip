@@ -1,6 +1,16 @@
 import { randomUUID } from "crypto";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { dbErrorMessage } from "@/lib/db/errors";
+import {
+  categories,
+  productVariants,
+  products,
+  storeMenus,
+  storePages,
+  stores,
+} from "@/drizzle/schema";
 import { STORE_TAG } from "@/lib/store/resolve";
 import { TAGS } from "@/lib/storefront/tags";
 import { sanitizeBlogContent } from "@/lib/sanitize";
@@ -17,13 +27,15 @@ import type { ThemeDefinition } from "./types";
 // sample categories + products (+variants), menus, and pages (published).
 //
 // Design:
-//  • SERVICE-ROLE client, every write explicitly store-scoped (same trust
-//    model as page-actions). Callers are trusted server code only: createStore
-//    at signup, and the platform-operator seedDemoStore action.
+//  • SERVICE-ROLE scope (withService, BYPASSRLS), every write explicitly
+//    store-scoped (same trust model as page-actions). Callers are trusted
+//    server code only: createStore at signup, and the platform-operator
+//    seedDemoStore action.
 //  • BEST-EFFORT per entity with an errors accumulator — entities are
 //    independent (a store with products but a failed page is still coherent),
 //    and every write is an idempotent upsert keyed on (store_id, slug), so
-//    re-running applyTheme heals a partial apply.
+//    re-running applyTheme heals a partial apply. Each independent write runs
+//    in its OWN withService transaction so one failure can't roll back the rest.
 //  • reset:true (demo stores only — refuses unless settings.demo === true)
 //    clears the store's catalog/menus/pages first so demos stay theme-pristine.
 // ---------------------------------------------------------------------------
@@ -43,7 +55,6 @@ export async function applyTheme(
   }: { publish: boolean; actorUserId?: string | null; reset?: boolean },
 ): Promise<ApplyThemeResult> {
   const theme = getThemeDefinition(themeId);
-  const admin = createAdminClient();
   const errors: string[] = [];
   const fail = (step: string, message: string) => {
     console.error(`applyTheme(${theme.id}) ${step}:`, message);
@@ -51,16 +62,25 @@ export async function applyTheme(
   };
 
   // --- settings merge (template + brand accents; NEVER the store's name) ----
-  const { data: store, error: storeError } = await admin
-    .from("stores")
-    .select("settings")
-    .eq("id", storeId)
-    .single();
-  if (storeError || !store) {
-    return { success: false, errors: [`store lookup: ${storeError?.message}`] };
+  let settings: Record<string, unknown>;
+  try {
+    const rows = await withService((db) =>
+      db
+        .select({ settings: stores.settings })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1),
+    );
+    if (!rows[0]) {
+      return { success: false, errors: ["store lookup: not found"] };
+    }
+    settings = (rows[0].settings as Record<string, unknown>) ?? {};
+  } catch (err) {
+    return {
+      success: false,
+      errors: [`store lookup: ${dbErrorMessage(err, "failed")}`],
+    };
   }
-  const settings = ((store.settings as Record<string, unknown>) ??
-    {}) as Record<string, unknown>;
 
   if (reset && settings.demo !== true) {
     return {
@@ -80,28 +100,36 @@ export async function applyTheme(
       blurb: existingBrand.blurb ?? theme.brand.blurb ?? null,
     },
   };
-  {
-    const { error } = await admin
-      .from("stores")
-      .update({ settings: mergedSettings })
-      .eq("id", storeId);
-    if (error) fail("settings", error.message);
+  try {
+    await withService((db) =>
+      db
+        .update(stores)
+        .set({ settings: mergedSettings })
+        .where(eq(stores.id, storeId)),
+    );
+  } catch (err) {
+    fail("settings", dbErrorMessage(err, "update failed"));
   }
 
   // --- reset (demo reseed) ---------------------------------------------------
   if (reset) {
     // products cascade their variants (FK); pages/menus/categories are flat.
-    for (const table of [
-      "products",
-      "categories",
-      "store_pages",
-      "store_menus",
-    ]) {
-      const { error } = await admin
-        .from(table)
-        .delete()
-        .eq("store_id", storeId);
-      if (error) fail(`reset ${table}`, error.message);
+    // Each delete runs in its own transaction so one failure can't abort the
+    // rest (best-effort, mirroring the original per-request semantics).
+    const resetTargets = [
+      ["products", products],
+      ["categories", categories],
+      ["store_pages", storePages],
+      ["store_menus", storeMenus],
+    ] as const;
+    for (const [label, table] of resetTargets) {
+      try {
+        await withService((db) =>
+          db.delete(table).where(eq(table.storeId, storeId)),
+        );
+      } catch (err) {
+        fail(`reset ${label}`, dbErrorMessage(err, "delete failed"));
+      }
     }
   }
 
@@ -109,102 +137,167 @@ export async function applyTheme(
   const categoryIdBySlug = new Map<string, string>();
   if (theme.sampleData) {
     for (const c of theme.sampleData.categories) {
-      const { data, error } = await admin
-        .from("categories")
-        .upsert(
-          {
-            store_id: storeId,
-            name: c.name,
-            slug: c.slug,
-            description: c.description ?? null,
-            image_url: c.image_url ?? null,
-            sort_order: c.sort_order ?? 0,
-            status: "active",
-          },
-          { onConflict: "store_id,slug" },
-        )
-        .select("id, slug")
-        .single();
-      if (error || !data) {
-        fail(`category ${c.slug}`, error?.message ?? "no row");
-        continue;
+      try {
+        const [row] = await withService((db) =>
+          db
+            .insert(categories)
+            .values({
+              storeId,
+              name: c.name,
+              slug: c.slug,
+              description: c.description ?? null,
+              imageUrl: c.image_url ?? null,
+              sortOrder: c.sort_order ?? 0,
+              status: "active",
+            })
+            .onConflictDoUpdate({
+              target: [categories.storeId, categories.slug],
+              set: {
+                name: c.name,
+                description: c.description ?? null,
+                imageUrl: c.image_url ?? null,
+                sortOrder: c.sort_order ?? 0,
+                status: "active",
+              },
+            })
+            .returning({ id: categories.id, slug: categories.slug }),
+        );
+        if (!row) {
+          fail(`category ${c.slug}`, "no row");
+          continue;
+        }
+        categoryIdBySlug.set(row.slug, row.id);
+      } catch (err) {
+        fail(`category ${c.slug}`, dbErrorMessage(err, "upsert failed"));
       }
-      categoryIdBySlug.set(data.slug, data.id);
     }
 
     for (const p of theme.sampleData.products) {
-      const { data, error } = await admin
-        .from("products")
-        .upsert(
-          {
-            store_id: storeId,
-            name: p.name,
-            slug: p.slug,
-            description: p.description,
-            category_id: categoryIdBySlug.get(p.category_slug) ?? null,
-            base_price: p.base_price,
-            selling_price: p.selling_price,
-            image_url: p.image_url,
-            images: p.images ?? [],
-            status: "published",
-            featured: p.featured ?? false,
-            sort_order: p.sort_order ?? 0,
-            card_color: p.card_color ?? null,
-            published_at: new Date().toISOString(),
-            created_by: actorUserId,
-            updated_by: actorUserId,
-          },
-          { onConflict: "store_id,slug" },
-        )
-        .select("id")
-        .single();
-      if (error || !data) {
-        fail(`product ${p.slug}`, error?.message ?? "no row");
+      let productId: string;
+      try {
+        const [row] = await withService((db) =>
+          db
+            .insert(products)
+            // sku / sku_no are NOT NULL but owned by the BEFORE-INSERT trigger
+            // (identifiers_04_triggers.sql) — the app never sends them, so the
+            // insert type is asserted past those two columns.
+            .values({
+              storeId,
+              name: p.name,
+              slug: p.slug,
+              description: p.description,
+              categoryId: categoryIdBySlug.get(p.category_slug) ?? null,
+              basePrice: p.base_price,
+              sellingPrice: p.selling_price,
+              imageUrl: p.image_url,
+              images: p.images ?? [],
+              status: "published",
+              featured: p.featured ?? false,
+              sortOrder: p.sort_order ?? 0,
+              cardColor: p.card_color ?? null,
+              publishedAt: new Date().toISOString(),
+              createdBy: actorUserId,
+              updatedBy: actorUserId,
+            } as typeof products.$inferInsert)
+            .onConflictDoUpdate({
+              target: [products.storeId, products.slug],
+              set: {
+                name: p.name,
+                description: p.description,
+                categoryId: categoryIdBySlug.get(p.category_slug) ?? null,
+                basePrice: p.base_price,
+                sellingPrice: p.selling_price,
+                imageUrl: p.image_url,
+                images: p.images ?? [],
+                status: "published",
+                featured: p.featured ?? false,
+                sortOrder: p.sort_order ?? 0,
+                cardColor: p.card_color ?? null,
+                publishedAt: new Date().toISOString(),
+                updatedBy: actorUserId,
+              },
+            })
+            .returning({ id: products.id }),
+        );
+        if (!row) {
+          fail(`product ${p.slug}`, "no row");
+          continue;
+        }
+        productId = row.id;
+      } catch (err) {
+        fail(`product ${p.slug}`, dbErrorMessage(err, "upsert failed"));
         continue;
       }
 
-      // Replace variants (mirrors product-actions' replaceVariants).
-      const { error: delError } = await admin
-        .from("product_variants")
-        .delete()
-        .eq("store_id", storeId)
-        .eq("product_id", data.id);
-      if (delError) fail(`variants(clear) ${p.slug}`, delError.message);
+      // Replace variants (mirrors product-actions' replaceVariants). Clear and
+      // insert are separate transactions so a clear failure still lets the
+      // insert run, matching the original per-request best-effort behaviour.
+      try {
+        await withService((db) =>
+          db
+            .delete(productVariants)
+            .where(
+              and(
+                eq(productVariants.storeId, storeId),
+                eq(productVariants.productId, productId),
+              ),
+            ),
+        );
+      } catch (err) {
+        fail(`variants(clear) ${p.slug}`, dbErrorMessage(err, "delete failed"));
+      }
 
       const variants = (p.variants ?? []).map((v, i) => ({
-        store_id: storeId,
-        product_id: data.id,
+        storeId,
+        productId,
         name: v.name,
-        base_price: v.base_price,
-        selling_price: v.selling_price,
-        special_price: v.special_price ?? null,
+        basePrice: v.base_price,
+        sellingPrice: v.selling_price,
+        specialPrice: v.special_price ?? null,
         stock: v.stock,
+        // sku / variant_no are trigger-owned; a null sku lets the trigger fill it.
         sku: v.sku ?? null,
-        sort_order: v.sort_order ?? i,
+        sortOrder: v.sort_order ?? i,
         images: v.images ?? [],
       }));
       if (variants.length > 0) {
-        const { error: insError } = await admin
-          .from("product_variants")
-          .insert(variants);
-        if (insError) fail(`variants ${p.slug}`, insError.message);
+        try {
+          await withService((db) =>
+            db
+              .insert(productVariants)
+              .values(variants as (typeof productVariants.$inferInsert)[]),
+          );
+        } catch (err) {
+          fail(`variants ${p.slug}`, dbErrorMessage(err, "insert failed"));
+        }
       }
     }
   }
 
   // --- menus -------------------------------------------------------------------
-  {
-    const { error } = await admin.from("store_menus").upsert(
-      {
-        store_id: storeId,
-        header: theme.menus.header,
-        footer_groups: theme.menus.footerGroups,
-        footer_legal: theme.menus.footerLegal,
-        updated_by: actorUserId,
-      },
-      { onConflict: "store_id" },
+  try {
+    await withService((db) =>
+      db
+        .insert(storeMenus)
+        .values({
+          storeId,
+          header: theme.menus.header,
+          footerGroups: theme.menus.footerGroups,
+          footerLegal: theme.menus.footerLegal,
+          updatedBy: actorUserId,
+        })
+        .onConflictDoUpdate({
+          target: storeMenus.storeId,
+          set: {
+            header: theme.menus.header,
+            footerGroups: theme.menus.footerGroups,
+            footerLegal: theme.menus.footerLegal,
+            updatedBy: actorUserId,
+          },
+        }),
     );
-    if (error) fail("menus", error.message);
+  } catch (err) {
+    fail("menus", dbErrorMessage(err, "upsert failed"));
   }
 
   // --- pages ---------------------------------------------------------------------
@@ -214,26 +307,47 @@ export async function applyTheme(
       fail(`page ${page.slug || "(home)"}`, sections.error);
       continue;
     }
-    const row: Record<string, unknown> = {
-      store_id: storeId,
+    const insertRow: typeof storePages.$inferInsert = {
+      storeId,
       slug: page.slug,
       title: page.title,
-      seo_title: page.seo_title ?? "",
-      seo_description: page.seo_description ?? "",
-      seo_noindex: false,
+      seoTitle: page.seo_title ?? "",
+      seoDescription: page.seo_description ?? "",
+      seoNoindex: false,
       sections: sections.sections,
-      created_by: actorUserId,
-      updated_by: actorUserId,
+      createdBy: actorUserId,
+      updatedBy: actorUserId,
+    };
+    const updateSet: Partial<typeof storePages.$inferInsert> = {
+      title: page.title,
+      seoTitle: page.seo_title ?? "",
+      seoDescription: page.seo_description ?? "",
+      seoNoindex: false,
+      sections: sections.sections,
+      updatedBy: actorUserId,
     };
     if (publish) {
-      row.published_sections = sections.sections;
-      row.status = "published";
-      row.published_at = new Date().toISOString();
+      const publishedAt = new Date().toISOString();
+      insertRow.publishedSections = sections.sections;
+      insertRow.status = "published";
+      insertRow.publishedAt = publishedAt;
+      updateSet.publishedSections = sections.sections;
+      updateSet.status = "published";
+      updateSet.publishedAt = publishedAt;
     }
-    const { error } = await admin
-      .from("store_pages")
-      .upsert(row, { onConflict: "store_id,slug" });
-    if (error) fail(`page ${page.slug || "(home)"}`, error.message);
+    try {
+      await withService((db) =>
+        db
+          .insert(storePages)
+          .values(insertRow)
+          .onConflictDoUpdate({
+            target: [storePages.storeId, storePages.slug],
+            set: updateSet,
+          }),
+      );
+    } catch (err) {
+      fail(`page ${page.slug || "(home)"}`, dbErrorMessage(err, "upsert failed"));
+    }
   }
 
   // --- cache busting -----------------------------------------------------------
