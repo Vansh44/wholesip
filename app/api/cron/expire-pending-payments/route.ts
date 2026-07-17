@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, asc, eq, lte, sql } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { orderItems, orders } from "@/drizzle/schema";
 import { getStoreGateway } from "@/lib/payments/provider";
 import {
   capturedPayment,
@@ -57,22 +59,37 @@ async function handle(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
   const cutoff = new Date(Date.now() - GRACE_MINUTES * 60_000).toISOString();
 
-  const { data: pending, error: readErr } = await admin
-    .from("orders")
-    .select("id, store_id, razorpay_order_id, applied_coupon_code")
-    .eq("payment_method", "razorpay")
-    .eq("payment_status", "pending")
-    .lte("created_at", cutoff)
-    .order("created_at", { ascending: true })
-    .limit(BATCH_LIMIT);
-  if (readErr) {
-    console.error("expire-pending-payments (read):", readErr.message);
+  let pending: PendingOrder[];
+  try {
+    pending = await withService((db) =>
+      db
+        .select({
+          id: orders.id,
+          store_id: orders.storeId,
+          razorpay_order_id: orders.razorpayOrderId,
+          applied_coupon_code: orders.appliedCouponCode,
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.paymentMethod, "razorpay"),
+            eq(orders.paymentStatus, "pending"),
+            lte(orders.createdAt, cutoff),
+          ),
+        )
+        .orderBy(asc(orders.createdAt))
+        .limit(BATCH_LIMIT),
+    );
+  } catch (err) {
+    console.error(
+      "expire-pending-payments (read):",
+      err instanceof Error ? err.message : err,
+    );
     return NextResponse.json({ error: "read failed" }, { status: 500 });
   }
-  if (!pending?.length) {
+  if (!pending.length) {
     return NextResponse.json({ ok: true, paid: 0, expired: 0 });
   }
 
@@ -91,7 +108,7 @@ async function handle(request: Request) {
   let paid = 0;
   let expired = 0;
 
-  for (const order of pending as PendingOrder[]) {
+  for (const order of pending) {
     // 1. Razorpay is the source of truth — never cancel a paid order.
     if (order.razorpay_order_id) {
       const gateway = await gatewayFor(order.store_id);
@@ -111,21 +128,27 @@ async function handle(request: Request) {
         }
         const captured = capturedPayment(res.data);
         if (captured) {
-          const { error } = await admin
-            .from("orders")
-            .update({
-              payment_status: "paid",
-              razorpay_payment_id: captured.id,
-            })
-            .eq("id", order.id)
-            .eq("payment_status", "pending");
-          if (error) {
+          try {
+            await withService((db) =>
+              db
+                .update(orders)
+                .set({
+                  paymentStatus: "paid",
+                  razorpayPaymentId: captured.id,
+                })
+                .where(
+                  and(
+                    eq(orders.id, order.id),
+                    eq(orders.paymentStatus, "pending"),
+                  ),
+                ),
+            );
+            paid++;
+          } catch (err) {
             console.error(
               `expire-pending-payments (mark paid, order ${order.id}):`,
-              error.message,
+              err instanceof Error ? err.message : err,
             );
-          } else {
-            paid++;
           }
           continue;
         }
@@ -137,52 +160,80 @@ async function handle(request: Request) {
     // 2. Claim the pending → failed transition atomically. A shopper's
     //    confirmOnlinePayment racing this loop flips pending → paid first and
     //    this claim then matches nothing — the order is left alone.
-    const { data: claimed, error: claimErr } = await admin
-      .from("orders")
-      .update({ payment_status: "failed", status: "cancelled" })
-      .eq("id", order.id)
-      .eq("payment_status", "pending")
-      .select("id");
-    if (claimErr) {
+    let claimed: { id: string }[];
+    try {
+      claimed = await withService((db) =>
+        db
+          .update(orders)
+          .set({ paymentStatus: "failed", status: "cancelled" })
+          .where(
+            and(
+              eq(orders.id, order.id),
+              eq(orders.paymentStatus, "pending"),
+            ),
+          )
+          .returning({ id: orders.id }),
+      );
+    } catch (claimErr) {
       console.error(
         `expire-pending-payments (claim, order ${order.id}):`,
-        claimErr.message,
+        claimErr instanceof Error ? claimErr.message : claimErr,
       );
       continue;
     }
-    if (!claimed?.length) continue;
+    if (!claimed.length) continue;
     expired++;
 
     // 3. Restock exactly once (the order-actions cancellation pattern).
-    const { data: stockClaim } = await admin
-      .from("orders")
-      .update({ stock_status: "released" })
-      .eq("id", order.id)
-      .eq("stock_status", "reserved")
-      .select("id");
-    if (stockClaim?.length) {
-      const { data: items } = await admin
-        .from("order_items")
-        .select("product_id, variant_id, quantity")
-        .eq("order_id", order.id);
-      for (const item of items ?? []) {
-        await admin.rpc("release_stock", {
-          p_store: order.store_id,
-          p_product: item.product_id,
-          p_variant: item.variant_id,
-          p_qty: item.quantity,
-          p_order: order.id,
-          p_reason: "payment_expired",
-        });
+    const stockClaim = await withService((db) =>
+      db
+        .update(orders)
+        .set({ stockStatus: "released" })
+        .where(
+          and(
+            eq(orders.id, order.id),
+            eq(orders.stockStatus, "reserved"),
+          ),
+        )
+        .returning({ id: orders.id }),
+    ).catch(() => []);
+    if (stockClaim.length) {
+      const items = await withService((db) =>
+        db
+          .select({
+            product_id: orderItems.productId,
+            variant_id: orderItems.variantId,
+            quantity: orderItems.quantity,
+          })
+          .from(orderItems)
+          .where(eq(orderItems.orderId, order.id)),
+      ).catch(() => []);
+      for (const item of items) {
+        await withService((db) =>
+          db.execute(
+            sql`select release_stock(p_store => ${order.store_id}, p_product => ${item.product_id}, p_variant => ${item.variant_id}, p_qty => ${item.quantity}, p_order => ${order.id}, p_reason => ${"payment_expired"})`,
+          ),
+        ).catch((err) =>
+          console.error(
+            `expire-pending-payments (release_stock, order ${order.id}):`,
+            err instanceof Error ? err.message : err,
+          ),
+        );
       }
     }
 
     // 4. Give the coupon use back (best-effort, floors at 0).
     if (order.applied_coupon_code) {
-      await admin.rpc("decrement_coupon_usage", {
-        p_code: normalizeCode(order.applied_coupon_code),
-        p_store_id: order.store_id,
-      });
+      await withService((db) =>
+        db.execute(
+          sql`select decrement_coupon_usage(p_code => ${normalizeCode(order.applied_coupon_code!)}, p_store_id => ${order.store_id})`,
+        ),
+      ).catch((err) =>
+        console.error(
+          `expire-pending-payments (decrement_coupon, order ${order.id}):`,
+          err instanceof Error ? err.message : err,
+        ),
+      );
     }
   }
 
