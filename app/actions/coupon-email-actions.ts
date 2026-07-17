@@ -114,9 +114,8 @@ function toRecipient(c: {
 // Returns at most RECIPIENT_PAGE_SIZE matches so it stays fast with 100k+
 // customers (never loads the whole table into the browser).
 //
-// NOTE: audience resolution here is NOT store-scoped — this preserves the exact
-// behavior of the original Supabase implementation (see the Phase 5 migration
-// note about a pre-existing cross-store scope gap in the marketing email path).
+// Every `users` read is scoped to the acting store (CODEBASE.md §5.1): a store
+// admin must only ever see / mail their OWN store's customers.
 // ---------------------------------------------------------------------------
 
 export async function listEmailRecipients(
@@ -124,18 +123,19 @@ export async function listEmailRecipients(
 ): Promise<ListRecipientsResult> {
   const userId = await getManagerUserId("marketing");
   if (!userId) return { customers: [], total: 0, error: "Not authenticated" };
+  const storeId = await getActingStoreId();
 
   const term = sanitizeSearch(search);
   try {
     return await withService(async (db) => {
-      // Count of all emailable customers — drives the "all customers" estimate.
+      // Count of this store's emailable customers — drives the "all" estimate.
       const [countRow] = await db
         .select({ n: count() })
         .from(users)
-        .where(isNotNull(users.email));
+        .where(and(eq(users.storeId, storeId), isNotNull(users.email)));
       const total = countRow?.n ?? 0;
 
-      const conds = [isNotNull(users.email)];
+      const conds = [eq(users.storeId, storeId), isNotNull(users.email)];
       if (term) {
         const like = `%${term}%`;
         conds.push(
@@ -279,24 +279,33 @@ function getResend(): Resend | null {
   return new Resend(apiKey);
 }
 
-// Audience resolution is NOT store-scoped (preserves the original — see the
-// note on listEmailRecipients).
+// Audience resolution is scoped to the acting store (CODEBASE.md §5.1): every
+// `users` read filters by store_id so a campaign can never resolve — or mail —
+// another store's customers, whatever audience/ids the client supplies.
 async function resolveRecipients(
   audience: EmailAudience,
+  storeId: string,
 ): Promise<RecipientOption[]> {
   try {
     return await withService(async (db) => {
       if (audience.mode === "group") {
+        // The group is already store-unique; scope its membership too, then
+        // filter the resolved users by store as defense in depth.
         const members = await db
           .select({ user_id: userGroupMembers.userId })
           .from(userGroupMembers)
-          .where(eq(userGroupMembers.groupId, audience.groupId));
+          .where(
+            and(
+              eq(userGroupMembers.groupId, audience.groupId),
+              eq(userGroupMembers.storeId, storeId),
+            ),
+          );
         const ids = members.map((m) => m.user_id);
         if (ids.length === 0) return [];
         const rows = await db
           .select(RECIPIENT_COLUMNS)
           .from(users)
-          .where(inArray(users.id, ids));
+          .where(and(inArray(users.id, ids), eq(users.storeId, storeId)));
         return rows.map(toRecipient);
       }
 
@@ -305,12 +314,20 @@ async function resolveRecipients(
         const rows = await db
           .select(RECIPIENT_COLUMNS)
           .from(users)
-          .where(inArray(users.id, audience.customerIds));
+          .where(
+            and(
+              inArray(users.id, audience.customerIds),
+              eq(users.storeId, storeId),
+            ),
+          );
         return rows.map(toRecipient);
       }
 
-      // all
-      const rows = await db.select(RECIPIENT_COLUMNS).from(users);
+      // all — every emailable customer of THIS store.
+      const rows = await db
+        .select(RECIPIENT_COLUMNS)
+        .from(users)
+        .where(eq(users.storeId, storeId));
       return rows.map(toRecipient);
     });
   } catch (err) {
@@ -345,7 +362,7 @@ export async function sendCouponEmail(
         "Email isn't configured (RESEND_API_KEY missing). Add it to send campaigns.",
     };
 
-  const recipients = await resolveRecipients(input.audience);
+  const recipients = await resolveRecipients(input.audience, storeId);
   const withEmail = recipients.filter((r) => r.email);
   const skippedNoEmail = recipients.length - withEmail.length;
 

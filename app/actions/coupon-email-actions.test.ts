@@ -1,11 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { makeDbMock } from "./_test-helpers";
+import { makeDbMock, sqlParamValues } from "./_test-helpers";
+
+// The acting store every query must be scoped to (matches the getActingStoreId
+// mock below).
+const STORE = "a0000000-0000-4000-8000-000000000001";
 
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
-  getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
+  getActingStoreId: vi.fn(async () => STORE),
 }));
 vi.mock("@/lib/ai/gemini", () => ({
   callGemini: vi.fn(),
@@ -69,7 +73,7 @@ import {
   renderCouponEmailPreview,
   sendCouponEmail,
 } from "./coupon-email-actions";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { callGemini } from "@/lib/ai/gemini";
 import { consumeAiQuota } from "@/lib/ai/quota";
 import { mergeTokens, renderCouponEmail } from "@/lib/email/coupon-campaign";
@@ -184,8 +188,17 @@ describe("listEmailRecipients", () => {
   it("filters by the search term (where carries an OR of ilikes)", async () => {
     dbHolder.current = makeDbMock({ selectQueue: [[{ n: 0 }], []] });
     await listEmailRecipients("ada");
-    // count query (isNotNull) + list query (isNotNull AND or(...)).
+    // count query (store + isNotNull) + list query (store AND isNotNull AND or(...)).
     expect(dbHolder.current.calls.where).toHaveLength(2);
+  });
+
+  it("scopes BOTH the count and the list query to the acting store", async () => {
+    dbHolder.current = makeDbMock({ selectQueue: [[{ n: 0 }], []] });
+    await listEmailRecipients("ada");
+    expect(getActingStoreId).toHaveBeenCalled();
+    // The store id is bound into both where clauses — no cross-tenant leak.
+    expect(sqlParamValues(dbHolder.current.calls.where[0])).toContain(STORE);
+    expect(sqlParamValues(dbHolder.current.calls.where[1])).toContain(STORE);
   });
 });
 
@@ -332,6 +345,40 @@ describe("sendCouponEmail (enqueue)", () => {
       audience: { mode: "group", groupId: "g1" },
     });
     expect(result.queued).toBe(2);
+  });
+
+  it("scopes the audience resolution to the acting store (all/group/specific)", async () => {
+    // mode: all — single users select, filtered by store.
+    dbHolder.current = makeDbMock({
+      returning: [{ id: "camp1" }],
+      selectQueue: [[u("a", "ada@x.com")]],
+    });
+    await sendCouponEmail({ ...sendInput, audience: { mode: "all" } });
+    expect(sqlParamValues(dbHolder.current.calls.where[0])).toContain(STORE);
+
+    // mode: group — membership (group + store) then users-by-id (+ store).
+    dbHolder.current = makeDbMock({
+      returning: [{ id: "camp1" }],
+      selectQueue: [[{ user_id: "a" }], [u("a", "ada@x.com")]],
+    });
+    await sendCouponEmail({
+      ...sendInput,
+      audience: { mode: "group", groupId: "g1" },
+    });
+    expect(sqlParamValues(dbHolder.current.calls.where[0])).toContain(STORE);
+    expect(sqlParamValues(dbHolder.current.calls.where[1])).toContain(STORE);
+
+    // mode: specific — users-by-id filtered by store (a crafted foreign id
+    // can't resolve another store's customer).
+    dbHolder.current = makeDbMock({
+      returning: [{ id: "camp1" }],
+      selectQueue: [[u("a", "ada@x.com")]],
+    });
+    await sendCouponEmail({
+      ...sendInput,
+      audience: { mode: "specific", customerIds: ["a"] },
+    });
+    expect(sqlParamValues(dbHolder.current.calls.where[0])).toContain(STORE);
   });
 
   it("returns no-email error for an empty group (nothing enqueued)", async () => {
