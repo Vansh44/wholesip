@@ -285,7 +285,8 @@ wholesip/
 │   │                          # deleteUser/pw/session on Supabase till Ph6),
 │   │                          # subscriptions, ai-credits, platform (operator
 │   │                          # console; getPlatformViewer via getServerUser +
-│   │                          # platform_admins email allowlist),
+│   │                          # platform_admins email allowlist), store-signup,
+│   │                          # blog-social (reactions/comments), coupon-email,
 │   │                          # products (actions + dashboard
 │   │                          # list/editor via products/columns.ts maps; sku/sku_no
 │   │                          # trigger-owned → insert type asserted), orders
