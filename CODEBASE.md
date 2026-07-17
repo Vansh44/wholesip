@@ -283,6 +283,9 @@ wholesip/
 │   │                          # invite-user (own-row admin updates → withUser,
 │   │                          # superadmin guards → withService; auth createUser/
 │   │                          # deleteUser/pw/session on Supabase till Ph6),
+│   │                          # subscriptions, ai-credits, platform (operator
+│   │                          # console; getPlatformViewer via getServerUser +
+│   │                          # platform_admins email allowlist),
 │   │                          # products (actions + dashboard
 │   │                          # list/editor via products/columns.ts maps; sku/sku_no
 │   │                          # trigger-owned → insert type asserted), orders
