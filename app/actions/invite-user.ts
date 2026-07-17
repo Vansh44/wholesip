@@ -1,7 +1,10 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { eq } from "drizzle-orm";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getServerUser } from "@/lib/auth/server-user";
+import { withService, withUser } from "@/lib/db/client";
+import { admins } from "@/drizzle/schema";
 import { Resend } from "resend";
 import { wrapBrandedEmail } from "@/lib/email/layout";
 import { getStoreBrandById } from "@/lib/store/brand";
@@ -48,45 +51,46 @@ export async function inviteUser(formData: FormData) {
     return { error: "Invalid role." };
   }
 
-  // Verify the caller is a superadmin
-  const supabase = await createClient();
-  const {
-    data: { user: caller },
-  } = await supabase.auth.getUser();
-
+  // Verify the caller is a superadmin (own-row read under their identity).
+  const caller = await getServerUser();
   if (!caller) {
     return { error: "Not authenticated." };
   }
 
-  const { data: callerProfile } = await supabase
-    .from("admins")
-    .select("role, store_id")
-    .eq("id", caller.id)
-    .single();
+  const callerRows = await withUser({ uid: caller.id, email: caller.email }, (db) =>
+    db
+      .select({ role: admins.role, store_id: admins.storeId })
+      .from(admins)
+      .where(eq(admins.id, caller.id))
+      .limit(1),
+  ).catch(() => []);
+  const callerProfile = callerRows[0];
 
   if (callerProfile?.role !== "superadmin") {
     return { error: "Unauthorized. Superadmin access required." };
   }
 
   // The invited admin joins the inviter's store.
-  const storeId = callerProfile.store_id as string;
+  const storeId = callerProfile.store_id;
 
   const tempPassword = generateTempPassword();
   const adminClient = createAdminClient();
 
   // Reject emails already attached to a dashboard profile. Supabase Auth
   // blocks duplicate auth emails, but an auth account created without an email
-  // (e.g. phone sign-up) can still collide at the profile layer.
+  // (e.g. phone sign-up) can still collide at the profile layer. Exact match on
+  // the already-lowercased email (not ILIKE, whose _/% wildcards would let a
+  // crafted invite address collide with an unrelated admin).
   const normalizedEmail = email.trim().toLowerCase();
-  // Exact match on the already-lowercased email (not `.ilike()`, whose `_`/`%`
-  // wildcards would let a crafted invite address collide with an unrelated admin).
-  const { data: existingProfile } = await adminClient
-    .from("admins")
-    .select("id")
-    .eq("email", normalizedEmail)
-    .maybeSingle();
+  const existingRows = await withService((db) =>
+    db
+      .select({ id: admins.id })
+      .from(admins)
+      .where(eq(admins.email, normalizedEmail))
+      .limit(1),
+  ).catch(() => []);
 
-  if (existingProfile) {
+  if (existingRows[0]) {
     return { error: "A user with this email already exists." };
   }
 
@@ -102,20 +106,26 @@ export async function inviteUser(formData: FormData) {
     return { error: createError.message };
   }
 
-  // Insert profile
-  const { error: profileError } = await adminClient.from("admins").upsert({
-    id: newUser.user.id,
+  // Insert the profile (upsert on the primary key so a leftover row is reused).
+  const profileFields = {
     email: normalizedEmail,
-    first_name: firstName.trim(),
-    last_name: lastName?.trim() || null,
+    firstName: firstName.trim(),
+    lastName: lastName?.trim() || null,
     role,
-    force_password_reset: true,
-    invited_by: caller.id,
-    store_id: storeId,
-  });
-
-  if (profileError) {
-    // Cleanup: delete the auth user
+    forcePasswordReset: true,
+    invitedBy: caller.id,
+    storeId,
+  };
+  try {
+    await withService((db) =>
+      db
+        .insert(admins)
+        .values({ id: newUser.user.id, ...profileFields })
+        .onConflictDoUpdate({ target: admins.id, set: profileFields }),
+    );
+  } catch (err) {
+    console.error("inviteUser profile insert error:", err);
+    // Cleanup: delete the auth user so no orphan account is left behind.
     await adminClient.auth.admin.deleteUser(newUser.user.id);
     return { error: "Failed to create user profile." };
   }

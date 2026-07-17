@@ -1,50 +1,75 @@
 "use server";
 
+import { count, eq } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getServerUser } from "@/lib/auth/server-user";
+import { withService, withUser } from "@/lib/db/client";
+import { admins, roles } from "@/drizzle/schema";
 
-export async function deleteUser(userId: string) {
-  const supabase = await createClient();
-  const {
-    data: { user: caller },
-  } = await supabase.auth.getUser();
+type Result = { error?: string; success?: boolean };
 
-  if (!caller) return { error: "Not authenticated" };
+// Superadmin-only staff management. NOTE: these guards are intentionally NOT
+// store-scoped — they mirror the original service-role queries, which operate
+// on the admins table globally (last-superadmin protection, etc.). The caller's
+// own role is read under their identity (RLS own-row); the target reads/writes
+// run in the service scope.
 
-  const { data: callerProfile } = await supabase
-    .from("admins")
-    .select("role")
-    .eq("id", caller.id)
-    .single();
-
-  if (callerProfile?.role !== "superadmin") {
+async function requireSuperadminCaller(): Promise<
+  { id: string } | { error: string }
+> {
+  const user = await getServerUser();
+  if (!user) return { error: "Not authenticated" };
+  try {
+    const rows = await withUser({ uid: user.id, email: user.email }, (db) =>
+      db
+        .select({ role: admins.role })
+        .from(admins)
+        .where(eq(admins.id, user.id))
+        .limit(1),
+    );
+    if (rows[0]?.role !== "superadmin") return { error: "Unauthorized" };
+    return { id: user.id };
+  } catch {
     return { error: "Unauthorized" };
   }
+}
 
-  if (userId === caller.id) {
+// Count of superadmins across the admins table (matches the original global
+// guard — not store-scoped).
+async function superadminCount(): Promise<number> {
+  const rows = await withService((db) =>
+    db.select({ n: count() }).from(admins).where(eq(admins.role, "superadmin")),
+  );
+  return rows[0]?.n ?? 0;
+}
+
+export async function deleteUser(userId: string): Promise<Result> {
+  const gate = await requireSuperadminCaller();
+  if ("error" in gate) return gate;
+
+  if (userId === gate.id) {
     return { error: "You cannot delete your own account." };
   }
 
-  const adminClient = createAdminClient();
-
   // Don't allow deleting the last remaining superadmin (would lock everyone out).
-  const { data: target } = await adminClient
-    .from("admins")
-    .select("role")
-    .eq("id", userId)
-    .single();
+  const targetRows = await withService((db) =>
+    db
+      .select({ role: admins.role })
+      .from(admins)
+      .where(eq(admins.id, userId))
+      .limit(1),
+  ).catch(() => []);
 
-  if (target?.role === "superadmin") {
-    const { count } = await adminClient
-      .from("admins")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "superadmin");
-    if ((count ?? 0) <= 1) {
+  if (targetRows[0]?.role === "superadmin") {
+    if ((await superadminCount()) <= 1) {
       return { error: "Cannot delete the last superadmin." };
     }
   }
 
-  // Delete user from auth (this cascades to profiles if set up, otherwise we delete profile too)
+  // Delete the auth user (cascades to the admins row). Auth stays on Supabase
+  // until Phase 6.
+  const adminClient = createAdminClient();
   const { error: deleteAuthError } =
     await adminClient.auth.admin.deleteUser(userId);
   if (deleteAuthError) return { error: deleteAuthError.message };
@@ -52,109 +77,74 @@ export async function deleteUser(userId: string) {
   return { success: true };
 }
 
-export async function changeUserRole(userId: string, role: string) {
-  const supabase = await createClient();
-  const {
-    data: { user: caller },
-  } = await supabase.auth.getUser();
-
-  if (!caller) return { error: "Not authenticated" };
-
-  const { data: callerProfile } = await supabase
-    .from("admins")
-    .select("role")
-    .eq("id", caller.id)
-    .single();
-
-  if (callerProfile?.role !== "superadmin") {
-    return { error: "Unauthorized" };
-  }
-
-  const adminClient = createAdminClient();
+export async function changeUserRole(userId: string, role: string): Promise<Result> {
+  const gate = await requireSuperadminCaller();
+  if ("error" in gate) return gate;
 
   // The target role must be a real, defined role. Fall back to the two
   // built-in roles when the roles table hasn't been seeded yet.
-  const { data: roleRow } = await adminClient
-    .from("roles")
-    .select("slug")
-    .eq("slug", role)
-    .maybeSingle();
-  if (!roleRow && !["superadmin", "member"].includes(role)) {
+  const roleRows = await withService((db) =>
+    db.select({ slug: roles.slug }).from(roles).where(eq(roles.slug, role)).limit(1),
+  ).catch(() => []);
+  if (!roleRows[0] && !["superadmin", "member"].includes(role)) {
     return { error: "Invalid role" };
   }
 
   // Prevent demoting the last superadmin (e.g. yourself), which would leave
   // the dashboard with no one able to manage users.
   if (role !== "superadmin") {
-    const { data: target } = await adminClient
-      .from("admins")
-      .select("role")
-      .eq("id", userId)
-      .single();
+    const targetRows = await withService((db) =>
+      db
+        .select({ role: admins.role })
+        .from(admins)
+        .where(eq(admins.id, userId))
+        .limit(1),
+    ).catch(() => []);
 
-    if (target?.role === "superadmin") {
-      const { count } = await adminClient
-        .from("admins")
-        .select("id", { count: "exact", head: true })
-        .eq("role", "superadmin");
-      if ((count ?? 0) <= 1) {
+    if (targetRows[0]?.role === "superadmin") {
+      if ((await superadminCount()) <= 1) {
         return { error: "Cannot demote the last superadmin." };
       }
     }
   }
 
-  const { error } = await adminClient
-    .from("admins")
-    .update({ role })
-    .eq("id", userId);
-
-  if (error) return { error: error.message };
+  try {
+    await withService((db) =>
+      db.update(admins).set({ role }).where(eq(admins.id, userId)),
+    );
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to update." };
+  }
   return { success: true };
 }
 
 export async function toggleUserSuspension(
   userId: string,
   isSuspended: boolean,
-) {
-  const supabase = await createClient();
-  const {
-    data: { user: caller },
-  } = await supabase.auth.getUser();
+): Promise<Result> {
+  const gate = await requireSuperadminCaller();
+  if ("error" in gate) return gate;
 
-  if (!caller) return { error: "Not authenticated" };
-
-  const { data: callerProfile } = await supabase
-    .from("admins")
-    .select("role")
-    .eq("id", caller.id)
-    .single();
-
-  if (callerProfile?.role !== "superadmin") {
-    return { error: "Unauthorized" };
-  }
-
-  if (userId === caller.id && isSuspended) {
+  if (userId === gate.id && isSuspended) {
     return { error: "You cannot suspend your own account." };
   }
 
-  const adminClient = createAdminClient();
-  const { error } = await adminClient
-    .from("admins")
-    .update({ is_suspended: isSuspended })
-    .eq("id", userId);
-
-  if (error) return { error: error.message };
-
-  // In a real app we might also ban the user via Supabase Auth `updateUserById`
-  // await adminClient.auth.admin.updateUserById(userId, { ban_duration: isSuspended ? '1000h' : 'none' });
+  try {
+    await withService((db) =>
+      db.update(admins).set({ isSuspended }).where(eq(admins.id, userId)),
+    );
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to update." };
+  }
 
   return { success: true };
 }
 
-export async function changeOwnPassword(newPassword: string) {
+export async function changeOwnPassword(newPassword: string): Promise<Result> {
   if (!newPassword || newPassword.length < 8)
     return { error: "Password must be at least 8 characters" };
 
+  // Pure auth flow — stays on Supabase until Phase 6.
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({
     password: newPassword,
@@ -164,7 +154,8 @@ export async function changeOwnPassword(newPassword: string) {
   return { success: true };
 }
 
-export async function triggerPasswordReset(email: string) {
+export async function triggerPasswordReset(email: string): Promise<Result> {
+  // Pure auth flow — stays on Supabase until Phase 6.
   const supabase = await createClient();
 
   // When users click the link in the email, they will be redirected to the site
