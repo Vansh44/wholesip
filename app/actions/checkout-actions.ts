@@ -203,7 +203,9 @@ export async function getCartStock(
         allow_backorder: products.allowBackorder,
       })
       .from(products)
-      .where(and(inArray(products.id, productIds), eq(products.storeId, storeId)));
+      .where(
+        and(inArray(products.id, productIds), eq(products.storeId, storeId)),
+      );
     const variantRows = variantIds.length
       ? await db
           .select({
@@ -257,7 +259,10 @@ async function availableStock(
             .select({ stock: productVariants.stock })
             .from(productVariants)
             .where(
-              and(eq(productVariants.id, id), eq(productVariants.storeId, storeId)),
+              and(
+                eq(productVariants.id, id),
+                eq(productVariants.storeId, storeId),
+              ),
             )
             .limit(1)
         : db
@@ -381,7 +386,9 @@ export async function getCartTaxRates(
         tax_class_id: products.taxClassId,
       })
       .from(products)
-      .where(and(inArray(products.id, productIds), eq(products.storeId, storeId)));
+      .where(
+        and(inArray(products.id, productIds), eq(products.storeId, storeId)),
+      );
     const variantRows = variantIds.length
       ? await db
           .select({
@@ -585,7 +592,9 @@ export async function placeOrder(
         tax_class_id: products.taxClassId,
       })
       .from(products)
-      .where(and(inArray(products.id, productIds), eq(products.storeId, storeId))),
+      .where(
+        and(inArray(products.id, productIds), eq(products.storeId, storeId)),
+      ),
   );
 
   if (!dbProducts || dbProducts.length === 0) {
@@ -772,9 +781,8 @@ export async function placeOrder(
           sql`select increment_coupon_usage(p_code => ${couponCodeNormalized}, p_store_id => ${storeId}) as reserved`,
         ),
       );
-      const reserved = (
-        res.rows[0] as { reserved: boolean | null } | undefined
-      )?.reserved;
+      const reserved = (res.rows[0] as { reserved: boolean | null } | undefined)
+        ?.reserved;
       if (reserved === false) {
         return { error: "This coupon has reached its usage limit." };
       }

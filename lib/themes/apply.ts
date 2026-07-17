@@ -346,7 +346,10 @@ export async function applyTheme(
           }),
       );
     } catch (err) {
-      fail(`page ${page.slug || "(home)"}`, dbErrorMessage(err, "upsert failed"));
+      fail(
+        `page ${page.slug || "(home)"}`,
+        dbErrorMessage(err, "upsert failed"),
+      );
     }
   }
 

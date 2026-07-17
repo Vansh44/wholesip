@@ -1,4 +1,13 @@
-import { and, asc, count as countFn, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count as countFn,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+} from "drizzle-orm";
 import { withService } from "@/lib/db/client";
 import { couponUserGroups, coupons, userGroups } from "@/drizzle/schema";
 import { requireSectionAccess, getActingStoreId } from "../../lib/access";
@@ -75,9 +84,7 @@ export default async function CouponsPage({
   const term = sanitizeSearch(q);
   if (term) {
     const pat = `%${term}%`;
-    conds.push(
-      or(ilike(coupons.code, pat), ilike(coupons.description, pat))!,
-    );
+    conds.push(or(ilike(coupons.code, pat), ilike(coupons.description, pat))!);
   }
   const whereExpr = and(...conds);
 

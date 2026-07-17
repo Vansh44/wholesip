@@ -135,13 +135,18 @@ export async function listAllStores(q?: string): Promise<PlatformStoreRow[]> {
             created_at: admins.createdAt,
           })
           .from(admins)
-          .where(and(inArray(admins.storeId, ids), eq(admins.role, "superadmin")))
+          .where(
+            and(inArray(admins.storeId, ids), eq(admins.role, "superadmin")),
+          )
           .orderBy(asc(admins.createdAt)),
         db
           .select({ store_id: aiUsage.storeId, used: aiUsage.used })
           .from(aiUsage)
           .where(
-            and(inArray(aiUsage.storeId, ids), eq(aiUsage.period, currentPeriod())),
+            and(
+              inArray(aiUsage.storeId, ids),
+              eq(aiUsage.period, currentPeriod()),
+            ),
           ),
         db
           .select({
@@ -336,7 +341,11 @@ export async function grantAiCredits(
   }
 
   const storeRows = await withService((db) =>
-    db.select({ id: stores.id }).from(stores).where(eq(stores.id, storeId)).limit(1),
+    db
+      .select({ id: stores.id })
+      .from(stores)
+      .where(eq(stores.id, storeId))
+      .limit(1),
   ).catch(() => []);
   if (!storeRows[0]) return { error: "Store not found." };
 
@@ -487,8 +496,14 @@ export async function deleteStore(storeId: string): Promise<ActionResult> {
       // Login accounts to delete (auth.users). admins.id AND users.id are both
       // auth user ids; their rows cascade with the store, so collect ids first.
       const [staff, customerRows] = await Promise.all([
-        db.select({ id: admins.id }).from(admins).where(eq(admins.storeId, storeId)),
-        db.select({ id: users.id }).from(users).where(eq(users.storeId, storeId)),
+        db
+          .select({ id: admins.id })
+          .from(admins)
+          .where(eq(admins.storeId, storeId)),
+        db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.storeId, storeId)),
       ]);
       for (const r of staff) authUserIds.add(r.id);
       for (const r of customerRows) authUserIds.add(r.id);
@@ -512,9 +527,7 @@ export async function deleteStore(storeId: string): Promise<ActionResult> {
 
   // Delete the store — FK ON DELETE CASCADE wipes every store-scoped row.
   try {
-    await withService((db) =>
-      db.delete(stores).where(eq(stores.id, storeId)),
-    );
+    await withService((db) => db.delete(stores).where(eq(stores.id, storeId)));
   } catch (err) {
     console.error("deleteStore:", err instanceof Error ? err.message : err);
     return { error: "Could not delete the store. Please try again." };

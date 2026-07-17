@@ -24,10 +24,7 @@ function emptyCounts(): ReactionCounts {
 // Tally reaction rows for a blog into per-type counts. We read the (small) set
 // of reaction strings and count in JS. Reuses an existing db handle when passed
 // (so the tally shares the caller's transaction), else opens its own.
-async function tallyReactions(
-  db: Db,
-  blogId: string,
-): Promise<ReactionCounts> {
+async function tallyReactions(db: Db, blogId: string): Promise<ReactionCounts> {
   const counts = emptyCounts();
   const rows = await db
     .select({ reaction: blogLikes.reaction })

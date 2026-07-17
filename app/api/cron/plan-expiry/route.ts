@@ -46,9 +46,7 @@ async function handle(request: Request) {
       const lapsed = await db
         .select({ id: stores.id, plan: stores.plan })
         .from(stores)
-        .where(
-          and(ne(stores.plan, "free"), lte(stores.planExpiresAt, nowIso)),
-        );
+        .where(and(ne(stores.plan, "free"), lte(stores.planExpiresAt, nowIso)));
       if (lapsed.length === 0) {
         return { lapsed, flippedIds: new Set<string>() };
       }

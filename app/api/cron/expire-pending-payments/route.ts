@@ -167,10 +167,7 @@ async function handle(request: Request) {
           .update(orders)
           .set({ paymentStatus: "failed", status: "cancelled" })
           .where(
-            and(
-              eq(orders.id, order.id),
-              eq(orders.paymentStatus, "pending"),
-            ),
+            and(eq(orders.id, order.id), eq(orders.paymentStatus, "pending")),
           )
           .returning({ id: orders.id }),
       );
@@ -189,12 +186,7 @@ async function handle(request: Request) {
       db
         .update(orders)
         .set({ stockStatus: "released" })
-        .where(
-          and(
-            eq(orders.id, order.id),
-            eq(orders.stockStatus, "reserved"),
-          ),
-        )
+        .where(and(eq(orders.id, order.id), eq(orders.stockStatus, "reserved")))
         .returning({ id: orders.id }),
     ).catch(() => []);
     if (stockClaim.length) {

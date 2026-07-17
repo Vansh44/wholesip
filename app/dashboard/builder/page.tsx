@@ -44,9 +44,7 @@ export default async function BuilderPage() {
         db
           .select({ id: blogs.id, title: blogs.title, slug: blogs.slug })
           .from(blogs)
-          .where(
-            and(eq(blogs.storeId, storeId), eq(blogs.status, "published")),
-          )
+          .where(and(eq(blogs.storeId, storeId), eq(blogs.status, "published")))
           .orderBy(desc(blogs.publishedAt)),
       ]);
       return { productRows, categoryRows, blogRows };

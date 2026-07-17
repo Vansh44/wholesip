@@ -101,9 +101,9 @@ export async function processEmailQueue(
       campaignRows.map((c) => [c.id, c as CampaignRow]),
     );
 
-    const storeIds = [
-      ...new Set(campaignRows.map((c) => c.store_id)),
-    ].filter(Boolean);
+    const storeIds = [...new Set(campaignRows.map((c) => c.store_id))].filter(
+      Boolean,
+    );
     const brandsMap = new Map();
     for (const sid of storeIds) {
       brandsMap.set(sid, await getStoreBrandById(sid));
@@ -251,10 +251,7 @@ async function finalizeCampaigns(): Promise<void> {
             .where(
               and(
                 eq(emailCampaignRecipients.campaignId, id),
-                inArray(emailCampaignRecipients.status, [
-                  "pending",
-                  "sending",
-                ]),
+                inArray(emailCampaignRecipients.status, ["pending", "sending"]),
               ),
             ),
         ]);

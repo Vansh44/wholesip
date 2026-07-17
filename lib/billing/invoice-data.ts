@@ -2,11 +2,7 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 import { withService, withUser } from "@/lib/db/client";
-import {
-  orderItems,
-  orders,
-  storeBillingSettings,
-} from "@/drizzle/schema";
+import { orderItems, orders, storeBillingSettings } from "@/drizzle/schema";
 import { getServerUser } from "@/lib/auth/server-user";
 import { getActingStoreId } from "@/app/dashboard/lib/access";
 import { getStoreBillingSettings } from "@/lib/storefront/queries";
@@ -100,7 +96,10 @@ export async function loadInvoiceByStore(
       if (!order) return null;
 
       const [items, billingRows] = await Promise.all([
-        db.select(ITEM_COLS).from(orderItems).where(eq(orderItems.orderId, orderId)),
+        db
+          .select(ITEM_COLS)
+          .from(orderItems)
+          .where(eq(orderItems.orderId, orderId)),
         db
           .select(BILLING_COLS)
           .from(storeBillingSettings)
@@ -118,7 +117,10 @@ export async function loadInvoiceByStore(
       };
     });
   } catch (err) {
-    console.error("loadInvoiceByStore:", err instanceof Error ? err.message : err);
+    console.error(
+      "loadInvoiceByStore:",
+      err instanceof Error ? err.message : err,
+    );
     return null;
   }
 }

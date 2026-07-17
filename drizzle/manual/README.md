@@ -10,11 +10,11 @@ psql "$CONN" -v ON_ERROR_STOP=1 -f drizzle/manual/0001_schema.sql
 psql "$CONN" -v ON_ERROR_STOP=1 -f drizzle/manual/0002_postflight.sql
 ```
 
-| File | What it does |
-|---|---|
+| File                    | What it does                                                                                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `0000_compat_setup.sql` | `pg_trgm`; the `auth.uid()`/`auth.email()` GUC shim (the 2A tenancy model); the Supabase placeholder roles + the `app_user`/`app_service` roles + grants; a **stub `auth.users`** so the next file's FKs load. |
-| `0001_schema.sql` | The **faithful full schema** (`pg_dump --schema-only` from the source Postgres): 38 functions, 43 tables, indexes, **99 complete RLS policies**, 21 triggers. |
-| `0002_postflight.sql` | Drops the `auth.users` FKs + stub (identity is external), and re-grants the app roles over everything `0001` created. |
+| `0001_schema.sql`       | The **faithful full schema** (`pg_dump --schema-only` from the source Postgres): 38 functions, 43 tables, indexes, **99 complete RLS policies**, 21 triggers.                                                  |
+| `0002_postflight.sql`   | Drops the `auth.users` FKs + stub (identity is external), and re-grants the app roles over everything `0001` created.                                                                                          |
 
 Result: **43 tables · 38 functions · 21 triggers · 99 policies**.
 

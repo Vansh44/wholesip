@@ -83,7 +83,11 @@ export async function checkStoreSlugAvailability(
 
   try {
     const rows = await withService((db) =>
-      db.select({ id: stores.id }).from(stores).where(eq(stores.slug, slug)).limit(1),
+      db
+        .select({ id: stores.id })
+        .from(stores)
+        .where(eq(stores.slug, slug))
+        .limit(1),
     );
     if (rows[0]) {
       return { slug, available: false, reason: "This name is not available." };
@@ -228,7 +232,11 @@ export async function createStore(
 
   // One store per owner for now (admins.id is the auth user id).
   const existing = await withService((db) =>
-    db.select({ store_id: admins.storeId }).from(admins).where(eq(admins.id, user.id)).limit(1),
+    db
+      .select({ store_id: admins.storeId })
+      .from(admins)
+      .where(eq(admins.id, user.id))
+      .limit(1),
   ).catch(() => []);
   if (existing[0]) {
     return { error: "This account already has a store." };

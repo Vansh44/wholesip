@@ -34,9 +34,8 @@ export async function rateLimit(
         sql`select check_rate_limit(p_key => ${key}, p_max => ${max}, p_window_seconds => ${windowSeconds}) as allowed`,
       ),
     );
-    const allowed = (
-      result.rows[0] as { allowed: boolean | null } | undefined
-    )?.allowed;
+    const allowed = (result.rows[0] as { allowed: boolean | null } | undefined)
+      ?.allowed;
     return { allowed: allowed === true };
   } catch (e) {
     // Fail OPEN — a transient DB hiccup must not lock everyone out.

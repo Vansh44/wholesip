@@ -223,6 +223,8 @@ describe("applyTheme", () => {
     expect(r.success).toBe(false);
     expect(r.errors.some((e) => e.includes("menus down"))).toBe(true);
     // Pages were still seeded despite the menus failure.
-    expect(dbHolder.current.calls.insert.store_pages?.length).toBeGreaterThan(0);
+    expect(dbHolder.current.calls.insert.store_pages?.length).toBeGreaterThan(
+      0,
+    );
   });
 });

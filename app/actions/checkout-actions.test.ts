@@ -35,7 +35,9 @@ vi.mock("@/lib/payments/razorpay", async (importOriginal) => {
 const dbHolder = vi.hoisted(() => ({ current: null as any }));
 vi.mock("@/lib/db/client", () => ({
   withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
-  withUser: vi.fn((_id: any, fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+  withUser: vi.fn((_id: any, fn: any) =>
+    Promise.resolve(fn(dbHolder.current.db)),
+  ),
   withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
 }));
 
@@ -276,7 +278,10 @@ describe("placeOrder", () => {
     // reports 1 unit left, so the shopper is told the precise remaining quantity.
     dbHolder.current = makeDbMock({
       selectQueue: [
-        [productRow(), productRow({ id: "p2", name: "Product 2", selling_price: 150 })],
+        [
+          productRow(),
+          productRow({ id: "p2", name: "Product 2", selling_price: 150 }),
+        ],
         [],
         [],
         [{ stock: 1 }], // availableStock() re-read

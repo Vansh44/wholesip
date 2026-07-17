@@ -80,7 +80,9 @@ describe("setStorePlan", () => {
     setup([viewer()]);
     expect((await setStorePlan("s1", "growth")).error).toMatch(/invalid plan/i);
     setup([viewer()]);
-    expect((await setStorePlan("s1", "starter")).error).toMatch(/invalid plan/i);
+    expect((await setStorePlan("s1", "starter")).error).toMatch(
+      /invalid plan/i,
+    );
     setup([viewer()]);
     expect((await setStorePlan("s1", "PRO")).error).toMatch(/invalid plan/i);
     expect(dbHolder.current.calls.update).toHaveLength(0);
