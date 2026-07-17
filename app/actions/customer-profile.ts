@@ -1,10 +1,47 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { getServerUser } from "@/lib/auth/server-user";
 import { withUser } from "@/lib/db/client";
 import { users } from "@/drizzle/schema";
 import { getCurrentStoreId } from "@/lib/store/resolve";
+
+export interface MyCustomer {
+  id: string;
+  phone: string;
+  email: string | null;
+  first_name: string;
+  last_name: string | null;
+  updated_at: string;
+}
+
+/**
+ * The signed-in customer's own profile row, for the storefront AuthProvider.
+ * Replaces a browser-side `users` read (a "use client" provider cannot use the
+ * server-only Drizzle layer). Own-row RLS under the customer's identity.
+ */
+export async function getMyCustomer(): Promise<MyCustomer | null> {
+  const user = await getServerUser();
+  if (!user) return null;
+
+  const rows = await withUser({ uid: user.id }, (db) =>
+    db
+      .select({
+        id: users.id,
+        phone: users.phone,
+        email: users.email,
+        first_name: users.firstName,
+        last_name: users.lastName,
+        updated_at: users.updatedAt,
+      })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1),
+  ).catch(() => [] as MyCustomer[]);
+
+  return rows[0] ?? null;
+}
 
 export async function updateCustomerProfile(formData: FormData) {
   const firstName = formData.get("firstName") as string;

@@ -10,15 +10,9 @@ import {
 } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { getMyCustomer, type MyCustomer } from "@/app/actions/customer-profile";
 
-type Customer = {
-  id: string;
-  phone: string;
-  email: string | null;
-  first_name: string;
-  last_name: string | null;
-  updated_at: string;
-};
+type Customer = MyCustomer;
 
 type AuthContextType = {
   user: User | null;
@@ -47,17 +41,13 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
 
   const supabase = createClient();
 
-  const fetchCustomer = useCallback(
-    async (userId: string) => {
-      const { data } = await supabase
-        .from("users")
-        .select("*")
-        .eq("id", userId)
-        .single();
-      setCustomer(data);
-    },
-    [supabase],
-  );
+  // Reads the signed-in customer's own row via a server action (the browser
+  // can't use the server-only Drizzle layer). Resolves identity server-side
+  // from the session cookie, so no user id needs threading in.
+  const fetchCustomer = useCallback(async () => {
+    const data = await getMyCustomer();
+    setCustomer(data);
+  }, []);
 
   // Resolve the customer from the *live* session rather than the `user` React
   // state. Right after verifyOtp / profile-save the modal calls this before the
@@ -70,7 +60,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     } = await supabase.auth.getUser();
     setUser(currentUser);
     if (currentUser) {
-      await fetchCustomer(currentUser.id);
+      await fetchCustomer();
     } else {
       setCustomer(null);
     }
@@ -87,7 +77,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       if (!active) return;
       setUser(currentUser);
       if (currentUser) {
-        await fetchCustomer(currentUser.id);
+        await fetchCustomer();
       }
       setLoading(false);
     };
@@ -107,7 +97,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
       setUser(sessionUser);
       if (sessionUser) {
         setTimeout(() => {
-          if (active) fetchCustomer(sessionUser.id);
+          if (active) fetchCustomer();
         }, 0);
       } else {
         setCustomer(null);

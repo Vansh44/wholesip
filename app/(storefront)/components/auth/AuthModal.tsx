@@ -3,7 +3,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { updateCustomerProfile } from "@/app/actions/customer-profile";
+import {
+  updateCustomerProfile,
+  getMyCustomer,
+} from "@/app/actions/customer-profile";
 import { useAuth } from "./AuthProvider";
 import { useBrand } from "@/app/(storefront)/components/brand-provider";
 import styles from "./AuthModal.module.css";
@@ -179,13 +182,11 @@ export default function AuthModal() {
           return;
         }
 
-        // Check if customer profile exists
+        // Check if customer profile exists. The verified session cookie is now
+        // set, so this server action resolves identity server-side (the browser
+        // can't use the server-only Drizzle layer).
         if (data.user) {
-          const { data: existingCustomer } = await supabase
-            .from("users")
-            .select("id")
-            .eq("id", data.user.id)
-            .single();
+          const existingCustomer = await getMyCustomer();
 
           if (existingCustomer) {
             // Returning user — done!

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { setPassword } from "@/app/actions/set-password";
+import { setPassword, getSetPasswordProfile } from "@/app/actions/set-password";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,25 +49,16 @@ export default function SetPasswordPage() {
 
   useEffect(() => {
     async function fetchProfile() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("admins")
-          .select("first_name, last_name, phone")
-          .eq("id", user.id)
-          .single();
-        if (profile) {
-          setFirstName(profile.first_name || "");
-          setLastName(profile.last_name || "");
-        }
-        if (user.phone) {
-          // If the user already has a phone attached, they verified it during signup.
-          setPhone(user.phone.startsWith("+") ? user.phone : `+${user.phone}`);
-          setIsPhoneVerified(true);
-        }
+      const profile = await getSetPasswordProfile();
+      if (!profile) return;
+      setFirstName(profile.firstName || "");
+      setLastName(profile.lastName || "");
+      if (profile.phone) {
+        // A phone attached to the account was OTP-verified during signup.
+        setPhone(
+          profile.phone.startsWith("+") ? profile.phone : `+${profile.phone}`,
+        );
+        setIsPhoneVerified(true);
       }
     }
     fetchProfile();

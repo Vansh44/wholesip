@@ -3,9 +3,40 @@
 import { eq } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { getServerUser } from "@/lib/auth/server-user";
-import { withUser } from "@/lib/db/client";
+import { withService, withUser } from "@/lib/db/client";
 import { admins } from "@/drizzle/schema";
 import { redirect } from "next/navigation";
+
+/**
+ * The signed-in admin's name + verified phone, for the set-password screen's
+ * prefill. Replaces a browser-side `admins` read (a "use client" page cannot
+ * use the server-only Drizzle layer). Returns the auth phone — non-null only
+ * once the phone was OTP-verified during signup, which the UI treats as
+ * "already verified".
+ */
+export async function getSetPasswordProfile(): Promise<{
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+} | null> {
+  const user = await getServerUser();
+  if (!user) return null;
+
+  const rows = await withService((db) =>
+    db
+      .select({ firstName: admins.firstName, lastName: admins.lastName })
+      .from(admins)
+      .where(eq(admins.id, user.id))
+      .limit(1),
+  ).catch(() => []);
+  const profile = rows[0];
+
+  return {
+    firstName: profile?.firstName ?? "",
+    lastName: profile?.lastName ?? "",
+    phone: user.phone,
+  };
+}
 
 export async function setPassword(formData: FormData) {
   const password = formData.get("password") as string;

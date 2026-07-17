@@ -4,43 +4,38 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 
-// AuthProvider builds its Supabase client from the browser factory; mock it so
-// we can drive auth state + the customer-row fetch without a real client.
+// AuthProvider builds its Supabase client from the browser factory (auth calls
+// only) and reads the customer row via the getMyCustomer server action; mock
+// both so we can drive auth state + the customer fetch without a real client.
 vi.mock("@/lib/supabase/client", () => ({ createClient: vi.fn() }));
+vi.mock("@/app/actions/customer-profile", () => ({ getMyCustomer: vi.fn() }));
 
 import AuthProvider, { useAuth } from "./AuthProvider";
 import { createClient } from "@/lib/supabase/client";
+import { getMyCustomer } from "@/app/actions/customer-profile";
 
 // ---------------------------------------------------------------------------
-// Mock client wiring.
+// Mock wiring.
 //
 // The source calls:
 //   supabase.auth.getUser()                            (init + refreshCustomer)
 //   supabase.auth.onAuthStateChange(cb) -> { data: { subscription } }
 //   supabase.auth.signOut({ scope })
-//   supabase.from("users").select("*").eq("id", id).single()  -> { data }
+//   getMyCustomer() -> the customer row (server action, identity server-side)
 //
 // `currentUser` / `customerRow` are mutable so individual tests can flip what
-// getUser / single() resolve to between renders or calls.
+// getUser / getMyCustomer resolve to between renders or calls.
 // ---------------------------------------------------------------------------
 
 let currentUser: any;
 let customerRow: any;
 let authCallback: ((event: string, session: any) => void) | null;
 const unsubscribe = vi.fn();
-let singleMock: ReturnType<typeof vi.fn>;
 let signOutMock: ReturnType<typeof vi.fn>;
 let supabase: any;
 
 function buildClient() {
-  singleMock = vi.fn(async () => ({ data: customerRow, error: null }));
   signOutMock = vi.fn().mockResolvedValue({ error: null });
-
-  const chain: any = {
-    select: vi.fn(() => chain),
-    eq: vi.fn(() => chain),
-    single: singleMock,
-  };
 
   return {
     auth: {
@@ -51,7 +46,6 @@ function buildClient() {
       }),
       signOut: signOutMock,
     },
-    from: vi.fn(() => chain),
   };
 }
 
@@ -99,6 +93,8 @@ describe("AuthProvider", () => {
     authCallback = null;
     supabase = buildClient();
     vi.mocked(createClient).mockReturnValue(supabase);
+    // Reads the mutable customerRow at call time, so tests can flip it.
+    vi.mocked(getMyCustomer).mockImplementation(async () => customerRow);
   });
 
   it("useAuth throws when used outside the provider", () => {
@@ -121,7 +117,7 @@ describe("AuthProvider", () => {
     );
     expect(screen.getByTestId("user")).toHaveTextContent("");
     expect(screen.getByTestId("customer")).toHaveTextContent("");
-    expect(supabase.from).not.toHaveBeenCalled();
+    expect(getMyCustomer).not.toHaveBeenCalled();
   });
 
   it("initial load with a session populates the user and fetches the customer row", async () => {
@@ -132,8 +128,7 @@ describe("AuthProvider", () => {
     expect(await screen.findByText("Ada")).toBeInTheDocument();
     expect(screen.getByTestId("user")).toHaveTextContent("u-1");
     expect(screen.getByTestId("loading")).toHaveTextContent("false");
-    expect(supabase.from).toHaveBeenCalledWith("users");
-    expect(singleMock).toHaveBeenCalled();
+    expect(getMyCustomer).toHaveBeenCalled();
   });
 
   it("openAuthModal / closeAuthModal toggle isAuthModalOpen", async () => {
