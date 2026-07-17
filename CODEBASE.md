@@ -277,7 +277,9 @@ wholesip/
 │   │                          # lib/ai/quota.ts), store-domain, payment-provider,
 │   │                          # customers (customer-actions + customer-profile +
 │   │                          # dashboard/users/data.ts — customer_admin view; auth
-│   │                          # admin ops stay on Supabase till Phase 6),
+│   │                          # admin ops stay on Supabase till Phase 6), user-groups
+│   │                          # (+ dashboard data), roles (requireRolesManager →
+│   │                          # getServerUser+withUser gate; writes withService),
 │   │                          # products (actions + dashboard
 │   │                          # list/editor via products/columns.ts maps; sku/sku_no
 │   │                          # trigger-owned → insert type asserted), orders

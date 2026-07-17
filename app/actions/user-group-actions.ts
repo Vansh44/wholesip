@@ -1,7 +1,10 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { withService } from "@/lib/db/client";
+import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
+import { userGroupMembers, userGroups } from "@/drizzle/schema";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 
 // ---------------------------------------------------------------------------
@@ -19,8 +22,6 @@ export interface ActionResult {
   error?: string;
   data?: Record<string, unknown>;
 }
-
-const UNIQUE_VIOLATION = "23505";
 
 // User Groups live under the Users section, so they share its `manage` right.
 async function getAdminUserId(): Promise<string | null> {
@@ -45,28 +46,30 @@ export async function createUserGroup(
   const name = form.name.trim();
   if (!name) return { error: "Group name is required." };
 
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("user_groups")
-    .insert({
-      name,
-      description: form.description.trim() || null,
-      color: form.color || "blue",
-      created_by: userId,
-      store_id: storeId,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    if (error.code === UNIQUE_VIOLATION)
+  let inserted: Record<string, unknown>;
+  try {
+    const [row] = await withService((db) =>
+      db
+        .insert(userGroups)
+        .values({
+          name,
+          description: form.description.trim() || null,
+          color: form.color || "blue",
+          createdBy: userId,
+          storeId,
+        })
+        .returning(),
+    );
+    inserted = row as Record<string, unknown>;
+  } catch (err) {
+    if (isUniqueViolation(err))
       return { error: "A group with that name already exists." };
-    console.error("createUserGroup error:", error);
-    return { error: error.message };
+    console.error("createUserGroup error:", err);
+    return { error: dbErrorMessage(err, "Failed to create group.") };
   }
 
   revalidateGroups();
-  return { success: true, data: data as Record<string, unknown> };
+  return { success: true, data: inserted };
 }
 
 // ---------------------------------------------------------------------------
@@ -83,24 +86,25 @@ export async function updateUserGroup(
   const name = form.name.trim();
   if (!name) return { error: "Group name is required." };
 
-  // Scope by store_id (service role bypasses RLS) so a group can only be edited
-  // by an admin of the store that owns it.
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("user_groups")
-    .update({
-      name,
-      description: form.description.trim() || null,
-      color: form.color || "blue",
-    })
-    .eq("id", id)
-    .eq("store_id", await getActingStoreId());
-
-  if (error) {
-    if (error.code === UNIQUE_VIOLATION)
+  // Scope by store_id (the service scope bypasses RLS) so a group can only be
+  // edited by an admin of the store that owns it.
+  const storeId = await getActingStoreId();
+  try {
+    await withService((db) =>
+      db
+        .update(userGroups)
+        .set({
+          name,
+          description: form.description.trim() || null,
+          color: form.color || "blue",
+        })
+        .where(and(eq(userGroups.id, id), eq(userGroups.storeId, storeId))),
+    );
+  } catch (err) {
+    if (isUniqueViolation(err))
       return { error: "A group with that name already exists." };
-    console.error("updateUserGroup error:", error);
-    return { error: error.message };
+    console.error("updateUserGroup error:", err);
+    return { error: dbErrorMessage(err, "Failed to update group.") };
   }
 
   revalidateGroups();
@@ -115,16 +119,16 @@ export async function deleteUserGroup(id: string): Promise<ActionResult> {
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
 
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("user_groups")
-    .delete()
-    .eq("id", id)
-    .eq("store_id", await getActingStoreId());
-
-  if (error) {
-    console.error("deleteUserGroup error:", error);
-    return { error: error.message };
+  const storeId = await getActingStoreId();
+  try {
+    await withService((db) =>
+      db
+        .delete(userGroups)
+        .where(and(eq(userGroups.id, id), eq(userGroups.storeId, storeId))),
+    );
+  } catch (err) {
+    console.error("deleteUserGroup error:", err);
+    return { error: dbErrorMessage(err, "Failed to delete group.") };
   }
 
   revalidateGroups();
@@ -144,45 +148,47 @@ export async function setGroupMembers(
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
 
-  const admin = createAdminClient();
-
-  // Verify the group belongs to this store before rewriting its membership —
-  // otherwise a store admin could target another store's group by id.
-  const { data: group } = await admin
-    .from("user_groups")
-    .select("id")
-    .eq("id", groupId)
-    .eq("store_id", storeId)
-    .maybeSingle();
-  if (!group) return { error: "Group not found." };
-
-  const { error: delError } = await admin
-    .from("user_group_members")
-    .delete()
-    .eq("group_id", groupId)
-    .eq("store_id", storeId);
-
-  if (delError) {
-    console.error("setGroupMembers (clear) error:", delError);
-    return { error: delError.message };
-  }
-
   // De-dupe defensively; an empty selection just clears the group.
   const ids = Array.from(new Set(customerIds.filter(Boolean)));
-  if (ids.length > 0) {
-    const rows = ids.map((user_id) => ({
-      group_id: groupId,
-      user_id,
-      added_by: userId,
-      store_id: storeId,
-    }));
-    const { error: insError } = await admin
-      .from("user_group_members")
-      .insert(rows);
-    if (insError) {
-      console.error("setGroupMembers (insert) error:", insError);
-      return { error: insError.message };
+
+  try {
+    await withService(async (db) => {
+      // Verify the group belongs to this store before rewriting its membership
+      // — otherwise a store admin could target another store's group by id.
+      const groupRows = await db
+        .select({ id: userGroups.id })
+        .from(userGroups)
+        .where(and(eq(userGroups.id, groupId), eq(userGroups.storeId, storeId)))
+        .limit(1);
+      if (!groupRows[0]) throw new Error("GROUP_NOT_FOUND");
+
+      // Clear + insert in one transaction so membership is never left partial.
+      await db
+        .delete(userGroupMembers)
+        .where(
+          and(
+            eq(userGroupMembers.groupId, groupId),
+            eq(userGroupMembers.storeId, storeId),
+          ),
+        );
+
+      if (ids.length > 0) {
+        await db.insert(userGroupMembers).values(
+          ids.map((memberId) => ({
+            groupId,
+            userId: memberId,
+            addedBy: userId,
+            storeId,
+          })),
+        );
+      }
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "GROUP_NOT_FOUND") {
+      return { error: "Group not found." };
     }
+    console.error("setGroupMembers error:", err);
+    return { error: dbErrorMessage(err, "Failed to update members.") };
   }
 
   revalidateGroups();
