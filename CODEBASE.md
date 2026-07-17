@@ -275,6 +275,9 @@ wholesip/
 │   │                          # menu-actions + lib/pages/preview.ts — builder write
 │   │                          # side), brand-voice (+ lib/ai/brand-voice.ts +
 │   │                          # lib/ai/quota.ts), store-domain, payment-provider,
+│   │                          # customers (customer-actions + customer-profile +
+│   │                          # dashboard/users/data.ts — customer_admin view; auth
+│   │                          # admin ops stay on Supabase till Phase 6),
 │   │                          # products (actions + dashboard
 │   │                          # list/editor via products/columns.ts maps; sku/sku_no
 │   │                          # trigger-owned → insert type asserted), orders
