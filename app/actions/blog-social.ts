@@ -1,7 +1,9 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, eq } from "drizzle-orm";
+import { getServerUser } from "@/lib/auth/server-user";
+import { withService, withUser, type Db } from "@/lib/db/client";
+import { blogComments, blogLikes, users } from "@/drizzle/schema";
 import { getCurrentStoreId } from "@/lib/store/resolve";
 import { revalidatePath } from "next/cache";
 import {
@@ -19,19 +21,19 @@ function emptyCounts(): ReactionCounts {
   return { like: 0, love: 0, haha: 0, wow: 0, celebrate: 0 };
 }
 
-// Tally reaction rows for a blog into per-type counts. PostgREST can't GROUP BY
-// without an RPC, so we read the (small) set of reaction strings and count in
-// JS. Used by both the server action and the page's initial render.
+// Tally reaction rows for a blog into per-type counts. We read the (small) set
+// of reaction strings and count in JS. Reuses an existing db handle when passed
+// (so the tally shares the caller's transaction), else opens its own.
 async function tallyReactions(
-  client: ReturnType<typeof createAdminClient>,
+  db: Db,
   blogId: string,
 ): Promise<ReactionCounts> {
   const counts = emptyCounts();
-  const { data } = await client
-    .from("blog_likes")
-    .select("reaction")
-    .eq("blog_id", blogId);
-  for (const row of (data ?? []) as { reaction: BlogReaction }[]) {
+  const rows = await db
+    .select({ reaction: blogLikes.reaction })
+    .from(blogLikes)
+    .where(eq(blogLikes.blogId, blogId));
+  for (const row of rows as { reaction: BlogReaction }[]) {
     if (row.reaction in counts) counts[row.reaction] += 1;
   }
   return counts;
@@ -41,9 +43,9 @@ async function tallyReactions(
  * Toggle ONE emoji reaction for a blog on/off. No login required — the browser
  * passes a random `visitorId` (localStorage). A visitor may hold several
  * different reactions at once (one row per emoji); `active` is the desired
- * state for THIS emoji (true = add, false = remove). Runs through the
- * service-role admin client, so there are no public write policies on
- * blog_likes to abuse. Returns the fresh per-reaction counts.
+ * state for THIS emoji (true = add, false = remove). Runs in the service scope,
+ * so there are no public write policies on blog_likes to abuse. Returns the
+ * fresh per-reaction counts.
  */
 export async function toggleBlogReaction(
   blogId: string,
@@ -58,49 +60,57 @@ export async function toggleBlogReaction(
     return { counts: emptyCounts(), error: "Unknown reaction." };
   }
 
-  const admin = createAdminClient();
-
-  if (active) {
-    const { error } = await admin.from("blog_likes").upsert(
-      {
-        blog_id: blogId,
-        visitor_id: visitorId,
-        reaction,
-        store_id: await getCurrentStoreId(),
-      },
-      { onConflict: "blog_id,visitor_id,reaction", ignoreDuplicates: true },
-    );
-    if (error) {
-      console.error("toggleBlogReaction upsert error:", error);
-      return { counts: emptyCounts(), error: "Couldn't save your reaction." };
-    }
-  } else {
-    const { error } = await admin
-      .from("blog_likes")
-      .delete()
-      .eq("blog_id", blogId)
-      .eq("visitor_id", visitorId)
-      .eq("reaction", reaction);
-    if (error) {
-      console.error("toggleBlogReaction delete error:", error);
-      return { counts: emptyCounts(), error: "Couldn't remove your reaction." };
-    }
+  const storeId = active ? await getCurrentStoreId() : "";
+  try {
+    return await withService(async (db) => {
+      if (active) {
+        // ignoreDuplicates: a repeat reaction is a no-op (nothing to change).
+        await db
+          .insert(blogLikes)
+          .values({ blogId, visitorId, reaction, storeId })
+          .onConflictDoNothing({
+            target: [blogLikes.blogId, blogLikes.visitorId, blogLikes.reaction],
+          });
+      } else {
+        await db
+          .delete(blogLikes)
+          .where(
+            and(
+              eq(blogLikes.blogId, blogId),
+              eq(blogLikes.visitorId, visitorId),
+              eq(blogLikes.reaction, reaction),
+            ),
+          );
+      }
+      return { counts: await tallyReactions(db, blogId) };
+    });
+  } catch (err) {
+    console.error("toggleBlogReaction error:", err);
+    return {
+      counts: emptyCounts(),
+      error: active
+        ? "Couldn't save your reaction."
+        : "Couldn't remove your reaction.",
+    };
   }
-
-  return { counts: await tallyReactions(admin, blogId) };
 }
 
 /** Per-reaction counts for a blog (server-side initial render). */
 export async function getBlogReactionCounts(
   blogId: string,
 ): Promise<ReactionCounts> {
-  return tallyReactions(createAdminClient(), blogId);
+  try {
+    return await withService((db) => tallyReactions(db, blogId));
+  } catch (err) {
+    console.error("getBlogReactionCounts error:", err);
+    return emptyCounts();
+  }
 }
 
 /**
  * Post a comment on a blog. Requires a signed-in customer. The author's name is
- * snapshotted onto the row (customers is own-row-only under RLS, so public
- * readers can't join to it).
+ * snapshotted onto the row (users is own-row-only under RLS, so public readers
+ * can't join to it).
  */
 export async function submitBlogComment(form: {
   blog_id: string;
@@ -113,37 +123,42 @@ export async function submitBlogComment(form: {
     return { error: "Comment is too long (2000 characters max)." };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "Please sign in to comment." };
 
-  const { data: customer } = await supabase
-    .from("users")
-    .select("first_name, last_name")
-    .eq("id", user.id)
-    .single();
+  const storeId = await getCurrentStoreId();
+  try {
+    const result = await withUser({ uid: user.id }, async (db) => {
+      const customerRows = await db
+        .select({ firstName: users.firstName, lastName: users.lastName })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      const customer = customerRows[0];
+      if (!customer) return { error: "PROFILE_MISSING" as const };
 
-  if (!customer) {
-    return { error: "Complete your profile before commenting." };
-  }
+      const authorName = `${customer.firstName ?? ""}${
+        customer.lastName ? " " + customer.lastName : ""
+      }`.trim();
 
-  const authorName = `${customer.first_name ?? ""}${
-    customer.last_name ? " " + customer.last_name : ""
-  }`.trim();
+      await db.insert(blogComments).values({
+        blogId: form.blog_id,
+        userId: user.id,
+        authorName: authorName || "Anonymous",
+        body,
+        storeId,
+      });
+      return { ok: true as const };
+    });
 
-  const { error } = await supabase.from("blog_comments").insert({
-    blog_id: form.blog_id,
-    user_id: user.id,
-    author_name: authorName || "Anonymous",
-    body,
-    store_id: await getCurrentStoreId(),
-  });
-
-  if (error) {
-    console.error("submitBlogComment error:", error);
-    return { error: error.message };
+    if ("error" in result) {
+      return { error: "Complete your profile before commenting." };
+    }
+  } catch (err) {
+    console.error("submitBlogComment error:", err);
+    return {
+      error: err instanceof Error ? err.message : "Failed to post comment.",
+    };
   }
 
   revalidatePath(`/blogs/${form.slug}`);
@@ -155,20 +170,18 @@ export async function deleteBlogComment(
   commentId: string,
   slug: string,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "Please sign in." };
 
-  const { error } = await supabase
-    .from("blog_comments")
-    .delete()
-    .eq("id", commentId);
-
-  if (error) {
-    console.error("deleteBlogComment error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: user.id }, (db) =>
+      db.delete(blogComments).where(eq(blogComments.id, commentId)),
+    );
+  } catch (err) {
+    console.error("deleteBlogComment error:", err);
+    return {
+      error: err instanceof Error ? err.message : "Failed to delete comment.",
+    };
   }
 
   revalidatePath(`/blogs/${slug}`);

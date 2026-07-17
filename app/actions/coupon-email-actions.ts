@@ -1,8 +1,15 @@
 "use server";
 
 import { after } from "next/server";
+import { and, count, desc, eq, ilike, inArray, isNotNull, or } from "drizzle-orm";
 import { Resend } from "resend";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService } from "@/lib/db/client";
+import {
+  emailCampaignRecipients,
+  emailCampaigns,
+  userGroupMembers,
+  users,
+} from "@/drizzle/schema";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { callGemini, brandSystemText } from "@/lib/ai/gemini";
 import { getBrandSoulForStore } from "@/lib/ai/brand-voice";
@@ -17,12 +24,9 @@ import { getStoreBrand } from "@/lib/store/brand";
 
 const RECIPIENT_PAGE_SIZE = 50;
 
-/** Strip PostgREST filter-control chars so a search term can't break `.or()`. */
+// Trim the search term (parameterised — no escaping needed).
 function sanitizeSearch(q: string): string {
-  return q
-    .replace(/[(),:*%\\]/g, " ")
-    .trim()
-    .slice(0, 100);
+  return q.trim().slice(0, 100);
 }
 
 // ---------------------------------------------------------------------------
@@ -80,10 +84,39 @@ export interface ListRecipientsResult {
   error?: string;
 }
 
+// Aliased select preserving the RecipientOption snake_case shape.
+const RECIPIENT_COLUMNS = {
+  id: users.id,
+  first_name: users.firstName,
+  last_name: users.lastName,
+  email: users.email,
+  phone: users.phone,
+};
+
+function toRecipient(c: {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+}): RecipientOption {
+  return {
+    id: c.id,
+    first_name: c.first_name ?? "",
+    last_name: c.last_name ?? null,
+    email: c.email ?? null,
+    phone: c.phone ?? "",
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Recipients — searched server-side by the email dialog's "specific" picker.
 // Returns at most RECIPIENT_PAGE_SIZE matches so it stays fast with 100k+
 // customers (never loads the whole table into the browser).
+//
+// NOTE: audience resolution here is NOT store-scoped — this preserves the exact
+// behavior of the original Supabase implementation (see the Phase 5 migration
+// note about a pre-existing cross-store scope gap in the marketing email path).
 // ---------------------------------------------------------------------------
 
 export async function listEmailRecipients(
@@ -92,50 +125,42 @@ export async function listEmailRecipients(
   const userId = await getManagerUserId("marketing");
   if (!userId) return { customers: [], total: 0, error: "Not authenticated" };
 
-  const admin = createAdminClient();
-
-  // Count of all emailable customers — drives the "all customers" estimate.
-  const { count: total } = await admin
-    .from("users")
-    .select("id", { count: "exact", head: true })
-    .not("email", "is", null);
-
-  let query = admin
-    .from("users")
-    .select("id, first_name, last_name, email, phone")
-    .not("email", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(RECIPIENT_PAGE_SIZE);
-
   const term = sanitizeSearch(search);
-  if (term) {
-    const like = `*${term}*`;
-    query = query.or(
-      `first_name.ilike.${like},last_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`,
-    );
+  try {
+    return await withService(async (db) => {
+      // Count of all emailable customers — drives the "all customers" estimate.
+      const [countRow] = await db
+        .select({ n: count() })
+        .from(users)
+        .where(isNotNull(users.email));
+      const total = countRow?.n ?? 0;
+
+      const conds = [isNotNull(users.email)];
+      if (term) {
+        const like = `%${term}%`;
+        conds.push(
+          or(
+            ilike(users.firstName, like),
+            ilike(users.lastName, like),
+            ilike(users.email, like),
+            ilike(users.phone, like),
+          )!,
+        );
+      }
+
+      const rows = await db
+        .select(RECIPIENT_COLUMNS)
+        .from(users)
+        .where(and(...conds))
+        .orderBy(desc(users.createdAt))
+        .limit(RECIPIENT_PAGE_SIZE);
+
+      return { total, customers: rows.map(toRecipient) };
+    });
+  } catch (err) {
+    console.error("listEmailRecipients error:", err);
+    return { customers: [], total: 0, error: "Could not load customers." };
   }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error("listEmailRecipients error:", error);
-    return {
-      customers: [],
-      total: total ?? 0,
-      error: "Could not load customers.",
-    };
-  }
-
-  return {
-    total: total ?? 0,
-    customers: (data ?? []).map((c) => ({
-      id: c.id as string,
-      first_name: (c.first_name as string) ?? "",
-      last_name: (c.last_name as string | null) ?? null,
-      email: (c.email as string | null) ?? null,
-      phone: (c.phone as string) ?? "",
-    })),
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -254,39 +279,44 @@ function getResend(): Resend | null {
   return new Resend(apiKey);
 }
 
+// Audience resolution is NOT store-scoped (preserves the original — see the
+// note on listEmailRecipients).
 async function resolveRecipients(
   audience: EmailAudience,
 ): Promise<RecipientOption[]> {
-  const admin = createAdminClient();
+  try {
+    return await withService(async (db) => {
+      if (audience.mode === "group") {
+        const members = await db
+          .select({ user_id: userGroupMembers.userId })
+          .from(userGroupMembers)
+          .where(eq(userGroupMembers.groupId, audience.groupId));
+        const ids = members.map((m) => m.user_id);
+        if (ids.length === 0) return [];
+        const rows = await db
+          .select(RECIPIENT_COLUMNS)
+          .from(users)
+          .where(inArray(users.id, ids));
+        return rows.map(toRecipient);
+      }
 
-  if (audience.mode === "group") {
-    const { data: members } = await admin
-      .from("user_group_members")
-      .select("user_id")
-      .eq("group_id", audience.groupId);
-    const ids = (members ?? []).map((m) => m.user_id as string);
-    if (ids.length === 0) return [];
-    const { data } = await admin
-      .from("users")
-      .select("id, first_name, last_name, email, phone")
-      .in("id", ids);
-    return (data ?? []) as RecipientOption[];
+      if (audience.mode === "specific") {
+        if (audience.customerIds.length === 0) return [];
+        const rows = await db
+          .select(RECIPIENT_COLUMNS)
+          .from(users)
+          .where(inArray(users.id, audience.customerIds));
+        return rows.map(toRecipient);
+      }
+
+      // all
+      const rows = await db.select(RECIPIENT_COLUMNS).from(users);
+      return rows.map(toRecipient);
+    });
+  } catch (err) {
+    console.error("resolveRecipients error:", err);
+    return [];
   }
-
-  if (audience.mode === "specific") {
-    if (audience.customerIds.length === 0) return [];
-    const { data } = await admin
-      .from("users")
-      .select("id, first_name, last_name, email, phone")
-      .in("id", audience.customerIds);
-    return (data ?? []) as RecipientOption[];
-  }
-
-  // all
-  const { data } = await admin
-    .from("users")
-    .select("id, first_name, last_name, email, phone");
-  return (data ?? []) as RecipientOption[];
 }
 
 const RECIPIENT_INSERT_CHUNK = 1000;
@@ -326,27 +356,28 @@ export async function sendCouponEmail(
       error: "None of the selected customers have an email address on file.",
     };
 
-  const admin = createAdminClient();
-
   // 1. Create the campaign (holds the shared subject/body/code).
-  const { data: campaign, error: campaignError } = await admin
-    .from("email_campaigns")
-    .insert({
-      subject: input.subject,
-      body: input.body,
-      code: input.code,
-      discount_label: input.discountLabel,
-      valid_until_label: input.validUntilLabel ?? null,
-      total: withEmail.length,
-      skipped_no_email: skippedNoEmail,
-      created_by: userId,
-      store_id: storeId,
-    })
-    .select("id")
-    .single();
-
-  if (campaignError || !campaign) {
-    console.error("Failed to create email campaign:", campaignError);
+  let campaignId: string;
+  try {
+    const [campaign] = await withService((db) =>
+      db
+        .insert(emailCampaigns)
+        .values({
+          subject: input.subject,
+          body: input.body,
+          code: input.code,
+          discountLabel: input.discountLabel,
+          validUntilLabel: input.validUntilLabel ?? null,
+          total: withEmail.length,
+          skippedNoEmail,
+          createdBy: userId,
+          storeId,
+        })
+        .returning({ id: emailCampaigns.id }),
+    );
+    campaignId = campaign.id;
+  } catch (err) {
+    console.error("Failed to create email campaign:", err);
     return {
       error:
         "Could not queue the campaign. Apply supabase/email_campaigns.sql, then try again.",
@@ -355,23 +386,25 @@ export async function sendCouponEmail(
 
   // 2. Insert one recipient row per address, in chunks (one round trip each).
   const rows = withEmail.map((r) => ({
-    campaign_id: campaign.id as string,
+    campaignId,
     email: r.email as string,
-    first_name: r.first_name?.trim() || "",
-    store_id: storeId,
+    firstName: r.first_name?.trim() || "",
+    storeId,
   }));
-
-  for (let i = 0; i < rows.length; i += RECIPIENT_INSERT_CHUNK) {
-    const { error: insertError } = await admin
-      .from("email_campaign_recipients")
-      .insert(rows.slice(i, i + RECIPIENT_INSERT_CHUNK));
-    if (insertError) {
-      console.error("Failed to enqueue recipients:", insertError);
-      return {
-        error:
-          "Could not queue all recipients. Some may not receive the email — check the logs.",
-      };
-    }
+  try {
+    await withService(async (db) => {
+      for (let i = 0; i < rows.length; i += RECIPIENT_INSERT_CHUNK) {
+        await db
+          .insert(emailCampaignRecipients)
+          .values(rows.slice(i, i + RECIPIENT_INSERT_CHUNK));
+      }
+    });
+  } catch (err) {
+    console.error("Failed to enqueue recipients:", err);
+    return {
+      error:
+        "Could not queue all recipients. Some may not receive the email — check the logs.",
+    };
   }
 
   // 3. Kick the worker after the response is sent (cron is the fallback).

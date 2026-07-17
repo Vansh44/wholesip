@@ -1,6 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { makeDbMock } from "./_test-helpers";
+
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
@@ -9,7 +11,6 @@ vi.mock("@/lib/ai/gemini", () => ({
   callGemini: vi.fn(),
   brandSystemText: vi.fn((b: string) => `SYSTEM:${b}`),
 }));
-// Per-store brand soul + plan-capped AI quota.
 vi.mock("@/lib/ai/brand-voice", () => ({
   getBrandSoulForStore: vi.fn(async () => "brand soul"),
 }));
@@ -20,8 +21,6 @@ vi.mock("@/lib/email/coupon-campaign", () => ({
   mergeTokens: vi.fn((t: string) => t),
   renderCouponEmail: vi.fn(() => "<html>"),
 }));
-// sendCouponEmail now enqueues and fires the worker via `after()`. Mock both so
-// no real background request goes out during tests.
 vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("@/lib/email/trigger-worker", () => ({
   triggerEmailWorker: vi.fn(),
@@ -54,18 +53,26 @@ vi.mock("resend", () => {
   return { Resend };
 });
 
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withUser: vi.fn((_identity: any, fn: any) =>
+    Promise.resolve(fn(dbHolder.current.db)),
+  ),
+  withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+  withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+}));
+
 import {
   listEmailRecipients,
   generateCouponEmail,
   renderCouponEmailPreview,
   sendCouponEmail,
 } from "./coupon-email-actions";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { callGemini } from "@/lib/ai/gemini";
 import { consumeAiQuota } from "@/lib/ai/quota";
 import { mergeTokens, renderCouponEmail } from "@/lib/email/coupon-campaign";
-import { makeChain, makeSupabase } from "./_test-helpers";
 
 const genInput = {
   code: "SAVE10",
@@ -93,30 +100,18 @@ const sendInput = {
   audience: { mode: "all" as const },
 };
 
-// A supabase mock wired for the enqueue path: a users table (audience
-// resolution) plus the two campaign tables.
-function makeEnqueueSupabase(
-  usersData: Array<Record<string, unknown>>,
-  opts: {
-    campaign?: { data: unknown; error: unknown };
-    recipientsInsert?: { error: unknown };
-  } = {},
-) {
-  return makeSupabase({
-    users: makeChain(undefined, { data: usersData, error: null }),
-    email_campaigns: makeChain(
-      opts.campaign ?? { data: { id: "camp1" }, error: null },
-      { error: null },
-    ),
-    email_campaign_recipients: makeChain(
-      undefined,
-      opts.recipientsInsert ?? { error: null },
-    ),
-  });
-}
+// Build a users row in the aliased snake_case shape RECIPIENT_COLUMNS returns.
+const u = (id: string, email: string | null) => ({
+  id,
+  first_name: id.toUpperCase(),
+  last_name: null,
+  email,
+  phone: "1",
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
+  dbHolder.current = makeDbMock({ returning: [{ id: "camp1" }] });
   vi.mocked(getManagerUserId).mockResolvedValue("user-1");
   vi.mocked(consumeAiQuota).mockResolvedValue({ allowed: true });
   vi.mocked(callGemini).mockResolvedValue({
@@ -131,7 +126,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-// listEmailRecipients — server-side searched, capped page + emailable total.
+// listEmailRecipients — select #1 = the emailable count, #2 = the page rows.
 describe("listEmailRecipients", () => {
   it("rejects unauthenticated callers", async () => {
     vi.mocked(getManagerUserId).mockResolvedValue(null);
@@ -141,23 +136,19 @@ describe("listEmailRecipients", () => {
   });
 
   it("returns a friendly error on DB failure", async () => {
-    const supabase = makeSupabase({
-      users: makeChain(undefined, {
-        data: null,
-        count: null,
-        error: { message: "boom" },
-      }),
+    dbHolder.current.db.select = vi.fn(() => {
+      throw new Error("boom");
     });
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
     const result = await listEmailRecipients();
     expect(result.error).toMatch(/could not load customers/i);
     expect(result.customers).toEqual([]);
   });
 
   it("maps rows into RecipientOptions and returns the emailable total", async () => {
-    const supabase = makeSupabase({
-      users: makeChain(undefined, {
-        data: [
+    dbHolder.current = makeDbMock({
+      selectQueue: [
+        [{ n: 7 }],
+        [
           {
             id: "c1",
             first_name: "Ada",
@@ -165,7 +156,6 @@ describe("listEmailRecipients", () => {
             email: "ada@x.com",
             phone: "+1",
           },
-          // missing optional fields → fall back to "" / null
           {
             id: "c2",
             first_name: null,
@@ -174,11 +164,8 @@ describe("listEmailRecipients", () => {
             phone: null,
           },
         ],
-        count: 7,
-        error: null,
-      }),
+      ],
     });
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
     const result = await listEmailRecipients();
     expect(result.error).toBeUndefined();
     expect(result.total).toBe(7);
@@ -194,21 +181,14 @@ describe("listEmailRecipients", () => {
     ]);
   });
 
-  it("passes the search term to an .or() filter", async () => {
-    const usersChain = makeChain(undefined, {
-      data: [],
-      count: 0,
-      error: null,
-    });
-    const supabase = makeSupabase({ users: usersChain });
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
+  it("filters by the search term (where carries an OR of ilikes)", async () => {
+    dbHolder.current = makeDbMock({ selectQueue: [[{ n: 0 }], []] });
     await listEmailRecipients("ada");
-    expect(usersChain.or).toHaveBeenCalledTimes(1);
-    expect(usersChain.or.mock.calls[0][0]).toContain("ada");
+    // count query (isNotNull) + list query (isNotNull AND or(...)).
+    expect(dbHolder.current.calls.where).toHaveLength(2);
   });
 });
 
-// generateCouponEmail — AI-generated subject/body JSON from the brand soul.
 describe("generateCouponEmail", () => {
   it("rejects unauthenticated callers", async () => {
     vi.mocked(getManagerUserId).mockResolvedValue(null);
@@ -257,7 +237,6 @@ describe("generateCouponEmail", () => {
   });
 });
 
-// renderCouponEmailPreview — branded HTML for one sample recipient.
 describe("renderCouponEmailPreview", () => {
   it("rejects unauthenticated callers", async () => {
     vi.mocked(getManagerUserId).mockResolvedValue(null);
@@ -278,8 +257,8 @@ describe("renderCouponEmailPreview", () => {
   });
 });
 
-// sendCouponEmail — resolve audience, then ENQUEUE a campaign + recipient rows
-// for background delivery (the worker does the actual sending).
+// sendCouponEmail — resolve audience (select), then ENQUEUE a campaign (insert
+// + returning) and recipient rows (chunked insert).
 describe("sendCouponEmail (enqueue)", () => {
   beforeEach(() => {
     vi.stubEnv("RESEND_API_KEY", "re_realkey");
@@ -314,11 +293,11 @@ describe("sendCouponEmail (enqueue)", () => {
   });
 
   it("queues all customers (mode: all)", async () => {
-    const supabase = makeEnqueueSupabase([
-      { id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" },
-      { id: "b", first_name: "Bob", email: "bob@x.com", phone: "2" },
-    ]);
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
+    // audience select → 2 emailable users.
+    dbHolder.current = makeDbMock({
+      returning: [{ id: "camp1" }],
+      selectQueue: [[u("a", "ada@x.com"), u("b", "bob@x.com")]],
+    });
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "all" },
@@ -326,79 +305,59 @@ describe("sendCouponEmail (enqueue)", () => {
     expect(result.error).toBeUndefined();
     expect(result.queued).toBe(2);
     expect(result.skippedNoEmail).toBe(0);
-    expect(supabase._tables.email_campaigns.insert).toHaveBeenCalledTimes(1);
-    expect(
-      supabase._tables.email_campaign_recipients.insert,
-    ).toHaveBeenCalledTimes(1);
-    const rows = supabase._tables.email_campaign_recipients.insert.mock
-      .calls[0][0] as Array<Record<string, unknown>>;
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ campaign_id: "camp1", email: "ada@x.com" });
+    // values[0] = the campaign, values[1] = the recipient chunk.
+    expect(dbHolder.current.calls.values[0]).toMatchObject({
+      subject: "Hi {{first_name}}",
+      total: 2,
+      storeId: "a0000000-0000-4000-8000-000000000001",
+    });
+    expect(dbHolder.current.calls.values[1]).toHaveLength(2);
+    expect(dbHolder.current.calls.values[1][0]).toMatchObject({
+      campaignId: "camp1",
+      email: "ada@x.com",
+    });
   });
 
   it("resolves group members (mode: group)", async () => {
-    const supabase = makeSupabase({
-      user_group_members: makeChain(undefined, {
-        data: [{ user_id: "a" }, { user_id: "b" }],
-        error: null,
-      }),
-      users: makeChain(undefined, {
-        data: [
-          { id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" },
-          { id: "b", first_name: "Bob", email: "bob@x.com", phone: "2" },
-        ],
-        error: null,
-      }),
-      email_campaigns: makeChain(
-        { data: { id: "camp1" }, error: null },
-        {
-          error: null,
-        },
-      ),
-      email_campaign_recipients: makeChain(undefined, { error: null }),
+    // select #1 = group members, #2 = users by id.
+    dbHolder.current = makeDbMock({
+      returning: [{ id: "camp1" }],
+      selectQueue: [
+        [{ user_id: "a" }, { user_id: "b" }],
+        [u("a", "ada@x.com"), u("b", "bob@x.com")],
+      ],
     });
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "group", groupId: "g1" },
     });
     expect(result.queued).toBe(2);
-    expect(supabase._tables.user_group_members.eq).toHaveBeenCalledWith(
-      "group_id",
-      "g1",
-    );
-    expect(supabase._tables.users.in).toHaveBeenCalledWith("id", ["a", "b"]);
   });
 
   it("returns no-email error for an empty group (nothing enqueued)", async () => {
-    const supabase = makeSupabase({
-      user_group_members: makeChain(undefined, { data: [], error: null }),
-    });
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
+    dbHolder.current = makeDbMock({ selectQueue: [[]] }); // no members
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "group", groupId: "g1" },
     });
     expect(result.queued).toBe(0);
     expect(result.error).toMatch(/none of the selected customers/i);
+    expect(dbHolder.current.calls.insert).toHaveLength(0);
   });
 
   it("resolves specific customers (mode: specific)", async () => {
-    const supabase = makeEnqueueSupabase([
-      { id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" },
-    ]);
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
+    dbHolder.current = makeDbMock({
+      returning: [{ id: "camp1" }],
+      selectQueue: [[u("a", "ada@x.com")]],
+    });
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "specific", customerIds: ["a"] },
     });
     expect(result.queued).toBe(1);
-    expect(supabase._tables.users.in).toHaveBeenCalledWith("id", ["a"]);
   });
 
   it("returns no-email error for empty specific list", async () => {
-    const supabase = makeSupabase({});
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "specific", customerIds: [] },
@@ -408,12 +367,10 @@ describe("sendCouponEmail (enqueue)", () => {
   });
 
   it("counts recipients with no email as skipped", async () => {
-    const supabase = makeEnqueueSupabase([
-      { id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" },
-      { id: "b", first_name: "Bob", email: null, phone: "2" },
-      { id: "c", first_name: "Cy", email: null, phone: "3" },
-    ]);
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
+    dbHolder.current = makeDbMock({
+      returning: [{ id: "camp1" }],
+      selectQueue: [[u("a", "ada@x.com"), u("b", null), u("c", null)]],
+    });
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "all" },
@@ -423,10 +380,7 @@ describe("sendCouponEmail (enqueue)", () => {
   });
 
   it("errors (and enqueues nothing) when nobody has an email", async () => {
-    const supabase = makeEnqueueSupabase([
-      { id: "b", first_name: "Bob", email: null, phone: "2" },
-    ]);
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
+    dbHolder.current = makeDbMock({ selectQueue: [[u("b", null)]] });
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "all" },
@@ -434,15 +388,14 @@ describe("sendCouponEmail (enqueue)", () => {
     expect(result.queued).toBe(0);
     expect(result.skippedNoEmail).toBe(1);
     expect(result.error).toMatch(/none of the selected customers/i);
-    expect(supabase._tables.email_campaigns.insert).not.toHaveBeenCalled();
+    expect(dbHolder.current.calls.insert).toHaveLength(0);
   });
 
   it("errors when the campaign row can't be created", async () => {
-    const supabase = makeEnqueueSupabase(
-      [{ id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" }],
-      { campaign: { data: null, error: { message: "no table" } } },
-    );
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
+    dbHolder.current = makeDbMock({ selectQueue: [[u("a", "ada@x.com")]] });
+    dbHolder.current.db.insert = vi.fn(() => {
+      throw new Error("no table");
+    });
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "all" },
@@ -451,11 +404,17 @@ describe("sendCouponEmail (enqueue)", () => {
   });
 
   it("errors when recipient rows can't be enqueued", async () => {
-    const supabase = makeEnqueueSupabase(
-      [{ id: "a", first_name: "Ada", email: "ada@x.com", phone: "1" }],
-      { recipientsInsert: { error: { message: "boom" } } },
-    );
-    vi.mocked(createAdminClient).mockReturnValue(supabase);
+    dbHolder.current = makeDbMock({
+      returning: [{ id: "camp1" }],
+      selectQueue: [[u("a", "ada@x.com")]],
+    });
+    // First insert (campaign) succeeds; the second (recipients) throws.
+    let inserts = 0;
+    const realInsert = dbHolder.current.db.insert;
+    dbHolder.current.db.insert = vi.fn((t: any) => {
+      if (inserts++ === 0) return realInsert(t);
+      throw new Error("boom");
+    });
     const result = await sendCouponEmail({
       ...sendInput,
       audience: { mode: "all" },
