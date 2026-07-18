@@ -17,7 +17,10 @@ function req(url: string, host = "shop.storemink.com") {
   return new NextRequest(new URL(url), { headers: { host } });
 }
 
-function signedIn(claims: { role?: string | null; forcePasswordReset?: boolean }) {
+function signedIn(claims: {
+  role?: string | null;
+  forcePasswordReset?: boolean;
+}) {
   vi.mocked(verifySessionCookie).mockResolvedValue({
     uid: "u1",
     email: "a@b.com",
@@ -78,7 +81,9 @@ describe("proxy — store-host session gate", () => {
   });
 
   it("requires auth for /auth/set-password", async () => {
-    const res = await proxy(req("https://shop.storemink.com/auth/set-password"));
+    const res = await proxy(
+      req("https://shop.storemink.com/auth/set-password"),
+    );
     expect(loc(res)).toContain("/auth/login");
   });
 

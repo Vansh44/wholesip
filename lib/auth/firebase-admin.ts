@@ -40,7 +40,10 @@ function initApp(): App | null {
       });
     }
     // Application Default Credentials (Cloud Run default service account).
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT_ID) {
+    if (
+      process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+      process.env.GCP_PROJECT_ID
+    ) {
       return initializeApp({
         credential: applicationDefault(),
         projectId: process.env.GCP_PROJECT_ID || projectId,

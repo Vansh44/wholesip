@@ -60,7 +60,8 @@ export async function proxy(request: NextRequest) {
       if (!user) return redirectTo("/auth/login");
 
       // --- Gate 2: Force password reset ---
-      if (user.claims.forcePasswordReset) return redirectTo("/auth/set-password");
+      if (user.claims.forcePasswordReset)
+        return redirectTo("/auth/set-password");
 
       // --- Gate 3: Role-based access for restricted dashboard routes ---
       if (

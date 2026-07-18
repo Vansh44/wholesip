@@ -224,17 +224,13 @@ export default function AuthModal() {
       } catch (err) {
         registerFailedVerify();
         setError(
-          firebaseAuthErrorMessage(err) || "Verification failed. Please try again.",
+          firebaseAuthErrorMessage(err) ||
+            "Verification failed. Please try again.",
         );
         setLoading(false);
       }
     },
-    [
-      refreshCustomer,
-      closeAuthModal,
-      verifyBlocked,
-      registerFailedVerify,
-    ],
+    [refreshCustomer, closeAuthModal, verifyBlocked, registerFailedVerify],
   );
 
   // ---- OTP input handlers ----

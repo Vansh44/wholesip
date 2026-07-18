@@ -18,7 +18,10 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as { idToken?: unknown };
     idToken = typeof body.idToken === "string" ? body.idToken : undefined;
   } catch {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request body." },
+      { status: 400 },
+    );
   }
   if (!idToken) {
     return NextResponse.json({ error: "Missing idToken." }, { status: 400 });

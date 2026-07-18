@@ -43,13 +43,18 @@ Every request belongs to exactly one store, resolved from the **Host header**.
 | `{slug}.storemink.com`, `{slug}.localhost`                   | **Store subdomain** — storefront + `/dashboard` + `/auth` served directly                                         |
 | Anything else                                                | **Custom domain** — must have `settings.custom_domain_verified === true` to resolve                               |
 
-`proxy.ts` also gates auth: `/dashboard` requires a Supabase session (redirect to
-`/auth/login`), enforces `force_password_reset` → `/auth/set-password`, and
-restricts `/dashboard/users` + `/dashboard/media` to role `superadmin`.
-Storefront paths skip the session check entirely (anonymous + cache-friendly).
-Paths with a file extension (public/ assets like `/themes/...webp`) pass
-through untouched on EVERY host — the platform/help rewrites would otherwise
-404 them.
+`proxy.ts` also gates auth: `/dashboard` requires a valid **Firebase session
+cookie** (`sm_session`; redirect to `/auth/login`), enforces
+`force_password_reset` → `/auth/set-password`, and restricts `/dashboard/users`
+
+- `/dashboard/media` to role `superadmin`. The `role`/`force_password_reset`
+  custom claims + the uid are read straight from the verified session cookie (no
+  DB query). Next.js 16 `proxy.ts` runs on the **Node runtime** by default, so it
+  verifies the cookie with `firebase-admin` directly (no edge/`jose` workaround).
+  Storefront paths skip the session check entirely (anonymous + cache-friendly).
+  Paths with a file extension (public/ assets like `/themes/...webp`) pass
+  through untouched on EVERY host — the platform/help rewrites would otherwise
+  404 them.
 
 ### Tenant resolution — `lib/store/`
 
@@ -403,7 +408,9 @@ wholesip/
 │   ├── store_pages.sql        # ★ merchant custom pages (draft + published_sections jsonb;
 │   │                          # RLS via is_store_admin; anon SELECT REVOKED then GRANTed on
 │   │                          # named cols WITHOUT draft `sections` — see §11) (+ rollback)
-│   ├── custom_access_token_hook.sql     # JWT claims (role, force_password_reset)
+│   ├── custom_access_token_hook.sql     # JWT claims (role, force_password_reset) —
+│   │                          # SUPERSEDED in Phase 6 by Firebase custom claims (lib/auth/
+│   │                          # firebase-claims.ts); kept for the Supabase-era rollback
 │   └── perf_*.sql             # index / RLS performance migrations
 │
 ├── brand/tasks/               # AI copy TASK prompts (product-desc.md, seo-meta.md), read at
@@ -513,9 +520,10 @@ wholesip/
     the builder. Two disjoint code paths (published cached / draft uncached) ⇒
     no cache poisoning. - **Sandboxed custom code**: merchant JS runs ONLY inside
     `custom-code-frame.tsx` — an iframe with `sandbox="allow-scripts
-allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
-    cookies are `httpOnly:false`, `Domain=.storemink.com`; same-origin inline
-    JS could steal any visitor's session). Auto-height via ResizeObserver →
+allow-popups"` + `srcDoc`, **never `allow-same-origin`**: the session cookie
+    is `Domain=.storemink.com`, so same-origin inline JS could ride a visitor's
+    session to make authenticated requests (the Firebase `sm_session` cookie is
+    httpOnly, but same-origin scripts still send it automatically). Auto-height via ResizeObserver →
     `postMessage`, parent clamps 40–4000px. `</script`/`</style` escaped in
     merchant strings; each string capped 64 KB. `rich_text` is the inline/SEO
     counterpart: sanitized at save AND render via `lib/sanitize.ts` (blog trust
@@ -673,9 +681,10 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
 12. **Checkout & orders security model (COD).** A signed-in shopper places an
     order from `/checkout`; `placeOrder` (`app/actions/checkout-actions.ts`) is
     the trust boundary and layers its defenses in order:
-    - **Auth**: `supabase.auth.getUser()` on the cookie client — anonymous is
-      rejected. **Rate limit**: `rateLimit("checkout:{userId}")` (Postgres,
-      cross-instance, fails open) throttles spam/double-submit.
+    - **Auth**: `getServerUser()` (the identity seam — verifies the Firebase
+      session cookie) — anonymous is rejected. **Rate limit**:
+      `rateLimit("checkout:{userId}")` (Postgres, cross-instance, fails open)
+      throttles spam/double-submit.
     - **Input validation**: line-item count, per-line integer quantity, and all
       required address fields are validated server-side (the form's `required`
       attr is only a UX hint); stored address values are trimmed + length-capped.
@@ -961,55 +970,44 @@ npm run format      # prettier --write
 
 ## 7. Environments / external services
 
-- **Supabase**: Postgres + Auth + Storage (`media` bucket). Env in `.env`
-  (never commit secrets). Supabase MCP server available for SQL/migrations.
-  **Auth-hardening (dashboard config — enforce in the Supabase console, not code):**
-  (1) enable **CAPTCHA** (hCaptcha/Turnstile) on Auth so signup/OTP endpoints
-  (`signUp`, `signInWithOtp`, `updateUser({phone})` — merchant + customer) can't
-  be scripted for SMS-pumping / OTP-flooding; (2) turn on **leaked-password
-  protection** (HaveIBeenPwned); (3) keep **SMS/email OTP rate limits** tight.
-  These auth sends happen client-side against Supabase, so the app's Postgres
-  `rateLimit()` can't cover them — the console controls are the real boundary.
+- **Supabase** (being decommissioned by the GCP migration): Postgres → Cloud SQL
+  (Phase 5), Auth → Identity Platform (Phase 6), Storage `media` bucket → GCS
+  (Phase 3, with a Supabase Storage FALLBACK still wired in `api/upload*` until
+  the media backfill). Only that storage fallback still reads Supabase; drop
+  `NEXT_PUBLIC_SUPABASE_*` / `SUPABASE_SERVICE_ROLE_KEY` once media is migrated.
   App-side password floor is 8 chars (`app/platform/signup/page.tsx`).
-- **Auth / OAuth setup (Supabase console — per environment; NOT in code).** The
-  signup wizard (§19) + store login (`app/auth/login`) both need this configured
-  per Supabase project, or Google sign-in / phone-only signup silently break:
-  - **Confirm email = OFF** (Authentication → Providers → Email). Phone-only
-    signup relies on `signUp` returning a session immediately; with confirm on,
-    no session is issued and the phone step (and store login for password users)
-    stalls. Password-user recovery aside, this MUST be off.
-  - **Google provider = ON** (Authentication → Providers → Google) with a Client
-    ID/secret from a Google Cloud OAuth **Web** client. In Google Cloud, the
-    client's **Authorised redirect URIs** must list each project's Supabase
-    callback `https://<project-ref>.supabase.co/auth/v1/callback` (this is the
-    ONLY Google-side URL — app domains never go in Google). One Google client
-    can serve multiple Supabase projects (list each project's callback).
-  - **SMS provider configured** (Authentication → Providers → Phone, e.g. Twilio)
-    or the phone OTP never sends.
-  - **Redirect URLs** (Authentication → URL Configuration) — where Supabase may
-    send the browser back AFTER auth. Store hosts are `{slug}.{ROOT_DOMAIN}`
-    (`lib/store/host.ts`), so BOTH the platform host (signup) AND a
-    wildcard-subdomain (store dashboards) are needed. A missing store-subdomain
-    entry makes Supabase fall back to the **Site URL** → the user lands on the
-    platform host's operator login instead of their store. Matrix:
-    - **local dev** (uses the staging project): `http://localhost:3000/**` +
-      `http://*.localhost:3000/**` (store subdomains are `{slug}.localhost:3000`).
-      NB cross-subdomain cookies are flaky on `localhost` — the seamless
-      signup→dashboard handoff is reliable only on real domains.
-    - **staging** (`NEXT_PUBLIC_ROOT_DOMAIN=staging.storemink.com`, so stores are
-      `{slug}.staging.storemink.com` — TWO levels): `https://staging.storemink.com/**`
-      - `https://*.staging.storemink.com/**`. `*.staging.storemink.com` needs its
-        OWN wildcard DNS + TLS cert (a `*.storemink.com` cert does NOT cover a
-        two-level subdomain). Set the project's **Site URL** to
-        `https://staging.storemink.com`.
-    - **production**: `https://storemink.com/**` + `https://*.storemink.com/**`
-      (+ `https://www.storemink.com/**` if www serves the platform). Site URL
-      `https://storemink.com`.
-  - **Isolation**: keep each Supabase project's Redirect URLs scoped to its own
-    env's domains — don't cross-list localhost/staging into production (a staging
-    build could otherwise complete auth against prod). The staging project
-    intentionally holds BOTH localhost and `staging.storemink.com` because local
-    dev points at staging.
+- **Identity Platform (Firebase Auth) — the auth provider (GCP Phase 6).** All
+  auth goes through `lib/auth/*` (see §4). **ENV:**
+  - **Server (Admin SDK)**: `FIREBASE_PROJECT_ID` + `FIREBASE_CLIENT_EMAIL` +
+    `FIREBASE_PRIVATE_KEY` (service account; `\n`-escaped key), OR Application
+    Default Credentials (automatic on Cloud Run; locally set
+    `GOOGLE_APPLICATION_CREDENTIALS` to a SA key file, or `GCP_PROJECT_ID` — either
+    triggers the ADC path). `FIREBASE_API_KEY` (web API key) is ALSO read
+    server-side for the change-password re-verify (the REST
+    `accounts:signInWithPassword` call — the Admin SDK can't check a password).
+  - **Client (Web SDK)**: `NEXT_PUBLIC_FIREBASE_API_KEY`, `_AUTH_DOMAIN`,
+    `_PROJECT_ID`, `_STORAGE_BUCKET`, `_MESSAGING_SENDER_ID`, `_APP_ID` (the public
+    Firebase web config — not secret).
+  - **Console setup (Identity Platform, per project — NOT in code):**
+    - **Providers**: enable **Email/Password**, **Email link (passwordless)** (the
+      operator login uses it), **Google**, and **Phone**. Phone requires
+      **reCAPTCHA** (the app uses an invisible `RecaptchaVerifier`) — this also
+      covers the anti-abuse / SMS-pumping hardening (the old Supabase CAPTCHA item).
+    - **Google**: a Google Cloud OAuth **Web** client; put its client id/secret on
+      the Google provider. Sign-in uses `signInWithPopup` (no callback route), so
+      no app redirect URIs go into Google — only Firebase's own auth handler does.
+    - **Authorized domains** (Authentication → Settings): list every host the app
+      runs on so popup + email-link work — `localhost`, `storemink.com`,
+      `*.storemink.com` (+ the staging equivalents). Unlike Supabase there is NO
+      per-path Redirect-URL matrix; popup / email-link just need the domain
+      authorized. Cross-subdomain session cookies still span `.storemink.com`
+      (set by `/api/auth/session`), so the signup→dashboard handoff works across
+      subdomains on real domains (flaky on `localhost`, as before).
+  - **User import**: bring existing Supabase users into Identity Platform
+    preserving the same **uid** — `admin.auth().importUsers()` with the
+    `auth.users` dump (bcrypt hashes carry over → no password resets). uids stay
+    identical, so every `admins`/`users` FK + the `app.current_user_id` GUC keep
+    working with zero remapping.
 - **Vercel**: hosting + cron. Wildcard domain `*.storemink.com` → store subdomains.
 - **Resend**: transactional email + custom-domain DNS verification.
 - **Google Cloud Storage** (media, GCP migration Phase 3 — `lib/storage/gcs.ts`):
