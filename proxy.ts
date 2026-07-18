@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
 import { parseHost, isHelpHost } from "@/lib/store/host";
 import { logError } from "@/lib/observability/logger";
+import { SESSION_COOKIE, verifySessionCookie } from "@/lib/auth/session-cookie";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -36,96 +36,55 @@ export async function proxy(request: NextRequest) {
   }
 
   // --- Store hosts ({slug}.storemink.com / custom domains) ---
-  // Only the dashboard + auth routes need the Supabase session gate; the
-  // storefront stays anonymous + cache-friendly (no per-request auth check).
+  // Only the dashboard + auth routes need the session gate; the storefront stays
+  // anonymous + cache-friendly (no per-request auth check).
   if (!pathname.startsWith("/dashboard") && !pathname.startsWith("/auth")) {
     return NextResponse.next();
   }
 
   try {
-    const { supabase, user, supabaseResponse, claims } =
-      await updateSession(request);
+    // Verify the Firebase session cookie (Node runtime — see the file-level note
+    // in lib/auth/session-cookie.ts). role / force_password_reset ride in the
+    // cookie's custom claims, so gating needs NO DB query.
+    const session = request.cookies.get(SESSION_COOKIE)?.value;
+    const user = await verifySessionCookie(session);
 
-    // Resolve role / force_password_reset from JWT claims when available
-    // (no DB query), falling back to a profiles lookup otherwise.
-    async function getProfileState(): Promise<{
-      role: string | null;
-      forcePasswordReset: boolean;
-      exists: boolean;
-    } | null> {
-      if (claims.hasClaims) {
-        return {
-          role: claims.role,
-          forcePasswordReset: claims.forcePasswordReset,
-          exists: claims.role !== null,
-        };
-      }
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("role, force_password_reset")
-        .eq("id", user!.id)
-        .single();
-      if (!profile || error) return null;
-      return {
-        role: profile.role,
-        forcePasswordReset: profile.force_password_reset,
-        exists: true,
-      };
-    }
+    const redirectTo = (path: string) => {
+      const url = request.nextUrl.clone();
+      url.pathname = path;
+      return NextResponse.redirect(url);
+    };
 
     // --- Gate 1: Auth check for /dashboard routes ---
     if (pathname.startsWith("/dashboard")) {
-      if (!user) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/auth/login";
-        return NextResponse.redirect(url);
-      }
+      if (!user) return redirectTo("/auth/login");
 
-      const state = await getProfileState();
+      // --- Gate 2: Force password reset ---
+      if (user.claims.forcePasswordReset) return redirectTo("/auth/set-password");
 
-      if (state && state.exists) {
-        // --- Gate 2: Force password reset ---
-        if (state.forcePasswordReset) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/auth/set-password";
-          return NextResponse.redirect(url);
-        }
-
-        // --- Gate 3: Role-based access for restricted dashboard routes ---
-        if (
-          (pathname.startsWith("/dashboard/users") ||
-            pathname.startsWith("/dashboard/media")) &&
-          state.role !== "superadmin"
-        ) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/dashboard";
-          return NextResponse.redirect(url);
-        }
+      // --- Gate 3: Role-based access for restricted dashboard routes ---
+      if (
+        (pathname.startsWith("/dashboard/users") ||
+          pathname.startsWith("/dashboard/media")) &&
+        user.claims.role !== "superadmin"
+      ) {
+        return redirectTo("/dashboard");
       }
     }
 
     // --- Gate for /auth/set-password: must be authenticated ---
-    if (pathname === "/auth/set-password") {
-      if (!user) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/auth/login";
-        return NextResponse.redirect(url);
-      }
+    if (pathname === "/auth/set-password" && !user) {
+      return redirectTo("/auth/login");
     }
 
     // --- Redirect authenticated users away from login page ---
     if (pathname === "/auth/login" && user) {
-      const state = await getProfileState();
-      if (state && state.exists) {
-        const url = request.nextUrl.clone();
-        url.pathname = state.forcePasswordReset
-          ? "/auth/set-password"
-          : "/dashboard";
-        return NextResponse.redirect(url);
-      }
+      return redirectTo(
+        user.claims.forcePasswordReset ? "/auth/set-password" : "/dashboard",
+      );
     }
 
-    return supabaseResponse;
+    return NextResponse.next();
   } catch (error: unknown) {
     logError("proxy: middleware exception", error, { path: pathname, host });
     return new NextResponse(
