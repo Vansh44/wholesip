@@ -978,6 +978,21 @@ npm run format      # prettier --write
   App-side password floor is 8 chars (`app/platform/signup/page.tsx`).
 - **Identity Platform (Firebase Auth) — the auth provider (GCP Phase 6).** All
   auth goes through `lib/auth/*` (see §4). **ENV:**
+  - **One Identity Platform project PER ENVIRONMENT, paired with that env's Cloud
+    SQL instance** (isolation, mirroring the two Cloud SQL instances). The pairing
+    is mandatory because `admins.id`/`users.id` in Cloud SQL ARE the Firebase uid —
+    crossing them (e.g. staging DB + prod project) makes `getServerUser` return
+    uids with no matching row → everything reads as signed-out. So the
+    `NEXT_PUBLIC_FIREBASE_*` (and server SA) values DIFFER per environment:
+    | env | Cloud SQL (`DB_*`) | Firebase/IP project | keys |
+    | ---------- | -------------------- | ------------------- | ----------- |
+    | local dev | `storemink-staging` | **staging** project | staging |
+    | staging | `storemink-staging` | **staging** project | staging |
+    | production | prod instance | **prod** project | prod |
+    Local dev uses the STAGING project (its DB holds staging-project uids), exactly
+    as local dev pointed at the staging Supabase project before. The web `apiKey`
+    is NOT a secret — it's a public project id; separate projects are about
+    ISOLATING test users/SMS from prod, not secrecy.
   - **Server (Admin SDK)**: `FIREBASE_PROJECT_ID` + `FIREBASE_CLIENT_EMAIL` +
     `FIREBASE_PRIVATE_KEY` (service account; `\n`-escaped key), OR Application
     Default Credentials (automatic on Cloud Run; locally set
