@@ -172,17 +172,18 @@ wholesip/
 │   │   │                      # step order — email → password (+ Continue with
 │   │   │                      # Google) → phone OTP → name → store + location →
 │   │   │                      # theme → plan (Razorpay autopay for paid plans).
-│   │   │                      # Phone-only verification (email-confirm OFF).
-│   │   ├── auth/callback/     # ★ Platform-host OAuth callback (route.ts): the
-│   │   │                      # store-host /auth/callback is unreachable here
-│   │   │                      # (proxy rewrites → /platform/*), so Google sign-in
-│   │   │                      # from /signup lands here → exchange code → /signup.
-│   │   ├── login/             # Platform login
+│   │   │                      # Firebase: Google via signInWithPopup (no callback
+│   │   │                      # route), phone via signInWithPhoneNumber.
+│   │   ├── login/             # Platform-operator login — Firebase email-LINK sign-in
 │   │   └── dashboard/         # Platform-admin console: stores-console, operators-console
 │   │                          # (guarded by supabase/multitenant_07_platform_admins.sql)
+│   │                          # (the OAuth callback route was removed in Phase 6 —
+│   │                          # Google now uses signInWithPopup)
 │   │
-│   ├── auth/                  # Store-host auth: login, forgot/set/update-password,
-│   │                          # callback/route.ts (OAuth/OTP callback)
+│   ├── api/auth/              # ★ Phase 6 session bridge: session/route.ts (ID token →
+│   │                          # httpOnly Firebase session cookie), signout/route.ts (clear it)
+│   ├── auth/                  # Store-host auth: login (email+pw + Google popup),
+│   │                          # forgot/set/update-password (Firebase; callback route removed)
 │   ├── help/                  # Help centre (served at help.storemink.com)
 │   │
 │   ├── actions/               # ★ ALL SERVER ACTIONS ("use server") — one file per domain:
@@ -298,9 +299,19 @@ wholesip/
 │   │                          # shop/[slug] + blogs/[slug] pages — all withAnon;
 │   │                          # getBlog withUser for previews).
 │   │                          # drizzle/schema.ts numeric cols use mode:'number'.
-│   ├── auth/                  # ★ server-user.ts — getServerUser() identity seam (GCP Phase 5/6):
-│   │                          # the ONE place server code reads the authed user; feeds withUser.
-│   │                          # Wraps Supabase auth now; swaps to Identity Platform in Phase 6.
+│   ├── auth/                  # ★ Identity Platform auth (GCP Phase 6 — Firebase):
+│   │                          # server-user.ts — getServerUser() identity seam (the ONE
+│   │                          # place server code reads the authed user; feeds withUser),
+│   │                          # now verifies the Firebase SESSION COOKIE (no Supabase).
+│   │                          # firebase-admin.ts (lazy Admin SDK), session-cookie.ts
+│   │                          # (mint/verify + .storemink.com cookie), firebase-claims.ts
+│   │                          # (role/force_password_reset custom claims — replaces the
+│   │                          # custom_access_token_hook), firebase-users.ts (admin
+│   │                          # create/delete/update + REST password reverify + reset link),
+│   │                          # firebase-client.ts (Web SDK: establishSession → POST
+│   │                          # /api/auth/session, endSession, secondary app for phone-only
+│   │                          # verify). Delete an auth user does NOT cascade to the Cloud
+│   │                          # SQL admins/users row — callers delete BOTH.
 │   ├── storefront/            # queries.ts (cached storefront reads — getPublishedPage/
 │   │                          # getPublishedPageSlugs, named columns only), tags.ts
 │   │                          # (cache tags incl. TAGS.pages)
@@ -909,25 +920,20 @@ amountPaise}` for the modal. `confirmOnlinePayment` verifies the HMAC
     `admins.first_name`/`last_name`; the selling **location** (country + city)
     goes to `stores.settings.business` (anon-readable jsonb — non-secret, prints
     on invoices; convention #9). Country list in `lib/countries.ts` (pure,
-    client-safe, India-first). - **Phone-only verification**: email is NOT OTP-verified — `signUp` returns a
-    session immediately (REQUIRES "Confirm email" OFF in Supabase Auth) and
-    only the phone is OTP-verified (`updateUser({phone})` → `verifyOtp`
-    `phone_change`). `createStore` enforces `phone_confirmed_at` server-side
-    (the email check was dropped). - **Google**: `signInWithOAuth` with `redirectTo` `/auth/callback?next=/signup`;
-    the proxy rewrites that to the platform-host callback
-    (`app/platform/auth/callback/route.ts`), which exchanges the code and
-    returns to `/signup`. The wizard's mount effect calls `getSignupResumeInfo`
-    — an authenticated session with no store resumes at phone (or name, if
-    phone already verified, prefilling the Google name); an account that
-    already owns a store is bounced to its dashboard. This same resume path
-    recovers a refreshed tab. Enable the Google provider + add the callback to
-    Redirect URLs in the Supabase dashboard. **Google users have NO password**,
-    so the store-host login (`app/auth/login/login-form.tsx`) ALSO offers
-    "Continue with Google" (store-host `/auth/callback` is served directly, no
-    rewrite) — otherwise a Google-created owner is locked out of the email+
-    password form. Store-subdomain OAuth requires `https://*.storemink.com/**`
-    in Supabase Redirect URLs; a Google owner can also set a password via
-    "Forgot password?". - **Plan + payment**: the plan step reuses the existing merchant subscription
+    client-safe, India-first). - **Auth (Identity Platform, Phase 6)**: email/password via
+    `createUserWithEmailAndPassword` (falls back to `signInWithEmailAndPassword`
+    on `auth/email-already-in-use`); phone via `PhoneAuthProvider.verifyPhoneNumber`
+    (invisible reCAPTCHA) + `updatePhoneNumber`. After each sign-in / phone link
+    the client `establishSession()`s (POST the ID token → httpOnly cookie);
+    `createStore` enforces `phoneConfirmed` server-side via `getServerUser`, so
+    the wizard re-mints the cookie (`establishSession(forceRefresh)`) after phone
+    verify. - **Google**: `signInWithPopup(GoogleAuthProvider)` — entirely
+    client-side, NO OAuth callback route (removed in Phase 6). After the popup +
+    establishSession, the wizard calls `getSignupResumeInfo` to resume at the
+    right step (phone / name / dashboard); the same path recovers a refreshed tab
+    from the session cookie. **Google users have NO password**, so the store-host
+    login (`app/auth/login/login-form.tsx`) ALSO offers "Continue with Google"
+    (signInWithPopup); a Google owner can set a password via "Forgot password?". - **Plan + payment**: the plan step reuses the existing merchant subscription
     flow (§ subscription-actions). Free finishes immediately; a paid plan
     (Basic/Pro, monthly/yearly) creates the store first (on free), then opens
     the Razorpay **autopay mandate** via `startSignupSubscription` /

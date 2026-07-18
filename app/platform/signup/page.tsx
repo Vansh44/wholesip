@@ -1,8 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  PhoneAuthProvider,
+  RecaptchaVerifier,
+  updatePhoneNumber,
+} from "firebase/auth";
+import {
+  getFirebaseAuth,
+  establishSession,
+  firebaseAuthErrorMessage,
+} from "@/lib/auth/firebase-client";
 import {
   checkStoreSlugAvailability,
   createStore,
@@ -117,7 +130,22 @@ const PLAN_BULLETS: Record<Plan, string[]> = {
 };
 
 export default function SignupPage() {
-  const supabase = useMemo(() => createClient(), []);
+  // Firebase phone linking: invisible reCAPTCHA + the verificationId from
+  // PhoneAuthProvider, held across the send → verify steps.
+  const recaptchaRef = useRef<HTMLDivElement | null>(null);
+  const verifierRef = useRef<RecaptchaVerifier | null>(null);
+  const verificationIdRef = useRef<string | null>(null);
+
+  const getVerifier = useCallback((): RecaptchaVerifier => {
+    if (!verifierRef.current) {
+      verifierRef.current = new RecaptchaVerifier(
+        getFirebaseAuth(),
+        recaptchaRef.current!,
+        { size: "invisible" },
+      );
+    }
+    return verifierRef.current;
+  }, []);
 
   const [step, setStep] = useState<Step>("email");
   const [busy, setBusy] = useState(false);
@@ -159,28 +187,32 @@ export default function SignupPage() {
   const [createdStoreId, setCreatedStoreId] = useState<string | null>(null);
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
 
-  // On mount: resume after a Google redirect / refreshed tab. An account with a
-  // session but no store jumps to phone (or name, if phone already verified);
-  // an account that already owns a store goes to its dashboard.
+  // Place the wizard at the right step for the current session: an account that
+  // already owns a store goes to its dashboard; one with a session but no store
+  // jumps to phone (or name, if phone is already verified). Used both on mount
+  // (refreshed tab) and right after Google sign-in. Returns true if a session
+  // was found.
+  const resumeWizard = useCallback(async (): Promise<boolean> => {
+    const info = await getSignupResumeInfo();
+    if (!info.authenticated) return false;
+    if (info.hasStore && info.slug) {
+      window.location.href = dashboardUrl(info.slug);
+      return true;
+    }
+    if (info.email) setEmail(info.email);
+    if (info.firstName) setFirstName(info.firstName);
+    if (info.lastName) setLastName(info.lastName);
+    setStep(info.phoneConfirmed ? "name" : "phone");
+    return true;
+  }, []);
+
+  // On mount: resume a refreshed tab from the existing session cookie.
   const resumed = useRef(false);
   useEffect(() => {
     if (resumed.current) return;
     resumed.current = true;
-    (async () => {
-      const oauthErr = new URLSearchParams(window.location.search).get("error");
-      if (oauthErr) setError(oauthErr);
-      const info = await getSignupResumeInfo();
-      if (!info.authenticated) return;
-      if (info.hasStore && info.slug) {
-        window.location.href = dashboardUrl(info.slug);
-        return;
-      }
-      if (info.email) setEmail(info.email);
-      if (info.firstName) setFirstName(info.firstName);
-      if (info.lastName) setLastName(info.lastName);
-      setStep(info.phoneConfirmed ? "name" : "phone");
-    })();
-  }, []);
+    void resumeWizard();
+  }, [resumeWizard]);
 
   // ── Slug availability (store step) ───────────────────────────────────────
   function onNameChange(value: string) {
@@ -228,17 +260,21 @@ export default function SignupPage() {
   async function handleGoogle() {
     setGoogleLoading(true);
     setError("");
-    // The proxy rewrites /auth/callback → /platform/auth/callback on the
-    // platform host; that route exchanges the code and returns to /signup,
-    // where the mount effect resumes the wizard.
-    const redirectTo = `${window.location.origin}/auth/callback?next=/signup`;
-    const { error: oErr } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
-    if (oErr) {
+    try {
+      // signInWithPopup keeps everything client-side (no OAuth callback route);
+      // establish the session cookie, then resume the wizard at the right step.
+      await signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider());
+      const sessErr = await establishSession();
+      if (sessErr) {
+        setGoogleLoading(false);
+        setError(sessErr);
+        return;
+      }
+      await resumeWizard();
       setGoogleLoading(false);
-      setError(oErr.message);
+    } catch (err) {
+      setGoogleLoading(false);
+      setError(firebaseAuthErrorMessage(err));
     }
   }
 
@@ -249,43 +285,36 @@ export default function SignupPage() {
     }
     setBusy(true);
     setError("");
-    const { data, error: sErr } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    });
-    // Happy path: with "Confirm email" OFF, signUp returns a session at once.
-    if (data.session) {
-      setBusy(false);
-      setStep("phone");
-      return;
+    const auth = getFirebaseAuth();
+    try {
+      await createUserWithEmailAndPassword(auth, email.trim(), password);
+    } catch (err) {
+      // The email may already have an account — try signing in with the same
+      // credentials to recover a returning owner and resume at the phone step.
+      if ((err as { code?: string })?.code === "auth/email-already-in-use") {
+        try {
+          await signInWithEmailAndPassword(auth, email.trim(), password);
+        } catch {
+          setBusy(false);
+          setError(
+            "An account with this email already exists. Log in, or use a different email.",
+          );
+          return;
+        }
+      } else {
+        setBusy(false);
+        setError(firebaseAuthErrorMessage(err));
+        return;
+      }
     }
-    // No session from signUp — either the account already exists (Supabase
-    // returns an obfuscated user with no session), or "Confirm email" is still
-    // ON. Try signing in with the same credentials: this recovers a returning
-    // (or auto-confirmed) account so the wizard can resume at the phone step.
-    const signIn = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    // Exchange the fresh ID token for the session cookie the server reads.
+    const sessErr = await establishSession();
     setBusy(false);
-    if (signIn.data.session) {
-      setStep("phone");
+    if (sessErr) {
+      setError(sessErr);
       return;
     }
-    if (signIn.error && /confirm/i.test(signIn.error.message)) {
-      setError(
-        "This project still requires email confirmation. Turn off “Confirm email” in Supabase Auth (Authentication → Providers → Email) to enable phone-only signup.",
-      );
-    } else if (
-      (sErr && /already|registered/i.test(sErr.message)) ||
-      signIn.error
-    ) {
-      setError(
-        "An account with this email already exists. Log in, or use a different email.",
-      );
-    } else {
-      setError("Couldn't start your session. Please try again.");
-    }
+    setStep("phone");
   }
 
   // ── Phone ────────────────────────────────────────────────────────────────
@@ -296,27 +325,40 @@ export default function SignupPage() {
     }
     setBusy(true);
     setError("");
-    const { error: pErr } = await supabase.auth.updateUser({ phone });
+    try {
+      const provider = new PhoneAuthProvider(getFirebaseAuth());
+      verificationIdRef.current = await provider.verifyPhoneNumber(
+        phone,
+        getVerifier(),
+      );
+      setPhoneSent(true);
+    } catch (err) {
+      setError(firebaseAuthErrorMessage(err));
+    }
     setBusy(false);
-    if (pErr) return setError(pErr.message);
-    setPhoneSent(true);
   }
 
   async function handleVerifyPhoneOtp() {
-    if (!phone) return;
+    if (!phone || !verificationIdRef.current) return;
     setBusy(true);
     setError("");
-    const { error: vErr } = await supabase.auth.verifyOtp({
-      phone,
-      token: phoneCode.trim(),
-      type: "phone_change",
-    });
-    if (vErr) {
+    try {
+      const credential = PhoneAuthProvider.credential(
+        verificationIdRef.current,
+        phoneCode.trim(),
+      );
+      const user = getFirebaseAuth().currentUser;
+      if (!user) throw new Error("Not signed in.");
+      await updatePhoneNumber(user, credential);
+      // Re-mint the session cookie so it carries the verified phone —
+      // createStore enforces phone_confirmed server-side.
+      await establishSession(true);
       setBusy(false);
-      return setError(vErr.message);
+      setStep("name");
+    } catch (err) {
+      setBusy(false);
+      setError(firebaseAuthErrorMessage(err));
     }
-    setBusy(false);
-    setStep("name");
   }
 
   // ── Finalize (plan step) ───────────────────────────────────────────────────
@@ -430,6 +472,8 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Invisible reCAPTCHA anchor for Identity Platform phone verification. */}
+      <div ref={recaptchaRef} />
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <Link
           href="/"

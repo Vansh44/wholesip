@@ -6,7 +6,12 @@
 // Config is the standard public Firebase web config (NEXT_PUBLIC_FIREBASE_*).
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
+import {
+  getAuth,
+  initializeAuth,
+  inMemoryPersistence,
+  type Auth,
+} from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -28,6 +33,21 @@ function getFirebaseApp(): FirebaseApp {
 /** The client-side Firebase Auth instance (browser only). */
 export function getFirebaseAuth(): Auth {
   return getAuth(getFirebaseApp());
+}
+
+const SECONDARY_APP = "sm-otp";
+
+/**
+ * An ISOLATED, non-persisting Auth instance on a secondary Firebase app — used
+ * to verify a phone number (e.g. the enquiries form) WITHOUT logging the
+ * visitor in or touching the main session. In-memory persistence means the
+ * proof-of-ownership sign-in never lands in storage; sign it out after use.
+ */
+export function getSecondaryFirebaseAuth(): Auth {
+  const existing = getApps().find((a) => a.name === SECONDARY_APP);
+  if (existing) return getAuth(existing);
+  const app = initializeApp(firebaseConfig, SECONDARY_APP);
+  return initializeAuth(app, { persistence: inMemoryPersistence });
 }
 
 /**

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/auth/server-user";
 import { getPlatformViewer, listAllStores } from "@/app/actions/platform";
 import { THEME_META } from "@/lib/themes/meta";
 import { StoresConsole } from "./stores-console";
@@ -16,10 +16,7 @@ export default async function PlatformDashboard({
   searchParams: Promise<{ q?: string }>;
 }) {
   // Must be signed in to the platform, and be a platform operator.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) redirect("/dashboard/login");
 
   const viewer = await getPlatformViewer();
