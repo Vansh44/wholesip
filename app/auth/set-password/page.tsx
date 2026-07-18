@@ -1,6 +1,17 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import {
+  PhoneAuthProvider,
+  RecaptchaVerifier,
+  updatePhoneNumber,
+} from "firebase/auth";
+import {
+  getFirebaseAuth,
+  establishSession,
+  firebaseAuthErrorMessage,
+} from "@/lib/auth/firebase-client";
 import { setPassword, getSetPasswordProfile } from "@/app/actions/set-password";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +23,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/client";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { customPhoneLabels } from "@/lib/phone-labels";
@@ -28,6 +38,7 @@ function getPasswordStrength(password: string) {
 }
 
 export default function SetPasswordPage() {
+  const router = useRouter();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [password, setPasswordVal] = useState("");
@@ -43,9 +54,26 @@ export default function SetPasswordPage() {
   const [otpError, setOtpError] = useState("");
   const [loadingOtp, setLoadingOtp] = useState(false);
 
+  // Firebase phone linking: invisible reCAPTCHA + the verificationId returned
+  // by PhoneAuthProvider, held across the send → verify steps.
+  const recaptchaRef = useRef<HTMLDivElement | null>(null);
+  const verifierRef = useRef<RecaptchaVerifier | null>(null);
+  const verificationIdRef = useRef<string | null>(null);
+
   const strength = getPasswordStrength(password);
   const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
   const fullPhone = phone || "";
+
+  function getVerifier(): RecaptchaVerifier {
+    if (!verifierRef.current) {
+      verifierRef.current = new RecaptchaVerifier(
+        getFirebaseAuth(),
+        recaptchaRef.current!,
+        { size: "invisible" },
+      );
+    }
+    return verifierRef.current;
+  }
 
   useEffect(() => {
     async function fetchProfile() {
@@ -72,15 +100,18 @@ export default function SetPasswordPage() {
 
     setOtpError("");
     setLoadingOtp(true);
-    const supabase = createClient();
 
-    const { error } = await supabase.auth.updateUser({ phone: fullPhone });
-
-    if (error) {
-      setOtpError(error.message);
-    } else {
+    try {
+      // Start a phone-verification challenge for the signed-in user.
+      const provider = new PhoneAuthProvider(getFirebaseAuth());
+      verificationIdRef.current = await provider.verifyPhoneNumber(
+        fullPhone,
+        getVerifier(),
+      );
       setOtpSent(true);
       setOtpError("");
+    } catch (err) {
+      setOtpError(firebaseAuthErrorMessage(err));
     }
     setLoadingOtp(false);
   };
@@ -90,22 +121,27 @@ export default function SetPasswordPage() {
       setOtpError("Please enter the 6-digit OTP.");
       return;
     }
+    if (!verificationIdRef.current) {
+      setOtpError("Please request a code first.");
+      return;
+    }
 
     setOtpError("");
     setLoadingOtp(true);
-    const supabase = createClient();
 
-    const { error } = await supabase.auth.verifyOtp({
-      phone: fullPhone,
-      token: otp,
-      type: "phone_change",
-    });
-
-    if (error) {
-      setOtpError(error.message);
-    } else {
+    try {
+      // Link the verified phone to the current user's Identity Platform account.
+      const credential = PhoneAuthProvider.credential(
+        verificationIdRef.current,
+        otp,
+      );
+      const user = getFirebaseAuth().currentUser;
+      if (!user) throw new Error("Not signed in.");
+      await updatePhoneNumber(user, credential);
       setIsPhoneVerified(true);
       setOtpError("");
+    } catch (err) {
+      setOtpError(firebaseAuthErrorMessage(err));
     }
     setLoadingOtp(false);
   };
@@ -144,8 +180,18 @@ export default function SetPasswordPage() {
       const result = await setPassword(formData);
       if (result?.error) {
         setError(result.error);
+        return;
       }
-      // On success, the server action redirects to /dashboard
+      // Re-mint the session cookie with a FORCE-REFRESHED token so the now-
+      // cleared force_password_reset claim reaches the cookie — otherwise the
+      // proxy would bounce the user straight back here.
+      const sessErr = await establishSession(true);
+      if (sessErr) {
+        setError(sessErr);
+        return;
+      }
+      router.push("/dashboard");
+      router.refresh();
     });
   }
 
@@ -160,6 +206,8 @@ export default function SetPasswordPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Invisible reCAPTCHA anchor for Identity Platform phone verification. */}
+        <div ref={recaptchaRef} />
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">

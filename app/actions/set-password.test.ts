@@ -3,14 +3,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { makeDbMock } from "./_test-helpers";
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
-// next/navigation.redirect throws to halt rendering — model that here.
-vi.mock("next/navigation", () => ({
-  redirect: vi.fn(() => {
-    throw new Error("__REDIRECT__");
-  }),
+vi.mock("@/lib/auth/firebase-users", () => ({
+  updateAuthUser: vi.fn(async () => {}),
 }));
+vi.mock("@/lib/auth/firebase-claims", () => ({
+  setUserClaims: vi.fn(async () => {}),
+}));
+vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 
 // The ported data layer: with* runners invoke the callback with the mock db.
 const dbHolder = vi.hoisted(() => ({ current: null as any }));
@@ -23,9 +22,9 @@ vi.mock("@/lib/db/client", () => ({
 }));
 
 import { setPassword } from "./set-password";
-import { createClient } from "@/lib/supabase/server";
+import { updateAuthUser } from "@/lib/auth/firebase-users";
+import { setUserClaims } from "@/lib/auth/firebase-claims";
 import { getServerUser } from "@/lib/auth/server-user";
-import { redirect } from "next/navigation";
 
 function makeFormData(fields: Record<string, string | null | undefined>) {
   const fd = new FormData();
@@ -37,10 +36,10 @@ function makeFormData(fields: Record<string, string | null | undefined>) {
 
 // set-password.ts — the action behind /auth/set-password, which an invited
 // user lands on after their first sign-in (force_password_reset=true). The
-// password + session steps stay on Supabase auth; the admins own-row update
-// is on Drizzle (withUser).
+// password update + claim clear go through Identity Platform; the admins
+// own-row update is on Drizzle (withUser). It returns success (no redirect) so
+// the client can re-mint the session cookie with the cleared claim.
 describe("setPassword", () => {
-  let supabase: any;
   const validForm = {
     password: "supersecret",
     confirmPassword: "supersecret",
@@ -52,13 +51,8 @@ describe("setPassword", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbHolder.current = makeDbMock();
-    supabase = {
-      auth: {
-        updateUser: vi.fn().mockResolvedValue({ data: {}, error: null }),
-        refreshSession: vi.fn().mockResolvedValue({ error: null }),
-      },
-    };
-    vi.mocked(createClient).mockResolvedValue(supabase);
+    vi.mocked(updateAuthUser).mockResolvedValue();
+    vi.mocked(setUserClaims).mockResolvedValue();
     vi.mocked(getServerUser).mockResolvedValue({
       id: "user-1",
       email: "ada@example.com",
@@ -103,34 +97,31 @@ describe("setPassword", () => {
     expect(result?.error).toMatch(/phone/i);
   });
 
-  // If auth.updateUser fails (e.g. password policy), we must NOT clear
+  // If the password update fails (e.g. policy), we must NOT clear
   // force_password_reset — the user still hasn't chosen a password.
   it("returns the auth error and does not clear force_password_reset", async () => {
-    supabase.auth.updateUser.mockResolvedValueOnce({
-      data: { user: null },
-      error: { message: "Password rejected" },
-    });
+    vi.mocked(updateAuthUser).mockRejectedValueOnce(new Error("policy"));
     const result = await setPassword(makeFormData(validForm));
-    expect(result?.error).toMatch(/password rejected/i);
+    expect(result?.error).toMatch(/couldn.?t set your password/i);
     expect(dbHolder.current.calls.update).toHaveLength(0);
+    expect(setUserClaims).not.toHaveBeenCalled();
   });
 
-  // Happy path — set password, clear flag, refresh JWT, then redirect to
-  // /dashboard (modeled here as a throw from the next/navigation mock).
-  it("sets password, clears force_password_reset, and redirects to /dashboard", async () => {
-    await expect(setPassword(makeFormData(validForm))).rejects.toThrow(
-      "__REDIRECT__",
-    );
+  // Happy path — set the password, clear the flag + claim, and return success
+  // (the client re-mints the session cookie and navigates).
+  it("sets password, clears force_password_reset, and returns success", async () => {
+    const result = await setPassword(makeFormData(validForm));
+    expect(result).toEqual({ success: true });
 
-    expect(supabase.auth.updateUser).toHaveBeenCalledWith({
+    expect(updateAuthUser).toHaveBeenCalledWith("user-1", {
       password: "supersecret",
     });
     const updatePayload = dbHolder.current.calls.set[0];
     expect(updatePayload.forcePasswordReset).toBe(false);
     expect(updatePayload.firstName).toBe("Ada");
-    // refreshSession mints a fresh JWT with the cleared flag, so the
-    // middleware doesn't bounce the user back here.
-    expect(supabase.auth.refreshSession).toHaveBeenCalled();
-    expect(redirect).toHaveBeenCalledWith("/dashboard");
+    // The custom claim is cleared so the proxy stops bouncing the user here.
+    expect(setUserClaims).toHaveBeenCalledWith("user-1", {
+      forcePasswordReset: false,
+    });
   });
 });

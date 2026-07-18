@@ -1,11 +1,11 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { createClient } from "@/lib/supabase/server";
 import { getServerUser } from "@/lib/auth/server-user";
+import { updateAuthUser } from "@/lib/auth/firebase-users";
+import { setUserClaims } from "@/lib/auth/firebase-claims";
 import { withService, withUser } from "@/lib/db/client";
 import { admins } from "@/drizzle/schema";
-import { redirect } from "next/navigation";
 
 /**
  * The signed-in admin's name + verified phone, for the set-password screen's
@@ -61,41 +61,39 @@ export async function setPassword(formData: FormData) {
     return { error: "A valid verified phone number is required." };
   }
 
-  // The password + session flow stays on Supabase auth until Phase 6.
-  const supabase = await createClient();
+  const user = await getServerUser();
+  if (!user) return { error: "Not authenticated." };
 
   // Set the password first — if this fails we must NOT clear the
   // force_password_reset flag (the user still hasn't chosen a password).
-  const { error: updateError } = await supabase.auth.updateUser({
-    password,
-  });
-
-  if (updateError) {
-    return { error: updateError.message };
+  try {
+    await updateAuthUser(user.id, { password });
+  } catch (err) {
+    console.error("setPassword updateAuthUser error:", err);
+    return { error: "Couldn't set your password. Please try again." };
   }
 
-  const user = await getServerUser();
+  // Update the admin's own profile row (RLS own-row) — clears the reset flag
+  // and stores the verified name/phone.
+  await withUser({ uid: user.id }, (db) =>
+    db
+      .update(admins)
+      .set({
+        forcePasswordReset: false,
+        firstName: firstName.trim(),
+        lastName: lastName ? lastName.trim() : null,
+        phone: phone.trim(),
+      })
+      .where(eq(admins.id, user.id)),
+  );
 
-  if (user) {
-    // Update the admin's own profile row (RLS own-row) — clears the reset flag
-    // and stores the verified name/phone.
-    await withUser({ uid: user.id }, (db) =>
-      db
-        .update(admins)
-        .set({
-          forcePasswordReset: false,
-          firstName: firstName.trim(),
-          lastName: lastName ? lastName.trim() : null,
-          phone: phone.trim(),
-        })
-        .where(eq(admins.id, user.id)),
-    );
+  // Clear the force_password_reset custom claim so the proxy stops bouncing the
+  // user back here. The claim only reaches the session cookie once the token is
+  // refreshed, so the CLIENT calls establishSession(forceRefresh) after this
+  // returns — hence we return success rather than redirect server-side.
+  await setUserClaims(user.id, { forcePasswordReset: false }).catch((err) =>
+    console.error("setPassword setUserClaims error:", err),
+  );
 
-    // Mint a fresh JWT so the custom access token hook re-reads the now-cleared
-    // force_password_reset flag into the claims; otherwise the claims-based
-    // middleware would bounce the user straight back to /auth/set-password.
-    await supabase.auth.refreshSession();
-  }
-
-  redirect("/dashboard");
+  return { success: true };
 }
