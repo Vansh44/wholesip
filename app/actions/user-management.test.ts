@@ -3,8 +3,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { makeDbMock } from "./_test-helpers";
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+vi.mock("@/lib/auth/firebase-users", () => ({
+  deleteAuthUser: vi.fn(async () => {}),
+  updateAuthUser: vi.fn(async () => {}),
+  generatePasswordResetLink: vi.fn(async () => null),
+}));
+vi.mock("@/lib/auth/firebase-claims", () => ({
+  setUserClaims: vi.fn(async () => {}),
+}));
 vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 
 // The ported data layer: with* runners invoke the callback with the mock db.
@@ -24,7 +30,8 @@ import {
   deleteUser,
   toggleUserSuspension,
 } from "./user-management";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { deleteAuthUser } from "@/lib/auth/firebase-users";
+import { setUserClaims } from "@/lib/auth/firebase-claims";
 import { getServerUser } from "@/lib/auth/server-user";
 
 const CALLER_ID = "superadmin-123";
@@ -35,8 +42,6 @@ function setup(selectQueue: any[][]) {
 }
 
 describe("User Management Actions", () => {
-  let adminClient: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getServerUser).mockResolvedValue({
@@ -46,17 +51,10 @@ describe("User Management Actions", () => {
       phoneConfirmed: true,
       metadata: {},
     } as any);
+    vi.mocked(deleteAuthUser).mockResolvedValue();
+    vi.mocked(setUserClaims).mockResolvedValue();
     // Default: caller is superadmin, target is a plain member.
     setup([superadmin, [{ role: "member" }]]);
-    adminClient = {
-      auth: {
-        admin: {
-          deleteUser: vi.fn().mockResolvedValue({ error: null }),
-          updateUserById: vi.fn().mockResolvedValue({ error: null }),
-        },
-      },
-    };
-    vi.mocked(createAdminClient).mockReturnValue(adminClient);
   });
 
   describe("deleteUser", () => {
@@ -75,14 +73,16 @@ describe("User Management Actions", () => {
     it("should delete user if caller is superadmin", async () => {
       const result = await deleteUser("user-1");
       expect((result as any).success).toBe(true);
-      expect(adminClient.auth.admin.deleteUser).toHaveBeenCalledWith("user-1");
+      // Profile row removed (Cloud SQL) AND the login (Identity Platform).
+      expect(dbHolder.current.calls.delete).toHaveLength(1);
+      expect(deleteAuthUser).toHaveBeenCalledWith("user-1");
     });
 
     it("should not allow deleting your own account", async () => {
       setup([superadmin]); // only the gate read happens before the self-check
       const result = await deleteUser(CALLER_ID);
       expect(result.error).toBe("You cannot delete your own account.");
-      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+      expect(deleteAuthUser).not.toHaveBeenCalled();
     });
 
     it("should not allow deleting the last superadmin", async () => {
@@ -90,7 +90,7 @@ describe("User Management Actions", () => {
       setup([superadmin, [{ role: "superadmin" }], [{ n: 1 }]]);
       const result = await deleteUser("user-1");
       expect(result.error).toBe("Cannot delete the last superadmin.");
-      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+      expect(deleteAuthUser).not.toHaveBeenCalled();
     });
   });
 
@@ -102,12 +102,13 @@ describe("User Management Actions", () => {
       expect(result.error).toBe("Invalid role");
     });
 
-    it("should change role successfully", async () => {
+    it("should change role successfully and sync the claim", async () => {
       // gate, roles lookup (member is builtin so [] is fine), target=member.
       setup([superadmin, [], [{ role: "member" }]]);
       const result = await changeUserRole("user-1", "member");
       expect((result as any).success).toBe(true);
       expect(dbHolder.current.calls.set[0]).toEqual({ role: "member" });
+      expect(setUserClaims).toHaveBeenCalledWith("user-1", { role: "member" });
     });
   });
 

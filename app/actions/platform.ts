@@ -2,7 +2,7 @@
 
 import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { deleteAuthUser } from "@/lib/auth/firebase-users";
 import { getServerUser } from "@/lib/auth/server-user";
 import { withService } from "@/lib/db/client";
 import { isUniqueViolation } from "@/lib/db/errors";
@@ -534,13 +534,13 @@ export async function deleteStore(storeId: string): Promise<ActionResult> {
   }
 
   // Best-effort cleanup of things that DON'T cascade from stores. The store is
-  // already gone, so failures here are logged but not surfaced as errors. Auth
-  // account deletion stays on Supabase until Phase 6.
+  // already gone (its cascade removed the Cloud SQL admins/users rows), so these
+  // failures are logged but not surfaced. Remove the Identity Platform logins.
   await deleteStorageUrls(Array.from(mediaUrls));
-  const admin = createAdminClient();
   for (const id of authUserIds) {
-    const { error } = await admin.auth.admin.deleteUser(id);
-    if (error) console.error("deleteStore (auth user)", id, error.message);
+    await deleteAuthUser(id).catch((err) =>
+      console.error("deleteStore (auth user)", id, err),
+    );
   }
 
   revalidateTag(STORE_TAG, "max");

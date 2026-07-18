@@ -3,7 +3,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { makeDbMock } from "./_test-helpers";
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/auth/firebase-users", () => ({
+  updateAuthUser: vi.fn(async () => {}),
+}));
 vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 vi.mock("@/lib/store/resolve", () => ({
   getCurrentStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
@@ -21,7 +23,7 @@ vi.mock("@/lib/db/client", () => ({
 }));
 
 import { updateCustomerProfile } from "./customer-profile";
-import { createClient } from "@/lib/supabase/server";
+import { updateAuthUser } from "@/lib/auth/firebase-users";
 import { getServerUser } from "@/lib/auth/server-user";
 
 function makeFormData(fields: Record<string, string | null | undefined>) {
@@ -43,20 +45,13 @@ const serverUser = (overrides: Record<string, any> = {}) => ({
 
 // customer-profile.ts — the /profile page action that lets a signed-in
 // shopper update their name and email. Identity comes from getServerUser; the
-// email change still goes through Supabase auth (Phase 6). Phone is NOT NULL
-// UNIQUE in the DB so this action only ever writes it from a verified value.
+// email change goes through Identity Platform (updateAuthUser). Phone is NOT
+// NULL UNIQUE in the DB so this action only ever writes it from a verified value.
 describe("updateCustomerProfile", () => {
-  let supabase: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
     dbHolder.current = makeDbMock();
-    supabase = {
-      auth: {
-        updateUser: vi.fn().mockResolvedValue({ error: null }),
-      },
-    };
-    vi.mocked(createClient).mockResolvedValue(supabase);
+    vi.mocked(updateAuthUser).mockResolvedValue();
     vi.mocked(getServerUser).mockResolvedValue(serverUser() as any);
   });
 
@@ -85,23 +80,22 @@ describe("updateCustomerProfile", () => {
     expect(result.error).toMatch(/not authenticated/i);
   });
 
-  // Changing the email triggers a Supabase Auth update (which sends the
-  // confirmation flow on the auth side).
-  it("calls auth.updateUser when email changes", async () => {
+  // Changing the email updates the Identity Platform account.
+  it("calls updateAuthUser when email changes", async () => {
     await updateCustomerProfile(
       makeFormData({ firstName: "Ada", email: "new@example.com" }),
     );
-    expect(supabase.auth.updateUser).toHaveBeenCalledWith({
+    expect(updateAuthUser).toHaveBeenCalledWith("user-1", {
       email: "new@example.com",
     });
   });
 
   // Same email → no auth update, just the profile upsert.
-  it("does not call auth.updateUser when email is unchanged", async () => {
+  it("does not call updateAuthUser when email is unchanged", async () => {
     await updateCustomerProfile(
       makeFormData({ firstName: "Ada", email: "old@example.com" }),
     );
-    expect(supabase.auth.updateUser).not.toHaveBeenCalled();
+    expect(updateAuthUser).not.toHaveBeenCalled();
   });
 
   // Phone is written from the verified auth identity only — never from the

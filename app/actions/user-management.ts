@@ -1,11 +1,19 @@
 "use server";
 
 import { count, eq } from "drizzle-orm";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { Resend } from "resend";
 import { getServerUser } from "@/lib/auth/server-user";
+import {
+  deleteAuthUser,
+  updateAuthUser,
+  generatePasswordResetLink,
+} from "@/lib/auth/firebase-users";
+import { setUserClaims } from "@/lib/auth/firebase-claims";
 import { withService, withUser } from "@/lib/db/client";
 import { admins, roles } from "@/drizzle/schema";
+import { wrapBrandedEmail } from "@/lib/email/layout";
+import { fromAddress } from "@/lib/email/sender";
+import { getStoreBrand } from "@/lib/store/brand";
 
 type Result = { error?: string; success?: boolean };
 
@@ -67,12 +75,21 @@ export async function deleteUser(userId: string): Promise<Result> {
     }
   }
 
-  // Delete the auth user (cascades to the admins row). Auth stays on Supabase
-  // until Phase 6.
-  const adminClient = createAdminClient();
-  const { error: deleteAuthError } =
-    await adminClient.auth.admin.deleteUser(userId);
-  if (deleteAuthError) return { error: deleteAuthError.message };
+  // Delete the Cloud SQL profile row, then the Identity Platform account. The
+  // old `auth.users` ON DELETE CASCADE is gone (auth + profile now live in
+  // separate systems), so both must be removed explicitly.
+  try {
+    await withService((db) => db.delete(admins).where(eq(admins.id, userId)));
+  } catch (err) {
+    console.error("deleteUser profile delete error:", err);
+    return { error: "Failed to delete user." };
+  }
+  try {
+    await deleteAuthUser(userId);
+  } catch (err) {
+    console.error("deleteUser auth delete error:", err);
+    return { error: "Failed to delete the user's login. Please try again." };
+  }
 
   return { success: true };
 }
@@ -122,6 +139,13 @@ export async function changeUserRole(
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to update." };
   }
+
+  // Keep the auth token's role claim in sync (drives the proxy's fast-path
+  // gating; reaches the user on their next token refresh). Best-effort — the
+  // admins row is authoritative for actual permission checks.
+  await setUserClaims(userId, { role }).catch((err) =>
+    console.error("changeUserRole setUserClaims error:", err),
+  );
   return { success: true };
 }
 
@@ -151,26 +175,56 @@ export async function changeOwnPassword(newPassword: string): Promise<Result> {
   if (!newPassword || newPassword.length < 8)
     return { error: "Password must be at least 8 characters" };
 
-  // Pure auth flow — stays on Supabase until Phase 6.
-  const supabase = await createClient();
-  const { error } = await supabase.auth.updateUser({
-    password: newPassword,
-  });
+  const user = await getServerUser();
+  if (!user) return { error: "Not authenticated." };
 
-  if (error) return { error: error.message };
+  try {
+    await updateAuthUser(user.id, { password: newPassword });
+  } catch (err) {
+    console.error("changeOwnPassword error:", err);
+    return { error: "Couldn't update your password. Please try again." };
+  }
   return { success: true };
 }
 
 export async function triggerPasswordReset(email: string): Promise<Result> {
-  // Pure auth flow — stays on Supabase until Phase 6.
-  const supabase = await createClient();
+  // Generate an Identity Platform reset link and deliver it via our own email
+  // transport (Resend), mirroring the old resetPasswordForEmail. Always report
+  // success so the endpoint can't be used to enumerate which emails exist.
+  const link = await generatePasswordResetLink(email.trim()).catch(() => null);
+  if (!link) return { success: true };
 
-  // When users click the link in the email, they will be redirected to the site
-  // The default behavior is to redirect to the site URL, but you can specify a redirectTo
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/auth/callback?next=/auth/update-password`,
-  });
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey && !resendApiKey.includes("placeholder")) {
+    try {
+      const brand = await getStoreBrand();
+      const resend = new Resend(resendApiKey);
+      await resend.emails.send({
+        from: fromAddress(brand, { suffix: "Accounts" }),
+        to: email,
+        subject: `Reset your ${brand.name} password`,
+        html: wrapBrandedEmail(
+          `
+        <h2 style="margin-top: 0;">Reset your password</h2>
+        <p>We received a request to reset your password. Click the button below
+          to choose a new one. If you didn't ask for this, you can ignore this email.</p>
+        <div style="text-align: center; margin: 32px 0;">
+          <a href="${link}" style="display:inline-block;background:#000;color:#fff;text-decoration:none;padding:14px 28px;border-radius:6px;font-weight:600;">
+            Reset Password
+          </a>
+        </div>
+        <p style="font-size:13px;color:#666;">Or open this link: <br />${link}</p>
+      `,
+          brand,
+        ),
+      });
+    } catch (e) {
+      console.error("Failed to send password-reset email:", e);
+    }
+  } else {
+    // Dev fallback: no email provider configured.
+    console.log(`\n🔑 Password reset link for ${email}:\n${link}\n`);
+  }
 
-  if (error) return { error: error.message };
   return { success: true };
 }

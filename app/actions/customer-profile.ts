@@ -1,8 +1,8 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { createClient } from "@/lib/supabase/server";
 import { getServerUser } from "@/lib/auth/server-user";
+import { updateAuthUser } from "@/lib/auth/firebase-users";
 import { withUser } from "@/lib/db/client";
 import { users } from "@/drizzle/schema";
 import { getCurrentStoreId } from "@/lib/store/resolve";
@@ -61,16 +61,13 @@ export async function updateCustomerProfile(formData: FormData) {
     return { error: "Not authenticated." };
   }
 
-  // Update auth email if it changed. Auth stays on Supabase until Phase 6, so
-  // this one call keeps using the cookie-bound server client.
+  // Update the Identity Platform email if it changed.
   if (email && email.trim() !== user.email) {
-    const supabase = await createClient();
-    const { error: authError } = await supabase.auth.updateUser({
-      email: email.trim(),
-    });
-    if (authError) {
-      console.error("Failed to update auth email:", authError);
-      return { error: authError.message || "Failed to update email address." };
+    try {
+      await updateAuthUser(user.id, { email: email.trim() });
+    } catch (err) {
+      console.error("Failed to update auth email:", err);
+      return { error: "Failed to update email address." };
     }
   }
 

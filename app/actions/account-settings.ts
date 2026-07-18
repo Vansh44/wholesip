@@ -1,8 +1,8 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { createClient } from "@/lib/supabase/server";
 import { getServerUser } from "@/lib/auth/server-user";
+import { verifyPassword, updateAuthUser } from "@/lib/auth/firebase-users";
 import { withUser } from "@/lib/db/client";
 import { admins } from "@/drizzle/schema";
 
@@ -38,9 +38,8 @@ export async function updateProfileName(formData: FormData): Promise<Result> {
 
 /**
  * Change the signed-in admin's password. The current password is re-verified
- * with signInWithPassword first (Supabase lets a recent session update the
- * password without it, but we require it like Notion/Linear do for safety).
- * This is a pure auth flow — it stays on Supabase auth until Phase 6.
+ * first (via the Identity Platform REST sign-in — firebase-admin can't check a
+ * password), like Notion/Linear do, then updated with the Admin SDK.
  */
 export async function changePassword(formData: FormData): Promise<Result> {
   const currentPassword = (formData.get("currentPassword") as string) || "";
@@ -63,21 +62,17 @@ export async function changePassword(formData: FormData): Promise<Result> {
   const user = await getServerUser();
   if (!user?.email) return { error: "Not authenticated." };
 
-  const supabase = await createClient();
-  // Re-verify the current password.
-  const { error: verifyError } = await supabase.auth.signInWithPassword({
-    email: user.email,
-    password: currentPassword,
-  });
-  if (verifyError) {
+  // Re-verify the current password before allowing the change.
+  const ok = await verifyPassword(user.email, currentPassword);
+  if (!ok) {
     return { error: "Your current password is incorrect." };
   }
 
-  const { error: updateError } = await supabase.auth.updateUser({
-    password: newPassword,
-  });
-  if (updateError) {
-    return { error: updateError.message || "Couldn't update your password." };
+  try {
+    await updateAuthUser(user.id, { password: newPassword });
+  } catch (err) {
+    console.error("changePassword error:", err);
+    return { error: "Couldn't update your password." };
   }
 
   return { success: true };
@@ -85,19 +80,19 @@ export async function changePassword(formData: FormData): Promise<Result> {
 
 /**
  * Persist a phone number to the profile after it has been OTP-verified on the
- * client (Supabase `verifyOtp` with type "phone_change" updates auth.users.phone).
- * We only accept the number that auth has actually recorded as verified.
+ * client (Firebase `updatePhoneNumber`, which sets the user's phone_number and
+ * is reflected in the re-minted session cookie). We only accept the number auth
+ * has actually recorded as verified.
  */
 export async function setVerifiedPhone(phone: string): Promise<Result> {
   const user = await getServerUser();
   if (!user) return { error: "Not authenticated." };
 
   const normalized = phone.trim();
-  if (!user.phone || `+${user.phone}` !== normalized) {
-    // Supabase stores phone without the leading "+"; accept either form.
-    if (user.phone !== normalized.replace(/^\+/, "")) {
-      return { error: "Phone number hasn't been verified yet." };
-    }
+  // Identity Platform stores E.164 (with a leading "+"); getServerUser reports
+  // the verified phone as-is, so it must match exactly.
+  if (!user.phone || user.phone !== normalized) {
+    return { error: "Phone number hasn't been verified yet." };
   }
 
   try {

@@ -3,7 +3,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { makeDbMock } from "./_test-helpers";
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/auth/firebase-users", () => ({
+  verifyPassword: vi.fn(async () => true),
+  updateAuthUser: vi.fn(async () => {}),
+}));
 vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 
 // The ported data layer: with* runners invoke the callback with the mock db.
@@ -21,7 +24,7 @@ import {
   changePassword,
   setVerifiedPhone,
 } from "./account-settings";
-import { createClient } from "@/lib/supabase/server";
+import { verifyPassword, updateAuthUser } from "@/lib/auth/firebase-users";
 import { getServerUser } from "@/lib/auth/server-user";
 
 function makeFormData(fields: Record<string, string | null | undefined>) {
@@ -35,30 +38,22 @@ function makeFormData(fields: Record<string, string | null | undefined>) {
 const serverUser = (overrides: Record<string, any> = {}) => ({
   id: "user-1",
   email: "admin@example.com",
-  phone: "919876543210",
+  // Identity Platform reports E.164 (with a leading "+").
+  phone: "+919876543210",
   phoneConfirmed: true,
   metadata: {},
   ...overrides,
 });
 
 // account-settings.ts — the signed-in admin editing their own profile row.
-// Name/phone are own-row Drizzle updates (withUser); the password change stays
-// a pure Supabase auth flow (Phase 6).
+// Name/phone are own-row Drizzle updates (withUser); the password change
+// re-verifies + updates via Identity Platform.
 describe("account-settings", () => {
-  let supabase: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
     dbHolder.current = makeDbMock();
-    supabase = {
-      auth: {
-        signInWithPassword: vi
-          .fn()
-          .mockResolvedValue({ data: {}, error: null }),
-        updateUser: vi.fn().mockResolvedValue({ data: {}, error: null }),
-      },
-    };
-    vi.mocked(createClient).mockResolvedValue(supabase);
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+    vi.mocked(updateAuthUser).mockResolvedValue();
     vi.mocked(getServerUser).mockResolvedValue(serverUser() as any);
   });
 
@@ -149,29 +144,25 @@ describe("account-settings", () => {
     });
 
     it("rejects when the current password is incorrect", async () => {
-      supabase.auth.signInWithPassword = vi
-        .fn()
-        .mockResolvedValue({ data: null, error: { message: "bad creds" } });
+      vi.mocked(verifyPassword).mockResolvedValue(false);
       const result = await changePassword(makeFormData(validForm));
       expect(result.error).toMatch(/current password is incorrect/i);
     });
 
-    it("returns the auth error when updateUser fails", async () => {
-      supabase.auth.updateUser = vi
-        .fn()
-        .mockResolvedValue({ data: null, error: { message: "weak password" } });
+    it("returns an error when the password update fails", async () => {
+      vi.mocked(updateAuthUser).mockRejectedValue(new Error("weak password"));
       const result = await changePassword(makeFormData(validForm));
-      expect(result.error).toMatch(/weak password/i);
+      expect(result.error).toMatch(/couldn.?t update your password/i);
     });
 
     it("re-verifies and updates the password on success", async () => {
       const result = await changePassword(makeFormData(validForm));
       expect(result.success).toBe(true);
-      expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
-        email: "admin@example.com",
-        password: "oldpass123",
-      });
-      expect(supabase.auth.updateUser).toHaveBeenCalledWith({
+      expect(verifyPassword).toHaveBeenCalledWith(
+        "admin@example.com",
+        "oldpass123",
+      );
+      expect(updateAuthUser).toHaveBeenCalledWith("user-1", {
         password: "newpass456",
       });
     });

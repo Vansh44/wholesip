@@ -2,7 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { deleteAuthUser } from "@/lib/auth/firebase-users";
 import { withService } from "@/lib/db/client";
 import { isUniqueViolation } from "@/lib/db/errors";
 import { users } from "@/drizzle/schema";
@@ -69,9 +69,11 @@ export async function updateCustomer(
 }
 
 /**
- * Dashboard: permanently delete a customer. Removing the auth user cascades to
- * the `users` row (id REFERENCES auth.users ON DELETE CASCADE) and to any
- * reviews / blog links keyed on the customer. Guarded by "users" manage.
+ * Dashboard: permanently delete a customer — the Cloud SQL `users` row (which
+ * cascades to reviews / blog links keyed on the customer) AND the Identity
+ * Platform login. Both are removed explicitly: auth and profile now live in
+ * separate systems, so there's no `auth.users` cascade to lean on. Guarded by
+ * "users" manage.
  */
 export async function deleteCustomer(id: string): Promise<ActionResult> {
   const managerId = await getManagerUserId("users");
@@ -81,11 +83,10 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
 
   const storeId = await getActingStoreId();
 
-  // Confirm the customer belongs to THIS store before touching the global auth
-  // user. `deleteUser(id)` operates on auth.users directly (no store scoping), so
-  // without this gate a store admin could delete any customer — or even another
-  // store's admin / a platform operator — by id. The store-scoped users row is
-  // the ownership record we check first.
+  // Confirm the customer belongs to THIS store before deleting anything. The
+  // auth account (deleteAuthUser) is global/unscoped, so without this gate a
+  // store admin could delete any customer — or another store's user — by id.
+  // The store-scoped users row is the ownership record we check first.
   const target = await withService((db) =>
     db
       .select({ id: users.id })
@@ -95,27 +96,21 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
   ).catch(() => []);
   if (!target[0]) return { error: "Customer not found." };
 
-  // Delete the auth account first; the users row cascades from it. Auth stays
-  // on Supabase until Phase 6. If the auth user is already gone, fall back to
-  // deleting the (store-scoped) row.
-  const admin = createAdminClient();
-  const { error: authError } = await admin.auth.admin.deleteUser(id);
-  if (authError && !/not\s*found/i.test(authError.message)) {
-    console.error("Failed to delete customer auth user:", authError);
+  // Delete the store-scoped profile row (authoritative), then the login.
+  try {
+    await withService((db) =>
+      db.delete(users).where(and(eq(users.id, id), eq(users.storeId, storeId))),
+    );
+  } catch (err) {
+    console.error("Failed to delete customer row:", err);
     return { error: "Failed to delete customer. Please try again." };
   }
 
-  if (authError) {
-    try {
-      await withService((db) =>
-        db
-          .delete(users)
-          .where(and(eq(users.id, id), eq(users.storeId, storeId))),
-      );
-    } catch (err) {
-      console.error("Failed to delete orphaned customer row:", err);
-      return { error: "Failed to delete customer. Please try again." };
-    }
+  try {
+    await deleteAuthUser(id); // best-effort; tolerates an already-gone account
+  } catch (err) {
+    console.error("Failed to delete customer auth user:", err);
+    return { error: "Failed to delete customer. Please try again." };
   }
 
   revalidatePath("/dashboard/users");

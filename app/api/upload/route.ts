@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
+import { getServerUser } from "@/lib/auth/server-user";
 import { rateLimit } from "@/lib/rate-limit";
 import { gcsConfigured, gcsUploadObject } from "@/lib/storage/gcs";
 import { logError } from "@/lib/observability/logger";
@@ -33,13 +34,13 @@ const WEBP_QUALITY = 80;
 const PASS_THROUGH_TYPES = ["image/gif", "image/avif"];
 
 export async function POST(request: Request) {
+  // Supabase Storage fallback client (used only when GCS isn't configured — see
+  // the storage section below); auth itself is via the Firebase session cookie.
   const supabase = await createClient();
 
   // Require an authenticated user (admins for dashboard, logged-in customers
   // for blog covers). Prevents anonymous abuse of the media bucket.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }

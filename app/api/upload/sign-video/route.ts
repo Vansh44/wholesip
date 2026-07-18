@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getServerUser } from "@/lib/auth/server-user";
 import { rateLimit } from "@/lib/rate-limit";
 import {
   gcsConfigured,
@@ -29,10 +29,7 @@ const EXT_BY_TYPE: Record<string, string> = {
 };
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }

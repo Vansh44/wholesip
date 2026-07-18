@@ -1,8 +1,13 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getServerUser } from "@/lib/auth/server-user";
+import {
+  createAuthUser,
+  deleteAuthUser,
+  authErrorCode,
+} from "@/lib/auth/firebase-users";
+import { setUserClaims } from "@/lib/auth/firebase-claims";
 import { withService, withUser } from "@/lib/db/client";
 import { admins } from "@/drizzle/schema";
 import { Resend } from "resend";
@@ -76,9 +81,8 @@ export async function inviteUser(formData: FormData) {
   const storeId = callerProfile.store_id;
 
   const tempPassword = generateTempPassword();
-  const adminClient = createAdminClient();
 
-  // Reject emails already attached to a dashboard profile. Supabase Auth
+  // Reject emails already attached to a dashboard profile. Identity Platform
   // blocks duplicate auth emails, but an auth account created without an email
   // (e.g. phone sign-up) can still collide at the profile layer. Exact match on
   // the already-lowercased email (not ILIKE, whose _/% wildcards would let a
@@ -96,16 +100,20 @@ export async function inviteUser(formData: FormData) {
     return { error: "A user with this email already exists." };
   }
 
-  // Create user in Supabase Auth
-  const { data: newUser, error: createError } =
-    await adminClient.auth.admin.createUser({
+  // Create the Identity Platform user.
+  let uid: string;
+  try {
+    uid = await createAuthUser({
       email,
       password: tempPassword,
-      email_confirm: true,
+      emailVerified: true,
     });
-
-  if (createError) {
-    return { error: createError.message };
+  } catch (err) {
+    if (authErrorCode(err) === "auth/email-already-exists") {
+      return { error: "A user with this email already exists." };
+    }
+    console.error("inviteUser createUser error:", err);
+    return { error: "Failed to create user." };
   }
 
   // Insert the profile (upsert on the primary key so a leftover row is reused).
@@ -122,15 +130,23 @@ export async function inviteUser(formData: FormData) {
     await withService((db) =>
       db
         .insert(admins)
-        .values({ id: newUser.user.id, ...profileFields })
+        .values({ id: uid, ...profileFields })
         .onConflictDoUpdate({ target: admins.id, set: profileFields }),
     );
   } catch (err) {
     console.error("inviteUser profile insert error:", err);
     // Cleanup: delete the auth user so no orphan account is left behind.
-    await adminClient.auth.admin.deleteUser(newUser.user.id);
+    await deleteAuthUser(uid);
     return { error: "Failed to create user profile." };
   }
+
+  // Mirror role + force_password_reset into the auth token as custom claims so
+  // the proxy can gate the new admin's first login (replaces the Postgres
+  // custom_access_token_hook). Best-effort: the admins row is authoritative for
+  // permission checks, so a claim hiccup only softens the proxy's fast-path.
+  await setUserClaims(uid, { role, forcePasswordReset: true }).catch((err) =>
+    console.error("inviteUser setUserClaims error:", err),
+  );
 
   // Send email via Resend
   const resendApiKey = process.env.RESEND_API_KEY;

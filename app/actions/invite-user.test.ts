@@ -3,7 +3,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { makeDbMock } from "./_test-helpers";
 
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+vi.mock("@/lib/auth/firebase-users", () => ({
+  createAuthUser: vi.fn(async () => "new-user"),
+  deleteAuthUser: vi.fn(async () => {}),
+  authErrorCode: vi.fn(() => undefined),
+}));
+vi.mock("@/lib/auth/firebase-claims", () => ({
+  setUserClaims: vi.fn(async () => {}),
+}));
 vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 vi.mock("@/lib/email/layout", () => ({
   wrapBrandedEmail: vi.fn((s: string) => s),
@@ -41,7 +48,8 @@ vi.mock("@/lib/db/client", () => ({
 }));
 
 import { inviteUser } from "./invite-user";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAuthUser, deleteAuthUser } from "@/lib/auth/firebase-users";
+import { setUserClaims } from "@/lib/auth/firebase-claims";
 import { getServerUser } from "@/lib/auth/server-user";
 
 function makeFormData(fields: Record<string, string | null | undefined>) {
@@ -64,10 +72,9 @@ function superadminCaller(existingEmail = false) {
 }
 
 // invite-user.ts — superadmin-only action that creates a new dashboard user.
-// Profile reads/writes are on Drizzle; auth.admin.createUser/deleteUser and the
-// Resend email stay on their providers.
+// Profile reads/writes are on Drizzle; the auth account (Identity Platform) +
+// custom claims + the Resend email stay on their providers.
 describe("inviteUser", () => {
-  let admin: any;
   const validForm = {
     firstName: "Ada",
     lastName: "Lovelace",
@@ -88,18 +95,9 @@ describe("inviteUser", () => {
       phoneConfirmed: true,
       metadata: {},
     } as any);
-    admin = {
-      auth: {
-        admin: {
-          createUser: vi.fn().mockResolvedValue({
-            data: { user: { id: "new-user" } },
-            error: null,
-          }),
-          deleteUser: vi.fn().mockResolvedValue({ error: null }),
-        },
-      },
-    };
-    vi.mocked(createAdminClient).mockReturnValue(admin);
+    vi.mocked(createAuthUser).mockResolvedValue("new-user");
+    vi.mocked(deleteAuthUser).mockResolvedValue();
+    vi.mocked(setUserClaims).mockResolvedValue();
   });
 
   it("rejects empty first name", async () => {
@@ -139,16 +137,16 @@ describe("inviteUser", () => {
     superadminCaller(true);
     const result = await inviteUser(makeFormData(validForm));
     expect(result.error).toMatch(/already exists/i);
-    expect(admin.auth.admin.createUser).not.toHaveBeenCalled();
+    expect(createAuthUser).not.toHaveBeenCalled();
   });
 
-  it("creates the auth user + profile and sends invite email", async () => {
+  it("creates the auth user + profile, sets claims, and sends invite email", async () => {
     const result = await inviteUser(makeFormData(validForm));
     expect(result.success).toBe(true);
-    expect(admin.auth.admin.createUser).toHaveBeenCalledWith(
+    expect(createAuthUser).toHaveBeenCalledWith(
       expect.objectContaining({
         email: "ada@example.com",
-        email_confirm: true,
+        emailVerified: true,
       }),
     );
     // Profile upserted with the new auth id + inviter's store.
@@ -157,6 +155,11 @@ describe("inviteUser", () => {
       email: "ada@example.com",
       storeId: "store-1",
       invitedBy: "caller-1",
+    });
+    // Role + force-reset mirrored into the auth token as custom claims.
+    expect(setUserClaims).toHaveBeenCalledWith("new-user", {
+      role: "member",
+      forcePasswordReset: true,
     });
     expect(resendSend).toHaveBeenCalledTimes(1);
   });
@@ -168,7 +171,7 @@ describe("inviteUser", () => {
     });
     const result = await inviteUser(makeFormData(validForm));
     expect(result.error).toMatch(/failed to create user profile/i);
-    expect(admin.auth.admin.deleteUser).toHaveBeenCalledWith("new-user");
+    expect(deleteAuthUser).toHaveBeenCalledWith("new-user");
   });
 
   it("falls back gracefully without RESEND_API_KEY (dev mode)", async () => {
