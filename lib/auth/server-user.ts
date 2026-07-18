@@ -4,16 +4,20 @@
 // WHY THIS EXISTS: Phase 5 moves the database to Cloud SQL, where tenant
 // isolation is enforced by a per-request `SET LOCAL app.current_user_id = <uid>`
 // (the 2A model). That wrapper needs ONE thing: a *verified* user id. It does
-// not care whether the id came from Supabase or, later, Google Identity
-// Platform. So every server caller that needs "who is signed in" goes through
-// THIS function instead of calling Supabase auth directly:
-//   * Phase 5 — internals verify the Supabase session (below).
-//   * Phase 6 — swap ONLY these internals to Identity Platform; callers unchanged.
+// not care whether the id came from Supabase or Google Identity Platform. So
+// every server caller that needs "who is signed in" goes through THIS function
+// instead of touching the auth provider directly — making the Phase 6 provider
+// swap a one-file change.
 //
-// Keep this the ONLY place server code reads the authenticated identity, so the
-// provider swap in Phase 6 is a one-file change.
+// Phase 6: the identity source is now Identity Platform — this reads and
+// verifies the Firebase SESSION COOKIE (`sm_session`, minted by the client auth
+// flows via POST /api/auth/session). There is no Supabase fallback: the auth
+// flows, proxy, and this seam cut over together, and the app requires Identity
+// Platform to be provisioned + users imported to authenticate (mirrors how the
+// data layer requires Cloud SQL).
 
-import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE, verifySessionCookie } from "./session-cookie";
 
 export interface ServerUser {
   /** Stable user id — the value fed to `SET LOCAL app.current_user_id`. */
@@ -32,18 +36,17 @@ export interface ServerUser {
  * Validates the session with the auth server (not just a cookie read).
  */
 export async function getServerUser(): Promise<ServerUser | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const session = (await cookies()).get(SESSION_COOKIE)?.value;
+  const fb = await verifySessionCookie(session);
+  if (!fb) return null;
 
   return {
-    id: user.id,
-    email: user.email ?? null,
-    phone: user.phone ?? null,
-    phoneConfirmed: Boolean(user.phone_confirmed_at),
-    metadata: (user.user_metadata ?? {}) as Record<string, unknown>,
+    id: fb.uid,
+    email: fb.email,
+    phone: fb.phone,
+    phoneConfirmed: fb.phoneConfirmed,
+    // Mirror the Supabase user_metadata name fields the signup wizard reads.
+    metadata: fb.name ? { name: fb.name, full_name: fb.name } : {},
   };
 }
 

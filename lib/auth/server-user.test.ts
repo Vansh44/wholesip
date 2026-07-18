@@ -1,33 +1,48 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock the Supabase server client so we can drive getUser() outcomes.
-const getUser = vi.fn();
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({ auth: { getUser } })),
-}));
+// Phase 6: getServerUser verifies the Firebase session cookie (Identity
+// Platform). Mock the cookie jar and the verifier — no Supabase involved.
+vi.mock("next/headers", () => ({ cookies: vi.fn() }));
+vi.mock("./session-cookie", async (importOriginal) => {
+  const actual = (await importOriginal()) as any;
+  return { ...actual, verifySessionCookie: vi.fn() };
+});
 
 import { getServerUser, getServerUserId } from "./server-user";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE, verifySessionCookie } from "./session-cookie";
+
+const cookieStore = { get: vi.fn() };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(cookies).mockResolvedValue(cookieStore as any);
+  cookieStore.get.mockReturnValue({ value: "fb-cookie" });
+});
 
 describe("getServerUser", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("returns null when there is no session", async () => {
-    getUser.mockResolvedValue({ data: { user: null } });
+  it("returns null when there is no session cookie", async () => {
+    cookieStore.get.mockReturnValue(undefined);
+    vi.mocked(verifySessionCookie).mockResolvedValue(null);
     expect(await getServerUser()).toBeNull();
     expect(await getServerUserId()).toBeNull();
   });
 
-  it("maps the Supabase user onto the ServerUser shape", async () => {
-    getUser.mockResolvedValue({
-      data: {
-        user: {
-          id: "u-123",
-          email: "a@b.com",
-          phone: "+911234567890",
-          phone_confirmed_at: "2026-01-01T00:00:00Z",
-          user_metadata: { full_name: "Ada" },
-        },
-      },
+  it("returns null when the session cookie is invalid/expired", async () => {
+    vi.mocked(verifySessionCookie).mockResolvedValue(null);
+    expect(await getServerUser()).toBeNull();
+  });
+
+  it("maps a verified session onto the ServerUser shape", async () => {
+    vi.mocked(verifySessionCookie).mockResolvedValue({
+      uid: "u-123",
+      email: "a@b.com",
+      phone: "+911234567890",
+      phoneConfirmed: true,
+      name: "Ada",
+      claims: { role: "superadmin", forcePasswordReset: false },
     });
 
     expect(await getServerUser()).toEqual({
@@ -35,12 +50,20 @@ describe("getServerUser", () => {
       email: "a@b.com",
       phone: "+911234567890",
       phoneConfirmed: true,
-      metadata: { full_name: "Ada" },
+      metadata: { name: "Ada", full_name: "Ada" },
     });
+    expect(cookieStore.get).toHaveBeenCalledWith(SESSION_COOKIE);
   });
 
-  it("normalises missing optional fields", async () => {
-    getUser.mockResolvedValue({ data: { user: { id: "u-1" } } });
+  it("normalises a nameless user to empty metadata", async () => {
+    vi.mocked(verifySessionCookie).mockResolvedValue({
+      uid: "u-1",
+      email: null,
+      phone: null,
+      phoneConfirmed: false,
+      name: null,
+      claims: { role: null, forcePasswordReset: false },
+    });
     const u = await getServerUser();
     expect(u).toEqual({
       id: "u-1",
@@ -51,15 +74,15 @@ describe("getServerUser", () => {
     });
   });
 
-  it("phoneConfirmed is false when phone_confirmed_at is absent", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "u-1", phone: "+91999", phone_confirmed_at: null } },
-    });
-    expect((await getServerUser())?.phoneConfirmed).toBe(false);
-  });
-
   it("getServerUserId returns just the id", async () => {
-    getUser.mockResolvedValue({ data: { user: { id: "u-9" } } });
+    vi.mocked(verifySessionCookie).mockResolvedValue({
+      uid: "u-9",
+      email: null,
+      phone: null,
+      phoneConfirmed: false,
+      name: null,
+      claims: { role: null, forcePasswordReset: false },
+    });
     expect(await getServerUserId()).toBe("u-9");
   });
 });
