@@ -8,14 +8,27 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { createClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
+import { getFirebaseAuth, endSession } from "@/lib/auth/firebase-client";
 import { getMyCustomer, type MyCustomer } from "@/app/actions/customer-profile";
 
 type Customer = MyCustomer;
 
+// Provider-agnostic identity exposed to consumers (maps the Firebase User's
+// uid/email/phoneNumber onto the id/email/phone the storefront reads), so no
+// consumer needs to know which auth provider is behind it.
+export type AuthUser = {
+  id: string;
+  email: string | null;
+  phone: string | null;
+};
+
+function toAuthUser(u: FirebaseUser | null): AuthUser | null {
+  return u ? { id: u.uid, email: u.email, phone: u.phoneNumber } : null;
+}
+
 type AuthContextType = {
-  user: User | null;
+  user: AuthUser | null;
   customer: Customer | null;
   loading: boolean;
   isAuthModalOpen: boolean;
@@ -34,12 +47,10 @@ export function useAuth() {
 }
 
 export default function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-
-  const supabase = createClient();
 
   // Reads the signed-in customer's own row via a server action (the browser
   // can't use the server-only Drizzle layer). Resolves identity server-side
@@ -49,83 +60,53 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     setCustomer(data);
   }, []);
 
-  // Resolve the customer from the *live* session rather than the `user` React
-  // state. Right after verifyOtp / profile-save the modal calls this before the
-  // onAuthStateChange-driven setUser has propagated, so relying on `user` here
-  // would no-op and leave the header signed-out until a manual refresh. Reading
-  // getUser() directly avoids that race and keeps both bits of state in sync.
+  // Resolve from the *live* Firebase session rather than the `user` React state.
+  // Right after the modal verifies + establishes the session cookie it calls
+  // this before onAuthStateChanged has propagated, so reading currentUser
+  // directly keeps both bits of state in sync.
   const refreshCustomer = useCallback(async () => {
-    const {
-      data: { user: currentUser },
-    } = await supabase.auth.getUser();
-    setUser(currentUser);
-    if (currentUser) {
+    const current = getFirebaseAuth().currentUser;
+    setUser(toAuthUser(current));
+    if (current) {
       await fetchCustomer();
     } else {
       setCustomer(null);
     }
-  }, [supabase, fetchCustomer]);
+  }, [fetchCustomer]);
 
   useEffect(() => {
     let active = true;
 
-    // Initial session check
-    const init = async () => {
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
+    // Fires once on mount with the restored session (or null), then on every
+    // sign-in / sign-out. Firebase's listener has no re-entrancy lock, so it's
+    // safe to kick off the async customer fetch straight from the callback.
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (fbUser) => {
       if (!active) return;
-      setUser(currentUser);
-      if (currentUser) {
-        await fetchCustomer();
-      }
-      setLoading(false);
-    };
-    init();
-
-    // Listen for auth state changes.
-    // IMPORTANT: this callback runs *synchronously while the auth client holds
-    // its internal lock*. Calling another Supabase method (e.g. fetchCustomer,
-    // which queries the DB) with `await` here can dead-lock the client — the UI
-    // then gets stuck until a refresh, and a later signOut() hangs waiting for
-    // the same lock. So keep the callback sync and defer DB work off the lock.
-    // See @supabase/auth-js GoTrueClient onAuthStateChange remarks.
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      const sessionUser = session?.user ?? null;
-      setUser(sessionUser);
-      if (sessionUser) {
-        setTimeout(() => {
-          if (active) fetchCustomer();
-        }, 0);
+      setUser(toAuthUser(fbUser));
+      if (fbUser) {
+        fetchCustomer();
       } else {
         setCustomer(null);
       }
+      setLoading(false);
     });
 
     return () => {
       active = false;
-      subscription.unsubscribe();
+      unsubscribe();
     };
-  }, [supabase, fetchCustomer]);
+  }, [fetchCustomer]);
 
   const openAuthModal = useCallback(() => setIsAuthModalOpen(true), []);
   const closeAuthModal = useCallback(() => setIsAuthModalOpen(false), []);
 
   const signOut = useCallback(async () => {
     // Clear local UI state immediately so the header updates without waiting on
-    // the network. `scope: "local"` revokes only this session locally, avoiding
-    // a slow/hanging server round-trip; any error is swallowed so logout always
-    // completes from the user's point of view.
+    // the network, then tear down both the client session and the server cookie.
     setUser(null);
     setCustomer(null);
-    try {
-      await supabase.auth.signOut({ scope: "local" });
-    } catch {
-      // Already cleared local state above; nothing else to do.
-    }
-  }, [supabase]);
+    await endSession();
+  }, []);
 
   return (
     <AuthContext.Provider

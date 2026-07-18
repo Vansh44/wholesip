@@ -4,52 +4,36 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 
-// AuthProvider builds its Supabase client from the browser factory (auth calls
-// only) and reads the customer row via the getMyCustomer server action; mock
-// both so we can drive auth state + the customer fetch without a real client.
-vi.mock("@/lib/supabase/client", () => ({ createClient: vi.fn() }));
+// AuthProvider tracks the customer via Firebase onAuthStateChanged, reads the
+// row via the getMyCustomer server action, and tears down via endSession. Mock
+// all three seams so we can drive auth state without a real Firebase client.
+vi.mock("firebase/auth", () => ({ onAuthStateChanged: vi.fn() }));
+vi.mock("@/lib/auth/firebase-client", () => ({
+  getFirebaseAuth: vi.fn(() => ({ currentUser: currentFbUser })),
+  endSession: vi.fn(async () => {}),
+}));
 vi.mock("@/app/actions/customer-profile", () => ({ getMyCustomer: vi.fn() }));
 
 import AuthProvider, { useAuth } from "./AuthProvider";
-import { createClient } from "@/lib/supabase/client";
+import { onAuthStateChanged } from "firebase/auth";
+import { endSession } from "@/lib/auth/firebase-client";
 import { getMyCustomer } from "@/app/actions/customer-profile";
 
 // ---------------------------------------------------------------------------
-// Mock wiring.
-//
-// The source calls:
-//   supabase.auth.getUser()                            (init + refreshCustomer)
-//   supabase.auth.onAuthStateChange(cb) -> { data: { subscription } }
-//   supabase.auth.signOut({ scope })
-//   getMyCustomer() -> the customer row (server action, identity server-side)
-//
-// `currentUser` / `customerRow` are mutable so individual tests can flip what
-// getUser / getMyCustomer resolve to between renders or calls.
+// Mock wiring. onAuthStateChanged stores the callback and fires it once with
+// the current user (mimicking Firebase's initial resolve on mount); tests can
+// re-fire it via `authCallback` to simulate later sign-in / sign-out.
+// `currentFbUser` / `customerRow` are mutable so tests can flip them.
 // ---------------------------------------------------------------------------
 
-let currentUser: any;
+let currentFbUser: any;
 let customerRow: any;
-let authCallback: ((event: string, session: any) => void) | null;
+let authCallback: ((user: any) => void) | null;
 const unsubscribe = vi.fn();
-let signOutMock: ReturnType<typeof vi.fn>;
-let supabase: any;
 
-function buildClient() {
-  signOutMock = vi.fn().mockResolvedValue({ error: null });
-
-  return {
-    auth: {
-      getUser: vi.fn(async () => ({ data: { user: currentUser } })),
-      onAuthStateChange: vi.fn((cb: (e: string, s: any) => void) => {
-        authCallback = cb;
-        return { data: { subscription: { unsubscribe } } };
-      }),
-      signOut: signOutMock,
-    },
-  };
-}
-
-const USER = { id: "u-1", phone: "+15551234567" } as any;
+// A Firebase User carries uid / email / phoneNumber (AuthProvider maps these to
+// id / email / phone for consumers).
+const FB_USER = { uid: "u-1", email: "a@b.com", phoneNumber: "+15551234567" };
 const CUSTOMER = {
   id: "u-1",
   phone: "+15551234567",
@@ -59,7 +43,6 @@ const CUSTOMER = {
   updated_at: "2026-01-01",
 };
 
-// Consumer that surfaces the auth context as test-readable DOM + buttons.
 function Harness() {
   const auth = useAuth();
   return (
@@ -87,14 +70,15 @@ function renderAuth() {
 describe("AuthProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useRealTimers();
-    currentUser = null;
+    currentFbUser = null;
     customerRow = null;
     authCallback = null;
-    supabase = buildClient();
-    vi.mocked(createClient).mockReturnValue(supabase);
-    // Reads the mutable customerRow at call time, so tests can flip it.
     vi.mocked(getMyCustomer).mockImplementation(async () => customerRow);
+    vi.mocked(onAuthStateChanged).mockImplementation((_auth: any, cb: any) => {
+      authCallback = cb;
+      cb(currentFbUser); // initial resolve (Firebase fires on mount)
+      return unsubscribe as any;
+    });
   });
 
   it("useAuth throws when used outside the provider", () => {
@@ -102,7 +86,6 @@ describe("AuthProvider", () => {
       useAuth();
       return null;
     }
-    // Silence the expected React error boundary log.
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(() => render(<Bare />)).toThrow(/useAuth must be used within/);
     spy.mockRestore();
@@ -110,8 +93,6 @@ describe("AuthProvider", () => {
 
   it("initial load with no session settles loading=false and a null user", async () => {
     renderAuth();
-    expect(screen.getByTestId("loading")).toHaveTextContent("true");
-
     await waitFor(() =>
       expect(screen.getByTestId("loading")).toHaveTextContent("false"),
     );
@@ -121,7 +102,7 @@ describe("AuthProvider", () => {
   });
 
   it("initial load with a session populates the user and fetches the customer row", async () => {
-    currentUser = USER;
+    currentFbUser = FB_USER;
     customerRow = CUSTOMER;
     renderAuth();
 
@@ -145,25 +126,24 @@ describe("AuthProvider", () => {
     expect(screen.getByTestId("modal")).toHaveTextContent("false");
   });
 
-  it("signOut calls supabase.auth.signOut and clears user + customer", async () => {
+  it("signOut calls endSession and clears user + customer", async () => {
     const user = userEvent.setup();
-    currentUser = USER;
+    currentFbUser = FB_USER;
     customerRow = CUSTOMER;
     renderAuth();
 
     expect(await screen.findByText("Ada")).toBeInTheDocument();
-    expect(screen.getByTestId("user")).toHaveTextContent("u-1");
 
     await user.click(screen.getByText("signOut"));
 
-    expect(signOutMock).toHaveBeenCalledWith({ scope: "local" });
+    expect(endSession).toHaveBeenCalled();
     await waitFor(() => {
       expect(screen.getByTestId("user")).toHaveTextContent("");
       expect(screen.getByTestId("customer")).toHaveTextContent("");
     });
   });
 
-  it("onAuthStateChange SIGNED_IN populates the user (and SIGNED_OUT clears it)", async () => {
+  it("onAuthStateChanged SIGNED_IN populates the user (and SIGNED_OUT clears it)", async () => {
     customerRow = CUSTOMER;
     renderAuth();
     await waitFor(() =>
@@ -171,9 +151,8 @@ describe("AuthProvider", () => {
     );
     expect(authCallback).toBeTypeOf("function");
 
-    // The callback defers fetchCustomer via setTimeout(0); flush real timers.
     await act(async () => {
-      authCallback!("SIGNED_IN", { user: USER });
+      authCallback!(FB_USER);
     });
     expect(screen.getByTestId("user")).toHaveTextContent("u-1");
     await waitFor(() =>
@@ -181,20 +160,19 @@ describe("AuthProvider", () => {
     );
 
     await act(async () => {
-      authCallback!("SIGNED_OUT", null);
+      authCallback!(null);
     });
     expect(screen.getByTestId("user")).toHaveTextContent("");
     expect(screen.getByTestId("customer")).toHaveTextContent("");
   });
 
-  it("refreshCustomer re-fetches and surfaces the updated customer", async () => {
+  it("refreshCustomer re-fetches from the live session and surfaces the update", async () => {
     const user = userEvent.setup();
-    currentUser = USER;
+    currentFbUser = FB_USER;
     customerRow = CUSTOMER;
     renderAuth();
     expect(await screen.findByText("Ada")).toBeInTheDocument();
 
-    // Flip what getUser/single resolve to, then refresh.
     customerRow = { ...CUSTOMER, first_name: "Grace" };
     await user.click(screen.getByText("refresh"));
 

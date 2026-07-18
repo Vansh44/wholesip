@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Settings, LogOut } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { endSession } from "@/lib/auth/firebase-client";
 import { useEffect, useRef, useState } from "react";
 
 function getDisplayName(
@@ -100,8 +100,7 @@ export function TopbarProfile({
   }, []);
 
   async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await endSession();
     router.push("/auth/login");
     router.refresh();
   }

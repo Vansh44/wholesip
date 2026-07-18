@@ -2,7 +2,16 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
+import {
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  type ConfirmationResult,
+} from "firebase/auth";
+import {
+  getFirebaseAuth,
+  establishSession,
+  firebaseAuthErrorMessage,
+} from "@/lib/auth/firebase-client";
 import {
   updateCustomerProfile,
   getMyCustomer,
@@ -38,6 +47,24 @@ export default function AuthModal() {
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const phoneInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Firebase phone auth: an invisible reCAPTCHA (required by Identity Platform)
+  // and the ConfirmationResult returned by signInWithPhoneNumber, held across
+  // the send → verify steps.
+  const recaptchaRef = useRef<HTMLDivElement | null>(null);
+  const verifierRef = useRef<RecaptchaVerifier | null>(null);
+  const confirmationRef = useRef<ConfirmationResult | null>(null);
+
+  const getVerifier = useCallback((): RecaptchaVerifier => {
+    if (!verifierRef.current) {
+      verifierRef.current = new RecaptchaVerifier(
+        getFirebaseAuth(),
+        recaptchaRef.current!,
+        { size: "invisible" },
+      );
+    }
+    return verifierRef.current;
+  }, []);
+
   // Client-side caps on wrong-code submissions and resends (see hook).
   const {
     verifyBlocked,
@@ -62,6 +89,12 @@ export default function AuthModal() {
         setLoading(false);
         setResendTimer(0);
         resetOtpThrottle();
+        // Tear down the reCAPTCHA + pending confirmation so the next open starts
+        // clean (the verifier is bound to the DOM container and can't be reused
+        // once solved).
+        confirmationRef.current = null;
+        verifierRef.current?.clear();
+        verifierRef.current = null;
       }, 400);
       return () => clearTimeout(t);
     }
@@ -108,16 +141,13 @@ export default function AuthModal() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        phone: fullPhone,
-      });
-
-      if (otpError) {
-        setError(otpError.message);
-        setLoading(false);
-        return;
-      }
+      // Identity Platform sends the SMS after solving the invisible reCAPTCHA;
+      // the returned ConfirmationResult carries the code verifier.
+      confirmationRef.current = await signInWithPhoneNumber(
+        getFirebaseAuth(),
+        fullPhone,
+        getVerifier(),
+      );
 
       setStep("otp");
       setResendTimer(RESEND_COOLDOWN);
@@ -125,8 +155,8 @@ export default function AuthModal() {
 
       // Focus first OTP input
       setTimeout(() => otpRefs.current[0]?.focus(), 100);
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      setError(firebaseAuthErrorMessage(err));
       setLoading(false);
     }
   };
@@ -141,21 +171,17 @@ export default function AuthModal() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        phone: fullPhone,
-      });
-
-      if (otpError) {
-        setError(otpError.message);
-      } else {
-        registerResend();
-        setResendTimer(RESEND_COOLDOWN);
-        setOtp(Array(OTP_LENGTH).fill(""));
-        setTimeout(() => otpRefs.current[0]?.focus(), 100);
-      }
-    } catch {
-      setError("Failed to resend OTP.");
+      confirmationRef.current = await signInWithPhoneNumber(
+        getFirebaseAuth(),
+        fullPhone,
+        getVerifier(),
+      );
+      registerResend();
+      setResendTimer(RESEND_COOLDOWN);
+      setOtp(Array(OTP_LENGTH).fill(""));
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    } catch (err) {
+      setError(firebaseAuthErrorMessage(err) || "Failed to resend OTP.");
     }
     setLoading(false);
   };
@@ -164,48 +190,46 @@ export default function AuthModal() {
   const handleVerifyOtp = useCallback(
     async (otpValue: string) => {
       if (verifyBlocked) return;
+      if (!confirmationRef.current) {
+        setError("Please request a code first.");
+        return;
+      }
       setError("");
       setLoading(true);
 
       try {
-        const supabase = createClient();
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
-          phone: fullPhone,
-          token: otpValue,
-          type: "sms",
-        });
-
-        if (verifyError) {
-          registerFailedVerify();
-          setError(verifyError.message);
+        // Confirm the code (signs the user in on the client), then exchange the
+        // fresh ID token for the httpOnly server session cookie so the server
+        // actions below resolve identity.
+        await confirmationRef.current.confirm(otpValue);
+        const sessErr = await establishSession();
+        if (sessErr) {
+          setError(sessErr);
           setLoading(false);
           return;
         }
 
-        // Check if customer profile exists. The verified session cookie is now
-        // set, so this server action resolves identity server-side (the browser
-        // can't use the server-only Drizzle layer).
-        if (data.user) {
-          const existingCustomer = await getMyCustomer();
-
-          if (existingCustomer) {
-            // Returning user — done!
-            await refreshCustomer();
-            setLoading(false);
-            closeAuthModal();
-          } else {
-            // New user — show profile completion
-            setStep("profile");
-            setLoading(false);
-          }
+        // Check if a customer profile exists for this (now-authenticated) user.
+        const existingCustomer = await getMyCustomer();
+        if (existingCustomer) {
+          // Returning user — done!
+          await refreshCustomer();
+          setLoading(false);
+          closeAuthModal();
+        } else {
+          // New user — show profile completion
+          setStep("profile");
+          setLoading(false);
         }
-      } catch {
-        setError("Verification failed. Please try again.");
+      } catch (err) {
+        registerFailedVerify();
+        setError(
+          firebaseAuthErrorMessage(err) || "Verification failed. Please try again.",
+        );
         setLoading(false);
       }
     },
     [
-      fullPhone,
       refreshCustomer,
       closeAuthModal,
       verifyBlocked,
@@ -576,6 +600,11 @@ export default function AuthModal() {
             {step === "profile" && renderProfileStep()}
           </div>
         </div>
+
+        {/* Anchor for the invisible reCAPTCHA that Identity Platform runs
+            before sending the phone OTP. Never displays anything in invisible
+            mode. */}
+        <div ref={recaptchaRef} />
       </div>
     </div>
   );
