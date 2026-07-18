@@ -127,21 +127,21 @@ a {
      Deliberately NOT beige/almond and NOT cocoa/green (both earlier themes).
      Applied via the .storefront-root wrapper (NOT the admin dashboard).
      Consumed by Header, Footer, and the shop --shop-* tokens in shop.css. */
-  --wholesip-cream: #fdfcfb; /* page background — near white */
-  --wholesip-cream-deep: #f4f2ee; /* alt surface / hover / image tiles */
-  --wholesip-surface: #ffffff; /* pure-white cards / inputs */
-  --wholesip-ink: #17130f; /* headings + body — near black, high contrast */
-  --wholesip-ink-soft: #574f47; /* muted text */
-  --wholesip-ink-faint: #9c958c; /* subtle / struck price */
-  --wholesip-taupe: #eee7de; /* promo ticker / soft band */
-  --wholesip-sand: #f0ebe3; /* chips / soft pill surface */
-  --wholesip-butter: #f3ecc9; /* highlight (used sparingly) */
-  --wholesip-border: #e8e2d9; /* hairline */
-  --wholesip-accent: #17130f; /* near-black — links / primary CTA */
-  --wholesip-accent-deep: #000000; /* accent hover */
-  --wholesip-tile: #f4dfe0; /* default product card tile when a product
+  --sm-cream: #fdfcfb; /* page background — near white */
+  --sm-cream-deep: #f4f2ee; /* alt surface / hover / image tiles */
+  --sm-surface: #ffffff; /* pure-white cards / inputs */
+  --sm-ink: #17130f; /* headings + body — near black, high contrast */
+  --sm-ink-soft: #574f47; /* muted text */
+  --sm-ink-faint: #9c958c; /* subtle / struck price */
+  --sm-taupe: #eee7de; /* promo ticker / soft band */
+  --sm-sand: #f0ebe3; /* chips / soft pill surface */
+  --sm-butter: #f3ecc9; /* highlight (used sparingly) */
+  --sm-border: #e8e2d9; /* hairline */
+  --sm-accent: #17130f; /* near-black — links / primary CTA */
+  --sm-accent-deep: #000000; /* accent hover */
+  --sm-tile: #f4dfe0; /* default product card tile when a product
                             sets no --card-bg (soft pastel) */
-  --wholesip-accent-warm: #ce8662; /* terracotta — ticker separators & small
+  --sm-accent-warm: #ce8662; /* terracotta — ticker separators & small
                                    warm accents only (NOT the primary accent;
                                    the primary accent stays ink) */
 
@@ -151,21 +151,21 @@ a {
      wholesale, inline on .storefront-root (see lib/themes design + the
      (storefront) layout injection). Do NOT hardcode these colours in
      component CSS — always reference the token so a theme can re-skin it. */
-  --wholesip-on-accent: #ffffff; /* text/icon sitting ON an accent-filled button */
-  --wholesip-on-ink: #ffffff; /* text/icon sitting ON an ink-filled surface */
-  --wholesip-shadow-rgb: 23, 19, 15; /* base rgb for rgba() elevation shadows */
-  --wholesip-success: #2e7d32;
-  --wholesip-success-soft: #e8f5e9;
-  --wholesip-error: #c62828;
-  --wholesip-error-soft: #ffebee;
-  --wholesip-star: #f5a623; /* rating stars */
-  --wholesip-highlight: #f7a600; /* "best value" / promo highlight base */
+  --sm-on-accent: #ffffff; /* text/icon sitting ON an accent-filled button */
+  --sm-on-ink: #ffffff; /* text/icon sitting ON an ink-filled surface */
+  --sm-shadow-rgb: 23, 19, 15; /* base rgb for rgba() elevation shadows */
+  --sm-success: #2e7d32;
+  --sm-success-soft: #e8f5e9;
+  --sm-error: #c62828;
+  --sm-error-soft: #ffebee;
+  --sm-star: #f5a623; /* rating stars */
+  --sm-highlight: #f7a600; /* "best value" / promo highlight base */
 
   /* Shape scale — a theme dials roundness from sharp (0px) to soft (20px+). */
-  --wholesip-radius-card: 20px; /* product / content cards */
-  --wholesip-radius-control: 12px; /* inputs, buttons, selects */
-  --wholesip-radius-sm: 10px; /* small controls, steppers */
-  --wholesip-radius-pill: 999px; /* pills, chips, avatars */
+  --sm-radius-card: 20px; /* product / content cards */
+  --sm-radius-control: 12px; /* inputs, buttons, selects */
+  --sm-radius-sm: 10px; /* small controls, steppers */
+  --sm-radius-pill: 999px; /* pills, chips, avatars */
 }
 
 .dark {

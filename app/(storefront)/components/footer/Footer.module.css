@@ -10,7 +10,7 @@
 
   font-size: 14px;
   font-weight: 400;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   letter-spacing: 0.2px;
 }
 
@@ -21,7 +21,7 @@
 
 .credit strong {
   font-weight: 600;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .creditLogo {
@@ -50,14 +50,14 @@
 
 .footer {
   background: transparent;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   margin-top: auto;
   display: flex;
   flex-direction: column;
 }
 
 .footerMain {
-  background: var(--wholesip-cream-deep);
+  background: var(--sm-cream-deep);
 }
 
 /* ============================================
@@ -65,11 +65,11 @@
    ============================================ */
 
 .newsletterBar {
-  background: var(--wholesip-butter);
+  background: var(--sm-butter);
   padding: 24px 64px;
   margin-bottom: 48px; /* Space between banner and footer */
-  border-top: 1px solid var(--wholesip-border);
-  border-bottom: 1px solid var(--wholesip-border);
+  border-top: 1px solid var(--sm-border);
+  border-bottom: 1px solid var(--sm-border);
 }
 
 .newsletterInner {
@@ -85,14 +85,14 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 22px;
   font-weight: 800;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   display: block;
   margin-bottom: 6px;
 }
 
 .newsletterSub {
   font-family: var(--font-roboto), sans-serif;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   font-size: 14px;
   margin: 0;
 }
@@ -105,23 +105,23 @@
 .newsletterInput {
   width: 280px;
   padding: 14px 18px;
-  border: 1px solid var(--wholesip-border);
+  border: 1px solid var(--sm-border);
   border-right: none;
-  background: var(--wholesip-surface);
-  color: var(--wholesip-ink);
+  background: var(--sm-surface);
+  color: var(--sm-ink);
   font-size: 14px;
   outline: none;
   border-radius: 10px 0 0 10px;
 }
 
 .newsletterInput::placeholder {
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .newsletterBtn {
   padding: 14px 24px;
   border: none;
-  background: var(--wholesip-accent);
+  background: var(--sm-accent);
   color: white;
   font-family: var(--font-outfit), sans-serif;
   font-size: 13px;
@@ -134,7 +134,7 @@
 }
 
 .newsletterBtn:hover {
-  background: var(--wholesip-ink);
+  background: var(--sm-ink);
 }
 
 /* ============================================
@@ -143,7 +143,7 @@
 
 .trustBar {
   background: transparent;
-  border-bottom: 1px solid var(--wholesip-border);
+  border-bottom: 1px solid var(--sm-border);
   padding: 14px 64px;
 }
 
@@ -160,7 +160,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   font-size: 13px;
   font-family: var(--font-outfit), sans-serif;
   font-weight: 600;
@@ -169,7 +169,7 @@
 }
 
 .trustIcon {
-  color: var(--wholesip-accent);
+  color: var(--sm-accent);
 }
 
 /* ============================================
@@ -201,7 +201,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-weight: 800;
   font-size: 20px;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   letter-spacing: -0.02em;
 }
 
@@ -210,7 +210,7 @@
 }
 
 .tagline {
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   line-height: 1.8;
   max-width: 300px;
   margin-bottom: 20px;
@@ -232,14 +232,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   text-decoration: none;
   font-size: 13.5px;
   transition: all 0.2s ease;
 }
 
 .contactLine:hover {
-  color: var(--wholesip-accent);
+  color: var(--sm-accent);
 }
 
 .contactLine svg {
@@ -259,18 +259,18 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--wholesip-surface);
-  border: 1px solid var(--wholesip-border);
+  background: var(--sm-surface);
+  border: 1px solid var(--sm-border);
   display: flex;
   justify-content: center;
   align-items: center;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   transition: all 0.25s ease;
 }
 
 .socialIcon:hover {
-  color: var(--wholesip-accent);
-  border-color: var(--wholesip-accent);
+  color: var(--sm-accent);
+  border-color: var(--sm-accent);
   transform: translateY(-2px);
 }
 
@@ -279,7 +279,7 @@
    ============================================ */
 
 .columnTitle {
-  color: var(--wholesip-accent);
+  color: var(--sm-accent);
   font-family: var(--font-outfit), sans-serif;
   font-size: 12px;
   font-weight: 700;
@@ -295,7 +295,7 @@
 }
 
 .linkList a {
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   text-decoration: none;
   width: fit-content;
   transition: all 0.25s ease;
@@ -303,7 +303,7 @@
 }
 
 .linkList a:hover {
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   transform: translateX(4px);
 }
 
@@ -315,7 +315,7 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 16px 64px;
-  border-top: 1px solid var(--wholesip-border);
+  border-top: 1px solid var(--sm-border);
 }
 
 .legalRow {
@@ -327,7 +327,7 @@
 }
 
 .copyright {
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   font-size: 12px;
 }
 
@@ -338,16 +338,16 @@
 }
 
 .legalLinks a {
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   font-size: 12px;
 }
 
 .legalLinks a:hover {
-  color: var(--wholesip-accent);
+  color: var(--sm-accent);
 }
 
 .legalDivider {
-  color: var(--wholesip-border);
+  color: var(--sm-border);
 }
 
 /* ============================================

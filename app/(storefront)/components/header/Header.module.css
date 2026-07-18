@@ -15,10 +15,10 @@
 }
 
 .headerScrolled {
-  background-color: color-mix(in srgb, var(--wholesip-cream) 92%, transparent);
+  background-color: color-mix(in srgb, var(--sm-cream) 92%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 4px 20px rgba(var(--wholesip-shadow-rgb), 0.06);
+  box-shadow: 0 4px 20px rgba(var(--sm-shadow-rgb), 0.06);
 }
 
 .headerLeft {
@@ -39,7 +39,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-weight: 800;
   font-size: 24px;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   letter-spacing: -0.02em;
 }
 
@@ -56,7 +56,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-weight: 600;
   font-size: 15px;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   transition:
     opacity 0.2s ease,
     transform 0.2s ease;
@@ -81,13 +81,13 @@
 .searchBar {
   display: flex;
   align-items: center;
-  background: var(--wholesip-sand);
-  border: 1px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-control);
+  background: var(--sm-sand);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-control);
   padding: 0 16px;
   width: 280px;
   height: 38px;
-  box-shadow: 0 2px 8px rgba(var(--wholesip-shadow-rgb), 0.04);
+  box-shadow: 0 2px 8px rgba(var(--sm-shadow-rgb), 0.04);
   transition:
     box-shadow 0.2s ease,
     border-color 0.2s ease,
@@ -95,8 +95,8 @@
 }
 
 .searchBar:focus-within {
-  box-shadow: 0 4px 12px rgba(var(--wholesip-shadow-rgb), 0.08);
-  border-color: var(--wholesip-ink-faint);
+  box-shadow: 0 4px 12px rgba(var(--sm-shadow-rgb), 0.08);
+  border-color: var(--sm-ink-faint);
 }
 
 .searchInput {
@@ -106,19 +106,19 @@
   font-size: 14px;
   font-family: var(--font-outfit), sans-serif;
   font-weight: 500;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   background: transparent;
 }
 
 .searchInput::placeholder {
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .searchIcon {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
   cursor: pointer;
   margin-left: 8px;
   transition: color 0.2s ease;
@@ -129,13 +129,13 @@
 }
 
 .searchBar:focus-within .searchIcon {
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .userIcon {
   background: transparent;
   border: none;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -155,7 +155,7 @@
   position: relative;
   background: transparent;
   border: none;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -178,9 +178,9 @@
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border-radius: var(--wholesip-radius-pill);
-  background: var(--wholesip-ink);
-  color: var(--wholesip-on-ink);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-ink);
+  color: var(--sm-on-ink);
   font-size: 11px;
   font-weight: 700;
   line-height: 18px;
@@ -204,10 +204,10 @@
   border-radius: 50%;
   background: linear-gradient(
     135deg,
-    var(--wholesip-ink) 0%,
-    var(--wholesip-ink-soft) 100%
+    var(--sm-ink) 0%,
+    var(--sm-ink-soft) 100%
   );
-  color: var(--wholesip-on-ink);
+  color: var(--sm-on-ink);
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
   font-weight: 700;
@@ -225,12 +225,12 @@
   top: calc(100% + 10px);
   right: 0;
   width: 268px;
-  background: var(--wholesip-surface);
-  border-radius: var(--wholesip-radius-control);
+  background: var(--sm-surface);
+  border-radius: var(--sm-radius-control);
   box-shadow:
-    0 12px 40px rgba(var(--wholesip-shadow-rgb), 0.1),
-    0 2px 8px rgba(var(--wholesip-shadow-rgb), 0.04);
-  border: 1px solid var(--wholesip-border);
+    0 12px 40px rgba(var(--sm-shadow-rgb), 0.1),
+    0 2px 8px rgba(var(--sm-shadow-rgb), 0.04);
+  border: 1px solid var(--sm-border);
   z-index: 60;
   padding: 8px;
   animation: dropdownFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -274,10 +274,10 @@
   border-radius: 50%;
   background: linear-gradient(
     135deg,
-    var(--wholesip-ink) 0%,
-    var(--wholesip-ink-soft) 100%
+    var(--sm-ink) 0%,
+    var(--sm-ink-soft) 100%
   );
-  color: var(--wholesip-on-ink);
+  color: var(--sm-on-ink);
   font-family: var(--font-outfit), sans-serif;
   font-size: 15px;
   font-weight: 700;
@@ -295,7 +295,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
   font-weight: 600;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -304,12 +304,12 @@
 .profileDropdownPhone {
   font-family: var(--font-outfit), sans-serif;
   font-size: 12px;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .profileDropdownDivider {
   height: 1px;
-  background: var(--wholesip-border);
+  background: var(--sm-border);
   margin: 4px 8px;
 }
 
@@ -332,22 +332,22 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .profileDropdownLoginSub {
   font-family: var(--font-outfit), sans-serif;
   font-size: 11.5px;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .profileDropdownLoginBtn {
   flex-shrink: 0;
   padding: 8px 18px;
   border: none;
-  border-radius: var(--wholesip-radius-sm);
-  background: var(--wholesip-ink);
-  color: var(--wholesip-on-ink);
+  border-radius: var(--sm-radius-sm);
+  background: var(--sm-ink);
+  color: var(--sm-on-ink);
   font-family: var(--font-outfit), sans-serif;
   font-size: 13px;
   font-weight: 600;
@@ -358,7 +358,7 @@
 }
 
 .profileDropdownLoginBtn:hover {
-  background: var(--wholesip-accent);
+  background: var(--sm-accent);
   transform: translateY(-1px);
 }
 
@@ -370,11 +370,11 @@
   padding: 10px 12px;
   border: none;
   background: none;
-  border-radius: var(--wholesip-radius-sm);
+  border-radius: var(--sm-radius-sm);
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   cursor: pointer;
   text-align: left;
   transition:
@@ -384,23 +384,23 @@
 
 .profileDropdownItem svg {
   flex-shrink: 0;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
   transition: color 0.15s ease;
 }
 
 .profileDropdownItem:hover {
-  background: var(--wholesip-cream-deep);
-  color: var(--wholesip-ink);
+  background: var(--sm-cream-deep);
+  color: var(--sm-ink);
 }
 
 .profileDropdownItem:hover svg {
-  color: var(--wholesip-accent);
+  color: var(--sm-accent);
 }
 
 /* Trailing chevron pushed to the right edge */
 .profileItemArrow {
   margin-left: auto;
-  color: var(--wholesip-ink-faint) !important;
+  color: var(--sm-ink-faint) !important;
   opacity: 0;
   transform: translateX(-4px);
   transition:
@@ -417,7 +417,7 @@
 .drawerAuth {
   margin-top: auto;
   padding-top: 32px;
-  border-top: 1px solid var(--wholesip-border);
+  border-top: 1px solid var(--sm-border);
 }
 
 .drawerAuthUser {
@@ -436,10 +436,10 @@
   border-radius: 50%;
   background: linear-gradient(
     135deg,
-    var(--wholesip-ink) 0%,
-    var(--wholesip-ink-soft) 100%
+    var(--sm-ink) 0%,
+    var(--sm-ink-soft) 100%
   );
-  color: var(--wholesip-on-ink);
+  color: var(--sm-on-ink);
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
   font-weight: 700;
@@ -449,19 +449,19 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 15px;
   font-weight: 600;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .drawerAuthBtn {
   width: 100%;
   padding: 12px;
-  border: 1.5px solid var(--wholesip-ink);
-  border-radius: var(--wholesip-radius-sm);
+  border: 1.5px solid var(--sm-ink);
+  border-radius: var(--sm-radius-sm);
   background: transparent;
   font-family: var(--font-outfit), sans-serif;
   font-size: 15px;
   font-weight: 600;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   cursor: pointer;
   text-align: center;
   transition:
@@ -470,15 +470,15 @@
 }
 
 .drawerAuthBtn:hover {
-  background: var(--wholesip-ink);
-  color: var(--wholesip-on-ink);
+  background: var(--sm-ink);
+  color: var(--sm-on-ink);
 }
 
 .hamburgerBtn {
   display: none;
   background: transparent;
   border: none;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   cursor: pointer;
   align-items: center;
   justify-content: center;
@@ -500,9 +500,9 @@
   width: 320px;
   max-width: 85vw;
   height: 100vh;
-  background: var(--wholesip-surface);
+  background: var(--sm-surface);
   z-index: 100;
-  box-shadow: -10px 0 30px rgba(var(--wholesip-shadow-rgb), 0.08);
+  box-shadow: -10px 0 30px rgba(var(--sm-shadow-rgb), 0.08);
   display: flex;
   flex-direction: column;
   padding: 32px 24px;
@@ -524,7 +524,7 @@
 .closeBtn {
   background: transparent;
   border: none;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -548,9 +548,9 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--wholesip-sand);
-  border: 1px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-control);
+  background: var(--sm-sand);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-control);
   padding: 0 16px;
   width: 100%;
   height: 44px;
@@ -570,14 +570,14 @@
   font-family: var(--font-outfit), sans-serif;
   font-weight: 600;
   font-size: 18px;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   transition:
     padding-left 0.2s ease,
     color 0.2s ease;
 }
 
 .drawerNav a:hover {
-  color: var(--wholesip-accent);
+  color: var(--sm-accent);
   padding-left: 4px;
 }
 
@@ -688,11 +688,11 @@
    Colours come from --sm-header-bg / --sm-header-fg (designToCssVars),
    falling back to the ink / on-ink tokens. */
 :global(.sm-header-market) .header {
-  background: var(--sm-header-bg, var(--wholesip-ink));
-  box-shadow: 0 2px 14px rgba(var(--wholesip-shadow-rgb), 0.12);
+  background: var(--sm-header-bg, var(--sm-ink));
+  box-shadow: 0 2px 14px rgba(var(--sm-shadow-rgb), 0.12);
 }
 :global(.sm-header-market) .headerScrolled {
-  background: var(--sm-header-bg, var(--wholesip-ink));
+  background: var(--sm-header-bg, var(--sm-ink));
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -702,7 +702,7 @@
 :global(.sm-header-market) .userIcon,
 :global(.sm-header-market) .cartBtn,
 :global(.sm-header-market) .hamburgerBtn {
-  color: var(--sm-header-fg, var(--wholesip-on-ink));
+  color: var(--sm-header-fg, var(--sm-on-ink));
 }
 
 /* The search box becomes the header's centrepiece: white pill, grows to fill
@@ -713,9 +713,9 @@
   justify-content: flex-end;
 }
 :global(.sm-header-market) .searchBar {
-  background: var(--wholesip-surface);
+  background: var(--sm-surface);
   border-color: transparent;
-  border-radius: var(--wholesip-radius-pill, 999px);
+  border-radius: var(--sm-radius-pill, 999px);
   height: 42px;
   flex: 1 1 auto;
   max-width: 560px;

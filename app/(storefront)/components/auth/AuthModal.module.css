@@ -30,11 +30,11 @@
   width: 100%;
   max-width: 420px;
   margin: 20px;
-  background: var(--wholesip-surface);
-  border-radius: var(--wholesip-radius-card);
+  background: var(--sm-surface);
+  border-radius: var(--sm-radius-card);
   box-shadow:
-    0 24px 80px rgba(var(--wholesip-shadow-rgb), 0.12),
-    0 4px 16px rgba(var(--wholesip-shadow-rgb), 0.06);
+    0 24px 80px rgba(var(--sm-shadow-rgb), 0.12),
+    0 4px 16px rgba(var(--sm-shadow-rgb), 0.06);
   overflow: hidden;
   transform: translateY(24px) scale(0.97);
   transition:
@@ -56,13 +56,13 @@
   width: 36px;
   height: 36px;
   border: none;
-  background: var(--wholesip-cream-deep);
+  background: var(--sm-cream-deep);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   transition:
     background 0.2s ease,
     color 0.2s ease,
@@ -70,8 +70,8 @@
 }
 
 .closeBtn:hover {
-  background: var(--wholesip-sand);
-  color: var(--wholesip-ink);
+  background: var(--sm-sand);
+  color: var(--sm-ink);
   transform: scale(1.05);
 }
 
@@ -95,7 +95,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 22px;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   text-align: center;
   margin-bottom: 6px;
 }
@@ -103,7 +103,7 @@
 .subtitle {
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
   text-align: center;
   margin-bottom: 28px;
   line-height: 1.5;
@@ -141,13 +141,13 @@
   flex-shrink: 0;
   width: 88px;
   height: 48px;
-  border: 1.5px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-cream-deep);
+  border: 1.5px solid var(--sm-border);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-cream-deep);
   font-family: var(--font-outfit), sans-serif;
   font-size: 15px;
   font-weight: 500;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   padding: 0 8px;
   cursor: pointer;
   transition:
@@ -162,20 +162,20 @@
 
 .countrySelect:focus {
   outline: none;
-  border-color: var(--wholesip-ink);
-  box-shadow: 0 0 0 3px rgba(var(--wholesip-shadow-rgb), 0.08);
+  border-color: var(--sm-ink);
+  box-shadow: 0 0 0 3px rgba(var(--sm-shadow-rgb), 0.08);
 }
 
 .phoneInput {
   flex: 1;
   height: 48px;
-  border: 1.5px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-cream-deep);
+  border: 1.5px solid var(--sm-border);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-cream-deep);
   font-family: var(--font-outfit), sans-serif;
   font-size: 16px;
   font-weight: 500;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   padding: 0 16px;
   transition:
     border-color 0.2s ease,
@@ -183,14 +183,14 @@
 }
 
 .phoneInput::placeholder {
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .phoneInput:focus {
   outline: none;
-  border-color: var(--wholesip-ink);
-  box-shadow: 0 0 0 3px rgba(var(--wholesip-shadow-rgb), 0.08);
-  background: var(--wholesip-surface);
+  border-color: var(--sm-ink);
+  box-shadow: 0 0 0 3px rgba(var(--sm-shadow-rgb), 0.08);
+  background: var(--sm-surface);
 }
 
 /* ---- OTP Input ---- */
@@ -208,10 +208,10 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 22px;
   font-weight: 600;
-  color: var(--wholesip-ink);
-  border: 1.5px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-cream-deep);
+  color: var(--sm-ink);
+  border: 1.5px solid var(--sm-border);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-cream-deep);
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease,
@@ -220,14 +220,14 @@
 
 .otpInput:focus {
   outline: none;
-  border-color: var(--wholesip-ink);
-  box-shadow: 0 0 0 3px rgba(var(--wholesip-shadow-rgb), 0.1);
-  background: var(--wholesip-surface);
+  border-color: var(--sm-ink);
+  box-shadow: 0 0 0 3px rgba(var(--sm-shadow-rgb), 0.1);
+  background: var(--sm-surface);
   transform: scale(1.04);
 }
 
 .otpInput::placeholder {
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 /* ---- Text Inputs (Name, Email) ---- */
@@ -240,26 +240,26 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 13px;
   font-weight: 600;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   margin-bottom: 6px;
   letter-spacing: 0.02em;
 }
 
 .requiredDot {
-  color: var(--wholesip-error);
+  color: var(--sm-error);
   margin-left: 2px;
 }
 
 .textInput {
   width: 100%;
   height: 48px;
-  border: 1.5px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-cream-deep);
+  border: 1.5px solid var(--sm-border);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-cream-deep);
   font-family: var(--font-outfit), sans-serif;
   font-size: 15px;
   font-weight: 500;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   padding: 0 16px;
   transition:
     border-color 0.2s ease,
@@ -267,14 +267,14 @@
 }
 
 .textInput::placeholder {
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .textInput:focus {
   outline: none;
-  border-color: var(--wholesip-ink);
-  box-shadow: 0 0 0 3px rgba(var(--wholesip-shadow-rgb), 0.08);
-  background: var(--wholesip-surface);
+  border-color: var(--sm-ink);
+  box-shadow: 0 0 0 3px rgba(var(--sm-shadow-rgb), 0.08);
+  background: var(--sm-surface);
 }
 
 /* ---- Primary Button ---- */
@@ -282,9 +282,9 @@
   width: 100%;
   height: 50px;
   border: none;
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-ink);
-  color: var(--wholesip-on-ink);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-ink);
+  color: var(--sm-on-ink);
   font-family: var(--font-outfit), sans-serif;
   font-size: 15px;
   font-weight: 600;
@@ -300,9 +300,9 @@
 }
 
 .primaryBtn:hover:not(:disabled) {
-  background: var(--wholesip-ink-soft);
+  background: var(--sm-ink-soft);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(var(--wholesip-shadow-rgb), 0.15);
+  box-shadow: 0 6px 20px rgba(var(--sm-shadow-rgb), 0.15);
 }
 
 .primaryBtn:active:not(:disabled) {
@@ -320,7 +320,7 @@
   width: 18px;
   height: 18px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: var(--wholesip-on-ink);
+  border-top-color: var(--sm-on-ink);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
   vertical-align: middle;
@@ -337,13 +337,13 @@
 .error {
   font-family: var(--font-outfit), sans-serif;
   font-size: 13px;
-  color: var(--wholesip-error);
+  color: var(--sm-error);
   text-align: center;
   margin-top: 12px;
   padding: 10px 14px;
-  background: var(--wholesip-error-soft);
-  border-radius: var(--wholesip-radius-sm);
-  border: 1px solid color-mix(in srgb, var(--wholesip-error) 30%, transparent);
+  background: var(--sm-error-soft);
+  border-radius: var(--sm-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--sm-error) 30%, transparent);
 }
 
 /* ---- Resend / Secondary Actions ---- */
@@ -352,13 +352,13 @@
   margin-top: 16px;
   font-family: var(--font-outfit), sans-serif;
   font-size: 13px;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .resendBtn {
   background: none;
   border: none;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   font-family: var(--font-outfit), sans-serif;
   font-size: 13px;
   font-weight: 600;
@@ -387,7 +387,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-size: 13px;
   font-weight: 500;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
   cursor: pointer;
   padding: 0;
   margin-bottom: 16px;
@@ -395,21 +395,21 @@
 }
 
 .backBtn:hover {
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 /* ---- Phone display in OTP step ---- */
 .phoneDisplay {
   font-family: var(--font-outfit), sans-serif;
   font-size: 14px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   text-align: center;
   margin-bottom: 24px;
 }
 
 .phoneNumber {
   font-weight: 600;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .editPhone {
@@ -417,7 +417,7 @@
   border: none;
   font-family: var(--font-outfit), sans-serif;
   font-size: 13px;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   font-weight: 600;
   cursor: pointer;
   text-decoration: underline;
@@ -438,7 +438,7 @@
   margin: 20px 0;
   font-family: var(--font-outfit), sans-serif;
   font-size: 12px;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -448,7 +448,7 @@
   content: "";
   flex: 1;
   height: 1px;
-  background: var(--wholesip-border);
+  background: var(--sm-border);
 }
 
 /* ---- Success check animation ---- */
@@ -465,8 +465,8 @@
   border-radius: 50%;
   background: linear-gradient(
     135deg,
-    var(--wholesip-success) 0%,
-    color-mix(in srgb, var(--wholesip-success) 78%, #000) 100%
+    var(--sm-success) 0%,
+    color-mix(in srgb, var(--sm-success) 78%, #000) 100%
   );
   display: flex;
   align-items: center;
@@ -496,7 +496,7 @@
   .modal {
     max-width: 100%;
     margin: 12px;
-    border-radius: var(--wholesip-radius-card);
+    border-radius: var(--sm-radius-card);
   }
 
   .otpInput {
