@@ -26,7 +26,7 @@ import {
   stores,
   users,
 } from "@/drizzle/schema";
-import { STORE_TAG, WHOLESIP_STORE_ID } from "@/lib/store/resolve";
+import { STORE_TAG, FALLBACK_STORE_ID } from "@/lib/store/resolve";
 import { getThemeDefinition } from "@/lib/themes";
 import { applyTheme } from "@/lib/themes/apply";
 import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
@@ -472,7 +472,7 @@ export async function deleteStore(storeId: string): Promise<ActionResult> {
   }
   // The WholeSip fallback store underpins unresolved-host handling — never let
   // it be deleted from the console.
-  if (storeId === WHOLESIP_STORE_ID) {
+  if (storeId === FALLBACK_STORE_ID) {
     return { error: "The WholeSip fallback store can't be deleted." };
   }
 

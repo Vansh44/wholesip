@@ -6,11 +6,11 @@ import { makeDbMock, sqlParamValues } from "./_test-helpers";
 vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
-// platform.ts pulls STORE_TAG/WHOLESIP_STORE_ID from resolve.ts, whose module
+// platform.ts pulls STORE_TAG/FALLBACK_STORE_ID from resolve.ts, whose module
 // scope calls unstable_cache — stub the constants instead of loading it.
 vi.mock("@/lib/store/resolve", () => ({
   STORE_TAG: "stores",
-  WHOLESIP_STORE_ID: "a0000000-0000-4000-8000-000000000001",
+  FALLBACK_STORE_ID: "a0000000-0000-4000-8000-000000000001",
 }));
 // Unrelated heavyweight imports of platform.ts — stub so the module loads lean.
 vi.mock("@/lib/themes", () => ({ getThemeDefinition: vi.fn() }));

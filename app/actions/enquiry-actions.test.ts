@@ -9,7 +9,7 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("@/lib/store/resolve", () => ({
   getCurrentStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
-  WHOLESIP_STORE_ID: "a0000000-0000-4000-8000-000000000001",
+  FALLBACK_STORE_ID: "a0000000-0000-4000-8000-000000000001",
 }));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn().mockResolvedValue({ allowed: true }),

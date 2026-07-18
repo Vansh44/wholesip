@@ -38,9 +38,10 @@ export interface Store {
   settings: Record<string, unknown>;
 }
 
-// WholeSip — Store #1. Matches the fixed id seeded in multitenant_01_schema.sql.
-// Used as the single-tenant fallback until real subdomains are live.
-export const WHOLESIP_STORE_ID = "a0000000-0000-4000-8000-000000000001";
+// The fallback store (the legacy "store #1"). Matches the fixed id seeded in
+// multitenant_01_schema.sql. Never-null fallback for dashboard/action callers
+// when a host maps to no store; the storefront never relies on it (it 404s).
+export const FALLBACK_STORE_ID = "a0000000-0000-4000-8000-000000000001";
 
 // Cache tag for store lookups — call `revalidateTag(STORE_TAG)` after a store
 // is created or its settings/domain change.
@@ -149,13 +150,13 @@ export async function getCurrentStore(): Promise<Store> {
   const resolved = await getCurrentStoreOrNull();
   if (resolved) return resolved;
 
-  const fallback = await lookupStoreById(WHOLESIP_STORE_ID);
+  const fallback = await lookupStoreById(FALLBACK_STORE_ID);
   if (fallback) return fallback;
 
   // Last-resort synthetic store so callers never crash even if the row is
   // somehow missing (e.g. mid-migration). store_id still resolves correctly.
   return {
-    id: WHOLESIP_STORE_ID,
+    id: FALLBACK_STORE_ID,
     slug: "wholesip",
     name: "WholeSip",
     status: "active",

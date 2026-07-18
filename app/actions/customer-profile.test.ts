@@ -9,7 +9,7 @@ vi.mock("@/lib/auth/firebase-users", () => ({
 vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 vi.mock("@/lib/store/resolve", () => ({
   getCurrentStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
-  WHOLESIP_STORE_ID: "a0000000-0000-4000-8000-000000000001",
+  FALLBACK_STORE_ID: "a0000000-0000-4000-8000-000000000001",
 }));
 
 // The ported data layer: with* runners invoke the callback with the mock db.
