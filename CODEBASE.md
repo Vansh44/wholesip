@@ -14,9 +14,10 @@ selling within a day. Every store gets:
 - A full **admin dashboard** (`/dashboard`) to manage products, orders-adjacent data, blogs, marketing, users, branding, and settings — all no-code.
 
 The codebase began as **WholeSip** (a single D2C juice brand, store #1) and was
-converted to multi-tenant in phases. WholeSip still exists as the fallback store
-(`WHOLESIP_STORE_ID = a0000000-0000-4000-8000-000000000001` in `lib/store/resolve.ts`),
-so some naming (repo name `wholesip`, the `--wholesip-*` CSS tokens, `brand/`) is legacy.
+converted to multi-tenant in phases. It still exists as the fallback store
+(`FALLBACK_STORE_ID = a0000000-0000-4000-8000-000000000001` in `lib/store/resolve.ts`),
+so some naming (repo name `wholesip`, `brand/`) is legacy. The `--wholesip-*` CSS
+tokens were renamed to `--sm-*` and `WHOLESIP_STORE_ID` to `FALLBACK_STORE_ID`.
 
 ## 2. Tech stack
 
@@ -625,7 +626,7 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`**: the session cookie
     platform stores console; the signup picker's Preview opens
     `https://demo-{id}.{ROOT_DOMAIN}`. - **Theme DESIGN engine (the visual "skin")**: a theme controls the FULL
     design system, not just one accent. `ThemeDesign` (`lib/themes/types.ts`) =
-    `palette` (all 14 `--wholesip-*` colour tokens + `onAccent`/`onInk`/
+    `palette` (all 14 `--sm-*` colour tokens + `onAccent`/`onInk`/
     `shadowRgb`/`success`/`error`/`star`/`highlight` semantic tokens), `fonts`
     (`body`/`display`, pointing at next/font variables loaded in
     `app/layout.tsx` — Inter/Fraunces/Space Grotesk/Plus Jakarta alongside the
@@ -641,7 +642,7 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`**: the session cookie
     `--brand-primary` — untouched. Storefront component CSS is fully
     tokenised (no raw hex; darks→`ink`, mids→`ink-soft`, faints→`ink-faint`,
     on-dark whites→`on-ink`/`on-accent`, panels→`surface`, shadows→
-    `rgba(var(--wholesip-shadow-rgb), α)`, radii→shape tokens) so palette +
+    `rgba(var(--sm-shadow-rgb), α)`, radii→shape tokens) so palette +
     shape reach every surface (header, footer, auth modal, shop cards + badges,
     profile/enquiry forms, blog + write-blog editor). CI-guards in
     `themes.test.ts` assert each theme ships a complete, injectable design.
@@ -674,9 +675,10 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`**: the session cookie
     Design derives from the theme id at RENDER time (no DB column), so no reseed
     is needed when a theme's skin changes. - **Phase 4d (not built, by design)**: nothing pending — homepage, static
     pages, and menus are all migrated. config/site.ts, brand.md and the
-    file-based AI skills are deleted, and the shop hero is brand-aware; remaining
-    WholeSip cleanup (the `--wholesip-*` CSS token namespace, the
-    `WHOLESIP_STORE_ID` fallback-store constant) continues opportunistically.
+    file-based AI skills are deleted, and the shop hero is brand-aware. The
+    `--wholesip-*` CSS token namespace (→ `--sm-*`) and `WHOLESIP_STORE_ID` (→
+    `FALLBACK_STORE_ID`) are now renamed too; only the repo name `wholesip` and
+    the `brand/` dir remain as legacy WholeSip naming.
 
 12. **Checkout & orders security model (COD).** A signed-in shopper places an
     order from `/checkout`; `placeOrder` (`app/actions/checkout-actions.ts`) is
@@ -1101,8 +1103,9 @@ Legacy WholeSip fallback remains until all traffic moves to real store hosts.
 - **Deliberately later phases** (not built yet, by choice): online **payments**
   (BYO gateway — merchant connects own Razorpay/Cashfree; checkout is COD-only
   for now), merchant subscription billing for StoreMink plans.
-- **WholeSip cleanup is ongoing**: the product started as the WholeSip site and
-  was converted into StoreMink; remaining WholeSip traces (the `--wholesip-*`
-  CSS tokens, `WHOLESIP_STORE_ID`, repo name) are being removed gradually as features become
-  per-store/settings-based. (The hardcoded homepage/hero and static pages are
-  now migrated — Phase 4.)
+- **WholeSip cleanup is nearly done**: the product started as the WholeSip site
+  and was converted into StoreMink. The hardcoded homepage/hero + static pages
+  are migrated (Phase 4), and the `--wholesip-*` CSS tokens (→ `--sm-*`) and
+  `WHOLESIP_STORE_ID` (→ `FALLBACK_STORE_ID`) are renamed. What remains is only
+  the repo/dir name `wholesip`, the `brand/` dir, and the fallback store's own
+  DB identity (a real store row named "WholeSip") — bigger/data-level, not code.
