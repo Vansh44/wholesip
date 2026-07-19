@@ -39,7 +39,7 @@ separate projects.
       — was stale (`SUPABASE_*` build args + "Supabase session check"); now `DB_*` + `FIREBASE_*` + Cloud SQL connector. Also swapped the `Dockerfile` +
       `cloudbuild.yaml` build args (2× Supabase → 6× Firebase). **(done)**
 
-**Provision prod GCP**
+**Provision prod GCP** — exact `gcloud` commands in [`gcp-migration-prod-provision.md`](gcp-migration-prod-provision.md).
 
 - [ ] **Prod Cloud SQL instance** (POSTGRES_17, asia-south1, IAM auth, db
       `storemink`) — separate instance from staging.
