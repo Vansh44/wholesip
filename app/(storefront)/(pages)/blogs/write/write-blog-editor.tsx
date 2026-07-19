@@ -24,6 +24,7 @@ import {
   deleteCustomerBlog,
   revertCustomerBlogToDraft,
   getMySubmissions,
+  deleteUploadedImage,
 } from "@/app/actions/blog-actions";
 import { updateCustomerProfile } from "@/app/actions/customer-profile";
 import {
@@ -122,6 +123,11 @@ export default function WriteBlogEditor({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  // URLs uploaded during THIS editing session — used to prune a cover the user
+  // replaces/removes before saving (a saved cover is pruned server-side).
+  const [sessionUploadedImages, setSessionUploadedImages] = useState<string[]>(
+    [],
+  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -195,8 +201,14 @@ export default function WriteBlogEditor({
     const toastId = toast.loading("Uploading image...");
 
     try {
+      // If replacing a cover uploaded earlier this session, prune the old one.
+      if (coverImageUrl && sessionUploadedImages.includes(coverImageUrl)) {
+        deleteUploadedImage(coverImageUrl).catch(console.error);
+      }
+
       const url = await uploadImage(file, { folder: "blog-covers" });
       setCoverImageUrl(url);
+      setSessionUploadedImages((prev) => [...prev, url]);
       toast.success("Image uploaded successfully!", { id: toastId });
     } catch (error) {
       console.error(error);
@@ -209,6 +221,9 @@ export default function WriteBlogEditor({
   };
 
   const removeCoverImage = () => {
+    if (coverImageUrl && sessionUploadedImages.includes(coverImageUrl)) {
+      deleteUploadedImage(coverImageUrl).catch(console.error);
+    }
     setCoverImageUrl("");
   };
 

@@ -25,6 +25,12 @@ vi.mock("@/lib/storage/cleanup", () => ({
   deleteStorageUrls: vi.fn().mockResolvedValue(undefined),
   extractMediaUrlsFromHtml: vi.fn().mockReturnValue([]),
 }));
+vi.mock("@/lib/storage/gcs", () => ({
+  gcsPathFromUrl: (url: string) => {
+    const m = /storage\.googleapis\.com\/[^/]+\/(.+)$/.exec(url || "");
+    return m ? m[1] : null;
+  },
+}));
 vi.mock("@/lib/email/blog-notifications", () => ({
   sendBlogApprovedEmail: vi.fn().mockResolvedValue(undefined),
   sendBlogRejectedEmail: vi.fn().mockResolvedValue(undefined),
@@ -58,6 +64,7 @@ import {
   rejectCustomerBlog,
   revertCustomerBlogToDraft,
   deleteCustomerBlog,
+  deleteUploadedImage,
   bulkSetBlogStatus,
   bulkSetBlogFeatured,
   bulkDeleteBlogs,
@@ -583,5 +590,40 @@ describe("blog-actions", () => {
       const result = await deleteCustomerBlog("b1");
       expect(result.error).toMatch(/couldn.?t delete/i);
     });
+  });
+});
+
+// deleteUploadedImage — the customer editor prunes a cover it uploaded then
+// replaced/removed before saving. Scoped to auth + the blog-covers/ folder so
+// it can't be abused to delete other media.
+describe("deleteUploadedImage", () => {
+  const gcs = (path: string) => `https://storage.googleapis.com/bkt/${path}`;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getServerUser).mockResolvedValue({ id: "u1" } as any);
+  });
+
+  it("deletes a session cover under blog-covers/", async () => {
+    await deleteUploadedImage(gcs("blog-covers/abc.webp"));
+    expect(deleteStorageUrls).toHaveBeenCalledWith([
+      gcs("blog-covers/abc.webp"),
+    ]);
+  });
+
+  it("ignores media outside blog-covers/ (e.g. product images)", async () => {
+    await deleteUploadedImage(gcs("products/x.webp"));
+    expect(deleteStorageUrls).not.toHaveBeenCalled();
+  });
+
+  it("ignores non-GCS URLs", async () => {
+    await deleteUploadedImage("https://cdn.other.com/blog-covers/x.webp");
+    expect(deleteStorageUrls).not.toHaveBeenCalled();
+  });
+
+  it("does nothing for anonymous callers", async () => {
+    vi.mocked(getServerUser).mockResolvedValue(null);
+    await deleteUploadedImage(gcs("blog-covers/abc.webp"));
+    expect(deleteStorageUrls).not.toHaveBeenCalled();
   });
 });

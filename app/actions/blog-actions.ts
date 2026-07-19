@@ -17,6 +17,7 @@ import {
   deleteStorageUrls,
   extractMediaUrlsFromHtml,
 } from "@/lib/storage/cleanup";
+import { gcsPathFromUrl } from "@/lib/storage/gcs";
 import {
   sendBlogApprovedEmail,
   sendBlogRejectedEmail,
@@ -473,6 +474,24 @@ export async function deleteBlog(id: string): Promise<ActionResult> {
 
   revalidateBlogs();
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Session-upload cleanup — the customer blog editor calls this to delete a
+// cover image it just uploaded and then replaced/removed BEFORE the blog is
+// saved (a saved cover is pruned server-side on the next save). Scoped to
+// authenticated users + the blog-covers/ folder, and GCS URLs only, so it can
+// never be abused to delete product images or other media. Best-effort.
+// ---------------------------------------------------------------------------
+
+export async function deleteUploadedImage(url: string): Promise<void> {
+  const user = await getServerUser();
+  if (!user || typeof url !== "string" || !url) return;
+
+  const path = gcsPathFromUrl(url);
+  if (!path || !path.startsWith("blog-covers/")) return;
+
+  await deleteStorageUrls([url]);
 }
 
 // ---------------------------------------------------------------------------
