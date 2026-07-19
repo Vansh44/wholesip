@@ -412,6 +412,14 @@ wholesip/
 │   ├── custom_access_token_hook.sql     # JWT claims (role, force_password_reset) —
 │   │                          # SUPERSEDED in Phase 6 by Firebase custom claims (lib/auth/
 │   │                          # firebase-claims.ts); kept for the Supabase-era rollback
+│   ├── phase6_01_uid_columns_to_text.sql # ★ Phase 6: retype the 25 uid-holding columns
+│   │                          # (admins.id/users.id + every created_by/updated_by/user_id/
+│   │                          # customer_id/submitted_by/added_by/invited_by) uuid→text AND
+│   │                          # the auth.uid() shim →text — Firebase uids are STRINGS, not
+│   │                          # uuids. Entity PKs + store_id + platform_admins.invited_by
+│   │                          # stay uuid. Drops/recreates 7 FKs + 25 policies + 2 admin
+│   │                          # views. RUN AS postgres (owner of the tables + auth schema;
+│   │                          # `app` can't). (+ rollback)
 │   └── perf_*.sql             # index / RLS performance migrations
 │
 ├── brand/tasks/               # AI copy TASK prompts (product-desc.md, seo-meta.md), read at

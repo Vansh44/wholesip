@@ -32,11 +32,11 @@ export const storeNoSeq = pgSequence("store_no_seq", {
 export const admins = pgTable(
   "admins",
   {
-    id: uuid().primaryKey().notNull(),
+    id: text().primaryKey().notNull(),
     email: text().notNull(),
     role: text().default("member").notNull(),
     forcePasswordReset: boolean("force_password_reset").default(true).notNull(),
-    invitedBy: uuid("invited_by"),
+    invitedBy: text("invited_by"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -259,7 +259,7 @@ export const blogComments = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     blogId: uuid("blog_id").notNull(),
-    userId: uuid("user_id").notNull(),
+    userId: text("user_id").notNull(),
     authorName: text("author_name").default("").notNull(),
     body: text().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -435,8 +435,8 @@ export const blogs = pgTable(
     seoTitle: text("seo_title"),
     seoDescription: text("seo_description"),
     readingTime: integer("reading_time"),
-    createdBy: uuid("created_by"),
-    updatedBy: uuid("updated_by"),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
     publishedAt: timestamp("published_at", {
       withTimezone: true,
       mode: "string",
@@ -448,7 +448,7 @@ export const blogs = pgTable(
       .defaultNow()
       .notNull(),
     categories: text().array().default([""]),
-    submittedBy: uuid("submitted_by"),
+    submittedBy: text("submitted_by"),
     isCustomerSubmission: boolean("is_customer_submission")
       .default(false)
       .notNull(),
@@ -680,8 +680,8 @@ export const coupons = pgTable(
       withTimezone: true,
       mode: "string",
     }),
-    createdBy: uuid("created_by"),
-    updatedBy: uuid("updated_by"),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -750,7 +750,7 @@ export const customerAddresses = pgTable(
   "customer_addresses",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    userId: uuid("user_id").notNull(),
+    userId: text("user_id").notNull(),
     storeId: uuid("store_id").notNull(),
     firstName: text("first_name").notNull(),
     lastName: text("last_name"),
@@ -862,7 +862,7 @@ export const emailCampaigns = pgTable(
     sent: integer().default(0).notNull(),
     failed: integer().default(0).notNull(),
     skippedNoEmail: integer("skipped_no_email").default(0).notNull(),
-    createdBy: uuid("created_by"),
+    createdBy: text("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -894,7 +894,7 @@ export const enquiries = pgTable(
     subject: text(),
     message: text().notNull(),
     status: text().default("new").notNull(),
-    createdBy: uuid("created_by"),
+    createdBy: text("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -1071,7 +1071,7 @@ export const orders = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     storeId: uuid("store_id").notNull(),
-    customerId: uuid("customer_id").notNull(),
+    customerId: text("customer_id").notNull(),
     status: text().default("pending").notNull(),
     paymentMethod: text("payment_method").default("cash_on_delivery").notNull(),
     paymentStatus: text("payment_status").default("pending").notNull(),
@@ -1243,7 +1243,7 @@ export const productReviews = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     productId: uuid("product_id").notNull(),
-    userId: uuid("user_id").notNull(),
+    userId: text("user_id").notNull(),
     authorName: text("author_name").default("").notNull(),
     rating: integer().notNull(),
     comment: text(),
@@ -1428,8 +1428,8 @@ export const products = pgTable(
       withTimezone: true,
       mode: "string",
     }),
-    createdBy: uuid("created_by"),
-    updatedBy: uuid("updated_by"),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -1649,7 +1649,7 @@ export const stockMovements = pgTable(
     balanceAfter: integer("balance_after").notNull(),
     orderId: uuid("order_id"),
     note: text(),
-    createdBy: uuid("created_by"),
+    createdBy: text("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -1716,7 +1716,7 @@ export const storeBillingSettings = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
-    updatedBy: uuid("updated_by"),
+    updatedBy: text("updated_by"),
   },
   (table) => [
     foreignKey({
@@ -1753,7 +1753,7 @@ export const storeBrandProfiles = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
-    updatedBy: uuid("updated_by"),
+    updatedBy: text("updated_by"),
   },
   (table) => [
     foreignKey({
@@ -1790,7 +1790,7 @@ export const storeMenus = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
-    updatedBy: uuid("updated_by"),
+    updatedBy: text("updated_by"),
   },
   (table) => [
     foreignKey({
@@ -1830,8 +1830,8 @@ export const storePages = pgTable(
       withTimezone: true,
       mode: "string",
     }),
-    createdBy: uuid("created_by"),
-    updatedBy: uuid("updated_by"),
+    createdBy: text("created_by"),
+    updatedBy: text("updated_by"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -2099,7 +2099,7 @@ export const userGroups = pgTable(
     name: text().notNull(),
     description: text(),
     color: text().default("blue").notNull(),
-    createdBy: uuid("created_by"),
+    createdBy: text("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -2155,7 +2155,7 @@ export const userGroups = pgTable(
 export const users = pgTable(
   "users",
   {
-    id: uuid().primaryKey().notNull(),
+    id: text().primaryKey().notNull(),
     phone: text().notNull(),
     email: text(),
     firstName: text("first_name").default("").notNull(),
@@ -2335,8 +2335,8 @@ export const userGroupMembers = pgTable(
   "user_group_members",
   {
     groupId: uuid("group_id").notNull(),
-    userId: uuid("user_id").notNull(),
-    addedBy: uuid("added_by"),
+    userId: text("user_id").notNull(),
+    addedBy: text("added_by"),
     addedAt: timestamp("added_at", { withTimezone: true, mode: "string" })
       .defaultNow()
       .notNull(),
@@ -2402,7 +2402,7 @@ export const userGroupMembers = pgTable(
   ],
 );
 export const customerAdmin = pgView("customer_admin", {
-  id: uuid(),
+  id: text(),
   phone: text(),
   email: text(),
   firstName: text("first_name"),
@@ -2428,7 +2428,7 @@ export const enquiryAdmin = pgView("enquiry_admin", {
   subject: text(),
   message: text(),
   status: text(),
-  createdBy: uuid("created_by"),
+  createdBy: text("created_by"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
   subjectDetail: text("subject_detail"),
