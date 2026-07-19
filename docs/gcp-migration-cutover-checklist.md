@@ -32,12 +32,12 @@ separate projects.
 
 **Code**
 
-- [ ] Fix [`lib/auth/firebase-admin.ts`](../lib/auth/firebase-admin.ts) so the ADC
+- [x] Fix [`lib/auth/firebase-admin.ts`](../lib/auth/firebase-admin.ts) so the ADC
       path prefers `FIREBASE_PROJECT_ID` over `GCP_PROJECT_ID`, so the Firebase
-      project is never conflated with the infra project on Cloud Run.
-- [ ] Refresh [`gcp-migration-phase4-cloud-run.md`](gcp-migration-phase4-cloud-run.md)
-      — it's stale (still lists `SUPABASE_*` build args + "Supabase session
-      check"). Real env is now `DB_*` + `FIREBASE_*` + the Cloud SQL connector.
+      project is never conflated with the infra project on Cloud Run. **(done)**
+- [x] Refresh [`gcp-migration-phase4-cloud-run.md`](gcp-migration-phase4-cloud-run.md)
+      — was stale (`SUPABASE_*` build args + "Supabase session check"); now `DB_*` + `FIREBASE_*` + Cloud SQL connector. Also swapped the `Dockerfile` +
+      `cloudbuild.yaml` build args (2× Supabase → 6× Firebase). **(done)**
 
 **Provision prod GCP**
 

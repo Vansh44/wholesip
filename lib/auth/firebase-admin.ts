@@ -6,9 +6,16 @@
 //
 // DORMANT until configured. Credentials resolve in this order:
 //   1. Explicit service account via FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL
-//      + FIREBASE_PRIVATE_KEY (e.g. Vercel, local dev).
+//      + FIREBASE_PRIVATE_KEY (e.g. local dev, or Cloud Run when the Identity
+//      Platform project differs from the runtime/infra project).
 //   2. Application Default Credentials (automatic on Cloud Run / GCP).
-// When neither is available, getFirebaseAdminAuth() returns null so callers can
+// The Firebase project id is FIREBASE_PROJECT_ID first, GCP_PROJECT_ID only as a
+// fallback: GCP_PROJECT_ID is the INFRA project (Cloud SQL / GCS / Vertex) and
+// must NOT be conflated with the Identity Platform project, which can be a
+// different GCP project (per-env pairing — see CODEBASE.md §7). On Cloud Run the
+// runtime SA can't cross projects, so pair GCP_PROJECT_ID=<infra> with explicit
+// FIREBASE_* creds for the auth project.
+// When none is available, getFirebaseAdminAuth() returns null so callers can
 // gracefully fall back to the still-live Supabase path during the migration.
 
 import {
@@ -40,13 +47,16 @@ function initApp(): App | null {
       });
     }
     // Application Default Credentials (Cloud Run default service account).
+    // Prefer FIREBASE_PROJECT_ID for the project — GCP_PROJECT_ID is the infra
+    // project and may differ from the Identity Platform project on Cloud Run.
     if (
       process.env.GOOGLE_APPLICATION_CREDENTIALS ||
-      process.env.GCP_PROJECT_ID
+      process.env.GCP_PROJECT_ID ||
+      projectId
     ) {
       return initializeApp({
         credential: applicationDefault(),
-        projectId: process.env.GCP_PROJECT_ID || projectId,
+        projectId: projectId || process.env.GCP_PROJECT_ID,
       });
     }
   } catch (err) {

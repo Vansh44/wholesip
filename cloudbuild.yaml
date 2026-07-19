@@ -6,10 +6,10 @@
 # Run:
 #   gcloud builds submit --config cloudbuild.yaml \
 #     --substitutions=\
-# _NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co,\
-# _NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon>,\
-# _NEXT_PUBLIC_ROOT_DOMAIN=storemink.com,\
-# _NEXT_PUBLIC_APP_URL=https://storemink.com
+# _NEXT_PUBLIC_FIREBASE_API_KEY=<key>,_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=<proj>.firebaseapp.com,\
+# _NEXT_PUBLIC_FIREBASE_PROJECT_ID=<proj>,_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=<proj>.firebasestorage.app,\
+# _NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=<id>,_NEXT_PUBLIC_FIREBASE_APP_ID=<appid>,\
+# _NEXT_PUBLIC_ROOT_DOMAIN=storemink.com,_NEXT_PUBLIC_APP_URL=https://storemink.com
 
 steps:
   - name: gcr.io/cloud-builders/docker
@@ -18,9 +18,17 @@ steps:
       - -t
       - ${_IMAGE}
       - --build-arg
-      - NEXT_PUBLIC_SUPABASE_URL=${_NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_FIREBASE_API_KEY=${_NEXT_PUBLIC_FIREBASE_API_KEY}
       - --build-arg
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${_NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${_NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_APP_ID=${_NEXT_PUBLIC_FIREBASE_APP_ID}
       - --build-arg
       - NEXT_PUBLIC_ROOT_DOMAIN=${_NEXT_PUBLIC_ROOT_DOMAIN}
       - --build-arg
@@ -39,7 +47,11 @@ options:
 
 substitutions:
   _IMAGE: asia-south1-docker.pkg.dev/storemink-prod/storemink/web:latest
-  _NEXT_PUBLIC_SUPABASE_URL: ""
-  _NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+  _NEXT_PUBLIC_FIREBASE_API_KEY: ""
+  _NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ""
+  _NEXT_PUBLIC_FIREBASE_PROJECT_ID: ""
+  _NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ""
+  _NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ""
+  _NEXT_PUBLIC_FIREBASE_APP_ID: ""
   _NEXT_PUBLIC_ROOT_DOMAIN: storemink.com
   _NEXT_PUBLIC_APP_URL: https://storemink.com

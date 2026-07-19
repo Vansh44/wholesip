@@ -4,7 +4,10 @@
 > committed; the rest is infrastructure you provision with `gcloud`. Do it in
 > parallel with Vercel and cut DNS over only once proven — fully reversible.
 >
-> Project `storemink-prod`, region `asia-south1` (Mumbai) assumed throughout.
+> **Targets the post-Phase-5/6 stack** (Cloud SQL + Identity Platform) — env is
+> updated accordingly, no `SUPABASE_*`. Project `storemink-prod`, region
+> `asia-south1` (Mumbai) assumed throughout; the Identity Platform project is
+> separate (per-env — CODEBASE.md §7).
 
 ## What's already in the repo (Phase 4 code)
 
@@ -19,12 +22,37 @@ Verified: `npm run build` produces `.next/standalone/server.js` with `brand/task
 > or, if using local Docker on an Apple-Silicon Mac, you MUST pass
 > `docker build --platform linux/amd64` or the `sharp` binary won't run.
 
-## Runtime env split (from the code audit)
+## Runtime env split (post Phase 5/6 — Cloud SQL + Identity Platform)
 
-- **Build args** (public, inlined into the client bundle): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_ROOT_DOMAIN`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_NOINDEX` (optional).
-- **Runtime plain env** (non-secret): `GCP_PROJECT_ID`, `GCP_LOCATION`, `GCS_BUCKET`, `GEMINI_MODEL` (opt), `RESEND_FROM_DOMAIN`, plus the `NEXT_PUBLIC_*` again (some run server-side, e.g. `ROOT_DOMAIN` in `lib/store/host.ts`).
-- **Runtime secrets** (Secret Manager): `SUPABASE_SERVICE_ROLE_KEY`, `PAYMENT_CRED_KEY`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `CRON_SECRET`, `GOOGLE_SEARCH_CONSOLE_CREDENTIALS` (opt), `INDEXNOW_KEY` (opt).
-- **No longer needed on Cloud Run** (the default service account provides ADC): `GEMINI_API_KEY` (→ Vertex), `GCP_SA_KEY` (→ default SA signs GCS video URLs via IAM). `VERCEL_URL` is Vercel-only.
+> **⚠ Updated for the migrated stack.** Data is on **Cloud SQL** (`lib/db`,
+> Drizzle) and auth on **Identity Platform** (`lib/auth`, Firebase) — there are
+> **no `SUPABASE_*` vars** anymore. Key subtlety: the Identity Platform project
+> is a **different GCP project** from the infra project (per-env pairing —
+> CODEBASE.md §7), and the Cloud Run runtime SA can't cross projects, so give
+> Firebase **explicit `FIREBASE_*` service-account creds** and point
+> `GCP_PROJECT_ID` at the infra project (Cloud SQL / GCS / Vertex).
+
+- **Build args** (public, inlined into the client bundle): the six
+  `NEXT_PUBLIC_FIREBASE_*` (`_API_KEY`, `_AUTH_DOMAIN`, `_PROJECT_ID`,
+  `_STORAGE_BUCKET`, `_MESSAGING_SENDER_ID`, `_APP_ID`), `NEXT_PUBLIC_ROOT_DOMAIN`,
+  `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_NOINDEX` (optional). — see `Dockerfile` /
+  `cloudbuild.yaml`.
+- **Runtime plain env** (non-secret): `GCP_PROJECT_ID` (the INFRA project —
+  Vertex / GCS), `GCP_LOCATION`, `GCS_BUCKET`; the Cloud SQL connection
+  `DB_HOST=/cloudsql/<connection-name>` (unix socket), `DB_USER`, `DB_NAME` (no
+  `DB_PORT` for the socket); Firebase `FIREBASE_PROJECT_ID` (the AUTH project) +
+  `FIREBASE_CLIENT_EMAIL` + `FIREBASE_API_KEY` (web key, read server-side for the
+  change-password re-verify); `GEMINI_MODEL` (opt), `RESEND_FROM_DOMAIN`; plus the
+  `NEXT_PUBLIC_*` again (some run server-side, e.g. `ROOT_DOMAIN` in
+  `lib/store/host.ts`).
+- **Runtime secrets** (Secret Manager): `DB_PASSWORD`, `FIREBASE_PRIVATE_KEY` (SA
+  key, `\n`-escaped), `PAYMENT_CRED_KEY`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`,
+  `RAZORPAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `CRON_SECRET`,
+  `GOOGLE_SEARCH_CONSOLE_CREDENTIALS` (opt), `INDEXNOW_KEY` (opt).
+- **No longer needed on Cloud Run**: `SUPABASE_SERVICE_ROLE_KEY` +
+  `NEXT_PUBLIC_SUPABASE_*` (Supabase is out of the request path); `GEMINI_API_KEY`
+  (→ Vertex via ADC); `GCP_SA_KEY` (→ default SA signs GCS video URLs via IAM).
+  `VERCEL_URL` is Vercel-only.
 
 ## Steps
 
@@ -50,7 +78,7 @@ gcloud artifacts repositories create storemink \
 gcloud iam service-accounts create storemink-run --display-name="StoreMink Cloud Run"
 SA=storemink-run@storemink-prod.iam.gserviceaccount.com
 for role in roles/aiplatform.user roles/secretmanager.secretAccessor \
-            roles/iam.serviceAccountTokenCreator; do
+            roles/iam.serviceAccountTokenCreator roles/cloudsql.client; do
   gcloud projects add-iam-policy-binding storemink-prod \
     --member="serviceAccount:$SA" --role="$role"
 done
@@ -59,7 +87,7 @@ gcloud storage buckets add-iam-policy-binding gs://storemink-media \
   --member="serviceAccount:$SA" --role=roles/storage.objectAdmin
 ```
 
-`aiplatform.user` → Vertex works with no API key. `objectAdmin` + `tokenCreator` → GCS uploads AND signed video URLs work with no `GCP_SA_KEY`.
+`aiplatform.user` → Vertex works with no API key. `objectAdmin` + `tokenCreator` → GCS uploads AND signed video URLs work with no `GCP_SA_KEY`. `cloudsql.client` → open the `/cloudsql/<connection>` socket. (Firebase uses explicit `FIREBASE_*` creds, so the runtime SA needs **no** Identity Platform role.)
 
 ### 4. Secrets → Secret Manager
 
@@ -73,35 +101,41 @@ printf %s "$VALUE" | gcloud secrets create SUPABASE_SERVICE_ROLE_KEY --data-file
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml --substitutions=\
-_NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co,\
-_NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>,\
-_NEXT_PUBLIC_ROOT_DOMAIN=storemink.com,\
-_NEXT_PUBLIC_APP_URL=https://storemink.com
+_NEXT_PUBLIC_FIREBASE_API_KEY=<key>,_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=<proj>.firebaseapp.com,\
+_NEXT_PUBLIC_FIREBASE_PROJECT_ID=<proj>,_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=<proj>.firebasestorage.app,\
+_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=<id>,_NEXT_PUBLIC_FIREBASE_APP_ID=<appid>,\
+_NEXT_PUBLIC_ROOT_DOMAIN=storemink.com,_NEXT_PUBLIC_APP_URL=https://storemink.com
 ```
 
 ### 6. Deploy to Cloud Run
 
 ```bash
+# <conn> = the prod Cloud SQL connection name, e.g. storemink-prod:asia-south1:<prod-instance>
+# <auth-project> = the prod Identity Platform project (separate from storemink-prod)
 gcloud run deploy storemink-web \
   --image=asia-south1-docker.pkg.dev/storemink-prod/storemink/web:latest \
   --region=asia-south1 --service-account=$SA \
   --allow-unauthenticated --port=8080 \
   --cpu=1 --memory=1Gi --min-instances=1 --max-instances=10 \
-  --set-env-vars=GCP_PROJECT_ID=storemink-prod,GCP_LOCATION=global,GCS_BUCKET=storemink-media,NEXT_PUBLIC_ROOT_DOMAIN=storemink.com,NEXT_PUBLIC_APP_URL=https://storemink.com,NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co,NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon>,RESEND_FROM_DOMAIN=<domain> \
-  --set-secrets=SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,PAYMENT_CRED_KEY=PAYMENT_CRED_KEY:latest,RAZORPAY_KEY_ID=RAZORPAY_KEY_ID:latest,RAZORPAY_KEY_SECRET=RAZORPAY_KEY_SECRET:latest,RAZORPAY_WEBHOOK_SECRET=RAZORPAY_WEBHOOK_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest,CRON_SECRET=CRON_SECRET:latest
+  --add-cloudsql-instances=<conn> \
+  --set-env-vars=GCP_PROJECT_ID=storemink-prod,GCP_LOCATION=global,GCS_BUCKET=storemink-media,DB_HOST=/cloudsql/<conn>,DB_USER=app,DB_NAME=storemink,FIREBASE_PROJECT_ID=<auth-project>,FIREBASE_CLIENT_EMAIL=<sa>@<auth-project>.iam.gserviceaccount.com,FIREBASE_API_KEY=<web-key>,NEXT_PUBLIC_ROOT_DOMAIN=storemink.com,NEXT_PUBLIC_APP_URL=https://storemink.com,RESEND_FROM_DOMAIN=<domain> \
+  --set-secrets=DB_PASSWORD=DB_PASSWORD:latest,FIREBASE_PRIVATE_KEY=FIREBASE_PRIVATE_KEY:latest,PAYMENT_CRED_KEY=PAYMENT_CRED_KEY:latest,RAZORPAY_KEY_ID=RAZORPAY_KEY_ID:latest,RAZORPAY_KEY_SECRET=RAZORPAY_KEY_SECRET:latest,RAZORPAY_WEBHOOK_SECRET=RAZORPAY_WEBHOOK_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest,CRON_SECRET=CRON_SECRET:latest
 ```
 
-`min-instances=1` avoids cold starts (the middleware + Supabase session check runs per request). Tune later.
+`--add-cloudsql-instances` mounts the `/cloudsql/<conn>` socket that `DB_HOST`
+points at. `min-instances=1` avoids cold starts (Firebase session-cookie
+verification runs per request in `proxy.ts`). Tune later.
 
 ### 7. Smoke-test BEFORE DNS (the Host-header trick)
 
 `proxy.ts` routes by Host, and a raw `*.run.app` host is treated as an unknown
-custom domain. So test with an explicit Host header:
+custom domain. Cloud Run's frontend 404s a foreign `Host:` header, but `proxy.ts`
+reads **`x-forwarded-host` first** — so spoof the tenant with that:
 
 ```bash
 URL=$(gcloud run services describe storemink-web --region=asia-south1 --format='value(status.url)')
-curl -sI -H "Host: storemink.com"        $URL/            # platform landing
-curl -sI -H "Host: wholesip.storemink.com" $URL/shop       # a store storefront
+curl -sI -H "X-Forwarded-Host: storemink.com"          $URL/       # platform landing
+curl -sI -H "X-Forwarded-Host: wholesip.storemink.com" $URL/shop   # a store storefront
 ```
 
 Check Cloud Logging (Phase 2's structured logs now auto-ingest here) + Error Reporting for issues.
@@ -137,10 +171,10 @@ the bearer secret once stable.)
 
 ## Notes carried forward
 
-- **Middleware now runs in Node** (standalone), not an edge runtime — this
-  removes the Phase 6 edge-signing concern: `firebase-admin` can run in
-  `proxy.ts` on Cloud Run if we choose.
+- **Middleware runs in Node** (standalone), not an edge runtime — `firebase-admin`
+  verifies the session cookie directly in `proxy.ts` (no edge/`jose` workaround).
 - Cloud Run filesystem is read-only except `/tmp`; the app only writes to object
   storage, so this is fine.
-- Once traffic is on Cloud Run, Phase 2 logging/Error Reporting is fully live and
-  Phase 5 (Cloud SQL) can connect over the VPC/Cloud SQL connector.
+- Cloud SQL connects over the built-in connector: `--add-cloudsql-instances=<conn>`
+  mounts `/cloudsql/<conn>` and the app's `pg` Pool dials that socket via `DB_HOST`
+  (no VPC needed). Phase 2 logging/Error Reporting is fully live once on Cloud Run.
