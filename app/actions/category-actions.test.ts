@@ -11,7 +11,7 @@ vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
-vi.mock("@/lib/supabase/storage-cleanup", () => ({
+vi.mock("@/lib/storage/cleanup", () => ({
   deleteStorageUrls: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -29,7 +29,7 @@ import {
   deleteCategory,
 } from "./category-actions";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
-import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
+import { deleteStorageUrls } from "@/lib/storage/cleanup";
 
 const validForm = {
   name: "Skincare",

@@ -29,7 +29,7 @@ import {
 import { STORE_TAG, FALLBACK_STORE_ID } from "@/lib/store/resolve";
 import { getThemeDefinition } from "@/lib/themes";
 import { applyTheme } from "@/lib/themes/apply";
-import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
+import { deleteStorageUrls } from "@/lib/storage/cleanup";
 import { PLAN_IDS, PLAN_META, normalizePlan, type Plan } from "@/lib/plans";
 import { currentPeriod } from "@/lib/ai/quota";
 

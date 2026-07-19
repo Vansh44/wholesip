@@ -13,7 +13,7 @@ import {
 } from "@/lib/db/errors";
 import { productVariants, products } from "@/drizzle/schema";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
-import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
+import { deleteStorageUrls } from "@/lib/storage/cleanup";
 import { getStoreUrl } from "@/lib/site";
 import { pingIndexNow } from "@/lib/seo/search-engines";
 import { TAGS } from "@/lib/storefront/tags";

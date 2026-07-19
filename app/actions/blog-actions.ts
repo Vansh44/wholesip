@@ -16,7 +16,7 @@ import { getCurrentStoreId } from "@/lib/store/resolve";
 import {
   deleteStorageUrls,
   extractMediaUrlsFromHtml,
-} from "@/lib/supabase/storage-cleanup";
+} from "@/lib/storage/cleanup";
 import {
   sendBlogApprovedEmail,
   sendBlogRejectedEmail,

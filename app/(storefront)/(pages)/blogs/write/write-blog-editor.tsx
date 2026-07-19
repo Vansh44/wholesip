@@ -16,11 +16,7 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Placeholder from "@tiptap/extension-placeholder";
 import { SlashCommand } from "./slash-command";
-import {
-  uploadImage,
-  deleteImage,
-  extractPathFromUrl,
-} from "@/lib/supabase/storage";
+import { uploadImage } from "@/lib/storage/uploads";
 import {
   submitCustomerBlog,
   updateCustomerBlog,
@@ -126,9 +122,6 @@ export default function WriteBlogEditor({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
-  const [sessionUploadedImages, setSessionUploadedImages] = useState<string[]>(
-    [],
-  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -202,17 +195,8 @@ export default function WriteBlogEditor({
     const toastId = toast.loading("Uploading image...");
 
     try {
-      // If there's an existing image that was uploaded during this session, clean it up
-      if (coverImageUrl && sessionUploadedImages.includes(coverImageUrl)) {
-        const oldPath = extractPathFromUrl(coverImageUrl);
-        if (oldPath) {
-          deleteImage(oldPath).catch(console.error);
-        }
-      }
-
       const url = await uploadImage(file, { folder: "blog-covers" });
       setCoverImageUrl(url);
-      setSessionUploadedImages((prev) => [...prev, url]);
       toast.success("Image uploaded successfully!", { id: toastId });
     } catch (error) {
       console.error(error);
@@ -225,13 +209,6 @@ export default function WriteBlogEditor({
   };
 
   const removeCoverImage = () => {
-    // Clean up if the image was uploaded during this session
-    if (coverImageUrl && sessionUploadedImages.includes(coverImageUrl)) {
-      const path = extractPathFromUrl(coverImageUrl);
-      if (path) {
-        deleteImage(path).catch(console.error);
-      }
-    }
     setCoverImageUrl("");
   };
 

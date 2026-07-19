@@ -4,7 +4,7 @@ import { and, eq, like, ne } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { TAGS } from "@/lib/storefront/tags";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
-import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
+import { deleteStorageUrls } from "@/lib/storage/cleanup";
 import { withUser } from "@/lib/db/client";
 import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
 import { categories } from "@/drizzle/schema";

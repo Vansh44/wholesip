@@ -21,7 +21,7 @@ vi.mock("@/lib/store/resolve", () => ({
   getCurrentStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
   FALLBACK_STORE_ID: "a0000000-0000-4000-8000-000000000001",
 }));
-vi.mock("@/lib/supabase/storage-cleanup", () => ({
+vi.mock("@/lib/storage/cleanup", () => ({
   deleteStorageUrls: vi.fn().mockResolvedValue(undefined),
   extractMediaUrlsFromHtml: vi.fn().mockReturnValue([]),
 }));
@@ -66,7 +66,7 @@ import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { getServerUser } from "@/lib/auth/server-user";
 import { fetchBlogTaxonomy } from "@/lib/blog-taxonomy";
 import { getStoreSettings } from "@/lib/settings/resolve";
-import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
+import { deleteStorageUrls } from "@/lib/storage/cleanup";
 import {
   sendBlogApprovedEmail,
   sendBlogRejectedEmail,

@@ -240,32 +240,26 @@ wholesip/
 │       ├── og/                # Dynamic branded OG card (ImageResponse; ?d=JSON
 │       │                      # {title,subtitle,color}) — default share image for
 │       │                      # homepage/custom pages/platform (lib/seo/og-card.ts)
-│       └── upload/            # Image upload (sharp → WebP) → GCS when GCS_BUCKET
-│           │                  # set, else Supabase Storage (dual backend, §7/Phase 3)
-│           └── sign-video/    # signed-URL minting for VIDEO uploads (≤50MB,
-│                              # client uploads DIRECTLY to storage — serverless
-│                              # routes can't proxy large bodies). Returns a
-│                              # provider-tagged response (gcs: PUT url | supabase: token)
+│       └── upload/            # Image upload (sharp → WebP) → Google Cloud Storage
+│           │                  # (GCS-only; requires GCS_BUCKET). Auth = Firebase session.
+│           └── sign-video/    # v4 signed-URL minting for VIDEO uploads (≤50MB, GCS;
+│                              # client PUTs DIRECTLY to storage — serverless routes
+│                              # can't proxy large bodies)
 │
 ├── lib/
 │   ├── store/                 # ★ Tenancy (see §3): host.ts, resolve.ts, brand.ts
 │   ├── settings/              # ★ Feature-settings framework (see convention #9):
 │   │   ├── registry.ts        #   catalog: every per-store toggle (key, default, plan gate)
 │   │   └── resolve.ts         #   getStoreSettings()/getStoreSetting() for the host store
-│   ├── supabase/              # Client factories — pick the right one:
-│   │   ├── server.ts          #   RSC/server-action client (cookie-based session)
-│   │   ├── client.ts          #   Browser client
-│   │   ├── admin.ts           #   Service-role client (bypasses RLS — server only!)
-│   │   ├── public.ts          #   Anonymous client (cacheable, no cookies)
-│   │   ├── middleware.ts      #   updateSession() used by proxy.ts (JWT claims fast-path)
-│   │   ├── storage.ts         #   client upload helpers (uploadImage/uploadVideo);
-│   │   │                      #   uploadVideo handles gcs (PUT) + supabase (token) shapes
-│   │   ├── storage-cleanup.ts #   ★ provider-AWARE orphan cleanup (§7/Phase 3): parses &
-│   │                          #   deletes BOTH Supabase + GCS URLs (deleteStorageUrls)
-│   ├── storage/               # ★ Google Cloud Storage media backend (GCP Phase 3):
+│   ├── storage/               # ★ Google Cloud Storage media backend (GCS-only —
+│   │                          # lib/supabase/ removed, Supabase fully out of code):
 │   │                          # gcs.ts — gcsConfigured/gcsUploadObject/gcsSignUploadUrl/
-│   │                          # gcsDeletePaths/gcsPublicUrl/gcsPathFromUrl. ADC auth
-│   │                          # (or GCP_SA_KEY); public bucket. Lazy SDK import. Tested.
+│   │                          # gcsDeletePaths/gcsPublicUrl/gcsPathFromUrl (ADC or
+│   │                          # GCP_SA_KEY; public bucket; lazy SDK import). uploads.ts —
+│   │                          # client helpers (uploadImage POSTs /api/upload; uploadVideo
+│   │                          # PUTs to a signed GCS URL). cleanup.ts — deleteStorageUrls/
+│   │                          # extractMediaUrlsFromHtml orphan cleanup (legacy Supabase
+│   │                          # URLs ignored). Tested.
 │   ├── db/                    # ★ Cloud SQL data layer (GCP Phase 5, IN PROGRESS — NOT yet
 │   │                          # the active path; app still on Supabase). client.ts: Drizzle
 │   │                          # over pg Pool w/ the 2A tenancy model — withService (BYPASSRLS),
@@ -980,12 +974,14 @@ npm run format      # prettier --write
 
 ## 7. Environments / external services
 
-- **Supabase** (being decommissioned by the GCP migration): Postgres → Cloud SQL
-  (Phase 5), Auth → Identity Platform (Phase 6), Storage `media` bucket → GCS
-  (Phase 3, with a Supabase Storage FALLBACK still wired in `api/upload*` until
-  the media backfill). Only that storage fallback still reads Supabase; drop
-  `NEXT_PUBLIC_SUPABASE_*` / `SUPABASE_SERVICE_ROLE_KEY` once media is migrated.
-  App-side password floor is 8 chars (`app/platform/signup/page.tsx`).
+- **Supabase** — **fully out of the codebase.** Postgres → Cloud SQL (Phase 5),
+  Auth → Identity Platform (Phase 6), Storage `media` bucket → GCS (Phase 3, now
+  GCS-only — the Supabase Storage fallback + `@supabase/*` deps + `lib/supabase/`
+  were removed; uploads require `GCS_BUCKET`). No `SUPABASE_*` env is read anymore.
+  Existing Supabase-hosted media URLs still serve (and are proxied by
+  `api/og-image`) until the prod media backfill + Supabase-project deletion (see
+  the cutover checklist). App-side password floor is 8 chars
+  (`app/platform/signup/page.tsx`).
 - **Identity Platform (Firebase Auth) — the auth provider (GCP Phase 6).** All
   auth goes through `lib/auth/*` (see §4). **ENV:**
   - **One Identity Platform project PER ENVIRONMENT, paired with that env's Cloud
@@ -1038,16 +1034,16 @@ npm run format      # prettier --write
 - **Google Cloud Storage** (media, GCP migration Phase 3 — `lib/storage/gcs.ts`):
   when **`GCS_BUCKET`** is set, new image/video uploads go to that GCS bucket
   (public, uniform bucket-level access) and public URLs are
-  `https://storage.googleapis.com/<bucket>/<path>`; otherwise uploads fall back
-  to Supabase Storage (bucket `media`). Auth via ADC (Cloud Run default SA, or
-  local `gcloud auth application-default login`); optional base64 SA JSON
+  `https://storage.googleapis.com/<bucket>/<path>`. Uploads are **GCS-only** now
+  (require `GCS_BUCKET`; no Supabase fallback). Auth via ADC (Cloud Run default
+  SA, or local `gcloud auth application-default login`); optional base64 SA JSON
   **`GCP_SA_KEY`** for hosts without ADC (Vercel) — and REQUIRED to sign video
-  upload URLs off Cloud Run. Existing Supabase URLs keep serving; cleanup,
-  OG-proxy (`api/og-image` SSRF allowlist), the OG-proxy gate (`lib/og-image.ts`)
-  and `next.config.ts` image `remotePatterns` all recognise BOTH URL formats
-  during the transition. Bucket needs CORS (PUT from the app origin) for direct
-  video uploads. No bulk migration of existing objects yet (a pre-decommission
-  backfill copies old objects + rewrites DB URLs).
+  upload URLs off Cloud Run. Existing Supabase-hosted URLs keep serving; the
+  OG-proxy (`api/og-image` SSRF allowlist), its gate (`lib/og-image.ts`) and
+  `next.config.ts` image `remotePatterns` still recognise BOTH URL formats so
+  legacy media renders until the backfill. Bucket needs CORS (PUT from the app
+  origin) for direct video uploads. No bulk migration of existing objects yet (a
+  pre-decommission backfill copies old objects + rewrites DB URLs).
 - **Gemini / Vertex AI**: AI copy generation (`lib/ai/gemini.ts`, dual backend).
   When **`GCP_PROJECT_ID`** is set, `callGemini` routes through **Vertex AI** using
   Application Default Credentials (ADC — no API key; automatic on Cloud Run, local

@@ -5,7 +5,6 @@ import { makeDbMock, sqlParamValues } from "./_test-helpers";
 
 vi.mock("next/cache", () => ({ revalidateTag: vi.fn() }));
 vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 // platform.ts pulls STORE_TAG/FALLBACK_STORE_ID from resolve.ts, whose module
 // scope calls unstable_cache — stub the constants instead of loading it.
 vi.mock("@/lib/store/resolve", () => ({
@@ -15,7 +14,7 @@ vi.mock("@/lib/store/resolve", () => ({
 // Unrelated heavyweight imports of platform.ts — stub so the module loads lean.
 vi.mock("@/lib/themes", () => ({ getThemeDefinition: vi.fn() }));
 vi.mock("@/lib/themes/apply", () => ({ applyTheme: vi.fn() }));
-vi.mock("@/lib/supabase/storage-cleanup", () => ({
+vi.mock("@/lib/storage/cleanup", () => ({
   deleteStorageUrls: vi.fn(),
 }));
 

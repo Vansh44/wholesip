@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import sharp from "sharp";
-import { createClient } from "@/lib/supabase/server";
 import { getServerUser } from "@/lib/auth/server-user";
 import { rateLimit } from "@/lib/rate-limit";
 import { gcsConfigured, gcsUploadObject } from "@/lib/storage/gcs";
 import { logError } from "@/lib/observability/logger";
 
-// Run on the Node runtime; uploads happen server-side via the user's cookie
-// session. This avoids the browser @supabase/ssr Web-Locks auth contention
-// (multiple open tabs) that can make client-side storage uploads hang forever.
+// Run on the Node runtime: uploads are optimized with sharp and stored to
+// Google Cloud Storage server-side.
 export const runtime = "nodejs";
 
-const BUCKET = "media";
 const ALLOWED_IMAGE_TYPES = [
   "image/jpeg",
   "image/png",
@@ -34,10 +31,6 @@ const WEBP_QUALITY = 80;
 const PASS_THROUGH_TYPES = ["image/gif", "image/avif"];
 
 export async function POST(request: Request) {
-  // Supabase Storage fallback client (used only when GCS isn't configured — see
-  // the storage section below); auth itself is via the Firebase session cookie.
-  const supabase = await createClient();
-
   // Require an authenticated user (admins for dashboard, logged-in customers
   // for blog covers). Prevents anonymous abuse of the media bucket.
   const user = await getServerUser();
@@ -133,33 +126,23 @@ export async function POST(request: Request) {
   const fileName = `${Math.random().toString(36).substring(2, 12)}_${Date.now()}.${ext}`;
   const filePath = folder ? `${folder}/${fileName}` : fileName;
 
-  // Google Cloud Storage when configured (Phase 3), else Supabase Storage.
-  if (gcsConfigured) {
-    try {
-      const url = await gcsUploadObject(filePath, bytes, contentType);
-      return NextResponse.json({ url });
-    } catch (err) {
-      logError("upload: GCS upload failed", err, { path: filePath });
-      return NextResponse.json(
-        { error: "Upload failed. Please try again." },
-        { status: 500 },
-      );
-    }
-  }
-
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .upload(filePath, bytes, {
-      cacheControl: "3600",
-      upsert: false,
-      contentType,
+  if (!gcsConfigured) {
+    logError("upload: GCS not configured", new Error("GCS_BUCKET unset"), {
+      path: filePath,
     });
-
-  if (error) {
-    logError("upload: Supabase upload failed", error, { path: filePath });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Uploads are not configured." },
+      { status: 500 },
+    );
   }
-
-  const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(data.path);
-  return NextResponse.json({ url: pub.publicUrl });
+  try {
+    const url = await gcsUploadObject(filePath, bytes, contentType);
+    return NextResponse.json({ url });
+  } catch (err) {
+    logError("upload: GCS upload failed", err, { path: filePath });
+    return NextResponse.json(
+      { error: "Upload failed. Please try again." },
+      { status: 500 },
+    );
+  }
 }
