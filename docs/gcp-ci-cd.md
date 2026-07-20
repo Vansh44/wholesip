@@ -65,6 +65,27 @@ gcloud iam service-accounts add-iam-policy-binding \
 The repo uses a 1st-gen GitHub App connection (`Vansh44/storemink`), so plain
 `gcloud builds triggers create github` works.
 
+> **`<STAGING_WEB_API_KEY>` / `<PROD_WEB_API_KEY>`** — the Firebase **web**
+> apiKey. It's PUBLIC (it ships in the client bundle), so it's fine in a trigger
+> config, but it's kept OUT of the tracked repo to avoid GitHub secret-scanning
+> alerts. Fetch each from its project:
+>
+> ```bash
+> gcloud auth application-default set-quota-project storemink-prod  # once
+> curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+>   -H "X-Goog-User-Project: <PROJECT>" \
+>   "https://firebase.googleapis.com/v1beta1/projects/<PROJECT>/webApps/-/config"
+> ```
+>
+> (`<PROJECT>` = `storemink-staging` or `storemink-prod`) — or Firebase console →
+> Project settings → Your apps → Web app → SDK config.
+>
+> **Real hardening (do this once per key):** in Google Cloud console →
+> APIs & Services → Credentials → the "Browser key", set **Application
+> restrictions** = HTTP referrers (your domains) and **API restrictions** =
+> Identity Toolkit + Token Service + the Firebase APIs you use. That, not
+> secrecy, is what protects a public web key.
+
 ### Staging (`staging` → `storemink-web`)
 
 Only the 6 Firebase values differ from the `cloudbuild.yaml` defaults, but we
@@ -78,7 +99,7 @@ gcloud builds triggers create github \
   --branch-pattern='^staging$' \
   --build-config=cloudbuild.yaml \
   --service-account=projects/storemink-prod/serviceAccounts/705863961054-compute@developer.gserviceaccount.com \
-  --substitutions='_IMAGE=asia-south1-docker.pkg.dev/storemink-prod/storemink/web:staging,_SERVICE=storemink-web,_MIN_INSTANCES=0,_DB_CONN=storemink-prod:asia-south1:storemink-staging,_DB_PASSWORD_SECRET=CLOUDSQL_STAGING_APP_PW,_GCS_BUCKET=storemink-media,_FIREBASE_PROJECT_ID=storemink-staging,_NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyBVxeZsIIQmiF_XeSsFaqa_CRfBUIoewHc,_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=storemink-staging.firebaseapp.com,_NEXT_PUBLIC_FIREBASE_PROJECT_ID=storemink-staging,_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=storemink-staging.firebasestorage.app,_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=68037646295,_NEXT_PUBLIC_FIREBASE_APP_ID=1:68037646295:web:388ef47d32e39c822b1d92,_NEXT_PUBLIC_ROOT_DOMAIN=staging.storemink.com,_NEXT_PUBLIC_APP_URL=https://staging.storemink.com'
+  --substitutions='_IMAGE=asia-south1-docker.pkg.dev/storemink-prod/storemink/web:staging,_SERVICE=storemink-web,_MIN_INSTANCES=0,_DB_CONN=storemink-prod:asia-south1:storemink-staging,_DB_PASSWORD_SECRET=CLOUDSQL_STAGING_APP_PW,_GCS_BUCKET=storemink-media,_FIREBASE_PROJECT_ID=storemink-staging,_NEXT_PUBLIC_FIREBASE_API_KEY=<STAGING_WEB_API_KEY>,_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=storemink-staging.firebaseapp.com,_NEXT_PUBLIC_FIREBASE_PROJECT_ID=storemink-staging,_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=storemink-staging.firebasestorage.app,_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=68037646295,_NEXT_PUBLIC_FIREBASE_APP_ID=1:68037646295:web:388ef47d32e39c822b1d92,_NEXT_PUBLIC_ROOT_DOMAIN=staging.storemink.com,_NEXT_PUBLIC_APP_URL=https://staging.storemink.com'
 ```
 
 ### Production (`main` → `storemink-web-prod`)
@@ -91,7 +112,7 @@ gcloud builds triggers create github \
   --branch-pattern='^main$' \
   --build-config=cloudbuild.yaml \
   --service-account=projects/storemink-prod/serviceAccounts/705863961054-compute@developer.gserviceaccount.com \
-  --substitutions='_IMAGE=asia-south1-docker.pkg.dev/storemink-prod/storemink/web:prod,_SERVICE=storemink-web-prod,_MIN_INSTANCES=1,_DB_CONN=storemink-prod:asia-south1:storemink-prod-db,_DB_PASSWORD_SECRET=CLOUDSQL_PROD_APP_PW,_GCS_BUCKET=storemink-media-prod,_FIREBASE_PROJECT_ID=storemink-prod,_NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyBJOS3o0idhO9gSAUbEsNQ10jxP3lj1FcA,_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=storemink-prod.firebaseapp.com,_NEXT_PUBLIC_FIREBASE_PROJECT_ID=storemink-prod,_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=storemink-prod.firebasestorage.app,_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=705863961054,_NEXT_PUBLIC_FIREBASE_APP_ID=1:705863961054:web:e326046a5f9f7b7de9f54f,_NEXT_PUBLIC_ROOT_DOMAIN=storemink.com,_NEXT_PUBLIC_APP_URL=https://storemink.com'
+  --substitutions='_IMAGE=asia-south1-docker.pkg.dev/storemink-prod/storemink/web:prod,_SERVICE=storemink-web-prod,_MIN_INSTANCES=1,_DB_CONN=storemink-prod:asia-south1:storemink-prod-db,_DB_PASSWORD_SECRET=CLOUDSQL_PROD_APP_PW,_GCS_BUCKET=storemink-media-prod,_FIREBASE_PROJECT_ID=storemink-prod,_NEXT_PUBLIC_FIREBASE_API_KEY=<PROD_WEB_API_KEY>,_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=storemink-prod.firebaseapp.com,_NEXT_PUBLIC_FIREBASE_PROJECT_ID=storemink-prod,_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=storemink-prod.firebasestorage.app,_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=705863961054,_NEXT_PUBLIC_FIREBASE_APP_ID=1:705863961054:web:e326046a5f9f7b7de9f54f,_NEXT_PUBLIC_ROOT_DOMAIN=storemink.com,_NEXT_PUBLIC_APP_URL=https://storemink.com'
 ```
 
 ---
@@ -116,7 +137,7 @@ gcloud builds triggers delete rmgpgab-storemink-web-asia-south1-Vansh44-storemin
 | `_DB_PASSWORD_SECRET`                       | `CLOUDSQL_STAGING_APP_PW`                      | `CLOUDSQL_PROD_APP_PW`                         |
 | `_GCS_BUCKET`                               | `storemink-media`                              | `storemink-media-prod`                         |
 | `_FIREBASE_PROJECT_ID`                      | `storemink-staging`                            | `storemink-prod`                               |
-| `_NEXT_PUBLIC_FIREBASE_API_KEY`             | `AIzaSyBVxeZsIIQmiF_XeSsFaqa_CRfBUIoewHc`      | `AIzaSyBJOS3o0idhO9gSAUbEsNQ10jxP3lj1FcA`      |
+| `_NEXT_PUBLIC_FIREBASE_API_KEY`             | `<STAGING_WEB_API_KEY>`                        | `<PROD_WEB_API_KEY>`                           |
 | `_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`         | `storemink-staging.firebaseapp.com`            | `storemink-prod.firebaseapp.com`               |
 | `_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`      | `storemink-staging.firebasestorage.app`        | `storemink-prod.firebasestorage.app`           |
 | `_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | `68037646295`                                  | `705863961054`                                 |

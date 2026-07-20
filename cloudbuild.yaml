@@ -91,9 +91,10 @@ substitutions:
   _GCS_BUCKET: storemink-media
   _FIREBASE_PROJECT_ID: storemink-staging
   # Firebase web config is PUBLIC (it ships in the client bundle) — not secret.
-  # These staging defaults let a bare `gcloud builds submit` produce a working
-  # staging build; the prod trigger overrides them (see docs/gcp-ci-cd.md).
-  _NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyBVxeZsIIQmiF_XeSsFaqa_CRfBUIoewHc
+  # The apiKey is left blank here only to keep GitHub secret-scanning quiet; the
+  # triggers always pass the real per-env values via --substitutions (see
+  # docs/gcp-ci-cd.md). A bare `gcloud builds submit` must pass it explicitly.
+  _NEXT_PUBLIC_FIREBASE_API_KEY: ""
   _NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: storemink-staging.firebaseapp.com
   _NEXT_PUBLIC_FIREBASE_PROJECT_ID: storemink-staging
   _NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: storemink-staging.firebasestorage.app
