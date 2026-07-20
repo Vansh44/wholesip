@@ -139,7 +139,7 @@ export function GroupsManagementView({ groups, canManage = true }: Props) {
             )}
           </div>
         ) : (
-          <table className="dash-table">
+          <table className="dash-table dash-table-wide">
             <thead>
               <tr>
                 <th>Group</th>

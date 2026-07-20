@@ -1,17 +1,19 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService } from "@/lib/db/client";
+import { stores } from "@/drizzle/schema";
 import { getViewerContext } from "@/app/dashboard/lib/access";
 import { can } from "@/app/dashboard/lib/permissions";
 import { STORE_TAG } from "@/lib/store/resolve";
 import {
   FEATURES_KEY,
   SETTINGS,
-  normalizePlan,
   planAllows,
   resolveStoreSettings,
 } from "@/lib/settings/registry";
+import { effectivePlan } from "@/lib/plans";
 
 export interface ActionResult {
   success?: boolean;
@@ -35,6 +37,22 @@ export interface EditorSetting {
   max?: number;
 }
 
+// The acting store's row, in the snake_case shape effectivePlan expects.
+async function readStoreRow(storeId: string) {
+  const rows = await withService((db) =>
+    db
+      .select({
+        settings: stores.settings,
+        plan: stores.plan,
+        plan_expires_at: stores.planExpiresAt,
+      })
+      .from(stores)
+      .where(eq(stores.id, storeId))
+      .limit(1),
+  );
+  return rows[0];
+}
+
 // Feature settings for the acting store, shaped for the dashboard editors.
 // Each setting is gated by ITS OWN dashboard section (def.section) — e.g. the
 // Blogs group needs blogs.view — so feature settings live with their feature
@@ -53,14 +71,15 @@ export async function getStoreSettingsForEditor(group?: string): Promise<{
   );
   if (visible.length === 0) return { plan: "free", settings: [] };
 
-  const admin = createAdminClient();
-  const { data: store } = await admin
-    .from("stores")
-    .select("settings, plan")
-    .eq("id", ctx.storeId)
-    .single();
+  let store: Awaited<ReturnType<typeof readStoreRow>> | undefined;
+  try {
+    store = await readStoreRow(ctx.storeId);
+  } catch (err) {
+    console.error("getStoreSettingsForEditor read:", err);
+    store = undefined;
+  }
 
-  const plan = normalizePlan(store?.plan);
+  const plan = effectivePlan(store ?? {});
   const values = resolveStoreSettings(
     (store?.settings as Record<string, unknown>) ?? {},
     plan,
@@ -110,21 +129,21 @@ export async function saveStoreSettings(
   }
 
   const storeId = ctx.storeId;
-  const admin = createAdminClient();
 
-  const { data: store, error: readError } = await admin
-    .from("stores")
-    .select("settings, plan")
-    .eq("id", storeId)
-    .single();
-  if (readError) {
-    console.error("saveStoreSettings read:", readError.message);
+  let store: Awaited<ReturnType<typeof readStoreRow>> | undefined;
+  try {
+    store = await readStoreRow(storeId);
+  } catch (err) {
+    console.error(
+      "saveStoreSettings read:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not load store settings. Please try again." };
   }
 
   const settings = ((store?.settings as Record<string, unknown>) ??
     {}) as Record<string, unknown>;
-  const plan = normalizePlan(store?.plan);
+  const plan = effectivePlan(store ?? {});
   const features = {
     ...((settings[FEATURES_KEY] as Record<string, unknown>) ?? {}),
   };
@@ -138,13 +157,18 @@ export async function saveStoreSettings(
     features[def.key] = val;
   }
 
-  const { error } = await admin
-    .from("stores")
-    .update({ settings: { ...settings, [FEATURES_KEY]: features } })
-    .eq("id", storeId);
-
-  if (error) {
-    console.error("saveStoreSettings:", error.message);
+  try {
+    await withService((db) =>
+      db
+        .update(stores)
+        .set({ settings: { ...settings, [FEATURES_KEY]: features } })
+        .where(eq(stores.id, storeId)),
+    );
+  } catch (err) {
+    console.error(
+      "saveStoreSettings:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not save settings. Please try again." };
   }
 

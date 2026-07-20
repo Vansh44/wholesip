@@ -343,7 +343,7 @@ export function CustomersManagementView({
           </div>
         ) : (
           <div className="customers-table-wrap">
-            <table className="dash-table customers-table">
+            <table className="dash-table dash-table-wide customers-table">
               <thead>
                 <tr>
                   <th>User</th>

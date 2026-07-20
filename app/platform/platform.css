@@ -299,6 +299,15 @@
   font-weight: 600;
   text-decoration: none;
 }
+.stq-linkbtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--stq-brand);
+  font-weight: 600;
+}
 
 /* ======================================================================
    Landing page (storemink.com) — scoped to .stq like everything above

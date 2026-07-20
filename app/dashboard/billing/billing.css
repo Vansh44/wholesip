@@ -1,0 +1,360 @@
+/* Invoices & Billing (/dashboard/billing) — tokenised on the dashboard
+   --dash-* design system (dashboard.css) so it stays consistent with the rest
+   of the admin and inherits any future theme change. Shopify-style settings
+   cards: white surface, soft border, sticky save bar. */
+
+/* .billPage is full width so the sticky header can span the whole content
+   area; the body below re-centres at a readable width. */
+.billBody {
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+/* Sticky top header (mirrors the product editor): title + Save, pinned FLUSH
+   to the top of the scroll area. .dash-content has 28px top / 32px side
+   padding and position:sticky pins to its content box, so we cancel that
+   padding — the negative top/side margins pull the bar out to the container
+   edges and top:-28 makes it pin flush when scrolled. */
+.billHead {
+  position: sticky;
+  z-index: 30;
+  top: -28px;
+  margin: -28px -32px 24px;
+  padding: 14px 32px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--dash-surface);
+  border-bottom: 1px solid var(--dash-border-strong);
+}
+.billHead h1 {
+  flex: 1;
+  min-width: 0;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--dash-text);
+}
+.billHeadActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.billPage .lead {
+  color: var(--dash-text-2);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+.billSection {
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 18px;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+}
+.billSection h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--dash-text);
+}
+.billSection .hint {
+  color: var(--dash-text-2);
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+.billGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.billField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.billField.full {
+  grid-column: 1 / -1;
+}
+.billField label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dash-text);
+}
+.billField input,
+.billField textarea,
+.billField select {
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+  background: var(--dash-surface);
+  color: var(--dash-text);
+}
+.billField textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+.billField input:focus,
+.billField textarea:focus,
+.billField select:focus {
+  outline: none;
+  border-color: var(--dash-accent);
+  box-shadow: 0 0 0 3px var(--dash-accent-soft);
+}
+.billField input[type="color"] {
+  padding: 4px;
+  height: 40px;
+}
+
+/* Toggle rows */
+.billToggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--dash-border);
+}
+.billToggle:last-child {
+  border-bottom: none;
+}
+.billToggle input[type="checkbox"] {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--dash-accent);
+}
+.billToggle .tLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dash-text);
+}
+.billToggle .tDesc {
+  font-size: 12.5px;
+  color: var(--dash-text-2);
+  margin-top: 2px;
+}
+.billToggle.disabled {
+  opacity: 0.5;
+}
+
+/* Tax classes table */
+.taxRows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.taxRow {
+  display: grid;
+  grid-template-columns: 1fr 120px auto;
+  gap: 10px;
+  align-items: center;
+}
+/* Inputs must fill (not overflow) their grid track — an input's intrinsic
+   default width (~200px) is wider than the 120px rate column and would
+   otherwise spill over the buttons next to it, swallowing their clicks. */
+.taxRow input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--dash-surface);
+  color: var(--dash-text);
+}
+.taxRow input:focus {
+  outline: none;
+  border-color: var(--dash-accent);
+  box-shadow: 0 0 0 3px var(--dash-accent-soft);
+}
+.taxRow .rate {
+  position: relative;
+}
+.taxRow .rate::after {
+  content: "%";
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--dash-text-3);
+  font-size: 13px;
+  pointer-events: none;
+}
+.taxRow .rate input {
+  padding-right: 26px;
+}
+.taxActions {
+  display: flex;
+  gap: 6px;
+}
+.taxBtn {
+  border: 1px solid var(--dash-border-strong);
+  background: var(--dash-surface);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dash-text);
+  cursor: pointer;
+}
+.taxBtn:hover:not(:disabled) {
+  background: var(--dash-surface-2);
+}
+.taxBtn.primary {
+  background: var(--dash-accent);
+  border-color: var(--dash-accent);
+  color: #fff;
+}
+.taxBtn.primary:hover:not(:disabled) {
+  background: var(--dash-accent-hover);
+}
+.taxBtn.danger {
+  color: var(--dash-red);
+  border-color: var(--dash-red-soft);
+}
+.taxBtn.danger:hover:not(:disabled) {
+  background: var(--dash-red-soft);
+}
+.taxBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.taxEmpty {
+  color: var(--dash-text-2);
+  font-size: 13.5px;
+  padding: 8px 0 14px;
+}
+.taxAddRow {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--dash-border-strong);
+}
+
+/* Save + status live in the sticky .billHead (see above); the status keeps a
+   subtle pill so it reads next to the button. */
+.billHeadActions .billStatus {
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+.billSave {
+  background: var(--dash-accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.billSave:hover:not(:disabled) {
+  background: var(--dash-accent-hover);
+}
+.billSave:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* Secondary header action (Preview invoice). */
+.billGhost {
+  background: var(--dash-surface);
+  color: var(--dash-text);
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.billGhost:hover {
+  background: var(--dash-surface-2);
+}
+
+/* ---- Invoice preview modal ---- */
+.billPreviewOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+  background: rgba(17, 24, 39, 0.55);
+}
+.billPreviewPanel {
+  width: 100%;
+  max-width: 860px;
+  background: var(--dash-surface);
+  border-radius: 14px;
+  box-shadow: var(--dash-shadow-lg);
+  overflow: hidden;
+}
+.billPreviewHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--dash-border);
+  position: sticky;
+  top: 0;
+  background: var(--dash-surface);
+}
+.billPreviewTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--dash-text);
+}
+.billPreviewNote {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--dash-text-3);
+}
+.billPreviewClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--dash-border);
+  background: var(--dash-surface);
+  color: var(--dash-text-2);
+  cursor: pointer;
+}
+.billPreviewClose:hover {
+  background: var(--dash-surface-2);
+}
+/* The invoice sheet is print-styled; give it a soft canvas in the modal. */
+.billPreviewBody {
+  padding: 24px;
+  background: var(--dash-surface-2);
+}
+.billStatus.ok {
+  color: var(--dash-green);
+  font-size: 14px;
+  font-weight: 600;
+}
+.billStatus.bad {
+  color: var(--dash-red);
+  font-size: 14px;
+  font-weight: 600;
+}
+.billRowError {
+  color: var(--dash-red);
+  font-size: 12.5px;
+  margin-top: 8px;
+}
+
+@media (max-width: 560px) {
+  .taxRow {
+    grid-template-columns: 1fr;
+  }
+}

@@ -11,11 +11,8 @@ import {
   lineKey,
   type CartItem,
 } from "@/app/(storefront)/components/cart/CartProvider";
+import { useCartTax } from "@/app/(storefront)/components/cart/useCartTax";
 import CouponField from "@/app/(storefront)/components/cart/CouponField";
-
-// Flat grocery-style delivery model (presentational — checkout is deferred).
-const DELIVERY_FEE = 29;
-const FREE_DELIVERY_OVER = 499;
 
 // The Basket (grocery) cart — a distinct premium layout used ONLY when the
 // store's theme sets layout.storefront = "grocery". Entirely separate
@@ -33,6 +30,10 @@ export function GroceryCart() {
     couponDiscount,
     total,
   } = useCart();
+
+  // Live tax for the summary — matches checkout to the rupee. Resolved once per
+  // product-set change; quantity/coupon edits recompute locally (see useCartTax).
+  const taxInfo = useCartTax(items, hydrated, couponValid ? couponDiscount : 0);
 
   if (!hydrated) {
     return (
@@ -61,16 +62,17 @@ export function GroceryCart() {
     );
   }
 
-  // MRP savings (off list price) + any coupon, shown as one informational line.
+  // MRP savings (off list price) — informational only; line prices already
+  // reflect the selling price, so this is never subtracted from the total.
   const mrpSavings = items.reduce(
     (sum, i) => sum + Math.max(0, i.basePrice - i.price) * i.quantity,
     0,
   );
-  const couponSavings = appliedCoupon && couponValid ? couponDiscount : 0;
-  const savings = mrpSavings + couponSavings;
-  const freeDelivery = subtotal >= FREE_DELIVERY_OVER;
-  const delivery = freeDelivery ? 0 : DELIVERY_FEE;
-  const grandTotal = total + delivery;
+  const couponApplied = !!appliedCoupon && couponValid && couponDiscount > 0;
+  // Exclusive tax is added on top; inclusive tax is already inside the prices.
+  const taxToAdd = taxInfo?.enabled && !taxInfo.inclusive ? taxInfo.tax : 0;
+  const grandTotal = total + taxToAdd;
+  const showTaxRow = !!taxInfo && taxInfo.enabled && taxInfo.tax > 0;
 
   return (
     <main className="cart-main gcart-main">
@@ -107,20 +109,30 @@ export function GroceryCart() {
             <span>Subtotal</span>
             <span>{formatPrice(subtotal)}</span>
           </div>
+          {couponApplied && (
+            <div className="gcart-summary-row gcart-savings">
+              <span>Discount ({appliedCoupon.code})</span>
+              <span>− {formatPrice(couponDiscount)}</span>
+            </div>
+          )}
           <div className="gcart-summary-row">
             <span>Delivery</span>
             <span>
-              {freeDelivery ? (
-                <span className="gcart-free">Free</span>
-              ) : (
-                formatPrice(delivery)
-              )}
+              <span className="gcart-free">Free</span>
             </span>
           </div>
-          {savings > 0 && (
-            <div className="gcart-summary-row gcart-savings">
-              <span>Savings</span>
-              <span>− {formatPrice(savings)}</span>
+          {showTaxRow && (
+            <div className="gcart-summary-row">
+              <span>
+                {taxInfo.inclusive ? "Tax (included)" : "Tax"}
+                {taxInfo.byRate.length === 1
+                  ? ` · ${taxInfo.byRate[0].label}`
+                  : ""}
+              </span>
+              <span>
+                {taxInfo.inclusive ? "" : "+"}
+                {formatPrice(taxInfo.tax)}
+              </span>
             </div>
           )}
 
@@ -133,6 +145,14 @@ export function GroceryCart() {
             <span>Total</span>
             <span>{formatPrice(grandTotal)}</span>
           </div>
+          {taxInfo === null ? (
+            <p className="gcart-tax-note">Taxes calculated at checkout.</p>
+          ) : mrpSavings > 0 ? (
+            <p className="gcart-saving-note">
+              You&apos;re saving {formatPrice(mrpSavings)} off MRP on this
+              order.
+            </p>
+          ) : null}
 
           <Link
             href="/checkout"

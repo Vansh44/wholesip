@@ -7,42 +7,142 @@ vi.mock("next/cache", () => ({
   revalidateTag: vi.fn(),
   unstable_cache: (fn: unknown) => fn,
 }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 
-import { createAdminClient } from "@/lib/supabase/admin";
-import { makeChain, makeSupabase } from "@/app/actions/_test-helpers";
+// Mock the Drizzle data layer: each with* runner invokes the callback with the
+// current mock db. Promise.resolve() assimilates the thenable query steps so
+// applyTheme's try/catch sees real rejections.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+}));
+
+import {
+  categories,
+  productVariants,
+  products,
+  storeMenus,
+  storePages,
+  stores,
+} from "@/drizzle/schema";
 import { applyTheme } from "./apply";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-function makeAdmin(storeSettings: Record<string, unknown> = {}) {
-  const admin = makeSupabase({
-    stores: makeChain({ data: { settings: storeSettings }, error: null }),
-    categories: makeChain({
-      data: { id: "cat-1", slug: "pantry" },
-      error: null,
+// A bespoke mock of the fragment of the Drizzle API applyTheme uses. It records
+// insert/update/delete calls per table (keyed by the imported table object's
+// identity) and lets a test inject a per-table failure. `.returning()` yields a
+// table-appropriate row so the category→product id wiring resolves.
+function makeApplyDb(opts: {
+  storeSettings?: Record<string, unknown>;
+  failTables?: Set<string>;
+}) {
+  const storeSettings = opts.storeSettings ?? {};
+  const failTables = opts.failTables ?? new Set<string>();
+
+  const calls = {
+    insert: {} as Record<string, any[]>,
+    update: {} as Record<string, any[]>,
+    delete: {} as Record<string, number>,
+    onConflict: {} as Record<string, any[]>,
+  };
+
+  const nameOf = (t: any) =>
+    t === stores
+      ? "stores"
+      : t === categories
+        ? "categories"
+        : t === products
+          ? "products"
+          : t === productVariants
+            ? "product_variants"
+            : t === storeMenus
+              ? "store_menus"
+              : t === storePages
+                ? "store_pages"
+                : "unknown";
+
+  const returningFor = (name: string) =>
+    name === "categories"
+      ? [{ id: "cat-1", slug: "pantry" }]
+      : name === "products"
+        ? [{ id: "prod-1" }]
+        : [];
+
+  const fails = (name: string) => failTables.has(name);
+  const settle = (name: string, result: any) =>
+    fails(name)
+      ? Promise.reject(new Error(`${name} down`))
+      : Promise.resolve(result);
+
+  const insertStep = (name: string): any => ({
+    onConflictDoUpdate: vi.fn((c: any) => {
+      (calls.onConflict[name] ??= []).push(c);
+      return insertStep(name);
     }),
-    products: makeChain({ data: { id: "prod-1" }, error: null }),
-    product_variants: makeChain(),
-    store_menus: makeChain(),
-    store_pages: makeChain(),
+    onConflictDoNothing: vi.fn(() => insertStep(name)),
+    returning: vi.fn(() => settle(name, returningFor(name))),
+    then: (resolve: any, reject: any) =>
+      settle(name, returningFor(name)).then(resolve, reject),
   });
-  return admin;
+
+  const whereStep = (name: string, result: any): any => ({
+    where: vi.fn(() => ({
+      then: (resolve: any, reject: any) =>
+        settle(name, result).then(resolve, reject),
+    })),
+  });
+
+  const db = {
+    select: vi.fn(() => {
+      const s: any = {
+        from: vi.fn(() => s),
+        where: vi.fn(() => s),
+        limit: vi.fn(() => s),
+        then: (resolve: any, reject: any) =>
+          Promise.resolve([{ settings: storeSettings }]).then(resolve, reject),
+      };
+      return s;
+    }),
+    insert: vi.fn((t: any) => {
+      const name = nameOf(t);
+      return {
+        values: vi.fn((v: any) => {
+          (calls.insert[name] ??= []).push(v);
+          return insertStep(name);
+        }),
+      };
+    }),
+    update: vi.fn((t: any) => {
+      const name = nameOf(t);
+      return {
+        set: vi.fn((v: any) => {
+          (calls.update[name] ??= []).push(v);
+          return whereStep(name, { rowCount: 1 });
+        }),
+      };
+    }),
+    delete: vi.fn((t: any) => {
+      const name = nameOf(t);
+      calls.delete[name] = (calls.delete[name] ?? 0) + 1;
+      return whereStep(name, { rowCount: 1 });
+    }),
+  };
+
+  return { db, calls };
 }
 
 describe("applyTheme", () => {
-  let admin: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    admin = makeAdmin({ brand: { name: "My Shop" } });
-    vi.mocked(createAdminClient).mockReturnValue(admin);
+    dbHolder.current = makeApplyDb({
+      storeSettings: { brand: { name: "My Shop" } },
+    });
   });
 
   it("merges settings without clobbering the merchant's brand name", async () => {
     await applyTheme("store-1", "basket", { publish: true });
-    const update = admin._tables.stores.update.mock.calls[0][0];
+    const update = dbHolder.current.calls.update.stores[0];
     expect(update.settings.template).toBe("basket");
     expect(update.settings.brand.name).toBe("My Shop"); // preserved
     expect(update.settings.brand.primaryColor).toBe("#ef5a2a"); // themed
@@ -52,9 +152,7 @@ describe("applyTheme", () => {
     const r = await applyTheme("store-1", "basket", { publish: true });
     expect(r.success, r.errors.join(" | ")).toBe(true);
 
-    const pageUpserts = admin._tables.store_pages.upsert.mock.calls.map(
-      (c: any[]) => c[0],
-    );
+    const pageUpserts = dbHolder.current.calls.insert.store_pages;
     // Basket seeds 4 pages incl. the homepage sentinel.
     expect(pageUpserts.map((p: any) => p.slug).sort()).toEqual([
       "",
@@ -64,23 +162,25 @@ describe("applyTheme", () => {
     ]);
     for (const p of pageUpserts) {
       expect(p.status).toBe("published");
-      expect(p.published_sections).toEqual(p.sections);
+      expect(p.publishedSections).toEqual(p.sections);
       for (const s of p.sections) expect(s.id).toMatch(UUID_RE);
     }
   });
 
   it("seeds products with variants scoped to the store", async () => {
     await applyTheme("store-1", "basket", { publish: true });
-    const productUpserts = admin._tables.products.upsert.mock.calls;
+    const productUpserts = dbHolder.current.calls.insert.products;
     expect(productUpserts.length).toBe(13); // basket sample products
-    expect(productUpserts[0][0].store_id).toBe("store-1");
-    expect(productUpserts[0][0].status).toBe("published");
+    expect(productUpserts[0].storeId).toBe("store-1");
+    expect(productUpserts[0].status).toBe("published");
 
-    const variantInserts = admin._tables.product_variants.insert.mock.calls;
+    const variantInserts = dbHolder.current.calls.insert.product_variants;
     expect(variantInserts.length).toBeGreaterThan(0);
-    expect(variantInserts[0][0][0]).toMatchObject({
-      store_id: "store-1",
-      product_id: "prod-1",
+    // Each insert receives the variants ARRAY; check the first variant of the
+    // first insert.
+    expect(variantInserts[0][0]).toMatchObject({
+      storeId: "store-1",
+      productId: "prod-1",
     });
   });
 
@@ -92,12 +192,13 @@ describe("applyTheme", () => {
     expect(r.success).toBe(false);
     expect(r.errors[0]).toMatch(/not a demo store/i);
     // Nothing was deleted.
-    expect(admin._tables.products.delete).not.toHaveBeenCalled();
+    expect(dbHolder.current.calls.delete.products).toBeUndefined();
   });
 
   it("resets a demo store before applying", async () => {
-    admin = makeAdmin({ demo: true, brand: { name: "Basket Demo" } });
-    vi.mocked(createAdminClient).mockReturnValue(admin);
+    dbHolder.current = makeApplyDb({
+      storeSettings: { demo: true, brand: { name: "Basket Demo" } },
+    });
     const r = await applyTheme("store-1", "basket", {
       publish: true,
       reset: true,
@@ -109,19 +210,21 @@ describe("applyTheme", () => {
       "store_pages",
       "store_menus",
     ]) {
-      expect(admin._tables[table].delete, table).toHaveBeenCalled();
+      expect(dbHolder.current.calls.delete[table], table).toBeGreaterThan(0);
     }
   });
 
   it("accumulates errors without aborting (best-effort)", async () => {
-    admin._tables.store_menus = makeChain(
-      { data: null, error: null },
-      { data: null, error: { message: "menus down" } },
-    );
+    dbHolder.current = makeApplyDb({
+      storeSettings: { brand: { name: "My Shop" } },
+      failTables: new Set(["store_menus"]),
+    });
     const r = await applyTheme("store-1", "basket", { publish: true });
     expect(r.success).toBe(false);
     expect(r.errors.some((e) => e.includes("menus down"))).toBe(true);
     // Pages were still seeded despite the menus failure.
-    expect(admin._tables.store_pages.upsert).toHaveBeenCalled();
+    expect(dbHolder.current.calls.insert.store_pages?.length).toBeGreaterThan(
+      0,
+    );
   });
 });

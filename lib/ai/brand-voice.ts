@@ -1,6 +1,8 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { storeBrandProfiles, stores } from "@/drizzle/schema";
 
 // Per-store brand voice — the identity text fed to Gemini as its system
 // instruction for every AI copy feature. Replaces an earlier file-based
@@ -79,33 +81,43 @@ Rules you never break:
  * generic default personalised with the store's branding. Never returns null —
  * AI features always have an identity to speak from.
  *
- * Reads with the service-role client (store_brand_profiles is service-role
- * only); callers are dashboard actions that have already passed an app-layer
- * manager check.
+ * Reads in the service scope (store_brand_profiles is service-only); callers
+ * are dashboard actions that have already passed an app-layer manager check.
  */
 export async function getBrandSoulForStore(storeId: string): Promise<string> {
-  const admin = createAdminClient();
+  let saved: string | undefined;
+  let storeRow: { name: string; settings: unknown } | undefined;
+  try {
+    const profileRows = await withService((db) =>
+      db
+        .select({ content_md: storeBrandProfiles.contentMd })
+        .from(storeBrandProfiles)
+        .where(eq(storeBrandProfiles.storeId, storeId))
+        .limit(1),
+    );
+    saved = profileRows[0]?.content_md?.trim();
+    if (saved) return saved;
 
-  const { data: profile } = await admin
-    .from("store_brand_profiles")
-    .select("content_md")
-    .eq("store_id", storeId)
-    .maybeSingle();
-  const saved = (profile?.content_md as string | undefined)?.trim();
-  if (saved) return saved;
-
-  const { data: store } = await admin
-    .from("stores")
-    .select("name, settings")
-    .eq("id", storeId)
-    .maybeSingle();
+    [storeRow] = await withService((db) =>
+      db
+        .select({ name: stores.name, settings: stores.settings })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1),
+    );
+  } catch (err) {
+    console.error(
+      "getBrandSoulForStore:",
+      err instanceof Error ? err.message : err,
+    );
+  }
   const brand =
-    ((store?.settings as Record<string, unknown> | null)?.brand as Record<
+    ((storeRow?.settings as Record<string, unknown> | null)?.brand as Record<
       string,
       unknown
     >) ?? {};
   return defaultBrandSoul(
-    (store?.name as string) || "this store",
+    storeRow?.name || "this store",
     typeof brand.tagline === "string" ? brand.tagline : null,
     typeof brand.blurb === "string" ? brand.blurb : null,
   );
@@ -115,14 +127,26 @@ export async function getBrandSoulForStore(storeId: string): Promise<string> {
 export async function getBrandVoiceProfile(
   storeId: string,
 ): Promise<BrandVoiceProfile> {
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("store_brand_profiles")
-    .select("content_md, structured")
-    .eq("store_id", storeId)
-    .maybeSingle();
-  return {
-    content: (data?.content_md as string) ?? "",
-    structured: normalizeStructured(data?.structured),
-  };
+  try {
+    const rows = await withService((db) =>
+      db
+        .select({
+          content_md: storeBrandProfiles.contentMd,
+          structured: storeBrandProfiles.structured,
+        })
+        .from(storeBrandProfiles)
+        .where(eq(storeBrandProfiles.storeId, storeId))
+        .limit(1),
+    );
+    return {
+      content: rows[0]?.content_md ?? "",
+      structured: normalizeStructured(rows[0]?.structured),
+    };
+  } catch (err) {
+    console.error(
+      "getBrandVoiceProfile:",
+      err instanceof Error ? err.message : err,
+    );
+    return { content: "", structured: {} };
+  }
 }

@@ -1,19 +1,37 @@
 "use server";
 
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { STORE_TAG, WHOLESIP_STORE_ID } from "@/lib/store/resolve";
+import { deleteAuthUser } from "@/lib/auth/firebase-users";
+import { getServerUser } from "@/lib/auth/server-user";
+import { withService } from "@/lib/db/client";
+import { isUniqueViolation } from "@/lib/db/errors";
+import {
+  admins,
+  aiCreditBalances,
+  aiCreditLedger,
+  aiUsage,
+  blogComments,
+  blogs,
+  cardColors,
+  categories,
+  emailCampaigns,
+  planEvents,
+  platformAdmins,
+  productReviews,
+  productVariants,
+  products,
+  storePages,
+  storePaymentProviders,
+  stores,
+  users,
+} from "@/drizzle/schema";
+import { STORE_TAG, FALLBACK_STORE_ID } from "@/lib/store/resolve";
 import { getThemeDefinition } from "@/lib/themes";
 import { applyTheme } from "@/lib/themes/apply";
-import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
-import {
-  PLAN_IDS,
-  PLAN_META,
-  normalizePlan,
-  isUpgrade,
-  type Plan,
-} from "@/lib/plans";
+import { deleteStorageUrls } from "@/lib/storage/cleanup";
+import { PLAN_IDS, PLAN_META, normalizePlan, type Plan } from "@/lib/plans";
+import { currentPeriod } from "@/lib/ai/quota";
 
 // A Storemink platform operator (from platform_admins, by JWT email).
 export interface PlatformViewer {
@@ -22,21 +40,23 @@ export interface PlatformViewer {
 }
 
 export async function getPlatformViewer(): Promise<PlatformViewer | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user?.email) return null;
-  // Exact (case-normalised) match, not `.ilike()` — see access.ts getPlatformRole:
-  // a user-controlled email used as a LIKE pattern is a privilege-escalation vector.
-  const { data } = await supabase
-    .from("platform_admins")
-    .select("email, role")
-    .eq("email", user.email.toLowerCase())
-    .maybeSingle();
+  // Exact (case-normalised) match, not ILIKE — a user-controlled email used as
+  // a LIKE pattern is a privilege-escalation vector. platform_admins IS the
+  // operator allowlist, so a service-scope read filtered by the verified email
+  // is the gate.
+  const rows = await withService((db) =>
+    db
+      .select({ email: platformAdmins.email, role: platformAdmins.role })
+      .from(platformAdmins)
+      .where(eq(platformAdmins.email, user.email!.toLowerCase()))
+      .limit(1),
+  ).catch(() => []);
+  const data = rows[0];
   if (!data) return null;
   return {
-    email: data.email as string,
+    email: data.email,
     role: data.role as "superadmin" | "member",
   };
 }
@@ -47,61 +67,132 @@ export interface PlatformStoreRow {
   name: string;
   status: string;
   plan: string;
+  plan_expires_at: string | null; // timed plans — null = indefinite
   custom_domain: string | null;
   created_at: string;
   owner_email: string | null; // superadmin who set the store up (from admins)
+  ai_used: number; // AI generations consumed this calendar month
+  credit_balance: number; // purchased/granted AI credits remaining
+  /** BYO payment gateway state: none = not connected. Never the keys. */
+  gateway: "none" | "enabled" | "paused";
 }
 
-// Strip PostgREST filter-control chars so a search term can't break .or().
+// Trim the search term to a sane length (parameterised — no escaping needed).
 function sanitize(q: string): string {
-  return q
-    .replace(/[(),:*%\\]/g, " ")
-    .trim()
-    .slice(0, 80);
+  return q.trim().slice(0, 80);
 }
 
-// Every store on the platform (operator-only; service role bypasses per-store RLS).
+// Every store on the platform (operator-only; service scope bypasses per-store RLS).
 export async function listAllStores(q?: string): Promise<PlatformStoreRow[]> {
   if (!(await getPlatformViewer())) return [];
-  const admin = createAdminClient();
-  let query = admin
-    .from("stores")
-    .select("id, slug, name, status, plan, custom_domain, created_at")
-    .order("created_at", { ascending: false })
-    .limit(500);
+
   const term = sanitize(q ?? "");
-  if (term) query = query.or(`name.ilike.%${term}%,slug.ilike.%${term}%`);
-  const { data, error } = await query;
-  if (error) {
-    console.error("listAllStores:", error.message);
+  try {
+    return await withService(async (db) => {
+      const conds = term
+        ? [
+            or(
+              ilike(stores.name, `%${term}%`),
+              ilike(stores.slug, `%${term}%`),
+            )!,
+          ]
+        : [];
+      const rows = await db
+        .select({
+          id: stores.id,
+          slug: stores.slug,
+          name: stores.name,
+          status: stores.status,
+          plan: stores.plan,
+          plan_expires_at: stores.planExpiresAt,
+          custom_domain: stores.customDomain,
+          created_at: stores.createdAt,
+        })
+        .from(stores)
+        .where(conds.length ? and(...conds) : undefined)
+        .orderBy(desc(stores.createdAt))
+        .limit(500);
+
+      const list = rows.map(
+        (s): PlatformStoreRow => ({
+          ...s,
+          owner_email: null,
+          ai_used: 0,
+          credit_balance: 0,
+          gateway: "none" as const,
+        }),
+      );
+      if (!list.length) return list;
+
+      // Enrich in four batch queries (never per-store): owner email, this
+      // month's AI usage, the credit balance, and the BYO gateway state.
+      const ids = list.map((s) => s.id);
+      const [owners, usage, credits, gw] = await Promise.all([
+        db
+          .select({
+            store_id: admins.storeId,
+            email: admins.email,
+            created_at: admins.createdAt,
+          })
+          .from(admins)
+          .where(
+            and(inArray(admins.storeId, ids), eq(admins.role, "superadmin")),
+          )
+          .orderBy(asc(admins.createdAt)),
+        db
+          .select({ store_id: aiUsage.storeId, used: aiUsage.used })
+          .from(aiUsage)
+          .where(
+            and(
+              inArray(aiUsage.storeId, ids),
+              eq(aiUsage.period, currentPeriod()),
+            ),
+          ),
+        db
+          .select({
+            store_id: aiCreditBalances.storeId,
+            balance: aiCreditBalances.balance,
+          })
+          .from(aiCreditBalances)
+          .where(inArray(aiCreditBalances.storeId, ids)),
+        db
+          .select({
+            store_id: storePaymentProviders.storeId,
+            enabled: storePaymentProviders.enabled,
+          })
+          .from(storePaymentProviders)
+          .where(inArray(storePaymentProviders.storeId, ids)),
+      ]);
+
+      // Earliest superadmin per store wins as "owner".
+      const ownerByStore = new Map<string, string>();
+      for (const o of owners) {
+        if (!ownerByStore.has(o.store_id) && o.email)
+          ownerByStore.set(o.store_id, o.email);
+      }
+      const usedByStore = new Map(usage.map((u) => [u.store_id, u.used]));
+      const creditsByStore = new Map(
+        credits.map((c) => [c.store_id, c.balance]),
+      );
+      const gatewayByStore = new Map(
+        gw.map((g) => [
+          g.store_id,
+          g.enabled ? ("enabled" as const) : ("paused" as const),
+        ]),
+      );
+
+      for (const s of list) {
+        s.owner_email = ownerByStore.get(s.id) ?? null;
+        s.ai_used = usedByStore.get(s.id) ?? 0;
+        s.credit_balance = creditsByStore.get(s.id) ?? 0;
+        s.gateway = gatewayByStore.get(s.id) ?? "none";
+      }
+      return list;
+    });
+  } catch (err) {
+    console.error("listAllStores:", err instanceof Error ? err.message : err);
     return [];
   }
-
-  const stores = (data ?? []).map(
-    (s): PlatformStoreRow => ({ ...s, owner_email: null }),
-  ) as PlatformStoreRow[];
-
-  // Attach the store's owner email (the superadmin created at signup). Fetched
-  // in one query and mapped back — earliest superadmin per store wins.
-  if (stores.length) {
-    const { data: owners } = await admin
-      .from("admins")
-      .select("store_id, email, created_at")
-      .in(
-        "store_id",
-        stores.map((s) => s.id),
-      )
-      .eq("role", "superadmin")
-      .order("created_at", { ascending: true });
-    const byStore = new Map<string, string>();
-    for (const o of owners ?? []) {
-      const sid = o.store_id as string;
-      if (!byStore.has(sid) && o.email) byStore.set(sid, o.email as string);
-    }
-    for (const s of stores) s.owner_email = byStore.get(s.id) ?? null;
-  }
-
-  return stores;
 }
 
 export interface ActionResult {
@@ -122,27 +213,29 @@ export async function setStoreStatus(
   if (!["active", "suspended"].includes(status)) {
     return { error: "Invalid status." };
   }
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("stores")
-    .update({ status })
-    .eq("id", storeId);
-  if (error) {
-    console.error("setStoreStatus:", error.message);
+  try {
+    await withService((db) =>
+      db.update(stores).set({ status }).where(eq(stores.id, storeId)),
+    );
+  } catch (err) {
+    console.error("setStoreStatus:", err instanceof Error ? err.message : err);
     return { error: "Could not update the store. Please try again." };
   }
   revalidateTag(STORE_TAG, "max");
   return { success: true };
 }
 
-// Promote a store to a higher plan (platform superadmin only). UPGRADE-ONLY by
-// design: free → starter/pro, starter → pro, pro → nowhere. A paying/comped
-// merchant is never stripped of features from the console — plan DEscents will
-// arrive with billing (non-renewal → scheduled downgrade), not as a button.
-// Every change is recorded in the append-only plan_events audit log.
+// Set a store's plan (platform superadmin only) — ANY direction, optionally
+// time-boxed. Downgrades are soft (existing data is never deleted; creating
+// new rows past the smaller plan's caps is what gets blocked — lib/plans.ts).
+// `expiresAt` bounds the grant: an ISO timestamp in the future, or null for
+// indefinite. Expired plans behave as free immediately (effectivePlan) and are
+// durably flipped by /api/cron/plan-expiry. Every change is recorded in the
+// append-only plan_events audit log.
 export async function setStorePlan(
   storeId: string,
   targetPlan: string,
+  opts?: { expiresAt?: string | null },
 ): Promise<ActionResult> {
   const viewer = await getPlatformViewer();
   if (viewer?.role !== "superadmin") {
@@ -153,43 +246,73 @@ export async function setStorePlan(
   }
   const target = targetPlan as Plan;
 
-  const admin = createAdminClient();
-  const { data: store } = await admin
-    .from("stores")
-    .select("id, plan")
-    .eq("id", storeId)
-    .maybeSingle();
+  // Free never expires (there is nothing to lapse to); paid plans may carry
+  // an expiry, which must parse and lie in the future.
+  let expiresAt: string | null = null;
+  if (target !== "free" && opts?.expiresAt != null) {
+    const parsed = new Date(opts.expiresAt);
+    if (Number.isNaN(parsed.getTime())) {
+      return { error: "Invalid expiry date." };
+    }
+    if (parsed.getTime() <= Date.now()) {
+      return { error: "The expiry date must be in the future." };
+    }
+    expiresAt = parsed.toISOString();
+  }
+
+  const storeRows = await withService((db) =>
+    db
+      .select({ plan: stores.plan, plan_expires_at: stores.planExpiresAt })
+      .from(stores)
+      .where(eq(stores.id, storeId))
+      .limit(1),
+  ).catch(() => []);
+  const store = storeRows[0];
   if (!store) return { error: "Store not found." };
 
   const current = normalizePlan(store.plan);
-  if (current === target) {
+  if (
+    current === target &&
+    (store.plan_expires_at ?? null) === (expiresAt ?? null)
+  ) {
     return { error: `This store is already on ${PLAN_META[target].name}.` };
   }
-  if (!isUpgrade(current, target)) {
-    return {
-      error: `Plans can't be downgraded from the console (${PLAN_META[current].name} → ${PLAN_META[target].name}).`,
-    };
-  }
 
-  const { error } = await admin
-    .from("stores")
-    .update({ plan: target, plan_source: "comp" })
-    .eq("id", storeId)
-    .eq("plan", store.plan); // no-op if the plan changed under us (stale row)
-  if (error) {
-    console.error("setStorePlan:", error.message);
+  try {
+    await withService((db) =>
+      db
+        .update(stores)
+        .set({ plan: target, planSource: "comp", planExpiresAt: expiresAt })
+        // no-op if the plan changed under us (stale row).
+        .where(and(eq(stores.id, storeId), eq(stores.plan, store.plan))),
+    );
+  } catch (err) {
+    console.error("setStorePlan:", err instanceof Error ? err.message : err);
     return { error: "Could not update the plan. Please try again." };
   }
 
   // Best-effort audit trail — the plan change itself is the source of truth.
-  const { error: auditErr } = await admin.from("plan_events").insert({
-    store_id: storeId,
-    from_plan: current,
-    to_plan: target,
-    source: "operator",
-    actor: viewer.email,
-  });
-  if (auditErr) console.error("setStorePlan (audit):", auditErr.message);
+  try {
+    await withService((db) =>
+      db.insert(planEvents).values({
+        storeId,
+        fromPlan: current,
+        toPlan: target,
+        source: "operator",
+        actor: viewer.email,
+        note: expiresAt
+          ? `expires ${expiresAt.slice(0, 10)}`
+          : target === "free"
+            ? null
+            : "indefinite",
+      }),
+    );
+  } catch (auditErr) {
+    console.error(
+      "setStorePlan (audit):",
+      auditErr instanceof Error ? auditErr.message : auditErr,
+    );
+  }
 
   // Plan gates feature settings (minPlan) — bust the cached store lookups so
   // the store's dashboard + storefront see the new plan immediately.
@@ -197,11 +320,145 @@ export async function setStorePlan(
   return { success: true };
 }
 
-// Any media-bucket public URL. Store media isn't namespaced by store in the
-// bucket, so we can't purge by prefix — instead we scrape every media URL out
-// of the store's own rows (product images, blog bodies, brand logo, page
-// sections…) before the DB rows cascade away, then delete those files.
-const MEDIA_URL_RE = /https?:\/\/[^"'\s)]+\/object\/public\/media\/[^"'\s)]+/g;
+// Grant free AI credits to a store (platform superadmin only). Goes through
+// the same atomic add_ai_credits RPC as purchases, so every grant lands in the
+// append-only ai_credit_ledger with the operator's email as the ref.
+const MAX_CREDIT_GRANT = 10_000;
+
+export async function grantAiCredits(
+  storeId: string,
+  amount: number,
+  note?: string,
+): Promise<ActionResult> {
+  const viewer = await getPlatformViewer();
+  if (viewer?.role !== "superadmin") {
+    return { error: "Only a platform superadmin can grant credits." };
+  }
+  if (!Number.isInteger(amount) || amount < 1 || amount > MAX_CREDIT_GRANT) {
+    return {
+      error: `Credits must be a whole number between 1 and ${MAX_CREDIT_GRANT}.`,
+    };
+  }
+
+  const storeRows = await withService((db) =>
+    db
+      .select({ id: stores.id })
+      .from(stores)
+      .where(eq(stores.id, storeId))
+      .limit(1),
+  ).catch(() => []);
+  if (!storeRows[0]) return { error: "Store not found." };
+
+  const noteVal = sanitize(note ?? "").slice(0, 200) || null;
+  try {
+    await withService((db) =>
+      db.execute(
+        sql`select add_ai_credits(p_store => ${storeId}, p_delta => ${amount}, p_kind => ${"grant"}, p_ref => ${viewer.email}, p_note => ${noteVal})`,
+      ),
+    );
+  } catch (err) {
+    console.error("grantAiCredits:", err instanceof Error ? err.message : err);
+    return { error: "Could not grant credits. Please try again." };
+  }
+  return { success: true };
+}
+
+// Per-store audit history for the console drawer: plan changes (plan_events)
+// + the AI-credit ledger. Read-only, superadmin-gated like the mutations.
+export interface StoreAuditData {
+  planEvents: Array<{
+    id: string;
+    from_plan: string | null;
+    to_plan: string;
+    source: string;
+    actor: string | null;
+    note: string | null;
+    created_at: string;
+  }>;
+  creditLedger: Array<{
+    id: string;
+    delta: number;
+    kind: string;
+    ref: string | null;
+    note: string | null;
+    created_at: string;
+  }>;
+}
+
+export async function getStoreAudit(
+  storeId: string,
+): Promise<StoreAuditData | null> {
+  const viewer = await getPlatformViewer();
+  if (viewer?.role !== "superadmin") return null;
+
+  try {
+    return await withService(async (db) => {
+      const [planEventRows, creditLedgerRows] = await Promise.all([
+        db
+          .select({
+            id: planEvents.id,
+            from_plan: planEvents.fromPlan,
+            to_plan: planEvents.toPlan,
+            source: planEvents.source,
+            actor: planEvents.actor,
+            note: planEvents.note,
+            created_at: planEvents.createdAt,
+          })
+          .from(planEvents)
+          .where(eq(planEvents.storeId, storeId))
+          .orderBy(desc(planEvents.createdAt))
+          .limit(30),
+        db
+          .select({
+            id: aiCreditLedger.id,
+            delta: aiCreditLedger.delta,
+            kind: aiCreditLedger.kind,
+            ref: aiCreditLedger.ref,
+            note: aiCreditLedger.note,
+            created_at: aiCreditLedger.createdAt,
+          })
+          .from(aiCreditLedger)
+          .where(eq(aiCreditLedger.storeId, storeId))
+          .orderBy(desc(aiCreditLedger.createdAt))
+          .limit(30),
+      ]);
+      return {
+        planEvents: planEventRows as StoreAuditData["planEvents"],
+        creditLedger: creditLedgerRows as StoreAuditData["creditLedger"],
+      };
+    });
+  } catch (err) {
+    console.error("getStoreAudit:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+// Any managed media public URL — Supabase (…/object/public/media/…) OR Google
+// Cloud Storage (storage.googleapis.com/<bucket>/…), since a store's media may
+// straddle both during the Phase 3 migration. Store media isn't namespaced by
+// store in the bucket, so we can't purge by prefix — instead we scrape every
+// media URL out of the store's own rows (product images, blog bodies, brand
+// logo, page sections…) before the DB rows cascade away, then delete those
+// files (deleteStorageUrls routes each URL to the right backend).
+const MEDIA_URL_RE =
+  /https?:\/\/[^"'\s)]*(?:\/object\/public\/media\/|storage\.googleapis\.com\/[^/"'\s)]+\/)[^"'\s)]+/g;
+
+// Every store-scoped table that can hold an uploaded image (product/variant
+// galleries, category tiles, blog covers+bodies, page sections, review photos,
+// campaign HTML, colour-card art, customer avatars). Selecting all columns +
+// JSON scan means a new image column is covered automatically.
+const MEDIA_TABLES = [
+  products,
+  productVariants,
+  categories,
+  blogs,
+  blogComments,
+  storePages,
+  productReviews,
+  emailCampaigns,
+  cardColors,
+  users,
+];
 
 // PERMANENTLY delete a store and everything belonging to it (platform
 // superadmin only). Irreversible. Every store-scoped table FKs stores(id) with
@@ -215,80 +472,75 @@ export async function deleteStore(storeId: string): Promise<ActionResult> {
   }
   // The WholeSip fallback store underpins unresolved-host handling — never let
   // it be deleted from the console.
-  if (storeId === WHOLESIP_STORE_ID) {
+  if (storeId === FALLBACK_STORE_ID) {
     return { error: "The WholeSip fallback store can't be deleted." };
   }
 
-  const admin = createAdminClient();
-
-  const { data: store } = await admin
-    .from("stores")
-    .select("id, settings")
-    .eq("id", storeId)
-    .maybeSingle();
-  if (!store) return { error: "Store not found." };
-
-  // 1. Login accounts to delete (auth.users). admins.id AND users.id are both
-  //    auth user ids; their rows cascade away with the store, so we collect the
-  //    ids first. Each id maps to exactly one store (both are global PKs), so
-  //    deleting the auth account is safe. Deduped in case an owner is also a
-  //    customer row.
-  const authUserIds = new Set<string>();
-  const [{ data: staff }, { data: customers }] = await Promise.all([
-    admin.from("admins").select("id").eq("store_id", storeId),
-    admin.from("users").select("id").eq("store_id", storeId),
-  ]);
-  for (const r of staff ?? []) authUserIds.add(r.id as string);
-  for (const r of customers ?? []) authUserIds.add(r.id as string);
-
-  // 2. Media URLs referenced anywhere in the store's rows (scanned as JSON so we
-  //    catch image fields, jsonb arrays AND HTML bodies without per-column code).
   const mediaUrls = new Set<string>();
+  const authUserIds = new Set<string>();
   const scan = (obj: unknown) => {
     for (const m of JSON.stringify(obj ?? "").match(MEDIA_URL_RE) ?? [])
       mediaUrls.add(m);
   };
-  scan(store.settings);
-  // Every store-scoped table that can hold an uploaded image (product/variant
-  // galleries, category tiles, blog covers+bodies, page sections, review photos,
-  // campaign HTML, colour-card art, customer avatars). select("*") + JSON scan
-  // means a new image column is covered automatically.
-  const MEDIA_TABLES = [
-    "products",
-    "product_variants",
-    "categories",
-    "blogs",
-    "blog_comments",
-    "store_pages",
-    "product_reviews",
-    "email_campaigns",
-    "card_colors",
-    "users",
-  ];
-  for (const table of MEDIA_TABLES) {
-    const { data: rows } = await admin
-      .from(table)
-      .select("*")
-      .eq("store_id", storeId);
-    if (rows) scan(rows);
-  }
 
-  // 3. Delete the store — FK ON DELETE CASCADE wipes every store-scoped row.
-  const { error: delErr } = await admin
-    .from("stores")
-    .delete()
-    .eq("id", storeId);
-  if (delErr) {
-    console.error("deleteStore:", delErr.message);
+  try {
+    const found = await withService(async (db) => {
+      const storeRows = await db
+        .select({ id: stores.id, settings: stores.settings })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1);
+      if (!storeRows[0]) return null;
+      scan(storeRows[0].settings);
+
+      // Login accounts to delete (auth.users). admins.id AND users.id are both
+      // auth user ids; their rows cascade with the store, so collect ids first.
+      const [staff, customerRows] = await Promise.all([
+        db
+          .select({ id: admins.id })
+          .from(admins)
+          .where(eq(admins.storeId, storeId)),
+        db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.storeId, storeId)),
+      ]);
+      for (const r of staff) authUserIds.add(r.id);
+      for (const r of customerRows) authUserIds.add(r.id);
+
+      // Media URLs referenced anywhere in the store's rows (scanned as JSON so
+      // we catch image fields, jsonb arrays AND HTML bodies).
+      for (const table of MEDIA_TABLES) {
+        const rows = await db
+          .select()
+          .from(table)
+          .where(eq(table.storeId, storeId));
+        if (rows.length) scan(rows);
+      }
+      return true;
+    });
+    if (!found) return { error: "Store not found." };
+  } catch (err) {
+    console.error("deleteStore (scan):", err);
     return { error: "Could not delete the store. Please try again." };
   }
 
-  // 4. Best-effort cleanup of things that DON'T cascade from stores. The store
-  //    is already gone, so failures here are logged but not surfaced as errors.
+  // Delete the store — FK ON DELETE CASCADE wipes every store-scoped row.
+  try {
+    await withService((db) => db.delete(stores).where(eq(stores.id, storeId)));
+  } catch (err) {
+    console.error("deleteStore:", err instanceof Error ? err.message : err);
+    return { error: "Could not delete the store. Please try again." };
+  }
+
+  // Best-effort cleanup of things that DON'T cascade from stores. The store is
+  // already gone (its cascade removed the Cloud SQL admins/users rows), so these
+  // failures are logged but not surfaced. Remove the Identity Platform logins.
   await deleteStorageUrls(Array.from(mediaUrls));
   for (const id of authUserIds) {
-    const { error } = await admin.auth.admin.deleteUser(id);
-    if (error) console.error("deleteStore (auth user)", id, error.message);
+    await deleteAuthUser(id).catch((err) =>
+      console.error("deleteStore (auth user)", id, err),
+    );
   }
 
   revalidateTag(STORE_TAG, "max");
@@ -311,17 +563,39 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // The operator roster (any operator can view).
 export async function listPlatformAdmins(): Promise<PlatformAdminRow[]> {
   if (!(await getPlatformViewer())) return [];
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("platform_admins")
-    .select("id, email, role, created_at")
-    .order("created_at", { ascending: true });
-  return (data ?? []) as PlatformAdminRow[];
+  try {
+    const rows = await withService((db) =>
+      db
+        .select({
+          id: platformAdmins.id,
+          email: platformAdmins.email,
+          role: platformAdmins.role,
+          created_at: platformAdmins.createdAt,
+        })
+        .from(platformAdmins)
+        .orderBy(asc(platformAdmins.createdAt)),
+    );
+    return rows as PlatformAdminRow[];
+  } catch (err) {
+    console.error("listPlatformAdmins:", err);
+    return [];
+  }
 }
 
 async function requireSuperadmin(): Promise<PlatformViewer | null> {
   const viewer = await getPlatformViewer();
   return viewer?.role === "superadmin" ? viewer : null;
+}
+
+// Count of platform superadmins (last-superadmin guards).
+async function platformSuperadminCount(): Promise<number> {
+  const rows = await withService((db) =>
+    db
+      .select({ role: platformAdmins.role })
+      .from(platformAdmins)
+      .where(eq(platformAdmins.role, "superadmin")),
+  ).catch(() => []);
+  return rows.length;
 }
 
 // Add (or re-role) a platform operator by email. They're recognised on their
@@ -337,12 +611,20 @@ export async function invitePlatformAdmin(
   if (!["superadmin", "member"].includes(role))
     return { error: "Invalid role." };
 
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("platform_admins")
-    .upsert({ email: clean, role }, { onConflict: "email" });
-  if (error) {
-    console.error("invitePlatformAdmin:", error.message);
+  try {
+    await withService((db) =>
+      db
+        .insert(platformAdmins)
+        .values({ email: clean, role })
+        .onConflictDoUpdate({ target: platformAdmins.email, set: { role } }),
+    );
+  } catch (err) {
+    if (isUniqueViolation(err))
+      return { error: "That operator already exists." };
+    console.error(
+      "invitePlatformAdmin:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not add the operator. Please try again." };
   }
   return { success: true };
@@ -354,54 +636,55 @@ export async function updatePlatformAdminRole(
 ): Promise<ActionResult> {
   if (!(await requireSuperadmin()))
     return { error: "Only a platform superadmin can change roles." };
-  const admin = createAdminClient();
 
   // Don't allow demoting the last remaining superadmin.
   if (role === "member") {
-    const { data: target } = await admin
-      .from("platform_admins")
-      .select("role")
-      .eq("id", id)
-      .maybeSingle();
-    if (target?.role === "superadmin") {
-      const { count } = await admin
-        .from("platform_admins")
-        .select("id", { count: "exact", head: true })
-        .eq("role", "superadmin");
-      if ((count ?? 0) <= 1)
+    const targetRows = await withService((db) =>
+      db
+        .select({ role: platformAdmins.role })
+        .from(platformAdmins)
+        .where(eq(platformAdmins.id, id))
+        .limit(1),
+    ).catch(() => []);
+    if (targetRows[0]?.role === "superadmin") {
+      if ((await platformSuperadminCount()) <= 1)
         return { error: "Can't demote the last superadmin." };
     }
   }
 
-  const { error } = await admin
-    .from("platform_admins")
-    .update({ role })
-    .eq("id", id);
-  if (error) return { error: "Could not update the operator." };
+  try {
+    await withService((db) =>
+      db.update(platformAdmins).set({ role }).where(eq(platformAdmins.id, id)),
+    );
+  } catch {
+    return { error: "Could not update the operator." };
+  }
   return { success: true };
 }
 
 export async function removePlatformAdmin(id: string): Promise<ActionResult> {
   if (!(await requireSuperadmin()))
     return { error: "Only a platform superadmin can remove operators." };
-  const admin = createAdminClient();
 
-  const { data: target } = await admin
-    .from("platform_admins")
-    .select("role")
-    .eq("id", id)
-    .maybeSingle();
-  if (target?.role === "superadmin") {
-    const { count } = await admin
-      .from("platform_admins")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "superadmin");
-    if ((count ?? 0) <= 1)
+  const targetRows = await withService((db) =>
+    db
+      .select({ role: platformAdmins.role })
+      .from(platformAdmins)
+      .where(eq(platformAdmins.id, id))
+      .limit(1),
+  ).catch(() => []);
+  if (targetRows[0]?.role === "superadmin") {
+    if ((await platformSuperadminCount()) <= 1)
       return { error: "Can't remove the last superadmin." };
   }
 
-  const { error } = await admin.from("platform_admins").delete().eq("id", id);
-  if (error) return { error: "Could not remove the operator." };
+  try {
+    await withService((db) =>
+      db.delete(platformAdmins).where(eq(platformAdmins.id, id)),
+    );
+  } catch {
+    return { error: "Could not remove the operator." };
+  }
   return { success: true };
 }
 
@@ -429,38 +712,38 @@ export async function seedDemoStore(themeId: string): Promise<SeedDemoResult> {
     return { error: `Unknown theme "${themeId}".` };
   }
 
-  const admin = createAdminClient();
   const slug = theme.demoSlug;
 
   // Create the store row if missing.
-  const { data: existing } = await admin
-    .from("stores")
-    .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
+  let storeId: string | undefined;
+  try {
+    storeId = await withService(async (db) => {
+      const existing = await db
+        .select({ id: stores.id })
+        .from(stores)
+        .where(eq(stores.slug, slug))
+        .limit(1);
+      if (existing[0]) return existing[0].id;
 
-  let storeId = existing?.id as string | undefined;
-  if (!storeId) {
-    const { data: created, error } = await admin
-      .from("stores")
-      .insert({
-        slug,
-        name: `${theme.name} Demo`,
-        status: "active",
-        plan: "free",
-        settings: {
-          demo: true,
-          template: theme.id,
-          brand: { name: `${theme.name} Demo` },
-        },
-      })
-      .select("id")
-      .single();
-    if (error || !created) {
-      console.error("seedDemoStore (insert):", error?.message);
-      return { error: "Could not create the demo store." };
-    }
-    storeId = created.id as string;
+      const [created] = await db
+        .insert(stores)
+        .values({
+          slug,
+          name: `${theme.name} Demo`,
+          status: "active",
+          plan: "free",
+          settings: {
+            demo: true,
+            template: theme.id,
+            brand: { name: `${theme.name} Demo` },
+          },
+        })
+        .returning({ id: stores.id });
+      return created.id;
+    });
+  } catch (err) {
+    console.error("seedDemoStore (insert):", err);
+    return { error: "Could not create the demo store." };
   }
 
   const result = await applyTheme(storeId, theme.id, {

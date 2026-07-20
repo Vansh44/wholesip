@@ -1,19 +1,23 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { and, desc, eq, inArray, like, ne } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { after } from "next/server";
 import { getStoreUrl } from "@/lib/site";
 import { pingIndexNow } from "@/lib/seo/search-engines";
 import { TAGS } from "@/lib/storefront/tags";
 import { sanitizeBlogContent } from "@/lib/sanitize";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService, withUser } from "@/lib/db/client";
+import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
+import { blogs, users } from "@/drizzle/schema";
+import { getServerUser } from "@/lib/auth/server-user";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { getCurrentStoreId } from "@/lib/store/resolve";
 import {
   deleteStorageUrls,
   extractMediaUrlsFromHtml,
-} from "@/lib/supabase/storage-cleanup";
+} from "@/lib/storage/cleanup";
+import { gcsPathFromUrl } from "@/lib/storage/gcs";
 import {
   sendBlogApprovedEmail,
   sendBlogRejectedEmail,
@@ -52,6 +56,32 @@ export interface ActionResult {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Aliased select preserving the snake_case row shape the editor/list expect.
+const BLOG_COLUMNS = {
+  id: blogs.id,
+  title: blogs.title,
+  slug: blogs.slug,
+  excerpt: blogs.excerpt,
+  content: blogs.content,
+  cover_image_url: blogs.coverImageUrl,
+  author: blogs.author,
+  status: blogs.status,
+  tags: blogs.tags,
+  categories: blogs.categories,
+  featured: blogs.featured,
+  seo_title: blogs.seoTitle,
+  seo_description: blogs.seoDescription,
+  reading_time: blogs.readingTime,
+  created_by: blogs.createdBy,
+  updated_by: blogs.updatedBy,
+  published_at: blogs.publishedAt,
+  created_at: blogs.createdAt,
+  updated_at: blogs.updatedAt,
+  submitted_by: blogs.submittedBy,
+  is_customer_submission: blogs.isCustomerSubmission,
+  store_id: blogs.storeId,
+};
+
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -89,18 +119,24 @@ export async function getBlogForEditor(
 ): Promise<Record<string, unknown> | null> {
   const userId = await getAdminUserId();
   if (!userId) return null;
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("blogs")
-    .select("*")
-    .eq("id", id)
-    .single();
-  if (error || !data) return null;
-  return data;
+  const storeId = await getActingStoreId();
+  try {
+    const rows = await withService((db) =>
+      db
+        .select(BLOG_COLUMNS)
+        .from(blogs)
+        .where(and(eq(blogs.id, id), eq(blogs.storeId, storeId)))
+        .limit(1),
+    );
+    return (rows[0] as Record<string, unknown> | undefined) ?? null;
+  } catch (err) {
+    console.error("getBlogForEditor error:", err);
+    return null;
+  }
 }
 
 // Looks up a customer's email + first name by id, bypassing RLS via the
-// service-role client. The customers table only lets a customer read their own
+// service scope. The customers table only lets a customer read their own
 // row, so an admin session can't read a submitter — this is used purely to
 // address review-notification emails after an admin action.
 async function getCustomerContact(
@@ -108,14 +144,14 @@ async function getCustomerContact(
 ): Promise<{ email: string | null; firstName: string | null } | null> {
   if (!submittedBy) return null;
   try {
-    const adminClient = createAdminClient();
-    const { data } = await adminClient
-      .from("users")
-      .select("email, first_name")
-      .eq("id", submittedBy)
-      .single();
-    if (!data) return null;
-    return { email: data.email, firstName: data.first_name };
+    const rows = await withService((db) =>
+      db
+        .select({ email: users.email, firstName: users.firstName })
+        .from(users)
+        .where(eq(users.id, submittedBy))
+        .limit(1),
+    );
+    return rows[0] ?? null;
   } catch (e) {
     console.error("getCustomerContact error:", e);
     return null;
@@ -130,14 +166,13 @@ async function getCustomerContact(
  * no options defined doesn't block submissions on the missing pickers.
  */
 async function validateCustomerTaxonomy(
-  supabase: SupabaseClient,
   storeId: string,
   formData: Pick<CustomerBlogFormData, "categories" | "tags">,
 ): Promise<
   | { error: string }
   | { error?: undefined; categories: string[]; tags: string[] }
 > {
-  const available = await fetchBlogTaxonomy(supabase, storeId);
+  const available = await fetchBlogTaxonomy(storeId);
   const validCategories = new Set(available.categories.map((c) => c.name));
   const validTags = new Set(available.tags.map((t) => t.name));
 
@@ -155,38 +190,30 @@ async function validateCustomerTaxonomy(
   return { categories, tags };
 }
 
-// Postgres unique_violation — raised when the blogs.slug UNIQUE constraint is hit.
-const UNIQUE_VIOLATION = "23505";
-
-function isUniqueViolation(error: { code?: string } | null): boolean {
-  return error?.code === UNIQUE_VIOLATION;
-}
-
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
-
 /**
  * Picks the first slug starting from `base` that isn't already taken, based on
  * a pre-check query. Returns a cursor so the caller can keep bumping the suffix
  * if a concurrent insert wins the race (the pre-check is best-effort; the DB
- * UNIQUE constraint is the source of truth).
+ * UNIQUE constraint is the source of truth). Runs under the caller's identity,
+ * so RLS shapes what it can see — same as the old cookie-client pre-check.
  */
 async function resolveSlug(
-  supabase: SupabaseClient,
+  uid: string,
   base: string,
   storeId: string,
   excludeId?: string,
 ) {
-  let query = supabase
-    .from("blogs")
-    .select("slug")
-    .eq("store_id", storeId)
-    .like("slug", `${base}%`);
-  if (excludeId) {
-    query = query.neq("id", excludeId);
-  }
-  const { data } = await query;
+  const conds = [eq(blogs.storeId, storeId), like(blogs.slug, `${base}%`)];
+  if (excludeId) conds.push(ne(blogs.id, excludeId));
 
-  const taken = new Set((data ?? []).map((b: { slug: string }) => b.slug));
+  const rows = await withUser({ uid }, (db) =>
+    db
+      .select({ slug: blogs.slug })
+      .from(blogs)
+      .where(and(...conds)),
+  );
+
+  const taken = new Set(rows.map((b) => b.slug));
   let counter = 2;
   let slug = base;
   while (taken.has(slug)) {
@@ -209,6 +236,12 @@ async function resolveSlug(
 
 const MAX_SLUG_ATTEMPTS = 6;
 
+function revalidateBlogs() {
+  revalidatePath("/dashboard/blogs");
+  revalidatePath("/blogs");
+  revalidateTag(TAGS.blogs, "max");
+}
+
 // ---------------------------------------------------------------------------
 // Create Blog
 // ---------------------------------------------------------------------------
@@ -216,7 +249,6 @@ const MAX_SLUG_ATTEMPTS = 6;
 export async function createBlog(
   formData: BlogFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
 
   if (!userId) {
@@ -229,7 +261,7 @@ export async function createBlog(
   const storeId = await getActingStoreId();
 
   const base = formData.slug || slugify(formData.title);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId);
+  const { slug: firstSlug, bump } = await resolveSlug(userId, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -237,43 +269,39 @@ export async function createBlog(
     slug: s,
     excerpt: formData.excerpt || null,
     content: formData.content ? sanitizeBlogContent(formData.content) : null,
-    cover_image_url: formData.cover_image_url || null,
+    coverImageUrl: formData.cover_image_url || null,
     author: formData.author || null,
     categories: formData.categories.length > 0 ? formData.categories : [],
     tags: formData.tags.length > 0 ? formData.tags : [],
     status: formData.status,
     featured: formData.featured,
-    seo_title: formData.seo_title || null,
-    seo_description: formData.seo_description || null,
-    reading_time: readingTime,
-    published_at:
+    seoTitle: formData.seo_title || null,
+    seoDescription: formData.seo_description || null,
+    readingTime,
+    publishedAt:
       formData.status === "published" ? new Date().toISOString() : null,
-    created_by: userId,
-    updated_by: userId,
-    store_id: storeId,
+    createdBy: userId,
+    updatedBy: userId,
+    storeId,
   });
 
+  // Each attempt runs in its OWN transaction (a unique violation aborts the
+  // transaction it happens in). RLS (is_store_admin) gates the insert.
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
-    const { data, error } = await supabase
-      .from("blogs")
-      .insert(row(slug))
-      .select()
-      .single();
-
-    if (!error) {
-      revalidatePath("/dashboard/blogs");
-      revalidatePath("/blogs");
-      revalidateTag(TAGS.blogs, "max");
-      return { success: true, data: data as Record<string, unknown> };
+    try {
+      const [inserted] = await withUser({ uid: userId }, (db) =>
+        db.insert(blogs).values(row(slug)).returning(),
+      );
+      revalidateBlogs();
+      return { success: true, data: inserted as Record<string, unknown> };
+    } catch (err) {
+      if (!isUniqueViolation(err)) {
+        console.error("createBlog error:", err);
+        return { error: dbErrorMessage(err, "Failed to create blog.") };
+      }
+      // Lost the slug race to a concurrent insert — pick the next free slug.
+      slug = bump(slug);
     }
-
-    if (!isUniqueViolation(error)) {
-      console.error("createBlog error:", error);
-      return { error: error.message };
-    }
-
-    // Lost the slug race to a concurrent insert — pick the next free slug.
-    slug = bump(slug);
   }
 
   return { error: "Could not generate a unique slug. Please try again." };
@@ -287,7 +315,6 @@ export async function updateBlog(
   id: string,
   formData: BlogFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
 
   if (!userId) {
@@ -302,7 +329,7 @@ export async function updateBlog(
   // Check slug uniqueness (exclude current blog)
   const base = formData.slug || slugify(formData.title);
   const { slug: firstSlug, bump } = await resolveSlug(
-    supabase,
+    userId,
     base,
     storeId,
     id,
@@ -312,13 +339,21 @@ export async function updateBlog(
   // Get current blog to check if it was previously unpublished, and whether
   // this is a customer submission awaiting review (so we can notify the author
   // when an admin approves it by publishing from the editor).
-  const { data: currentBlog } = await supabase
-    .from("blogs")
-    .select(
-      "status, published_at, submitted_by, is_customer_submission, cover_image_url, content",
-    )
-    .eq("id", id)
-    .single();
+  const currentRows = await withUser({ uid: userId }, (db) =>
+    db
+      .select({
+        status: blogs.status,
+        published_at: blogs.publishedAt,
+        submitted_by: blogs.submittedBy,
+        is_customer_submission: blogs.isCustomerSubmission,
+        cover_image_url: blogs.coverImageUrl,
+        content: blogs.content,
+      })
+      .from(blogs)
+      .where(eq(blogs.id, id))
+      .limit(1),
+  );
+  const currentBlog = currentRows[0];
 
   const publishedAt =
     formData.status === "published"
@@ -330,73 +365,70 @@ export async function updateBlog(
     slug: s,
     excerpt: formData.excerpt || null,
     content: formData.content ? sanitizeBlogContent(formData.content) : null,
-    cover_image_url: formData.cover_image_url || null,
+    coverImageUrl: formData.cover_image_url || null,
     author: formData.author || null,
     categories: formData.categories.length > 0 ? formData.categories : [],
     tags: formData.tags.length > 0 ? formData.tags : [],
     status: formData.status,
     featured: formData.featured,
-    seo_title: formData.seo_title || null,
-    seo_description: formData.seo_description || null,
-    reading_time: readingTime,
-    published_at: publishedAt,
-    updated_by: userId,
+    seoTitle: formData.seo_title || null,
+    seoDescription: formData.seo_description || null,
+    readingTime,
+    publishedAt,
+    updatedBy: userId,
   });
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
-    const { error } = await supabase
-      .from("blogs")
-      .update(row(slug))
-      .eq("id", id);
-
-    if (!error) {
-      // Approving a customer submission by publishing it from the editor:
-      // notify the author (best-effort), mirroring approveCustomerBlog.
-      const isApproval =
-        currentBlog?.status === "pending_review" &&
-        formData.status === "published" &&
-        currentBlog?.submitted_by;
-      if (isApproval) {
-        const contact = await getCustomerContact(
-          currentBlog!.submitted_by as string,
-        );
-        if (contact?.email) {
-          const brand = await getStoreBrand();
-          await sendBlogApprovedEmail({
-            to: contact.email,
-            firstName: contact.firstName,
-            title: formData.title,
-            slug,
-            brand,
-          });
-        }
+    try {
+      // Own transaction per attempt; RLS confines the update to the caller's
+      // own store.
+      await withUser({ uid: userId }, (db) =>
+        db.update(blogs).set(row(slug)).where(eq(blogs.id, id)),
+      );
+    } catch (err) {
+      if (!isUniqueViolation(err)) {
+        console.error("updateBlog error:", err);
+        return { error: dbErrorMessage(err, "Failed to update blog.") };
       }
-
-      // Purge images no longer referenced (old cover + old body images that
-      // aren't in the saved cover/body anymore).
-      const oldRefs = [
-        ...(currentBlog?.cover_image_url ? [currentBlog.cover_image_url] : []),
-        ...extractMediaUrlsFromHtml(currentBlog?.content),
-      ];
-      const newRefs = new Set([
-        ...(formData.cover_image_url ? [formData.cover_image_url] : []),
-        ...extractMediaUrlsFromHtml(formData.content),
-      ]);
-      await deleteStorageUrls(oldRefs.filter((u) => !newRefs.has(u)));
-
-      revalidatePath("/dashboard/blogs");
-      revalidatePath("/blogs");
-      revalidatePath(`/blogs/${slug}`);
-      revalidateTag(TAGS.blogs, "max");
-      return { success: true };
+      slug = bump(slug);
+      continue;
     }
 
-    if (!isUniqueViolation(error)) {
-      console.error("updateBlog error:", error);
-      return { error: error.message };
+    // Approving a customer submission by publishing it from the editor:
+    // notify the author (best-effort), mirroring approveCustomerBlog.
+    const isApproval =
+      currentBlog?.status === "pending_review" &&
+      formData.status === "published" &&
+      currentBlog?.submitted_by;
+    if (isApproval) {
+      const contact = await getCustomerContact(currentBlog!.submitted_by);
+      if (contact?.email) {
+        const brand = await getStoreBrand();
+        await sendBlogApprovedEmail({
+          to: contact.email,
+          firstName: contact.firstName,
+          title: formData.title,
+          slug,
+          brand,
+        });
+      }
     }
 
-    slug = bump(slug);
+    // Purge images no longer referenced (old cover + old body images that
+    // aren't in the saved cover/body anymore).
+    const oldRefs = [
+      ...(currentBlog?.cover_image_url ? [currentBlog.cover_image_url] : []),
+      ...extractMediaUrlsFromHtml(currentBlog?.content),
+    ];
+    const newRefs = new Set([
+      ...(formData.cover_image_url ? [formData.cover_image_url] : []),
+      ...extractMediaUrlsFromHtml(formData.content),
+    ]);
+    await deleteStorageUrls(oldRefs.filter((u) => !newRefs.has(u)));
+
+    revalidateBlogs();
+    revalidatePath(`/blogs/${slug}`);
+    return { success: true };
   }
 
   return { error: "Could not generate a unique slug. Please try again." };
@@ -407,24 +439,32 @@ export async function updateBlog(
 // ---------------------------------------------------------------------------
 
 export async function deleteBlog(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
 
   if (!userId) {
     return { error: "Not authenticated" };
   }
 
-  const { data: prev } = await supabase
-    .from("blogs")
-    .select("cover_image_url, content")
-    .eq("id", id)
-    .single();
+  const prevRows = await withUser({ uid: userId }, (db) =>
+    db
+      .select({
+        cover_image_url: blogs.coverImageUrl,
+        content: blogs.content,
+      })
+      .from(blogs)
+      .where(eq(blogs.id, id))
+      .limit(1),
+  );
+  const prev = prevRows[0];
 
-  const { error } = await supabase.from("blogs").delete().eq("id", id);
-
-  if (error) {
-    console.error("deleteBlog error:", error);
-    return { error: error.message };
+  try {
+    // RLS confines the delete to the caller's own store.
+    await withUser({ uid: userId }, (db) =>
+      db.delete(blogs).where(eq(blogs.id, id)),
+    );
+  } catch (err) {
+    console.error("deleteBlog error:", err);
+    return { error: dbErrorMessage(err, "Failed to delete blog.") };
   }
 
   await deleteStorageUrls([
@@ -432,10 +472,26 @@ export async function deleteBlog(id: string): Promise<ActionResult> {
     ...extractMediaUrlsFromHtml(prev?.content),
   ]);
 
-  revalidatePath("/dashboard/blogs");
-  revalidatePath("/blogs");
-  revalidateTag(TAGS.blogs, "max");
+  revalidateBlogs();
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Session-upload cleanup — the customer blog editor calls this to delete a
+// cover image it just uploaded and then replaced/removed BEFORE the blog is
+// saved (a saved cover is pruned server-side on the next save). Scoped to
+// authenticated users + the blog-covers/ folder, and GCS URLs only, so it can
+// never be abused to delete product images or other media. Best-effort.
+// ---------------------------------------------------------------------------
+
+export async function deleteUploadedImage(url: string): Promise<void> {
+  const user = await getServerUser();
+  if (!user || typeof url !== "string" || !url) return;
+
+  const path = gcsPathFromUrl(url);
+  if (!path || !path.startsWith("blog-covers/")) return;
+
+  await deleteStorageUrls([url]);
 }
 
 // ---------------------------------------------------------------------------
@@ -443,37 +499,38 @@ export async function deleteBlog(id: string): Promise<ActionResult> {
 // ---------------------------------------------------------------------------
 
 export async function publishBlog(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
 
   if (!userId) {
     return { error: "Not authenticated" };
   }
 
-  const { data: published, error } = await supabase
-    .from("blogs")
-    .update({
-      status: "published",
-      published_at: new Date().toISOString(),
-      updated_by: userId,
-    })
-    .eq("id", id)
-    .select("slug")
-    .single();
-
-  if (error) {
-    console.error("publishBlog error:", error);
-    return { error: error.message };
+  let published: { slug: string } | undefined;
+  try {
+    [published] = await withUser({ uid: userId }, (db) =>
+      db
+        .update(blogs)
+        .set({
+          status: "published",
+          publishedAt: new Date().toISOString(),
+          updatedBy: userId,
+        })
+        .where(eq(blogs.id, id))
+        .returning({ slug: blogs.slug }),
+    );
+  } catch (err) {
+    console.error("publishBlog error:", err);
+    return { error: dbErrorMessage(err, "Failed to publish blog.") };
   }
+  if (!published) return { error: "Blog not found." };
 
-  revalidatePath("/dashboard/blogs");
-  revalidatePath("/blogs");
-  revalidateTag(TAGS.blogs, "max");
+  revalidateBlogs();
 
   // Nudge search engines to crawl the newly published post (best-effort).
-  if (published?.slug) {
+  if (published.slug) {
     const base = await getStoreUrl();
-    after(() => pingIndexNow([`${base}/blogs/${published.slug}`]));
+    const publishedSlug = published.slug;
+    after(() => pingIndexNow([`${base}/blogs/${publishedSlug}`]));
   }
   return { success: true };
 }
@@ -483,30 +540,29 @@ export async function publishBlog(id: string): Promise<ActionResult> {
 // ---------------------------------------------------------------------------
 
 export async function unpublishBlog(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
 
   if (!userId) {
     return { error: "Not authenticated" };
   }
 
-  const { error } = await supabase
-    .from("blogs")
-    .update({
-      status: "draft",
-      published_at: null,
-      updated_by: userId,
-    })
-    .eq("id", id);
-
-  if (error) {
-    console.error("unpublishBlog error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db
+        .update(blogs)
+        .set({
+          status: "draft",
+          publishedAt: null,
+          updatedBy: userId,
+        })
+        .where(eq(blogs.id, id)),
+    );
+  } catch (err) {
+    console.error("unpublishBlog error:", err);
+    return { error: dbErrorMessage(err, "Failed to unpublish blog.") };
   }
 
-  revalidatePath("/dashboard/blogs");
-  revalidatePath("/blogs");
-  revalidateTag(TAGS.blogs, "max");
+  revalidateBlogs();
   return { success: true };
 }
 
@@ -519,28 +575,27 @@ export async function bulkSetBlogStatus(
   ids: string[],
   status: "published" | "draft",
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   if (ids.length === 0) return { error: "Nothing selected." };
 
-  const { error } = await supabase
-    .from("blogs")
-    .update({
-      status,
-      published_at: status === "published" ? new Date().toISOString() : null,
-      updated_by: userId,
-    })
-    .in("id", ids);
-
-  if (error) {
-    console.error("bulkSetBlogStatus error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db
+        .update(blogs)
+        .set({
+          status,
+          publishedAt: status === "published" ? new Date().toISOString() : null,
+          updatedBy: userId,
+        })
+        .where(inArray(blogs.id, ids)),
+    );
+  } catch (err) {
+    console.error("bulkSetBlogStatus error:", err);
+    return { error: dbErrorMessage(err, "Failed to update blogs.") };
   }
 
-  revalidatePath("/dashboard/blogs");
-  revalidatePath("/blogs");
-  revalidateTag(TAGS.blogs, "max");
+  revalidateBlogs();
   return { success: true };
 }
 
@@ -549,59 +604,60 @@ export async function bulkSetBlogFeatured(
   ids: string[],
   featured: boolean,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   if (ids.length === 0) return { error: "Nothing selected." };
 
-  const { error } = await supabase
-    .from("blogs")
-    .update({ featured, updated_by: userId })
-    .in("id", ids);
-
-  if (error) {
-    console.error("bulkSetBlogFeatured error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db
+        .update(blogs)
+        .set({ featured, updatedBy: userId })
+        .where(inArray(blogs.id, ids)),
+    );
+  } catch (err) {
+    console.error("bulkSetBlogFeatured error:", err);
+    return { error: dbErrorMessage(err, "Failed to update blogs.") };
   }
 
-  revalidatePath("/dashboard/blogs");
-  revalidatePath("/blogs");
-  revalidateTag(TAGS.blogs, "max");
+  revalidateBlogs();
   return { success: true };
 }
 
 /** Permanently delete many blogs, cleaning up their storage assets. */
 export async function bulkDeleteBlogs(ids: string[]): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   if (ids.length === 0) return { error: "Nothing selected." };
 
   // Collect every referenced asset before the rows go (storage won't cascade).
-  const { data: rows } = await supabase
-    .from("blogs")
-    .select("cover_image_url, content")
-    .in("id", ids);
+  const rows = await withUser({ uid: userId }, (db) =>
+    db
+      .select({
+        cover_image_url: blogs.coverImageUrl,
+        content: blogs.content,
+      })
+      .from(blogs)
+      .where(inArray(blogs.id, ids)),
+  );
 
-  const { error } = await supabase.from("blogs").delete().in("id", ids);
-  if (error) {
-    console.error("bulkDeleteBlogs error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db.delete(blogs).where(inArray(blogs.id, ids)),
+    );
+  } catch (err) {
+    console.error("bulkDeleteBlogs error:", err);
+    return { error: dbErrorMessage(err, "Failed to delete blogs.") };
   }
 
   const urls: (string | null)[] = [];
-  for (const r of (rows ?? []) as {
-    cover_image_url: string | null;
-    content: string | null;
-  }[]) {
+  for (const r of rows) {
     urls.push(r.cover_image_url);
     urls.push(...extractMediaUrlsFromHtml(r.content));
   }
   await deleteStorageUrls(urls);
 
-  revalidatePath("/dashboard/blogs");
-  revalidatePath("/blogs");
-  revalidateTag(TAGS.blogs, "max");
+  revalidateBlogs();
   return { success: true };
 }
 
@@ -613,39 +669,37 @@ export async function autosaveBlog(
   id: string,
   fields: Partial<BlogFormData>,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
 
   if (!userId) {
     return { error: "Not authenticated" };
   }
 
-  const updateData: Record<string, unknown> = { updated_by: userId };
+  const updateData: Record<string, unknown> = { updatedBy: userId };
 
   if (fields.title !== undefined) updateData.title = fields.title;
   if (fields.content !== undefined) {
     updateData.content = sanitizeBlogContent(fields.content);
-    updateData.reading_time = calculateReadingTime(fields.content);
+    updateData.readingTime = calculateReadingTime(fields.content);
   }
   if (fields.excerpt !== undefined) updateData.excerpt = fields.excerpt;
   if (fields.cover_image_url !== undefined)
-    updateData.cover_image_url = fields.cover_image_url;
+    updateData.coverImageUrl = fields.cover_image_url;
   if (fields.author !== undefined) updateData.author = fields.author;
   if (fields.categories !== undefined)
     updateData.categories = fields.categories;
   if (fields.tags !== undefined) updateData.tags = fields.tags;
-  if (fields.seo_title !== undefined) updateData.seo_title = fields.seo_title;
+  if (fields.seo_title !== undefined) updateData.seoTitle = fields.seo_title;
   if (fields.seo_description !== undefined)
-    updateData.seo_description = fields.seo_description;
+    updateData.seoDescription = fields.seo_description;
 
-  const { error } = await supabase
-    .from("blogs")
-    .update(updateData)
-    .eq("id", id);
-
-  if (error) {
-    console.error("autosaveBlog error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db.update(blogs).set(updateData).where(eq(blogs.id, id)),
+    );
+  } catch (err) {
+    console.error("autosaveBlog error:", err);
+    return { error: dbErrorMessage(err, "Failed to save draft.") };
   }
 
   return { success: true };
@@ -664,6 +718,20 @@ export interface CustomerBlogFormData {
   tags: string[];
 }
 
+// Own-row customer profile read (users is own-row only under RLS).
+async function getCustomerProfile(
+  uid: string,
+): Promise<{ first_name: string; last_name: string | null } | null> {
+  const rows = await withUser({ uid }, (db) =>
+    db
+      .select({ first_name: users.firstName, last_name: users.lastName })
+      .from(users)
+      .where(eq(users.id, uid))
+      .limit(1),
+  );
+  return rows[0] ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Submit Customer Blog (creates with 'pending_review' status)
 // ---------------------------------------------------------------------------
@@ -671,10 +739,7 @@ export interface CustomerBlogFormData {
 export async function submitCustomerBlog(
   formData: CustomerBlogFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
 
   if (!user) {
     return { error: "Not authenticated. Please sign in to submit a blog." };
@@ -689,12 +754,7 @@ export async function submitCustomerBlog(
   const requireApproval = settings["blogs.requireApproval"];
 
   // Verify user is a customer
-  const { data: customer } = await supabase
-    .from("users")
-    .select("id, first_name, last_name")
-    .eq("id", user.id)
-    .single();
-
+  const customer = await getCustomerProfile(user.id);
   if (!customer) {
     return {
       error: "Customer profile not found. Please complete your profile first.",
@@ -710,14 +770,14 @@ export async function submitCustomerBlog(
   }
 
   const storeId = await getCurrentStoreId();
-  const taxonomy = await validateCustomerTaxonomy(supabase, storeId, formData);
+  const taxonomy = await validateCustomerTaxonomy(storeId, formData);
   if (taxonomy.error !== undefined) return { error: taxonomy.error };
 
   const readingTime = calculateReadingTime(formData.content);
   const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
 
   const base = slugify(formData.title);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId);
+  const { slug: firstSlug, bump } = await resolveSlug(user.id, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -725,60 +785,66 @@ export async function submitCustomerBlog(
     slug: s,
     excerpt: formData.excerpt.trim() || null,
     content: sanitizeBlogContent(formData.content),
-    cover_image_url: formData.cover_image_url || null,
+    coverImageUrl: formData.cover_image_url || null,
     author: authorName,
     categories: taxonomy.categories,
     tags: taxonomy.tags,
     status: "pending_review",
     featured: false,
-    reading_time: readingTime,
-    submitted_by: user.id,
-    is_customer_submission: true,
-    created_by: user.id,
-    updated_by: user.id,
-    store_id: storeId,
+    readingTime,
+    submittedBy: user.id,
+    isCustomerSubmission: true,
+    createdBy: user.id,
+    updatedBy: user.id,
+    storeId,
   });
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
-    const { data, error } = await supabase
-      .from("blogs")
-      .insert(row(slug))
-      .select()
-      .single();
-
-    if (!error) {
-      // Direct publish (store setting): RLS only lets a customer insert
-      // pending_review rows, so after the trusted setting check above the
-      // promotion runs with the service-role client. A promotion failure
-      // leaves the post safely in the review queue.
-      if (!requireApproval && data?.id) {
-        const admin = createAdminClient();
-        const { error: promoteError } = await admin
-          .from("blogs")
-          .update({
-            status: "published",
-            published_at: new Date().toISOString(),
-          })
-          .eq("id", data.id as string)
-          .eq("status", "pending_review");
-        if (promoteError) {
-          console.error("submitCustomerBlog promote error:", promoteError);
-        } else {
-          revalidatePath("/blogs");
-          revalidateTag(TAGS.blogs, "max");
-        }
+    let inserted: Record<string, unknown>;
+    try {
+      // RLS only lets a customer insert their own pending_review rows.
+      const [row0] = await withUser({ uid: user.id }, (db) =>
+        db.insert(blogs).values(row(slug)).returning(),
+      );
+      inserted = row0 as Record<string, unknown>;
+    } catch (err) {
+      if (!isUniqueViolation(err)) {
+        console.error("submitCustomerBlog error:", err);
+        return { error: dbErrorMessage(err, "Failed to submit blog.") };
       }
-
-      revalidatePath("/dashboard/blogs");
-      return { success: true, data: data as Record<string, unknown> };
+      slug = bump(slug);
+      continue;
     }
 
-    if (!isUniqueViolation(error)) {
-      console.error("submitCustomerBlog error:", error);
-      return { error: error.message };
+    // Direct publish (store setting): RLS only lets a customer insert
+    // pending_review rows, so after the trusted setting check above the
+    // promotion runs with the service scope. A promotion failure leaves the
+    // post safely in the review queue.
+    if (!requireApproval && inserted?.id) {
+      try {
+        await withService((db) =>
+          db
+            .update(blogs)
+            .set({
+              status: "published",
+              publishedAt: new Date().toISOString(),
+            })
+            .where(
+              and(
+                eq(blogs.id, inserted.id as string),
+                eq(blogs.status, "pending_review"),
+              ),
+            ),
+        );
+        revalidatePath("/blogs");
+        revalidateTag(TAGS.blogs, "max");
+      } catch (promoteError) {
+        console.error("submitCustomerBlog promote error:", promoteError);
+      }
     }
 
-    slug = bump(slug);
+    revalidatePath("/dashboard/blogs");
+    return { success: true, data: inserted };
   }
 
   return { error: "Could not generate a unique slug. Please try again." };
@@ -795,10 +861,7 @@ export async function saveCustomerBlogDraft(
   formData: CustomerBlogFormData,
   id?: string,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
 
   if (!user) {
     return { error: "Not authenticated. Please sign in to save a draft." };
@@ -809,12 +872,7 @@ export async function saveCustomerBlogDraft(
     return { error: "Blog submissions are currently disabled on this store." };
   }
 
-  const { data: customer } = await supabase
-    .from("users")
-    .select("id, first_name, last_name")
-    .eq("id", user.id)
-    .single();
-
+  const customer = await getCustomerProfile(user.id);
   if (!customer) {
     return {
       error: "Customer profile not found. Please complete your profile first.",
@@ -830,26 +888,32 @@ export async function saveCustomerBlogDraft(
   // Update an existing draft — scoped to the author's own draft rows so a
   // submitted/published post can't be silently pulled back here.
   if (id) {
-    const { error } = await supabase
-      .from("blogs")
-      .update({
-        title: formData.title.trim(),
-        excerpt: formData.excerpt.trim() || null,
-        content: sanitizeBlogContent(formData.content || ""),
-        cover_image_url: formData.cover_image_url || null,
-        categories: formData.categories ?? [],
-        tags: formData.tags ?? [],
-        reading_time: readingTime,
-        updated_by: user.id,
-        status: "draft",
-      })
-      .eq("id", id)
-      .eq("submitted_by", user.id)
-      .eq("status", "draft");
-
-    if (error) {
-      console.error("saveCustomerBlogDraft update error:", error);
-      return { error: error.message };
+    try {
+      await withUser({ uid: user.id }, (db) =>
+        db
+          .update(blogs)
+          .set({
+            title: formData.title.trim(),
+            excerpt: formData.excerpt.trim() || null,
+            content: sanitizeBlogContent(formData.content || ""),
+            coverImageUrl: formData.cover_image_url || null,
+            categories: formData.categories ?? [],
+            tags: formData.tags ?? [],
+            readingTime,
+            updatedBy: user.id,
+            status: "draft",
+          })
+          .where(
+            and(
+              eq(blogs.id, id),
+              eq(blogs.submittedBy, user.id),
+              eq(blogs.status, "draft"),
+            ),
+          ),
+      );
+    } catch (err) {
+      console.error("saveCustomerBlogDraft update error:", err);
+      return { error: dbErrorMessage(err, "Failed to save draft.") };
     }
     revalidatePath("/dashboard/blogs");
     return { success: true, data: { id } };
@@ -859,7 +923,7 @@ export async function saveCustomerBlogDraft(
   const storeId = await getCurrentStoreId();
   const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
   const base = slugify(formData.title);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId);
+  const { slug: firstSlug, bump } = await resolveSlug(user.id, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -867,36 +931,34 @@ export async function saveCustomerBlogDraft(
     slug: s,
     excerpt: formData.excerpt.trim() || null,
     content: sanitizeBlogContent(formData.content || ""),
-    cover_image_url: formData.cover_image_url || null,
+    coverImageUrl: formData.cover_image_url || null,
     author: authorName,
     categories: formData.categories ?? [],
     tags: formData.tags ?? [],
     status: "draft",
     featured: false,
-    reading_time: readingTime,
-    submitted_by: user.id,
-    is_customer_submission: true,
-    created_by: user.id,
-    updated_by: user.id,
-    store_id: storeId,
+    readingTime,
+    submittedBy: user.id,
+    isCustomerSubmission: true,
+    createdBy: user.id,
+    updatedBy: user.id,
+    storeId,
   });
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
-    const { data, error } = await supabase
-      .from("blogs")
-      .insert(row(slug))
-      .select("id")
-      .single();
-
-    if (!error) {
+    try {
+      const [inserted] = await withUser({ uid: user.id }, (db) =>
+        db.insert(blogs).values(row(slug)).returning({ id: blogs.id }),
+      );
       revalidatePath("/dashboard/blogs");
-      return { success: true, data: data as Record<string, unknown> };
+      return { success: true, data: inserted as Record<string, unknown> };
+    } catch (err) {
+      if (!isUniqueViolation(err)) {
+        console.error("saveCustomerBlogDraft insert error:", err);
+        return { error: dbErrorMessage(err, "Failed to save draft.") };
+      }
+      slug = bump(slug);
     }
-    if (!isUniqueViolation(error)) {
-      console.error("saveCustomerBlogDraft insert error:", error);
-      return { error: error.message };
-    }
-    slug = bump(slug);
   }
 
   return { error: "Could not generate a unique slug. Please try again." };
@@ -911,10 +973,7 @@ export async function updateCustomerBlog(
   id: string,
   formData: CustomerBlogFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
 
   if (!user) {
     return { error: "Not authenticated." };
@@ -935,58 +994,77 @@ export async function updateCustomerBlog(
   }
 
   const storeId = await getCurrentStoreId();
-  const taxonomy = await validateCustomerTaxonomy(supabase, storeId, formData);
+  const taxonomy = await validateCustomerTaxonomy(storeId, formData);
   if (taxonomy.error !== undefined) return { error: taxonomy.error };
 
   const readingTime = calculateReadingTime(formData.content);
 
   // The author's current cover + body images, so replaced/removed ones can be
   // purged after saving.
-  const { data: prev } = await supabase
-    .from("blogs")
-    .select("cover_image_url, content")
-    .eq("id", id)
-    .eq("submitted_by", user.id)
-    .single();
+  const prevRows = await withUser({ uid: user.id }, (db) =>
+    db
+      .select({
+        cover_image_url: blogs.coverImageUrl,
+        content: blogs.content,
+      })
+      .from(blogs)
+      .where(and(eq(blogs.id, id), eq(blogs.submittedBy, user.id)))
+      .limit(1),
+  );
+  const prev = prevRows[0];
 
-  const { error } = await supabase
-    .from("blogs")
-    .update({
-      title: formData.title.trim(),
-      excerpt: formData.excerpt.trim() || null,
-      content: sanitizeBlogContent(formData.content),
-      cover_image_url: formData.cover_image_url || null,
-      categories: taxonomy.categories,
-      tags: taxonomy.tags,
-      reading_time: readingTime,
-      updated_by: user.id,
-      // Drafts are promoted to the review queue; already-pending rows stay put.
-      status: "pending_review",
-    })
-    .eq("id", id)
-    .eq("submitted_by", user.id)
-    .in("status", ["draft", "pending_review"]);
-
-  if (error) {
-    console.error("updateCustomerBlog error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: user.id }, (db) =>
+      db
+        .update(blogs)
+        .set({
+          title: formData.title.trim(),
+          excerpt: formData.excerpt.trim() || null,
+          content: sanitizeBlogContent(formData.content),
+          coverImageUrl: formData.cover_image_url || null,
+          categories: taxonomy.categories,
+          tags: taxonomy.tags,
+          readingTime,
+          updatedBy: user.id,
+          // Drafts are promoted to the review queue; already-pending rows stay put.
+          status: "pending_review",
+        })
+        .where(
+          and(
+            eq(blogs.id, id),
+            eq(blogs.submittedBy, user.id),
+            inArray(blogs.status, ["draft", "pending_review"]),
+          ),
+        ),
+    );
+  } catch (err) {
+    console.error("updateCustomerBlog error:", err);
+    return { error: dbErrorMessage(err, "Failed to update blog.") };
   }
 
-  // Direct publish (store setting): same service-role promotion as
+  // Direct publish (store setting): same service-scope promotion as
   // submitCustomerBlog — RLS caps a customer's own writes at pending_review.
   if (!requireApproval) {
-    const admin = createAdminClient();
-    const { error: promoteError } = await admin
-      .from("blogs")
-      .update({ status: "published", published_at: new Date().toISOString() })
-      .eq("id", id)
-      .eq("submitted_by", user.id)
-      .eq("status", "pending_review");
-    if (promoteError) {
-      console.error("updateCustomerBlog promote error:", promoteError);
-    } else {
+    try {
+      await withService((db) =>
+        db
+          .update(blogs)
+          .set({
+            status: "published",
+            publishedAt: new Date().toISOString(),
+          })
+          .where(
+            and(
+              eq(blogs.id, id),
+              eq(blogs.submittedBy, user.id),
+              eq(blogs.status, "pending_review"),
+            ),
+          ),
+      );
       revalidatePath("/blogs");
       revalidateTag(TAGS.blogs, "max");
+    } catch (promoteError) {
+      console.error("updateCustomerBlog promote error:", promoteError);
     }
   }
 
@@ -1009,30 +1087,46 @@ export async function updateCustomerBlog(
 // ---------------------------------------------------------------------------
 
 export async function getMySubmissions(): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
 
   if (!user) {
     return { error: "Not authenticated." };
   }
 
-  const { data, error } = await supabase
-    .from("blogs")
-    .select(
-      "id, title, slug, excerpt, content, cover_image_url, author, status, categories, tags, reading_time, created_at, updated_at, submitted_by, is_customer_submission",
-    )
-    .eq("submitted_by", user.id)
-    .eq("is_customer_submission", true)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("getMySubmissions error:", error);
-    return { error: error.message };
+  try {
+    const submissions = await withUser({ uid: user.id }, (db) =>
+      db
+        .select({
+          id: blogs.id,
+          title: blogs.title,
+          slug: blogs.slug,
+          excerpt: blogs.excerpt,
+          content: blogs.content,
+          cover_image_url: blogs.coverImageUrl,
+          author: blogs.author,
+          status: blogs.status,
+          categories: blogs.categories,
+          tags: blogs.tags,
+          reading_time: blogs.readingTime,
+          created_at: blogs.createdAt,
+          updated_at: blogs.updatedAt,
+          submitted_by: blogs.submittedBy,
+          is_customer_submission: blogs.isCustomerSubmission,
+        })
+        .from(blogs)
+        .where(
+          and(
+            eq(blogs.submittedBy, user.id),
+            eq(blogs.isCustomerSubmission, true),
+          ),
+        )
+        .orderBy(desc(blogs.createdAt)),
+    );
+    return { success: true, data: { submissions } };
+  } catch (err) {
+    console.error("getMySubmissions error:", err);
+    return { error: dbErrorMessage(err, "Failed to load submissions.") };
   }
-
-  return { success: true, data: { submissions: data } };
 }
 
 // ---------------------------------------------------------------------------
@@ -1040,39 +1134,47 @@ export async function getMySubmissions(): Promise<ActionResult> {
 // ---------------------------------------------------------------------------
 
 export async function deleteCustomerBlog(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
 
   if (!user) {
     return { error: "Not authenticated." };
   }
 
-  const { data, error } = await supabase
-    .from("blogs")
-    .delete()
-    .eq("id", id)
-    .eq("submitted_by", user.id)
-    .in("status", ["draft", "pending_review"])
-    .select("id, cover_image_url, content");
-
-  if (error) {
-    console.error("deleteCustomerBlog error:", error);
-    return { error: error.message };
+  let removedRows: {
+    id: string;
+    cover_image_url: string | null;
+    content: string | null;
+  }[];
+  try {
+    removedRows = await withUser({ uid: user.id }, (db) =>
+      db
+        .delete(blogs)
+        .where(
+          and(
+            eq(blogs.id, id),
+            eq(blogs.submittedBy, user.id),
+            inArray(blogs.status, ["draft", "pending_review"]),
+          ),
+        )
+        .returning({
+          id: blogs.id,
+          cover_image_url: blogs.coverImageUrl,
+          content: blogs.content,
+        }),
+    );
+  } catch (err) {
+    console.error("deleteCustomerBlog error:", err);
+    return { error: dbErrorMessage(err, "Failed to delete blog.") };
   }
   // No row removed → either it isn't theirs, already published, or the delete
   // policy hasn't been applied yet. Surface it rather than failing silently.
-  if (!data || data.length === 0) {
+  if (removedRows.length === 0) {
     return {
       error: "Couldn't delete this blog. Please refresh and try again.",
     };
   }
 
-  const removed = data[0] as {
-    cover_image_url?: string | null;
-    content?: string | null;
-  };
+  const removed = removedRows[0];
   await deleteStorageUrls([
     removed.cover_image_url ?? null,
     ...extractMediaUrlsFromHtml(removed.content),
@@ -1089,28 +1191,32 @@ export async function deleteCustomerBlog(id: string): Promise<ActionResult> {
 export async function revertCustomerBlogToDraft(
   id: string,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
 
   if (!user) {
     return { error: "Not authenticated." };
   }
 
-  const { data, error } = await supabase
-    .from("blogs")
-    .update({ status: "draft", updated_by: user.id })
-    .eq("id", id)
-    .eq("submitted_by", user.id)
-    .eq("status", "pending_review")
-    .select("id");
-
-  if (error) {
-    console.error("revertCustomerBlogToDraft error:", error);
-    return { error: error.message };
+  let reverted: { id: string }[];
+  try {
+    reverted = await withUser({ uid: user.id }, (db) =>
+      db
+        .update(blogs)
+        .set({ status: "draft", updatedBy: user.id })
+        .where(
+          and(
+            eq(blogs.id, id),
+            eq(blogs.submittedBy, user.id),
+            eq(blogs.status, "pending_review"),
+          ),
+        )
+        .returning({ id: blogs.id }),
+    );
+  } catch (err) {
+    console.error("revertCustomerBlogToDraft error:", err);
+    return { error: dbErrorMessage(err, "Failed to move blog to draft.") };
   }
-  if (!data || data.length === 0) {
+  if (reverted.length === 0) {
     return {
       error: "Couldn't move this blog to draft. Please refresh and try again.",
     };
@@ -1125,33 +1231,42 @@ export async function revertCustomerBlogToDraft(
 // ---------------------------------------------------------------------------
 
 export async function approveCustomerBlog(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
 
   if (!userId) {
     return { error: "Not authenticated" };
   }
 
-  const { data: approved, error } = await supabase
-    .from("blogs")
-    .update({
-      status: "published",
-      published_at: new Date().toISOString(),
-      updated_by: userId,
-    })
-    .eq("id", id)
-    .eq("status", "pending_review")
-    .select("title, slug, submitted_by")
-    .single();
-
-  if (error) {
-    console.error("approveCustomerBlog error:", error);
-    return { error: error.message };
+  let approved:
+    | { title: string; slug: string; submitted_by: string | null }
+    | undefined;
+  try {
+    [approved] = await withUser({ uid: userId }, (db) =>
+      db
+        .update(blogs)
+        .set({
+          status: "published",
+          publishedAt: new Date().toISOString(),
+          updatedBy: userId,
+        })
+        .where(and(eq(blogs.id, id), eq(blogs.status, "pending_review")))
+        .returning({
+          title: blogs.title,
+          slug: blogs.slug,
+          submitted_by: blogs.submittedBy,
+        }),
+    );
+  } catch (err) {
+    console.error("approveCustomerBlog error:", err);
+    return { error: dbErrorMessage(err, "Failed to approve blog.") };
+  }
+  if (!approved) {
+    return { error: "This blog is no longer pending review." };
   }
 
   // Notify the author that their blog is live (best-effort — a mail failure
   // must not undo the approval).
-  if (approved?.submitted_by) {
+  if (approved.submitted_by) {
     const contact = await getCustomerContact(approved.submitted_by);
     if (contact?.email) {
       const brand = await getStoreBrand();
@@ -1165,9 +1280,7 @@ export async function approveCustomerBlog(id: string): Promise<ActionResult> {
     }
   }
 
-  revalidatePath("/dashboard/blogs");
-  revalidatePath("/blogs");
-  revalidateTag(TAGS.blogs, "max");
+  revalidateBlogs();
   return { success: true };
 }
 
@@ -1176,7 +1289,6 @@ export async function approveCustomerBlog(id: string): Promise<ActionResult> {
 // ---------------------------------------------------------------------------
 
 export async function rejectCustomerBlog(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
 
   if (!userId) {
@@ -1184,22 +1296,24 @@ export async function rejectCustomerBlog(id: string): Promise<ActionResult> {
   }
 
   // Capture the author + title before deleting so we can email them after.
-  const { data: target } = await supabase
-    .from("blogs")
-    .select("title, submitted_by")
-    .eq("id", id)
-    .eq("status", "pending_review")
-    .single();
+  const targetRows = await withUser({ uid: userId }, (db) =>
+    db
+      .select({ title: blogs.title, submitted_by: blogs.submittedBy })
+      .from(blogs)
+      .where(and(eq(blogs.id, id), eq(blogs.status, "pending_review")))
+      .limit(1),
+  );
+  const target = targetRows[0];
 
-  const { error } = await supabase
-    .from("blogs")
-    .delete()
-    .eq("id", id)
-    .eq("status", "pending_review");
-
-  if (error) {
-    console.error("rejectCustomerBlog error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db
+        .delete(blogs)
+        .where(and(eq(blogs.id, id), eq(blogs.status, "pending_review"))),
+    );
+  } catch (err) {
+    console.error("rejectCustomerBlog error:", err);
+    return { error: dbErrorMessage(err, "Failed to reject blog.") };
   }
 
   // Notify the author that their submission wasn't approved (best-effort).

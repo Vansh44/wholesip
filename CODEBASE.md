@@ -14,21 +14,22 @@ selling within a day. Every store gets:
 - A full **admin dashboard** (`/dashboard`) to manage products, orders-adjacent data, blogs, marketing, users, branding, and settings — all no-code.
 
 The codebase began as **WholeSip** (a single D2C juice brand, store #1) and was
-converted to multi-tenant in phases. WholeSip still exists as the fallback store
-(`WHOLESIP_STORE_ID = a0000000-0000-4000-8000-000000000001` in `lib/store/resolve.ts`),
-so some naming (repo name `wholesip`, the `--wholesip-*` CSS tokens, `brand/`) is legacy.
+converted to multi-tenant in phases. It still exists as the fallback store
+(`FALLBACK_STORE_ID = a0000000-0000-4000-8000-000000000001` in `lib/store/resolve.ts`),
+so some naming (repo name `wholesip`, `brand/`) is legacy. The `--wholesip-*` CSS
+tokens were renamed to `--sm-*` and `WHOLESIP_STORE_ID` to `FALLBACK_STORE_ID`.
 
 ## 2. Tech stack
 
-| Layer     | Tech                                                                                                                                                                                                                             |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework | Next.js 16 (App Router, `--turbopack` dev) — **breaking-changes version; read `node_modules/next/dist/docs/` before writing code** (see AGENTS.md)                                                                               |
-| UI        | React 19, Tailwind CSS v4, shadcn/ui (`components/ui/`), Base UI, lucide-react, sonner (toasts), recharts (charts), TipTap (rich-text editor), CodeMirror 6 (`@uiw/react-codemirror` — website-builder code editor, lazy-loaded) |
-| Backend   | Supabase (Postgres + Auth + Storage + RLS), server actions in `app/actions/`                                                                                                                                                     |
-| Email     | Resend + nodemailer (`lib/email/`), Vercel cron `/api/cron/send-emails` (daily, `vercel.json`)                                                                                                                                   |
-| AI        | Gemini (`lib/ai/gemini.ts`); per-store brand voice (`lib/ai/brand-voice.ts` + `store_brand_profiles`) with plan-capped usage metering (`lib/ai/quota.ts`); task prompts in `brand/tasks/`                                        |
-| Testing   | Vitest + Testing Library + jsdom, coverage via v8 (`coverage/` is generated output — never edit)                                                                                                                                 |
-| Deploy    | Vercel; CI on GitHub Actions (`.github/workflows/ci.yml`: lint → typecheck → test → prettier → build)                                                                                                                            |
+| Layer     | Tech                                                                                                                                                                                                                                        |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework | Next.js 16 (App Router, `--turbopack` dev) — **breaking-changes version; read `node_modules/next/dist/docs/` before writing code** (see AGENTS.md)                                                                                          |
+| UI        | React 19, Tailwind CSS v4, shadcn/ui (`components/ui/`), Base UI, lucide-react, sonner (toasts), recharts (charts), TipTap (rich-text editor), CodeMirror 6 (`@uiw/react-codemirror` — website-builder code editor, lazy-loaded)            |
+| Backend   | Supabase (Postgres + Auth + Storage + RLS), server actions in `app/actions/`                                                                                                                                                                |
+| Email     | Resend + nodemailer (`lib/email/`), Vercel cron `/api/cron/send-emails` (daily, `vercel.json`)                                                                                                                                              |
+| AI        | Gemini (`lib/ai/gemini.ts`); per-store brand voice (`lib/ai/brand-voice.ts` + `store_brand_profiles`) with plan-capped usage metering (`lib/ai/quota.ts`); task prompts in `brand/tasks/`                                                   |
+| Testing   | Vitest + Testing Library + jsdom, coverage via v8 (`coverage/` is generated output — never edit)                                                                                                                                            |
+| Deploy    | Vercel (current); **migrating to Google Cloud Run** (Dockerfile + cloudbuild.yaml, GCP Phase 4 — see docs/gcp-migration-phase4-cloud-run.md). CI on GitHub Actions (`.github/workflows/ci.yml`: lint → typecheck → test → prettier → build) |
 
 ## 3. Multi-tenancy architecture (the core concept)
 
@@ -43,13 +44,18 @@ Every request belongs to exactly one store, resolved from the **Host header**.
 | `{slug}.storemink.com`, `{slug}.localhost`                   | **Store subdomain** — storefront + `/dashboard` + `/auth` served directly                                         |
 | Anything else                                                | **Custom domain** — must have `settings.custom_domain_verified === true` to resolve                               |
 
-`proxy.ts` also gates auth: `/dashboard` requires a Supabase session (redirect to
-`/auth/login`), enforces `force_password_reset` → `/auth/set-password`, and
-restricts `/dashboard/users` + `/dashboard/media` to role `superadmin`.
-Storefront paths skip the session check entirely (anonymous + cache-friendly).
-Paths with a file extension (public/ assets like `/themes/...webp`) pass
-through untouched on EVERY host — the platform/help rewrites would otherwise
-404 them.
+`proxy.ts` also gates auth: `/dashboard` requires a valid **Firebase session
+cookie** (`sm_session`; redirect to `/auth/login`), enforces
+`force_password_reset` → `/auth/set-password`, and restricts `/dashboard/users`
+
+- `/dashboard/media` to role `superadmin`. The `role`/`force_password_reset`
+  custom claims + the uid are read straight from the verified session cookie (no
+  DB query). Next.js 16 `proxy.ts` runs on the **Node runtime** by default, so it
+  verifies the cookie with `firebase-admin` directly (no edge/`jose` workaround).
+  Storefront paths skip the session check entirely (anonymous + cache-friendly).
+  Paths with a file extension (public/ assets like `/themes/...webp`) pass
+  through untouched on EVERY host — the platform/help rewrites would otherwise
+  404 them.
 
 ### Tenant resolution — `lib/store/`
 
@@ -66,8 +72,15 @@ wholesip/
 ├── AGENTS.md / CLAUDE.md      # Agent instructions (CLAUDE.md just imports AGENTS.md)
 ├── CODEBASE.md                # ← this file
 ├── proxy.ts                   # Edge middleware: host routing + auth gates (see §3)
-├── next.config.ts             # Image formats, brand/ file tracing, optimizePackageImports
-├── vercel.json                # Daily cron → /api/cron/send-emails
+├── next.config.ts             # output:"standalone" (Cloud Run), image formats, brand/
+│                              # file tracing, optimizePackageImports
+├── Dockerfile / .dockerignore / cloudbuild.yaml  # ★ Cloud Run container (GCP Phase 4 —
+│                              # see docs/gcp-migration-phase4-cloud-run.md). Multi-stage
+│                              # standalone build; NEXT_PUBLIC_* are build args, secrets
+│                              # runtime-only. Build linux/amd64 (Cloud Build or --platform).
+├── vercel.json                # Crons: send-emails + plan-expiry (daily),
+│                              # expire-pending-payments (daily on Hobby) — moving to
+│                              # Cloud Scheduler at Cloud Run cutover (Phase 4)
 ├── vitest.config.ts / vitest.setup.ts / vitest.server-only-stub.ts
 ├── eslint.config.mjs / postcss.config.mjs / tsconfig.json / components.json
 │
@@ -127,7 +140,7 @@ wholesip/
 │   │   │                      # feature-toggles (shared settings-group card, convention #9)
 │   │   ├── lib/               # access.ts, permissions.ts (role → allowed nav/actions),
 │   │   │                      # list-params.ts, use-row-selection.ts
-│   │   ├── products/          # CRUD + @modal intercepted route for quick edit
+│   │   ├── products/          # CRUD; edit = full page [id]/ (Shopify-style, no modal)
 │   │   ├── orders/            # Orders list (server-paginated) — reads order-actions
 │   │   ├── categories/ colors/ blogs/ media/   # content management
 │   │   │   └── blogs/settings/  # blog feature toggles + per-store categories/tags manager
@@ -148,19 +161,35 @@ wholesip/
 │   │   ├── users/             # customers + user_groups/ (segments)  [superadmin only]
 │   │   ├── admins/ roles/     # staff invites + role management
 │   │   ├── branding/          # per-store branding editor (logo, colors)
+│   │   ├── billing/           # ★ Invoices & Billing (§17): tax config + tax-class
+│   │   │                      # manager + invoice-template editor (billing.css)
+│   │   ├── channels/          # ★ Channels (§18): connect the store's OWN Razorpay
+│   │   │                      # gateway (verify & save, pause/resume, disconnect)
+│   │   ├── ai/                # ★ AI usage (§16): monthly bar + credit balance +
+│   │   │                      # ledger + buy-credit packs (platform Razorpay)
+│   │   ├── orders/[id]/invoice/  # ★ printable invoice for one order (§17)
 │   │   └── settings/          # account/ + domain/ (custom-domain connect + verify);
 │   │                          # feature toggles live on their feature's own page
 │   │                          # (e.g. blogs → blogs/settings — see convention #9)
 │   │
 │   ├── platform/              # ★ STOREMINK PLATFORM (served on storemink.com via rewrite)
 │   │   ├── page.tsx           # Marketing landing page
-│   │   ├── signup/            # Store creation signup journey (template selection…)
-│   │   ├── login/             # Platform login
+│   │   ├── signup/            # ★ Store creation wizard (see §19): Shopify-style
+│   │   │                      # step order — email → password (+ Continue with
+│   │   │                      # Google) → phone OTP → name → store + location →
+│   │   │                      # theme → plan (Razorpay autopay for paid plans).
+│   │   │                      # Firebase: Google via signInWithPopup (no callback
+│   │   │                      # route), phone via signInWithPhoneNumber.
+│   │   ├── login/             # Platform-operator login — Firebase email-LINK sign-in
 │   │   └── dashboard/         # Platform-admin console: stores-console, operators-console
 │   │                          # (guarded by supabase/multitenant_07_platform_admins.sql)
+│   │                          # (the OAuth callback route was removed in Phase 6 —
+│   │                          # Google now uses signInWithPopup)
 │   │
-│   ├── auth/                  # Store-host auth: login, forgot/set/update-password,
-│   │                          # callback/route.ts (OAuth/OTP callback)
+│   ├── api/auth/              # ★ Phase 6 session bridge: session/route.ts (ID token →
+│   │                          # httpOnly Firebase session cookie), signout/route.ts (clear it)
+│   ├── auth/                  # Store-host auth: login (email+pw + Google popup),
+│   │                          # forgot/set/update-password (Firebase; callback route removed)
 │   ├── help/                  # Help centre (served at help.storemink.com)
 │   │
 │   ├── actions/               # ★ ALL SERVER ACTIONS ("use server") — one file per domain:
@@ -168,18 +197,31 @@ wholesip/
 │   │   │                      # review/enquiry/customer/customer-profile/
 │   │   │                      # account-settings/set-password/invite-user/user-management/
 │   │   │                      # user-group/role actions  (homepage-actions RETIRED — §11)
-│   │   ├── store-signup.ts    # Creates a new store (tenant onboarding)
+│   │   ├── store-signup.ts    # Store onboarding (§19): checkStoreSlugAvailability,
+│   │   │                      # createStore({name,template,firstName,lastName,
+│   │   │                      # country,city}) — writes admins name + settings.
+│   │   │                      # business location, returns {slug,storeId} —,
+│   │   │                      # getSignupResumeInfo (resume wizard after Google
+│   │   │                      # redirect / refreshed tab)
 │   │   ├── store-branding.ts  # Per-store branding updates
 │   │   ├── store-settings.ts  # Read/save per-store feature settings (see lib/settings)
 │   │   ├── blog-taxonomy-actions.ts  # Per-store blog categories/tags CRUD (+ propagation into blogs)
+│   │   ├── billing-actions.ts # ★ Invoices & tax (§17): tax-class CRUD + save billing/
+│   │   │                      # invoice settings. Gated on `billing`, revalidates TAGS.billing.
 │   │   ├── store-domain.ts    # Custom domain connect + DNS verification (Resend)
 │   │   ├── page-actions.ts    # ★ Custom-page CRUD + draft/publish (see §11): createPage/
 │   │   │                      # updatePageMeta/savePageDraft/publishPage/unpublishPage/
 │   │   │                      # deletePage/ensureHomepage, gated builder, service-role
 │   │   ├── menu-actions.ts    # ★ Per-store nav read/save (see §11 menu builder, store_menus)
-│   │   ├── checkout-actions.ts # ★ placeOrder (COD): re-prices from DB, store-scoped by
-│   │   │                      # host, re-validates coupon, rate-limited, SERVICE-ROLE
-│   │   │                      # writes (no customer INSERT policy — see convention #12). Tested.
+│   │   ├── checkout-actions.ts # ★ placeOrder (COD + razorpay — §12/§18): re-prices from
+│   │   │                      # DB, store-scoped by host, re-validates coupon, rate-limited,
+│   │   │                      # SERVICE-ROLE writes (no customer INSERT policy — convention
+│   │   │                      # #12); getCheckoutConfig + confirmOnlinePayment (HMAC) +
+│   │   │                      # reconcileMyOrderPayment. Tested.
+│   │   ├── payment-provider-actions.ts # ★ Channels (§18): get/save/enable/disconnect the
+│   │   │                      # store's BYO Razorpay creds (verified, encrypted, plan-gated). Tested.
+│   │   ├── ai-credit-actions.ts # ★ AI credits (§16): usage-page data + reconcile,
+│   │   │                      # startCreditPurchase/confirmCreditPurchase (platform Razorpay).
 │   │   ├── order-actions.ts   # ★ getOrders (paginated) + updateOrderStatus (allowlisted
 │   │   │                      # status/payment_status, store-scoped). Tested.
 │   │   ├── address-actions.ts # ★ Customer saved-address book (own-row RLS, tested):
@@ -191,27 +233,85 @@ wholesip/
 │   │
 │   └── api/
 │       ├── cron/send-emails/  # Daily email campaign worker (Vercel cron)
+│       ├── cron/plan-expiry/  # ★ Daily: flips expired timed plans → free (§15)
+│       ├── cron/expire-pending-payments/ # ★ Hourly reaper for unpaid razorpay
+│       │                      # orders: mark paid if captured, else cancel+restock (§18)
 │       ├── og-image/          # OG image proxy (compresses Supabase images only)
 │       ├── og/                # Dynamic branded OG card (ImageResponse; ?d=JSON
 │       │                      # {title,subtitle,color}) — default share image for
 │       │                      # homepage/custom pages/platform (lib/seo/og-card.ts)
-│       └── upload/            # Image upload → Supabase Storage (sharp → WebP);
-│           └── sign-video/    # signed-URL minting for VIDEO uploads (≤50MB,
-│                              # client uploads DIRECTLY to storage — serverless
-│                              # routes can't proxy large bodies)
+│       └── upload/            # Image upload (sharp → WebP) → Google Cloud Storage
+│           │                  # (GCS-only; requires GCS_BUCKET). Auth = Firebase session.
+│           └── sign-video/    # v4 signed-URL minting for VIDEO uploads (≤50MB, GCS;
+│                              # client PUTs DIRECTLY to storage — serverless routes
+│                              # can't proxy large bodies)
 │
 ├── lib/
 │   ├── store/                 # ★ Tenancy (see §3): host.ts, resolve.ts, brand.ts
 │   ├── settings/              # ★ Feature-settings framework (see convention #9):
 │   │   ├── registry.ts        #   catalog: every per-store toggle (key, default, plan gate)
 │   │   └── resolve.ts         #   getStoreSettings()/getStoreSetting() for the host store
-│   ├── supabase/              # Client factories — pick the right one:
-│   │   ├── server.ts          #   RSC/server-action client (cookie-based session)
-│   │   ├── client.ts          #   Browser client
-│   │   ├── admin.ts           #   Service-role client (bypasses RLS — server only!)
-│   │   ├── public.ts          #   Anonymous client (cacheable, no cookies)
-│   │   ├── middleware.ts      #   updateSession() used by proxy.ts (JWT claims fast-path)
-│   │   ├── storage.ts / storage-cleanup.ts
+│   ├── storage/               # ★ Google Cloud Storage media backend (GCS-only —
+│   │                          # lib/supabase/ removed, Supabase fully out of code):
+│   │                          # gcs.ts — gcsConfigured/gcsUploadObject/gcsSignUploadUrl/
+│   │                          # gcsDeletePaths/gcsPublicUrl/gcsPathFromUrl (ADC or
+│   │                          # GCP_SA_KEY; public bucket; lazy SDK import). uploads.ts —
+│   │                          # client helpers (uploadImage POSTs /api/upload; uploadVideo
+│   │                          # PUTs to a signed GCS URL). cleanup.ts — deleteStorageUrls/
+│   │                          # extractMediaUrlsFromHtml orphan cleanup (legacy Supabase
+│   │                          # URLs ignored). Tested.
+│   ├── db/                    # ★ Cloud SQL data layer (GCP Phase 5, IN PROGRESS — NOT yet
+│   │                          # the active path; app still on Supabase). client.ts: Drizzle
+│   │                          # over pg Pool w/ the 2A tenancy model — withService (BYPASSRLS),
+│   │                          # withUser({uid,email}) (SET LOCAL ROLE app_user + app.current_user_id
+│   │                          # GUC → auth.uid() shim), withAnon (no GUC). Schema in drizzle/
+│   │                          # (introspected). See docs/gcp-migration-phase5-6.md.
+│   │                          # errors.ts: pg error helpers (isUniqueViolation etc).
+│   │                          # Ported so far: colors, categories, enquiries (incl.
+│   │                          # dashboard/enquiries/data.ts), reviews, blog-taxonomy,
+│   │                          # coupons, blogs (actions + dashboard list + settings +
+│   │                          # lib/blog-taxonomy.ts — fetchBlogTaxonomy(storeId), no
+│   │                          # client param), addresses, billing, store-settings,
+│   │                          # store-branding, pages/menus (page-actions +
+│   │                          # menu-actions + lib/pages/preview.ts — builder write
+│   │                          # side), brand-voice (+ lib/ai/brand-voice.ts +
+│   │                          # lib/ai/quota.ts), store-domain, payment-provider,
+│   │                          # customers (customer-actions + customer-profile +
+│   │                          # dashboard/users/data.ts — customer_admin view; auth
+│   │                          # admin ops stay on Supabase till Phase 6), user-groups
+│   │                          # (+ dashboard data), roles (+ roles/admins pages),
+│   │                          # account-settings + set-password + user-management +
+│   │                          # invite-user (own-row admin updates → withUser,
+│   │                          # superadmin guards → withService; auth createUser/
+│   │                          # deleteUser/pw/session on Supabase till Ph6),
+│   │                          # subscriptions, ai-credits, platform (operator
+│   │                          # console; getPlatformViewer via getServerUser +
+│   │                          # platform_admins email allowlist), store-signup,
+│   │                          # blog-social (reactions/comments), coupon-email,
+│   │                          # products (actions + dashboard
+│   │                          # list/editor via products/columns.ts maps; sku/sku_no
+│   │                          # trigger-owned → insert type asserted), orders
+│   │                          # (order-actions.ts incl.
+│   │                          # the cancel-restock claim + release_stock RPC), inventory
+│   │                          # (incl. adjust_stock RPC via named-arg sql), and the FULL
+│   │                          # storefront read path
+│   │                          # (lib/store/resolve.ts, lib/storefront/queries.ts,
+│   │                          # shop/[slug] + blogs/[slug] pages — all withAnon;
+│   │                          # getBlog withUser for previews).
+│   │                          # drizzle/schema.ts numeric cols use mode:'number'.
+│   ├── auth/                  # ★ Identity Platform auth (GCP Phase 6 — Firebase):
+│   │                          # server-user.ts — getServerUser() identity seam (the ONE
+│   │                          # place server code reads the authed user; feeds withUser),
+│   │                          # now verifies the Firebase SESSION COOKIE (no Supabase).
+│   │                          # firebase-admin.ts (lazy Admin SDK), session-cookie.ts
+│   │                          # (mint/verify + .storemink.com cookie), firebase-claims.ts
+│   │                          # (role/force_password_reset custom claims — replaces the
+│   │                          # custom_access_token_hook), firebase-users.ts (admin
+│   │                          # create/delete/update + REST password reverify + reset link),
+│   │                          # firebase-client.ts (Web SDK: establishSession → POST
+│   │                          # /api/auth/session, endSession, secondary app for phone-only
+│   │                          # verify). Delete an auth user does NOT cascade to the Cloud
+│   │                          # SQL admins/users row — callers delete BOTH.
 │   ├── storefront/            # queries.ts (cached storefront reads — getPublishedPage/
 │   │                          # getPublishedPageSlugs, named columns only), tags.ts
 │   │                          # (cache tags incl. TAGS.pages)
@@ -239,7 +339,23 @@ wholesip/
 │   │                          # ticker, faq_accordion, rich_text + custom_code (see §11)
 │   ├── menus.ts               # ★ Per-store nav (§11): StoreMenus types, DEFAULT_MENUS,
 │   │                          # normalize/sanitize. Read cached via getStoreMenus.
-│   ├── ai/gemini.ts           # Gemini client for AI copy
+│   ├── ai/gemini.ts           # Gemini/Vertex AI client for AI copy (dual backend, §7);
+│   │                          # emits ai.generate telemetry (latency + tokens) via observability
+│   ├── ai/credits.ts          # ★ AI credit pack catalog (pure — the one place to reprice)
+│   ├── observability/         # ★ Structured logging for Google Cloud (GCP migration Phase 2):
+│   │                          # logger.ts — logInfo/logWarn/logError emit Cloud Logging-
+│   │                          # compatible JSON (severity+message) in prod, readable lines in
+│   │                          # dev; edge-safe (console+JSON only, no deps). Auto-ingested by
+│   │                          # Cloud Logging + Error Reporting once on Cloud Run (Phase 4).
+│   │                          # First adopters: lib/ai/gemini.ts + proxy.ts 500 catch. Tested.
+│   ├── payments/              # ★ Online payments (§18): crypto.ts (AES-256-GCM cred
+│   │                          # encryption), razorpay.ts (server fetch client + HMAC verify,
+│   │                          # tested), provider.ts (store/platform cred loaders),
+│   │                          # razorpay-client.ts (client checkout.js loader + modal)
+│   ├── billing/               # ★ Invoices & tax (§17): types.ts (BillingSettings/
+│   │                          # TaxClass + row mappers + defaults), tax.ts (pure
+│   │                          # inclusive/exclusive tax math, tested), invoice-data.ts
+│   │                          # (server-only invoice loaders: by-store + own-order)
 │   ├── pricing.ts / slug.ts / sanitize.ts / rate-limit.ts / og-image.ts
 │   ├── blog-taxonomy.ts   # fetchBlogTaxonomy(): per-store blog categories/tags reader
 │   ├── blog-reactions.ts / phone-labels.ts / use-otp-throttle.ts
@@ -247,6 +363,8 @@ wholesip/
 │
 ├── components/
 │   ├── ui/                    # shadcn/ui primitives (button, dialog, table, sidebar…)
+│   ├── invoice/               # ★ Print-styled InvoiceDocument (server) + PrintButton
+│   │                          # (client) + invoice.css (@media print isolation) — §17
 │   └── customer-multiselect.tsx
 ├── hooks/use-mobile.ts
 │
@@ -267,6 +385,14 @@ wholesip/
 │   │                          # reserve/release (enforces max_uses under concurrency)
 │   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
 │   ├── store_menus.sql        # ★ per-store header/footer nav (+ RLS + WholeSip seed) — §11
+│   ├── invoicing.sql          # ★ tax_classes + products.tax_class_id + order_items tax
+│   │                          # cols + orders.tax_inclusive + store_billing_settings — §17
+│   ├── plans_02_basic_and_expiry.sql # ★ starter→basic rename + plan_expires_at — §15
+│   ├── ai_credits.sql         # ★ credit balances/ledger/purchases + add_ai_credits/
+│   │                          # try_spend_ai_credit RPCs (service-role only) — §16
+│   ├── payment_providers.sql  # ★ store_payment_providers (BYO Razorpay creds,
+│   │                          # service-role only, app-layer encrypted secret) — §18
+│   ├── payments_01_orders.sql # ★ orders.razorpay_order_id/payment_id + indexes — §18
 │   ├── homepage_to_store_pages.sql  # Phase 4a data migration: homepage_sections → slug ""
 │   ├── wholesip_static_pages_seed.sql  # Phase 4b: seed the 17 legacy static pages
 │   │                          # (our-story, faqs, privacy-policy…) as published
@@ -277,7 +403,17 @@ wholesip/
 │   ├── store_pages.sql        # ★ merchant custom pages (draft + published_sections jsonb;
 │   │                          # RLS via is_store_admin; anon SELECT REVOKED then GRANTed on
 │   │                          # named cols WITHOUT draft `sections` — see §11) (+ rollback)
-│   ├── custom_access_token_hook.sql     # JWT claims (role, force_password_reset)
+│   ├── custom_access_token_hook.sql     # JWT claims (role, force_password_reset) —
+│   │                          # SUPERSEDED in Phase 6 by Firebase custom claims (lib/auth/
+│   │                          # firebase-claims.ts); kept for the Supabase-era rollback
+│   ├── phase6_01_uid_columns_to_text.sql # ★ Phase 6: retype the 25 uid-holding columns
+│   │                          # (admins.id/users.id + every created_by/updated_by/user_id/
+│   │                          # customer_id/submitted_by/added_by/invited_by) uuid→text AND
+│   │                          # the auth.uid() shim →text — Firebase uids are STRINGS, not
+│   │                          # uuids. Entity PKs + store_id + platform_admins.invited_by
+│   │                          # stay uuid. Drops/recreates 7 FKs + 25 policies + 2 admin
+│   │                          # views. RUN AS postgres (owner of the tables + auth schema;
+│   │                          # `app` can't). (+ rollback)
 │   └── perf_*.sql             # index / RLS performance migrations
 │
 ├── brand/tasks/               # AI copy TASK prompts (product-desc.md, seo-meta.md), read at
@@ -299,7 +435,11 @@ wholesip/
    `platform/` = StoreMink itself. Don't put platform pages in the storefront group —
    the proxy rewrite depends on this separation.
 4. **Modals via intercepted routes**: dashboard list pages use the `@modal/(.)[id]`
-   parallel-route pattern (products, enquiries, users). Follow it for new entities.
+   parallel-route pattern (enquiries, users). Follow it for quick-glance detail
+   views. Products is the exception BY OWNER CHOICE: editing is a full page
+   (`/dashboard/products/[id]`, Shopify-style — no interception; hover-prefetched
+   rows + a `loading.tsx` skeleton keep it fast); only "New product" stays a
+   dialog.
 5. **Caching**: storefront reads use `unstable_cache` + tags (`lib/storefront/tags.ts`,
    `STORE_TAG`). After mutations, `revalidateTag`/`revalidatePath` accordingly.
 6. **Styling**: Tailwind v4 + CSS modules for scoped styles + a few plain `.css`
@@ -383,9 +523,10 @@ wholesip/
     the builder. Two disjoint code paths (published cached / draft uncached) ⇒
     no cache poisoning. - **Sandboxed custom code**: merchant JS runs ONLY inside
     `custom-code-frame.tsx` — an iframe with `sandbox="allow-scripts
-allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
-    cookies are `httpOnly:false`, `Domain=.storemink.com`; same-origin inline
-    JS could steal any visitor's session). Auto-height via ResizeObserver →
+allow-popups"` + `srcDoc`, **never `allow-same-origin`**: the session cookie
+    is `Domain=.storemink.com`, so same-origin inline JS could ride a visitor's
+    session to make authenticated requests (the Firebase `sm_session` cookie is
+    httpOnly, but same-origin scripts still send it automatically). Auto-height via ResizeObserver →
     `postMessage`, parent clamps 40–4000px. `</script`/`</style` escaped in
     merchant strings; each string capped 64 KB. `rich_text` is the inline/SEO
     counterpart: sanitized at save AND render via `lib/sanitize.ts` (blog trust
@@ -487,7 +628,7 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     platform stores console; the signup picker's Preview opens
     `https://demo-{id}.{ROOT_DOMAIN}`. - **Theme DESIGN engine (the visual "skin")**: a theme controls the FULL
     design system, not just one accent. `ThemeDesign` (`lib/themes/types.ts`) =
-    `palette` (all 14 `--wholesip-*` colour tokens + `onAccent`/`onInk`/
+    `palette` (all 14 `--sm-*` colour tokens + `onAccent`/`onInk`/
     `shadowRgb`/`success`/`error`/`star`/`highlight` semantic tokens), `fonts`
     (`body`/`display`, pointing at next/font variables loaded in
     `app/layout.tsx` — Inter/Fraunces/Space Grotesk/Plus Jakarta alongside the
@@ -503,7 +644,7 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     `--brand-primary` — untouched. Storefront component CSS is fully
     tokenised (no raw hex; darks→`ink`, mids→`ink-soft`, faints→`ink-faint`,
     on-dark whites→`on-ink`/`on-accent`, panels→`surface`, shadows→
-    `rgba(var(--wholesip-shadow-rgb), α)`, radii→shape tokens) so palette +
+    `rgba(var(--sm-shadow-rgb), α)`, radii→shape tokens) so palette +
     shape reach every surface (header, footer, auth modal, shop cards + badges,
     profile/enquiry forms, blog + write-blog editor). CI-guards in
     `themes.test.ts` assert each theme ships a complete, injectable design.
@@ -536,16 +677,18 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     Design derives from the theme id at RENDER time (no DB column), so no reseed
     is needed when a theme's skin changes. - **Phase 4d (not built, by design)**: nothing pending — homepage, static
     pages, and menus are all migrated. config/site.ts, brand.md and the
-    file-based AI skills are deleted, and the shop hero is brand-aware; remaining
-    WholeSip cleanup (the `--wholesip-*` CSS token namespace, the
-    `WHOLESIP_STORE_ID` fallback-store constant) continues opportunistically.
+    file-based AI skills are deleted, and the shop hero is brand-aware. The
+    `--wholesip-*` CSS token namespace (→ `--sm-*`) and `WHOLESIP_STORE_ID` (→
+    `FALLBACK_STORE_ID`) are now renamed too; only the repo name `wholesip` and
+    the `brand/` dir remain as legacy WholeSip naming.
 
 12. **Checkout & orders security model (COD).** A signed-in shopper places an
     order from `/checkout`; `placeOrder` (`app/actions/checkout-actions.ts`) is
     the trust boundary and layers its defenses in order:
-    - **Auth**: `supabase.auth.getUser()` on the cookie client — anonymous is
-      rejected. **Rate limit**: `rateLimit("checkout:{userId}")` (Postgres,
-      cross-instance, fails open) throttles spam/double-submit.
+    - **Auth**: `getServerUser()` (the identity seam — verifies the Firebase
+      session cookie) — anonymous is rejected. **Rate limit**:
+      `rateLimit("checkout:{userId}")` (Postgres, cross-instance, fails open)
+      throttles spam/double-submit.
     - **Input validation**: line-item count, per-line integer quantity, and all
       required address fields are validated server-side (the form's `required`
       attr is only a UX hint); stored address values are trimmed + length-capped.
@@ -611,25 +754,36 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`** (Supabase auth
     `order_ref` (UUID kept in a `title` tooltip). Order/product/store UUIDs and
     routes are UNCHANGED. Supersedes the "sku (text, products only)" note in #13.
 
-15. **Plans (free / starter / pro).** `lib/plans.ts` is the single plan catalog
-    (pure, tested): `PLAN_IDS`, `PLAN_RANK`, `normalizePlan`/`planAllows`
-    (re-exported by `lib/settings/registry.ts` for its `minPlan` gates —
-    the former "growth" id is retired), display meta (`PLAN_META`: INR
-    monthly/yearly pricing, taglines) and `PLAN_LIMITS` (product/staff/AI/
-    coupon caps + customDomain/onlinePayments/emailCampaigns/removeBadge
-    flags; `null` = unlimited; enforce server-side in the owning action,
-    soft-on-downgrade: never delete data, only block NEW rows past a cap).
-    `stores.plan` is CHECK-constrained to the three ids and paired with
+15. **Plans (free / basic ₹500 / pro ₹1500) + timed grants.** `lib/plans.ts` is
+    the single plan catalog (pure, tested): `PLAN_IDS`, `PLAN_RANK`,
+    `normalizePlan`/`planAllows` (re-exported by `lib/settings/registry.ts`
+    for its `minPlan` gates — the former "growth" AND "starter" ids are
+    retired; `normalizePlan` aliases legacy `starter → basic`), display meta
+    (`PLAN_META`: INR monthly/yearly pricing, taglines) and `PLAN_LIMITS`
+    (product/staff/AI/coupon caps + customDomain/onlinePayments/
+    emailCampaigns/removeBadge flags; `null` = unlimited; AI caps are
+    **3 / 10 / 50 per month** — pro is metered too; enforce server-side in
+    the owning action, soft-on-downgrade: never delete data, only block NEW
+    rows past a cap). The platform landing page (`app/platform/page.tsx`)
+    derives its pricing cards from `PLAN_META`/`PLAN_LIMITS` so it can never
+    drift. `stores.plan` is CHECK-constrained to the three ids
+    (`plans_02_basic_and_expiry.sql` renamed starter→basic) and paired with
     `stores.plan_source` (`comp`/`paid`/`trial` — an operator comp must never
     be overwritten by a future billing webhook); every change is recorded in
     the append-only `plan_events` audit table (service-role only, like
-    `store_counters`) — all in `supabase/plans_01_schema.sql`. The platform
-    stores console upgrades stores via `setStorePlan` (`app/actions/
-platform.ts`, superadmin-only, tested): **UPGRADE-ONLY by design** —
-    free → starter/pro, starter → pro, pro → nowhere (`upgradeTargets`);
-    downgrades will arrive with billing (non-renewal), not as a console
-    button. Billing (Razorpay subscriptions), per-feature limit enforcement
-    and the merchant-facing billing page are later phases.
+    `store_counters`) — schema in `supabase/plans_01_schema.sql`.
+    **Timed plans:** `stores.plan_expires_at` (timestamptz, NULL = indefinite)
+    bounds an operator grant. Enforcement is two-layered: (1) read-time —
+    every gate resolves the plan via **`effectivePlan(store)`** (expired ⇒
+    free; threaded through `lib/ai/quota.ts`, `lib/settings/resolve.ts`,
+    `store-settings.ts`, checkout's gateway gate, credit purchases), and
+    (2) durable — `/api/cron/plan-expiry` (daily, vercel.json,
+    CRON_SECRET-protected) flips expired rows to free, clears the expiry,
+    writes a `plan_events` row (source `system`) and busts `STORE_TAG`.
+    The platform stores console sets plans via `setStorePlan`
+    (`app/actions/platform.ts`, superadmin-only, tested): **any plan, any
+    direction**, with a duration picker (1/3/6/12 months / custom date /
+    indefinite). Merchant-facing subscription billing is a later phase.
 
 16. **Per-store brand voice + AI quota.** Every AI copy feature (product
     description, SEO, coupon email, brand-voice setup) speaks in the STORE's
@@ -647,17 +801,174 @@ platform.ts`, superadmin-only, tested): **UPGRADE-ONLY by design** —
     composes the guide from the answers, review-before-save) + a free-form
     guide textarea — `app/actions/brand-voice-actions.ts` (tested). **AI quota
     (first live plan-limit enforcement):** `lib/ai/quota.ts` `consumeAiQuota`
-    meters generations per store per calendar month against the plan's
-    `aiGenerationsPerMonth` cap (null = unlimited, no metering) via the atomic
-    `try_ai_generation` RPC + `ai_usage` table (single conditional UPDATE, the
-    coupon-usage pattern; fails OPEN on transient errors). Called BEFORE Gemini
-    in every AI action; blocked stores get a plan-aware upgrade message and the
-    branding page shows "X of Y used this month".
+    meters generations per store per calendar month against the EFFECTIVE
+    plan's `aiGenerationsPerMonth` cap (3/10/50; null = unlimited, no
+    metering) via the atomic `try_ai_generation` RPC + `ai_usage` table
+    (single conditional UPDATE, the coupon-usage pattern; fails OPEN on
+    transient errors). Called BEFORE Gemini in every AI action; blocked
+    stores get a plan-aware message and the branding page shows "X of Y used
+    this month".
+    **AI credits (purchasable top-ups):** once the monthly allowance is
+    spent, `consumeAiQuota` falls back to the store's credit balance
+    (never-expiring integers) via `try_spend_ai_credit` — the expiring
+    resource burns before the permanent one. Storage in
+    `supabase/ai_credits.sql`: `ai_credit_balances` (one row/store, CHECK
+    ≥ 0), append-only `ai_credit_ledger` (`purchase`/`grant`/`spend`; a
+    UNIQUE partial index on purchase refs makes crediting idempotent per
+    Razorpay payment id) and `ai_credit_purchases` (pending→paid/failed) —
+    all SERVICE-ROLE ONLY. RPCs `add_ai_credits` (idempotent for purchases)
+    - `try_spend_ai_credit` (single conditional UPDATE). Pack catalog in
+      `lib/ai/credits.ts` (25/₹59, 60/₹129, 150/₹299 — the one place to
+      reprice). Merchants see usage + balance + ledger and buy packs at
+      **`/dashboard/ai`** (section `ai`, group Administration) —
+      `app/actions/ai-credit-actions.ts`: `startCreditPurchase` (plan-gated
+      basic+, server-side) → Razorpay modal on the **PLATFORM's own account**
+      (env `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`; totally separate from a
+      store's BYO gateway) → `confirmCreditPurchase` (HMAC verify → paid →
+      `add_ai_credits`); dropped callbacks self-heal via reconcile-on-read on
+      page load (no webhook in v1). Operators grant free credits from the
+      stores console (`grantAiCredits`, superadmin-only, audited with the
+      operator's email as the ledger ref) and see per-store AI used / credit
+      balance / gateway state (batch-enriched `listAllStores`) plus a History
+      drawer (`getStoreAudit`: plan_events + credit ledger).
+
+17. **Invoices & tax (per-store, Shopify-style).** Managed at `/dashboard/billing`
+    (permission section `billing`, group Administration). Storage in
+    `supabase/invoicing.sql`: `tax_classes` (named rate buckets, public-read /
+    admin-write RLS), `products.tax_class_id` (ON DELETE SET NULL), per-line tax
+    snapshot on `order_items` (`tax_rate`/`tax_amount`/`tax_class_name`),
+    `orders.tax_inclusive` (`orders.tax` already existed), and a single-row
+    `store_billing_settings` (tax config + business identity + invoice template;
+    **public-readable by design — everything here prints on the customer's
+    invoice, so NEVER put a secret in it**). - **Tax model = classes per product**: a store defines tax classes (e.g. GST
+    5/12/18%), assigns one per product (product editor → "Tax class"; products
+    without one use `store_billing_settings.default_tax_class_id`), and toggles
+    tax on/off + inclusive/exclusive store-wide. (Region-based CGST/SGST split
+    is the deliberately-unbuilt heavier option.) - **Pure math** in `lib/billing/tax.ts` (`computeTax`, tested): discount is
+    allocated across lines proportionally, then tax is computed on the
+    discounted amount — EXCLUSIVE adds tax to the total, INCLUSIVE carves it
+    out (total unchanged) and reports it. `lib/billing/types.ts` holds
+    `BillingSettings`/`TaxClass` + row mappers + `DEFAULT_BILLING_SETTINGS`. - **Checkout** (`checkout-actions.ts`, convention #12): `placeOrder` reads the
+    tax config authoritatively via `readTaxConfig` (uncached admin, store-scoped
+    — an order must reflect config at order time), resolves each line's rate,
+    computes tax, and snapshots `order.tax`/`order.tax_inclusive` + per-line tax.
+    `getCartTaxRates(lines)` is the DISPLAY counterpart: it resolves the tax
+    config + each line's authoritative price & rate WITHOUT quantity/discount
+    (those depend only on the product SET), so the shared client hook
+    `useCartTax` (`app/(storefront)/components/cart/useCartTax.ts`, used by the
+    checkout summary AND the grocery cart) fetches it once per product-set
+    change and recomputes the tax LOCALLY via the pure `computeTax` on every
+    quantity/coupon edit — zero round-trips except on add/remove. Storefront
+    reads use cached `getStoreBillingSettings` / `getStoreTaxClasses` (tag
+    `TAGS.billing`). - **Invoices = printable HTML** (chosen over server PDF): `components/invoice/
+InvoiceDocument` (server, presentational) + `invoice.css` (`@media print`
+    isolates the sheet from all chrome) + `PrintInvoiceButton` (client
+    `window.print()` → Save as PDF). Loaders in `lib/billing/invoice-data.ts`:
+    `loadInvoiceByStore` (dashboard, service-role, store-scoped) and
+    `loadInvoiceForCustomer` (own-order via cookie RLS; both return `storeId`).
+    Routes: `/dashboard/orders/[id]/invoice` (linked from the orders list) and
+    the customer `/checkout/invoice/[orderId]` (noindex; linked from the order-
+    confirmation page; guards the host via `requireStorefrontStoreId()` and
+    404s unless the order belongs to the host store). Access control is UUID +
+    RLS/store-scope, never a guessable code. The invoice's Bill To/Ship To and
+    tax column derive from the ORDER's snapshot (`tax_inclusive`, per-line
+    `tax_rate`), never live settings — historical invoices are immutable.
+
+18. **Online payments — BYO Razorpay per store (Channels).** A merchant
+    connects their OWN Razorpay account at **`/dashboard/channels`** (section
+    `channels`, group Administration); order money settles directly with them
+    — the platform never touches order funds and takes no fee. - **Credentials** live in `store_payment_providers`
+    (`supabase/payment_providers.sql`) — SERVICE-ROLE ONLY (**never** in
+    anon-readable `stores.settings`, §5.9), with the key secret
+    ADDITIONALLY encrypted at the app layer: `lib/payments/crypto.ts`
+    (AES-256-GCM, env `PAYMENT_CRED_KEY` = 32-byte base64; rotation =
+    offline decrypt/re-encrypt). The secret is WRITE-ONLY — no action ever
+    returns it (`getChannelState` exposes only key id + enabled).
+    `app/actions/payment-provider-actions.ts` (tested):
+    `saveRazorpayCredentials` proves the pair against the Razorpay API
+    before storing ("Verify & save"), `setRazorpayEnabled` (pause/resume),
+    `disconnectRazorpay`. Plan gate `PLAN_LIMITS.onlinePayments` (basic+)
+    is enforced server-side on save/enable AND re-checked at checkout —
+    a lapsed plan silently reverts the storefront to COD-only without
+    touching stored credentials. - **Razorpay client** `lib/payments/razorpay.ts` (server-only, plain
+    fetch + basic auth, no SDK; pure helpers tested in
+    `lib/payments/payments.test.ts`): `rzpCreateOrder`,
+    `rzpFetchOrderPayments` (the reconciliation source of truth),
+    `capturedPayment`, `validateCredentials`, `verifyCheckoutSignature`
+    (HMAC-SHA256 of `order_id|payment_id`, constant-time compare).
+    `lib/payments/provider.ts` loads decrypted store creds
+    (`getStoreGateway`) and the platform's env creds
+    (`getPlatformRazorpayCreds` — AI credits only, §16).
+    `lib/payments/razorpay-client.ts` is the CLIENT-side checkout.js
+    loader + typed modal wrapper shared by the storefront checkout and the
+    AI-credits buy panel. - **Checkout flow** (extends convention #12; `orders.razorpay_order_id`/
+    `razorpay_payment_id` added by `supabase/payments_01_orders.sql`):
+    `getCheckoutConfig()` tells the client whether to render the method
+    selector (COD default | "Pay online"). `placeOrder(..., "razorpay")`
+    runs the IDENTICAL validation/repricing/coupon/stock machinery, inserts
+    the order (`payment_method: 'razorpay'`, `payment_status: 'pending'`),
+    then creates the Razorpay Order for the **server-computed total**
+    (paise) with `receipt = order_ref` — any failure there unwinds the full
+    chain (stock → order → coupon) — and returns `{rzpOrderId, keyId,
+amountPaise}` for the modal. `confirmOnlinePayment` verifies the HMAC
+    with the store's decrypted secret and claims the pending→paid
+    transition atomically (idempotent; owner + store scoped). A dismissed
+    modal keeps the order retryable against the SAME Razorpay order
+    ("Retry payment"; any cart/coupon change invalidates the retry). - **No merchant webhooks in v1 — reconcile-on-read:** the success page
+    (`?pm=rzp`) fires `reconcileMyOrderPayment` (owner-gated, asks Razorpay
+    directly), and the reaper `/api/cron/expire-pending-payments`
+    (vercel.json, CRON_SECRET; DAILY on the Vercel Hobby plan, which caps
+    crons at once/day — bump to hourly on Pro; it's only a backstop since the
+    success page reconciles instantly) sweeps razorpay orders pending > 45 min:
+    captured at Razorpay ⇒ mark paid (never lose a paid order); otherwise
+    claim pending→failed, restock via the reserved→released conditional
+    claim (exactly-once, order-actions pattern), release the coupon use,
+    cancel the order. Refunds are out of scope v1 (merchant refunds from
+    their own Razorpay dashboard).
+
+19. **Signup wizard (Shopify-style, `app/platform/signup/page.tsx`).** One
+    client wizard, one focused screen per step, with a progress stepper. Step
+    order: **email → password (+ Continue with Google) → phone OTP → name →
+    store + location → theme → plan**. Data model: names go to
+    `admins.first_name`/`last_name`; the selling **location** (country + city)
+    goes to `stores.settings.business` (anon-readable jsonb — non-secret, prints
+    on invoices; convention #9). Country list in `lib/countries.ts` (pure,
+    client-safe, India-first). - **Auth (Identity Platform, Phase 6)**: email/password via
+    `createUserWithEmailAndPassword` (falls back to `signInWithEmailAndPassword`
+    on `auth/email-already-in-use`); phone via `PhoneAuthProvider.verifyPhoneNumber`
+    (invisible reCAPTCHA) + `updatePhoneNumber`. After each sign-in / phone link
+    the client `establishSession()`s (POST the ID token → httpOnly cookie);
+    `createStore` enforces `phoneConfirmed` server-side via `getServerUser`, so
+    the wizard re-mints the cookie (`establishSession(forceRefresh)`) after phone
+    verify. - **Google**: `signInWithPopup(GoogleAuthProvider)` — entirely
+    client-side, NO OAuth callback route (removed in Phase 6). After the popup +
+    establishSession, the wizard calls `getSignupResumeInfo` to resume at the
+    right step (phone / name / dashboard); the same path recovers a refreshed tab
+    from the session cookie. **Google users have NO password**, so the store-host
+    login (`app/auth/login/login-form.tsx`) ALSO offers "Continue with Google"
+    (signInWithPopup); a Google owner can set a password via "Forgot password?". - **Plan + payment**: the plan step reuses the existing merchant subscription
+    flow (§ subscription-actions). Free finishes immediately; a paid plan
+    (Basic/Pro, monthly/yearly) creates the store first (on free), then opens
+    the Razorpay **autopay mandate** via `startSignupSubscription` /
+    `confirmSignupSubscription` (`app/actions/subscription-actions.ts`). Those
+    are signup-context wrappers: the store was just created on the PLATFORM
+    host, so `getActingStoreId` can't resolve it — the caller passes the new
+    store id and `assertStoreOwner` authorises them as its superadmin, then
+    both delegate to the SAME `startPlanSubscriptionForStore` /
+    `confirmSubscriptionForStore` cores the dashboard uses. An abandoned
+    payment leaves a working Free store (upgrade later at `/dashboard/plans`).
+    Runs on the PLATFORM's Razorpay account (env `RAZORPAY_KEY_ID` /
+    `RAZORPAY_KEY_SECRET`).
 
 ## 6. Commands
 
 ```bash
 npm run dev         # next dev --turbopack (test stores via {slug}.localhost:3000)
+npm run dev:all     # ↑ dev + the Cloud SQL Auth Proxy together (concurrently) — one command
+npm run db:proxy    # just the Cloud SQL Auth Proxy → staging DB on localhost:6543 (needs
+                    #   `gcloud auth application-default login` once for ADC). Local dev
+                    #   reads/writes the staging Cloud SQL instance THROUGH this proxy, so
+                    #   it must be running (else lookupStoreByHost → ECONNREFUSED/ECONNRESET).
 npm run build       # production build
 npm run lint        # eslint
 npm run typecheck   # tsc --noEmit
@@ -668,19 +979,92 @@ npm run format      # prettier --write
 
 ## 7. Environments / external services
 
-- **Supabase**: Postgres + Auth + Storage (`media` bucket). Env in `.env`
-  (never commit secrets). Supabase MCP server available for SQL/migrations.
-  **Auth-hardening (dashboard config — enforce in the Supabase console, not code):**
-  (1) enable **CAPTCHA** (hCaptcha/Turnstile) on Auth so signup/OTP endpoints
-  (`signUp`, `signInWithOtp`, `updateUser({phone})` — merchant + customer) can't
-  be scripted for SMS-pumping / OTP-flooding; (2) turn on **leaked-password
-  protection** (HaveIBeenPwned); (3) keep **SMS/email OTP rate limits** tight.
-  These auth sends happen client-side against Supabase, so the app's Postgres
-  `rateLimit()` can't cover them — the console controls are the real boundary.
-  App-side password floor is 8 chars (`app/platform/signup/page.tsx`).
+- **Supabase** — **fully out of the codebase.** Postgres → Cloud SQL (Phase 5),
+  Auth → Identity Platform (Phase 6), Storage `media` bucket → GCS (Phase 3, now
+  GCS-only — the Supabase Storage fallback + `@supabase/*` deps + `lib/supabase/`
+  were removed; uploads require `GCS_BUCKET`). No `SUPABASE_*` env is read anymore.
+  Existing Supabase-hosted media URLs still serve (and are proxied by
+  `api/og-image`) until the prod media backfill + Supabase-project deletion (see
+  the cutover checklist). App-side password floor is 8 chars
+  (`app/platform/signup/page.tsx`).
+- **Identity Platform (Firebase Auth) — the auth provider (GCP Phase 6).** All
+  auth goes through `lib/auth/*` (see §4). **ENV:**
+  - **One Identity Platform project PER ENVIRONMENT, paired with that env's Cloud
+    SQL instance** (isolation, mirroring the two Cloud SQL instances). The pairing
+    is mandatory because `admins.id`/`users.id` in Cloud SQL ARE the Firebase uid —
+    crossing them (e.g. staging DB + prod project) makes `getServerUser` return
+    uids with no matching row → everything reads as signed-out. So the
+    `NEXT_PUBLIC_FIREBASE_*` (and server SA) values DIFFER per environment:
+    | env | Cloud SQL (`DB_*`) | Firebase/IP project | keys |
+    | ---------- | -------------------- | ------------------- | ----------- |
+    | local dev | `storemink-staging` | **staging** project | staging |
+    | staging | `storemink-staging` | **staging** project | staging |
+    | production | prod instance | **prod** project | prod |
+    Local dev uses the STAGING project (its DB holds staging-project uids), exactly
+    as local dev pointed at the staging Supabase project before. The web `apiKey`
+    is NOT a secret — it's a public project id; separate projects are about
+    ISOLATING test users/SMS from prod, not secrecy.
+  - **Server (Admin SDK)**: `FIREBASE_PROJECT_ID` + `FIREBASE_CLIENT_EMAIL` +
+    `FIREBASE_PRIVATE_KEY` (service account; `\n`-escaped key), OR Application
+    Default Credentials (automatic on Cloud Run; locally set
+    `GOOGLE_APPLICATION_CREDENTIALS` to a SA key file, or `GCP_PROJECT_ID` — either
+    triggers the ADC path). `FIREBASE_API_KEY` (web API key) is ALSO read
+    server-side for the change-password re-verify (the REST
+    `accounts:signInWithPassword` call — the Admin SDK can't check a password).
+  - **Client (Web SDK)**: `NEXT_PUBLIC_FIREBASE_API_KEY`, `_AUTH_DOMAIN`,
+    `_PROJECT_ID`, `_STORAGE_BUCKET`, `_MESSAGING_SENDER_ID`, `_APP_ID` (the public
+    Firebase web config — not secret).
+  - **Console setup (Identity Platform, per project — NOT in code):**
+    - **Providers**: enable **Email/Password**, **Email link (passwordless)** (the
+      operator login uses it), **Google**, and **Phone**. Phone requires
+      **reCAPTCHA** (the app uses an invisible `RecaptchaVerifier`) — this also
+      covers the anti-abuse / SMS-pumping hardening (the old Supabase CAPTCHA item).
+    - **Google**: a Google Cloud OAuth **Web** client; put its client id/secret on
+      the Google provider. Sign-in uses `signInWithPopup` (no callback route), so
+      no app redirect URIs go into Google — only Firebase's own auth handler does.
+    - **Authorized domains** (Authentication → Settings): list every host the app
+      runs on so popup + email-link work — `localhost`, `storemink.com`,
+      `*.storemink.com` (+ the staging equivalents). Unlike Supabase there is NO
+      per-path Redirect-URL matrix; popup / email-link just need the domain
+      authorized. Cross-subdomain session cookies still span `.storemink.com`
+      (set by `/api/auth/session`), so the signup→dashboard handoff works across
+      subdomains on real domains (flaky on `localhost`, as before).
+  - **User import**: bring existing Supabase users into Identity Platform
+    preserving the same **uid** — `admin.auth().importUsers()` with the
+    `auth.users` dump (bcrypt hashes carry over → no password resets). uids stay
+    identical, so every `admins`/`users` FK + the `app.current_user_id` GUC keep
+    working with zero remapping.
 - **Vercel**: hosting + cron. Wildcard domain `*.storemink.com` → store subdomains.
 - **Resend**: transactional email + custom-domain DNS verification.
-- **Gemini**: AI copy generation.
+- **Google Cloud Storage** (media, GCP migration Phase 3 — `lib/storage/gcs.ts`):
+  when **`GCS_BUCKET`** is set, new image/video uploads go to that GCS bucket
+  (public, uniform bucket-level access) and public URLs are
+  `https://storage.googleapis.com/<bucket>/<path>`. Uploads are **GCS-only** now
+  (require `GCS_BUCKET`; no Supabase fallback). Auth via ADC (Cloud Run default
+  SA, or local `gcloud auth application-default login`); optional base64 SA JSON
+  **`GCP_SA_KEY`** for hosts without ADC (Vercel) — and REQUIRED to sign video
+  upload URLs off Cloud Run. Existing Supabase-hosted URLs keep serving; the
+  OG-proxy (`api/og-image` SSRF allowlist), its gate (`lib/og-image.ts`) and
+  `next.config.ts` image `remotePatterns` still recognise BOTH URL formats so
+  legacy media renders until the backfill. Bucket needs CORS (PUT from the app
+  origin) for direct video uploads. No bulk migration of existing objects yet (a
+  pre-decommission backfill copies old objects + rewrites DB URLs).
+- **Gemini / Vertex AI**: AI copy generation (`lib/ai/gemini.ts`, dual backend).
+  When **`GCP_PROJECT_ID`** is set, `callGemini` routes through **Vertex AI** using
+  Application Default Credentials (ADC — no API key; automatic on Cloud Run, local
+  dev via `gcloud auth application-default login`), at **`GCP_LOCATION`** (default
+  `global`). Otherwise it falls back to the Gemini Developer API via
+  **`GEMINI_API_KEY`**. Same request/response shape both ways; callers see the
+  unchanged `{text,error}` contract. This is Phase 1 of the GCP migration (see
+  `docs/gcp-migration-phase5-6.md`); needs `google-auth-library` +
+  `roles/aiplatform.user` on the runtime credentials.
+- **Razorpay** (§18, §16): two SEPARATE credential sets. Per-store BYO gateway
+  creds live in the DB (`store_payment_providers`, encrypted with env
+  **`PAYMENT_CRED_KEY`** — 32-byte base64; generate with
+  `openssl rand -base64 32`). The PLATFORM's own account (AI-credit purchases
+  only) is env **`RAZORPAY_KEY_ID`** / **`RAZORPAY_KEY_SECRET`**. Cron routes
+  (`/api/cron/*`) require **`CRON_SECRET`** (Vercel Cron sends it as a Bearer
+  header).
 - **Search-engine indexing** (`lib/seo/search-engines.ts`): IndexNow needs no
   account (public key file `public/<key>.txt`; `INDEXNOW_KEY` overrides it,
   `INDEXNOW_FORCE=1` enables pings outside prod). Google Search Console
@@ -728,8 +1112,9 @@ Legacy WholeSip fallback remains until all traffic moves to real store hosts.
 - **Deliberately later phases** (not built yet, by choice): online **payments**
   (BYO gateway — merchant connects own Razorpay/Cashfree; checkout is COD-only
   for now), merchant subscription billing for StoreMink plans.
-- **WholeSip cleanup is ongoing**: the product started as the WholeSip site and
-  was converted into StoreMink; remaining WholeSip traces (the `--wholesip-*`
-  CSS tokens, `WHOLESIP_STORE_ID`, repo name) are being removed gradually as features become
-  per-store/settings-based. (The hardcoded homepage/hero and static pages are
-  now migrated — Phase 4.)
+- **WholeSip cleanup is nearly done**: the product started as the WholeSip site
+  and was converted into StoreMink. The hardcoded homepage/hero + static pages
+  are migrated (Phase 4), and the `--wholesip-*` CSS tokens (→ `--sm-*`) and
+  `WHOLESIP_STORE_ID` (→ `FALLBACK_STORE_ID`) are renamed. What remains is only
+  the repo/dir name `wholesip`, the `brand/` dir, and the fallback store's own
+  DB identity (a real store row named "WholeSip") — bigger/data-level, not code.

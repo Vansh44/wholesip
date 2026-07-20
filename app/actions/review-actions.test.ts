@@ -1,17 +1,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock } from "./_test-helpers";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 vi.mock("@/lib/store/resolve", () => ({
   getCurrentStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
-  WHOLESIP_STORE_ID: "a0000000-0000-4000-8000-000000000001",
+  FALLBACK_STORE_ID: "a0000000-0000-4000-8000-000000000001",
+}));
+
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withUser: vi.fn((_identity: any, fn: any) => fn(dbHolder.current.db)),
+  withService: vi.fn((fn: any) => fn(dbHolder.current.db)),
+  withAnon: vi.fn((fn: any) => fn(dbHolder.current.db)),
 }));
 
 import { submitReview, deleteReview } from "./review-actions";
-import { createClient } from "@/lib/supabase/server";
-import { makeChain, makeSupabase } from "./_test-helpers";
+import { getServerUser } from "@/lib/auth/server-user";
 
 const validReview = {
   product_id: "p1",
@@ -20,29 +28,32 @@ const validReview = {
   comment: "Great",
 };
 
-// review-actions.ts — product reviews are written by signed-in users.
+const ada = { firstName: "Ada", lastName: "Lovelace" };
+
+// review-actions.ts — product reviews are written by signed-in users (identity
+// via the getServerUser seam, writes via withUser so own-row RLS applies).
 // The unique (product_id, user_id) constraint makes this an upsert.
 describe("review-actions", () => {
-  let supabase: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    supabase = makeSupabase({
-      users: makeChain({
-        data: { first_name: "Ada", last_name: "Lovelace" },
-        error: null,
-      }),
-      product_reviews: makeChain({ data: null, error: null }),
+    // select #1 = the customer-profile read for the author-name snapshot.
+    dbHolder.current = makeDbMock({ selectQueue: [[ada]] });
+    vi.mocked(getServerUser).mockResolvedValue({
+      id: "user-1",
+      email: "ada@example.com",
+      phone: null,
+      phoneConfirmed: false,
+      metadata: {},
     });
-    vi.mocked(createClient).mockResolvedValue(supabase);
   });
 
   describe("submitReview", () => {
     // Anonymous visitors must sign in to leave a review.
     it("rejects unauthenticated callers", async () => {
-      supabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      vi.mocked(getServerUser).mockResolvedValue(null);
       const result = await submitReview(validReview);
       expect(result.error).toMatch(/sign in/i);
+      expect(dbHolder.current.calls.insert).toHaveLength(0);
     });
 
     // Star rating must be 1–5 — anything else is rejected.
@@ -59,46 +70,58 @@ describe("review-actions", () => {
     // A signed-in user without a users row can't write a review — the
     // join target for the author name is required.
     it("rejects when customer profile is missing", async () => {
-      supabase._tables.users = makeChain({ data: null, error: null });
+      dbHolder.current = makeDbMock({ selectQueue: [[]] });
       const result = await submitReview(validReview);
       expect(result.error).toMatch(/profile/i);
+      expect(dbHolder.current.calls.insert).toHaveLength(0);
     });
 
     // Happy path — upsert with the author name snapshotted onto the review.
     it("upserts the review with snapshotted author name", async () => {
       const result = await submitReview(validReview);
       expect(result.success).toBe(true);
-      const upserted = supabase._tables.product_reviews.upsert.mock.calls[0][0];
-      expect(upserted.author_name).toBe("Ada Lovelace");
-      expect(upserted.product_id).toBe("p1");
-      expect(upserted.rating).toBe(5);
+      const inserted = dbHolder.current.calls.values[0];
+      expect(inserted.authorName).toBe("Ada Lovelace");
+      expect(inserted.productId).toBe("p1");
+      expect(inserted.userId).toBe("user-1");
+      expect(inserted.rating).toBe(5);
+      // The conflict clause turns a duplicate submission into an edit.
+      expect(dbHolder.current.calls.onConflict).toHaveLength(1);
+      expect(dbHolder.current.calls.onConflict[0].set.rating).toBe(5);
     });
 
     // Fallback name when both first/last are missing/empty.
     it("falls back to 'Anonymous' when the customer's name is empty", async () => {
-      supabase._tables.users = makeChain({
-        data: { first_name: "", last_name: null },
-        error: null,
+      dbHolder.current = makeDbMock({
+        selectQueue: [[{ firstName: "", lastName: null }]],
       });
       await submitReview(validReview);
-      const upserted = supabase._tables.product_reviews.upsert.mock.calls[0][0];
-      expect(upserted.author_name).toBe("Anonymous");
+      expect(dbHolder.current.calls.values[0].authorName).toBe("Anonymous");
     });
 
     // Float ratings (4.7) get truncated to int (4).
     it("truncates fractional ratings to integers", async () => {
       await submitReview({ ...validReview, rating: 4.7 });
-      const upserted = supabase._tables.product_reviews.upsert.mock.calls[0][0];
-      expect(upserted.rating).toBe(4);
+      expect(dbHolder.current.calls.values[0].rating).toBe(4);
+    });
+
+    // DB failure surfaces the message.
+    it("returns the error message when the upsert fails", async () => {
+      dbHolder.current.db.insert = vi.fn(() => {
+        throw new Error("boom");
+      });
+      const result = await submitReview(validReview);
+      expect(result.error).toBe("boom");
     });
   });
 
   describe("deleteReview", () => {
     // Anonymous visitors blocked.
     it("rejects unauthenticated callers", async () => {
-      supabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      vi.mocked(getServerUser).mockResolvedValue(null);
       const result = await deleteReview("r1", "almonds");
       expect(result.error).toMatch(/sign in/i);
+      expect(dbHolder.current.calls.delete).toHaveLength(0);
     });
 
     // Happy path — the action triggers a delete on product_reviews
@@ -106,7 +129,7 @@ describe("review-actions", () => {
     it("issues a delete on product_reviews", async () => {
       const result = await deleteReview("r1", "almonds");
       expect(result.success).toBe(true);
-      expect(supabase._tables.product_reviews.delete).toHaveBeenCalled();
+      expect(dbHolder.current.calls.delete).toHaveLength(1);
     });
   });
 });

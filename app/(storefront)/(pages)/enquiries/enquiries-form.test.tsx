@@ -16,14 +16,22 @@ vi.mock("@/app/actions/enquiry-actions", () => ({
   submitEnquiry: vi.fn(),
 }));
 
-// Throwaway Supabase OTP client. Shared spies via vi.hoisted so the factory and
-// the tests reference the same fns.
-const { signInWithOtp, verifyOtp } = vi.hoisted(() => ({
-  signInWithOtp: vi.fn(),
-  verifyOtp: vi.fn(),
+// Isolated secondary-app phone verify. Shared spies via vi.hoisted so the
+// factory and tests reference the same fns.
+const { signInWithPhoneNumber, confirm, secondarySignOut } = vi.hoisted(() => ({
+  signInWithPhoneNumber: vi.fn(),
+  confirm: vi.fn(),
+  secondarySignOut: vi.fn(),
 }));
-vi.mock("@supabase/supabase-js", () => ({
-  createClient: vi.fn(() => ({ auth: { signInWithOtp, verifyOtp } })),
+vi.mock("firebase/auth", () => ({
+  RecaptchaVerifier: class {
+    clear() {}
+  },
+  signInWithPhoneNumber,
+}));
+vi.mock("@/lib/auth/firebase-client", () => ({
+  getSecondaryFirebaseAuth: vi.fn(() => ({ signOut: secondarySignOut })),
+  firebaseAuthErrorMessage: vi.fn(() => "Something went wrong."),
 }));
 
 import EnquiriesForm from "./enquiries-form";
@@ -47,8 +55,9 @@ describe("EnquiriesForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setAuth(LOGGED_OUT);
-    signInWithOtp.mockResolvedValue({ error: null });
-    verifyOtp.mockResolvedValue({ error: null });
+    confirm.mockResolvedValue({});
+    signInWithPhoneNumber.mockResolvedValue({ confirm });
+    secondarySignOut.mockResolvedValue(undefined);
     mockedSubmit.mockResolvedValue({ success: true } as any);
   });
 
@@ -185,9 +194,9 @@ describe("EnquiriesForm", () => {
 
     await user.click(screen.getByRole("button", { name: /^verify$/i }));
 
-    // OTP grid appears once signInWithOtp resolves.
+    // OTP grid appears once signInWithPhoneNumber resolves.
     expect(await screen.findByText(/Enter the 6-digit code/)).toBeTruthy();
-    expect(signInWithOtp).toHaveBeenCalledTimes(1);
+    expect(signInWithPhoneNumber).toHaveBeenCalledTimes(1);
 
     // Fill the 6 digits; the 6th auto-triggers verify. Use synchronous
     // fireEvent.change (re-querying each input by label) rather than
@@ -205,10 +214,10 @@ describe("EnquiriesForm", () => {
       await screen.findByText(/· verified/, undefined, { timeout: 3000 }),
     ).toBeTruthy();
 
-    expect(verifyOtp).toHaveBeenCalledTimes(1);
-    expect(verifyOtp).toHaveBeenCalledWith(
-      expect.objectContaining({ token: "123456", type: "sms" }),
-    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledWith("123456");
+    // The throwaway secondary session is discarded after verifying.
+    expect(secondarySignOut).toHaveBeenCalled();
 
     // Submit enabled.
     const btn = screen.getByRole("button", {

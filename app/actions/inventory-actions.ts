@@ -1,8 +1,16 @@
 "use server";
 
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService } from "@/lib/db/client";
+import { dbErrorMessage } from "@/lib/db/errors";
+import {
+  categories,
+  productVariants,
+  products,
+  stockMovements,
+  stores,
+} from "@/drizzle/schema";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { DASHBOARD_PAGE_SIZE } from "@/app/dashboard/lib/list-params";
 import { TAGS } from "@/lib/storefront/tags";
@@ -66,73 +74,121 @@ export async function getInventory({
     };
 
   const storeId = await getActingStoreId();
-  const supabase = await createClient();
 
-  // We need the store's default low stock threshold
-  const { data: store } = await supabase
-    .from("stores")
-    .select("settings, plan")
-    .eq("id", storeId)
-    .single();
-  const settings = resolveStoreSettings(
-    store?.settings as Record<string, unknown>,
-    store?.plan,
-  );
-  const defaultLowThreshold =
-    (settings["inventory.lowStockThreshold"] as number) ?? 5;
-
-  // We need to fetch simple products (products without variants) and product variants.
-  // Instead of complex UNIONs via postgrest, we'll fetch both, combine in memory, sort and paginate.
-  // This is safe since we have ilike and category filters. For very large stores this might need
-  // a custom RPC or materialized view, but this matches the Phase 1 scope.
-
-  let productsQuery = supabase
-    .from("products")
-    .select("*, category:categories(name)");
-
-  let variantsQuery = supabase
-    .from("product_variants")
-    .select("*, product:products!inner(*, category:categories(name))");
-
-  productsQuery = productsQuery.eq("store_id", storeId);
-  variantsQuery = variantsQuery.eq("store_id", storeId);
-
-  if (categoryId && categoryId !== "all") {
-    productsQuery = productsQuery.eq("category_id", categoryId);
-    variantsQuery = variantsQuery.eq("product.category_id", categoryId);
+  // The store's default low-stock threshold.
+  let defaultLowThreshold = 5;
+  try {
+    const storeRows = await withService((db) =>
+      db
+        .select({ settings: stores.settings, plan: stores.plan })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1),
+    );
+    const settings = resolveStoreSettings(
+      storeRows[0]?.settings as Record<string, unknown>,
+      storeRows[0]?.plan,
+    );
+    defaultLowThreshold =
+      (settings["inventory.lowStockThreshold"] as number) ?? 5;
+  } catch (err) {
+    console.error("getInventory settings:", err);
   }
 
-  // NOTE: search (q) is applied in-memory below, NOT as a PostgREST `.or()`
-  // filter. This action already fetches every row for the store and paginates
-  // in memory, and a raw `.or()` string breaks on product names with PostgREST
-  // control characters — e.g. "Fresh Orange Juice (1 L)" makes the parentheses
-  // part of the filter grammar → "failed to parse logic tree". In-memory
-  // matching is punctuation-safe and injection-proof (no string is ever
-  // interpolated into a filter).
+  // We need to fetch simple products (products without variants) and product
+  // variants. Instead of a SQL UNION, we fetch both, combine in memory, sort
+  // and paginate. This is safe since we have the category filter. For very
+  // large stores this might need a custom RPC or materialized view, but this
+  // matches the Phase 1 scope. Aliased snake_case selects keep the rows in the
+  // shape lib/inventory/status.ts expects.
+  const prodConds = [eq(products.storeId, storeId)];
+  const varConds = [eq(productVariants.storeId, storeId)];
+  if (categoryId && categoryId !== "all") {
+    prodConds.push(eq(products.categoryId, categoryId));
+    varConds.push(eq(products.categoryId, categoryId));
+  }
 
-  const [productsRes, variantsRes] = await Promise.all([
-    productsQuery,
-    variantsQuery,
-  ]);
-
-  if (productsRes.error)
+  let productRows: {
+    id: string;
+    name: string;
+    sku: string | null;
+    stock: number;
+    track_inventory: boolean;
+    low_stock_threshold: number | null;
+    allow_backorder: boolean;
+    image_url: string | null;
+    images: string[] | null;
+    category: string | null;
+  }[];
+  let variantRows: {
+    id: string;
+    product_id: string;
+    name: string;
+    sku: string | null;
+    stock: number;
+    track_inventory: boolean;
+    low_stock_threshold: number | null;
+    allow_backorder: boolean;
+    image_url: string | null;
+    images: string[] | null;
+    product_name: string;
+    product_image: string | null;
+    category: string | null;
+  }[];
+  try {
+    [productRows, variantRows] = await withService((db) =>
+      Promise.all([
+        db
+          .select({
+            id: products.id,
+            name: products.name,
+            sku: products.sku,
+            stock: products.stock,
+            track_inventory: products.trackInventory,
+            low_stock_threshold: products.lowStockThreshold,
+            allow_backorder: products.allowBackorder,
+            image_url: products.imageUrl,
+            images: products.images,
+            category: categories.name,
+          })
+          .from(products)
+          .leftJoin(categories, eq(products.categoryId, categories.id))
+          .where(and(...prodConds)),
+        db
+          .select({
+            id: productVariants.id,
+            product_id: productVariants.productId,
+            name: productVariants.name,
+            sku: productVariants.sku,
+            stock: productVariants.stock,
+            track_inventory: productVariants.trackInventory,
+            low_stock_threshold: productVariants.lowStockThreshold,
+            allow_backorder: productVariants.allowBackorder,
+            image_url: productVariants.imageUrl,
+            images: productVariants.images,
+            product_name: products.name,
+            product_image: products.imageUrl,
+            category: categories.name,
+          })
+          .from(productVariants)
+          .innerJoin(products, eq(productVariants.productId, products.id))
+          .leftJoin(categories, eq(products.categoryId, categories.id))
+          .where(and(...varConds)),
+      ]),
+    );
+  } catch (err) {
+    console.error("getInventory:", err);
     return {
       rows: [],
       total: 0,
       lowStockThreshold: defaultLowThreshold,
-      error: productsRes.error.message,
+      error: dbErrorMessage(err, "Failed to load inventory."),
     };
-  if (variantsRes.error)
-    return {
-      rows: [],
-      total: 0,
-      lowStockThreshold: defaultLowThreshold,
-      error: variantsRes.error.message,
-    };
+  }
 
   // Identify simple products by finding products that have no variants
-  const variantProductIds = new Set(variantsRes.data.map((v) => v.product_id));
-  const simpleProducts = productsRes.data.filter(
+  const variantProductIds = new Set(variantRows.map((v) => v.product_id));
+  const simpleProducts = productRows.filter(
     (p) => !variantProductIds.has(p.id),
   );
 
@@ -153,33 +209,34 @@ export async function getInventory({
       lowStockThreshold: p.low_stock_threshold,
       allowBackorder: p.allow_backorder,
       status,
-      category: p.category?.name ?? null,
+      category: p.category ?? null,
       image: p.image_url ?? p.images?.[0] ?? null,
     });
   }
 
-  for (const v of variantsRes.data) {
+  for (const v of variantRows) {
     const status = inventoryStatus(v, defaultLowThreshold);
 
     allRows.push({
       id: `v-${v.id}`,
       productId: v.product_id,
       variantId: v.id,
-      name: v.product.name,
+      name: v.product_name,
       variantName: v.name,
       sku: v.sku,
       stock: v.stock,
       trackInventory: v.track_inventory,
       lowStockThreshold: v.low_stock_threshold,
       allowBackorder: v.allow_backorder,
-      category: v.product.category?.name ?? null,
-      image: v.image_url ?? v.images?.[0] ?? v.product.image_url ?? null,
+      category: v.category ?? null,
+      image: v.image_url ?? v.images?.[0] ?? v.product_image ?? null,
       status,
     });
   }
 
-  // Search — in-memory match on product name, variant name, or SKU. Safe for any
-  // punctuation the merchant uses in names (see the note above).
+  // Search — in-memory match on product name, variant name, or SKU. Safe for
+  // any punctuation the merchant uses in names, and this action already
+  // fetches every row for the store and paginates in memory.
   const term = q.trim().toLowerCase().slice(0, 200);
   if (term) {
     allRows = allRows.filter(
@@ -219,22 +276,21 @@ export async function adjustStock(
   if (!userId) return { error: "Not authenticated" };
 
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
-  const { data, error } = await admin.rpc("adjust_stock", {
-    p_store: storeId,
-    p_product: productId,
-    p_variant: variantId || null,
-    p_delta: delta,
-    p_reason: reason,
-    p_note: note || null,
-    p_actor: userId,
-  });
-
-  if (error) return { error: error.message };
-
-  revalidateTag(TAGS.products, "max");
-  return { success: true, newStock: data as number };
+  try {
+    // The unchanged Postgres function does the atomic, row-locked adjustment
+    // and writes the ledger row.
+    const res = await withService((db) =>
+      db.execute(
+        sql`select adjust_stock(p_store => ${storeId}, p_product => ${productId}, p_variant => ${variantId || null}, p_delta => ${delta}, p_reason => ${reason}, p_note => ${note || null}, p_actor => ${userId}) as new_stock`,
+      ),
+    );
+    revalidateTag(TAGS.products, "max");
+    const row = res.rows[0] as { new_stock: number | string } | undefined;
+    return { success: true, newStock: Number(row?.new_stock) };
+  } catch (err) {
+    return { error: dbErrorMessage(err, "Failed to adjust stock.") };
+  }
 }
 
 export async function setStock(
@@ -247,20 +303,35 @@ export async function setStock(
   if (!userId) return { error: "Not authenticated" };
 
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
   // First fetch current stock to compute delta
-  const table = variantId ? "product_variants" : "products";
-  const id = variantId || productId;
-
-  const { data: row, error: fetchError } = await admin
-    .from(table)
-    .select("stock")
-    .eq("id", id)
-    .eq("store_id", storeId)
-    .single();
-
-  if (fetchError) return { error: fetchError.message };
+  let row: { stock: number } | undefined;
+  try {
+    const rows = await withService((db) =>
+      variantId
+        ? db
+            .select({ stock: productVariants.stock })
+            .from(productVariants)
+            .where(
+              and(
+                eq(productVariants.id, variantId),
+                eq(productVariants.storeId, storeId),
+              ),
+            )
+            .limit(1)
+        : db
+            .select({ stock: products.stock })
+            .from(products)
+            .where(
+              and(eq(products.id, productId), eq(products.storeId, storeId)),
+            )
+            .limit(1),
+    );
+    row = rows[0];
+  } catch (err) {
+    return { error: dbErrorMessage(err, "Failed to read current stock.") };
+  }
+  if (!row) return { error: "SKU not found." };
 
   const currentStock = row.stock;
   const delta = quantity - currentStock;
@@ -288,12 +359,9 @@ export async function bulkAdjust(
   if (items.length > MAX_BULK_ITEMS) return { error: "Too many items." };
 
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
   // "Set" items need each SKU's current balance to compute a delta. Batch-read
-  // them in ONE query per table instead of a round-trip per item (the previous
-  // implementation went through setStock → a SELECT + an RPC + a cache bust for
-  // every single item).
+  // them in ONE query per table instead of a round-trip per item.
   const setItems = items.filter((i) => i.set !== undefined);
   const currentStock = new Map<string, number>(); // key: variantId || productId
   if (setItems.length > 0) {
@@ -303,26 +371,41 @@ export async function bulkAdjust(
     const variantIds = setItems
       .filter((i) => i.variantId)
       .map((i) => i.variantId!);
-    const [prodRes, varRes] = await Promise.all([
-      productIds.length
-        ? admin
-            .from("products")
-            .select("id, stock")
-            .eq("store_id", storeId)
-            .in("id", productIds)
-        : Promise.resolve({ data: [], error: null }),
-      variantIds.length
-        ? admin
-            .from("product_variants")
-            .select("id, stock")
-            .eq("store_id", storeId)
-            .in("id", variantIds)
-        : Promise.resolve({ data: [], error: null }),
-    ]);
-    if (prodRes.error) return { error: prodRes.error.message };
-    if (varRes.error) return { error: varRes.error.message };
-    for (const r of prodRes.data ?? []) currentStock.set(r.id, r.stock);
-    for (const r of varRes.data ?? []) currentStock.set(r.id, r.stock);
+    try {
+      const [prodRows, varRows] = await withService((db) =>
+        Promise.all([
+          productIds.length
+            ? db
+                .select({ id: products.id, stock: products.stock })
+                .from(products)
+                .where(
+                  and(
+                    eq(products.storeId, storeId),
+                    inArray(products.id, productIds),
+                  ),
+                )
+            : Promise.resolve([]),
+          variantIds.length
+            ? db
+                .select({
+                  id: productVariants.id,
+                  stock: productVariants.stock,
+                })
+                .from(productVariants)
+                .where(
+                  and(
+                    eq(productVariants.storeId, storeId),
+                    inArray(productVariants.id, variantIds),
+                  ),
+                )
+            : Promise.resolve([]),
+        ]),
+      );
+      for (const r of prodRows) currentStock.set(r.id, r.stock);
+      for (const r of varRows) currentStock.set(r.id, r.stock);
+    } catch (err) {
+      return { error: dbErrorMessage(err, "Failed to read current stock.") };
+    }
   }
 
   // Resolve each item to a concrete delta, skipping no-ops and unknown SKUs.
@@ -341,19 +424,18 @@ export async function bulkAdjust(
 
   if (ops.length === 0) return { success: true };
 
-  // Fire the atomic RPCs concurrently (each is an independent, row-locked UPDATE
-  // on a distinct SKU) rather than sequentially.
+  // Fire the atomic RPCs concurrently (each is an independent, row-locked
+  // UPDATE on a distinct SKU) rather than sequentially.
   const results = await Promise.all(
     ops.map((op) =>
-      admin.rpc("adjust_stock", {
-        p_store: storeId,
-        p_product: op.item.productId,
-        p_variant: op.item.variantId || null,
-        p_delta: op.delta,
-        p_reason: op.reason,
-        p_note: "Bulk update",
-        p_actor: userId,
-      }),
+      withService((db) =>
+        db.execute(
+          sql`select adjust_stock(p_store => ${storeId}, p_product => ${op.item.productId}, p_variant => ${op.item.variantId || null}, p_delta => ${op.delta}, p_reason => ${op.reason}, p_note => ${"Bulk update"}, p_actor => ${userId})`,
+        ),
+      ).then(
+        () => null,
+        (err) => err as unknown,
+      ),
     ),
   );
 
@@ -361,8 +443,8 @@ export async function bulkAdjust(
   // ops may have succeeded even if one failed, so revalidate regardless.
   revalidateTag(TAGS.products, "max");
 
-  const failed = results.find((r) => r.error);
-  if (failed?.error) return { error: failed.error.message };
+  const failed = results.find((r) => r !== null);
+  if (failed) return { error: dbErrorMessage(failed, "Some updates failed.") };
   return { success: true };
 }
 
@@ -375,30 +457,51 @@ export async function getMovements(
   if (!userId) return { movements: [], total: 0, error: "Not authenticated" };
 
   const storeId = await getActingStoreId();
-  const supabase = await createClient();
 
-  let query = supabase
-    .from("stock_movements")
-    .select("*", { count: "exact" })
-    .eq("store_id", storeId)
-    .eq("product_id", productId);
-
+  const conds = [
+    eq(stockMovements.storeId, storeId),
+    eq(stockMovements.productId, productId),
+  ];
   if (variantId) {
-    query = query.eq("variant_id", variantId);
+    conds.push(eq(stockMovements.variantId, variantId));
   } else if (variantId === null) {
-    query = query.is("variant_id", null);
+    conds.push(isNull(stockMovements.variantId));
   }
+  const whereExpr = and(...conds);
 
   const p = page || 1;
   const pageSize = DASHBOARD_PAGE_SIZE;
   const start = (p - 1) * pageSize;
 
-  query = query
-    .order("created_at", { ascending: false })
-    .range(start, start + pageSize - 1);
-
-  const { data, count, error } = await query;
-  if (error) return { movements: [], total: 0, error: error.message };
-
-  return { movements: (data as StockMovementRow[]) || [], total: count || 0 };
+  try {
+    const { rows, total } = await withService(async (db) => {
+      const [rows, countRows] = await Promise.all([
+        db
+          .select({
+            id: stockMovements.id,
+            delta: stockMovements.delta,
+            reason: stockMovements.reason,
+            balance_after: stockMovements.balanceAfter,
+            note: stockMovements.note,
+            created_by: stockMovements.createdBy,
+            created_at: stockMovements.createdAt,
+            order_id: stockMovements.orderId,
+          })
+          .from(stockMovements)
+          .where(whereExpr)
+          .orderBy(desc(stockMovements.createdAt))
+          .limit(pageSize)
+          .offset(start),
+        db.select({ n: count() }).from(stockMovements).where(whereExpr),
+      ]);
+      return { rows, total: countRows[0]?.n ?? 0 };
+    });
+    return { movements: rows as StockMovementRow[], total };
+  } catch (err) {
+    return {
+      movements: [],
+      total: 0,
+      error: dbErrorMessage(err, "Failed to load stock history."),
+    };
+  }
 }

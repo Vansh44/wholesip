@@ -1,7 +1,11 @@
 "use server";
 
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { deleteAuthUser } from "@/lib/auth/firebase-users";
+import { withService } from "@/lib/db/client";
+import { isUniqueViolation } from "@/lib/db/errors";
+import { users } from "@/drizzle/schema";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 
 export interface ActionResult {
@@ -40,19 +44,20 @@ export async function updateCustomer(
     return { error: "Please enter a valid email address." };
   }
 
-  // Scope by store_id: the service-role client bypasses RLS, so without this a
-  // store admin could edit ANY store's customer by passing its id.
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("users")
-    .update({ first_name: firstName, last_name: lastName, email })
-    .eq("id", id)
-    .eq("store_id", await getActingStoreId());
-
-  if (error) {
-    console.error("Failed to update customer:", error);
-    // 23505 = unique_violation (email is UNIQUE on the customers table).
-    if (error.code === "23505") {
+  // Scope by store_id: the service scope bypasses RLS, so without this a store
+  // admin could edit ANY store's customer by passing its id.
+  const storeId = await getActingStoreId();
+  try {
+    await withService((db) =>
+      db
+        .update(users)
+        .set({ firstName, lastName, email })
+        .where(and(eq(users.id, id), eq(users.storeId, storeId))),
+    );
+  } catch (err) {
+    console.error("Failed to update customer:", err);
+    // 23505 = unique_violation (email is UNIQUE on the users table).
+    if (isUniqueViolation(err)) {
       return { error: "That email is already used by another customer." };
     }
     return { error: "Failed to save changes. Please try again." };
@@ -64,9 +69,11 @@ export async function updateCustomer(
 }
 
 /**
- * Dashboard: permanently delete a customer. Removing the auth user cascades to
- * the `customers` row (id REFERENCES auth.users ON DELETE CASCADE) and to any
- * reviews / blog links keyed on the customer. Guarded by "users" manage.
+ * Dashboard: permanently delete a customer — the Cloud SQL `users` row (which
+ * cascades to reviews / blog links keyed on the customer) AND the Identity
+ * Platform login. Both are removed explicitly: auth and profile now live in
+ * separate systems, so there's no `auth.users` cascade to lean on. Guarded by
+ * "users" manage.
  */
 export async function deleteCustomer(id: string): Promise<ActionResult> {
   const managerId = await getManagerUserId("users");
@@ -74,40 +81,36 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
     return { error: "You don't have permission to manage users." };
   }
 
-  const admin = createAdminClient();
   const storeId = await getActingStoreId();
 
-  // Confirm the customer belongs to THIS store before touching the global auth
-  // user. `deleteUser(id)` operates on auth.users directly (no store scoping), so
-  // without this gate a store admin could delete any customer — or even another
-  // store's admin / a platform operator — by id. The store-scoped users row is
-  // the ownership record we check first.
-  const { data: target } = await admin
-    .from("users")
-    .select("id")
-    .eq("id", id)
-    .eq("store_id", storeId)
-    .maybeSingle();
-  if (!target) return { error: "Customer not found." };
+  // Confirm the customer belongs to THIS store before deleting anything. The
+  // auth account (deleteAuthUser) is global/unscoped, so without this gate a
+  // store admin could delete any customer — or another store's user — by id.
+  // The store-scoped users row is the ownership record we check first.
+  const target = await withService((db) =>
+    db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, id), eq(users.storeId, storeId)))
+      .limit(1),
+  ).catch(() => []);
+  if (!target[0]) return { error: "Customer not found." };
 
-  // Delete the auth account first; the customers row cascades from it. If the
-  // auth user is already gone, fall back to deleting the (store-scoped) row.
-  const { error: authError } = await admin.auth.admin.deleteUser(id);
-  if (authError && !/not\s*found/i.test(authError.message)) {
-    console.error("Failed to delete customer auth user:", authError);
+  // Delete the store-scoped profile row (authoritative), then the login.
+  try {
+    await withService((db) =>
+      db.delete(users).where(and(eq(users.id, id), eq(users.storeId, storeId))),
+    );
+  } catch (err) {
+    console.error("Failed to delete customer row:", err);
     return { error: "Failed to delete customer. Please try again." };
   }
 
-  if (authError) {
-    const { error } = await admin
-      .from("users")
-      .delete()
-      .eq("id", id)
-      .eq("store_id", storeId);
-    if (error) {
-      console.error("Failed to delete orphaned customer row:", error);
-      return { error: "Failed to delete customer. Please try again." };
-    }
+  try {
+    await deleteAuthUser(id); // best-effort; tolerates an already-gone account
+  } catch (err) {
+    console.error("Failed to delete customer auth user:", err);
+    return { error: "Failed to delete customer. Please try again." };
   }
 
   revalidatePath("/dashboard/users");

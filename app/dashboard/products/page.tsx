@@ -1,13 +1,33 @@
-import { createClient } from "@/lib/supabase/server";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  or,
+} from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import {
+  cardColors,
+  categories,
+  productVariants,
+  products,
+  stores,
+  taxClasses,
+} from "@/drizzle/schema";
+import { PRODUCT_COLUMNS } from "./columns";
 import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import {
   DASHBOARD_PAGE_SIZE,
-  ilikeOr,
   pickPage,
   pickParam,
   sanitizeSearch,
 } from "../lib/list-params";
 import { ProductsManagementView } from "./products-management-view";
+import { RealtimeRefresher } from "../components/realtime-refresher";
 import { resolveStoreSettings } from "@/lib/settings/registry";
 
 export type ProductFilter = "all" | "published" | "drafts" | "featured";
@@ -68,6 +88,7 @@ export interface Product {
   low_stock_threshold: number | null;
   allow_backorder: boolean;
   sku: string | null;
+  tax_class_id: string | null;
   created_at: string;
   updated_at: string;
   // Joined
@@ -80,6 +101,12 @@ export interface CategoryOption {
   name: string;
   slug: string;
   status: "active" | "hidden";
+}
+
+export interface TaxClassOption {
+  id: string;
+  name: string;
+  rate: number;
 }
 
 export interface CardColorOption {
@@ -105,87 +132,175 @@ export default async function ProductsPage({
   const pageSize = DASHBOARD_PAGE_SIZE;
   const from = (page - 1) * pageSize;
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
 
-  // The list view only shows a variant COUNT (editing re-fetches the full
-  // product + variants via /dashboard/products/[id]), so pull just variant ids
-  // instead of every variant row with its images[] arrays.
-  let listQuery = supabase
-    .from("products")
-    .select(
-      "*, category:categories(id, name, slug), variants:product_variants(id)",
-      { count: "exact" },
-    )
-    .eq("store_id", storeId)
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: false });
-
-  if (filter === "published") listQuery = listQuery.eq("status", "published");
-  else if (filter === "drafts") listQuery = listQuery.eq("status", "draft");
-  else if (filter === "featured") listQuery = listQuery.eq("featured", true);
+  const conds = [eq(products.storeId, storeId)];
+  if (filter === "published") conds.push(eq(products.status, "published"));
+  else if (filter === "drafts") conds.push(eq(products.status, "draft"));
+  else if (filter === "featured") conds.push(eq(products.featured, true));
 
   if (categoryFilter === "uncategorized")
-    listQuery = listQuery.is("category_id", null);
+    conds.push(isNull(products.categoryId));
   else if (categoryFilter !== "all")
-    listQuery = listQuery.eq("category_id", categoryFilter);
+    conds.push(eq(products.categoryId, categoryFilter));
 
   const term = sanitizeSearch(q);
-  if (term) listQuery = listQuery.or(ilikeOr(["name", "slug"], term));
+  if (term) {
+    const pat = `%${term}%`;
+    conds.push(or(ilike(products.name, pat), ilike(products.slug, pat))!);
+  }
+  const whereExpr = and(...conds);
 
-  const countQuery = () =>
-    supabase
-      .from("products")
-      .select("id", { count: "exact", head: true })
-      .eq("store_id", storeId);
+  let list: Product[];
+  let total: number;
+  let counts: ProductCounts;
+  let categoryOptions: CategoryOption[];
+  let colorOptions: CardColorOption[];
+  let taxClassOptions: TaxClassOption[];
+  let defaultTrackInventory: boolean;
+  try {
+    const result = await withService(async (db) => {
+      const [
+        rows,
+        countRows,
+        statusRows,
+        featuredRows,
+        categoryRows,
+        colorRows,
+        taxClassRows,
+        storeRows,
+      ] = await Promise.all([
+        db
+          .select({
+            ...PRODUCT_COLUMNS,
+            cat_id: categories.id,
+            cat_name: categories.name,
+            cat_slug: categories.slug,
+          })
+          .from(products)
+          .leftJoin(categories, eq(products.categoryId, categories.id))
+          .where(whereExpr)
+          .orderBy(asc(products.sortOrder), desc(products.createdAt))
+          .limit(pageSize)
+          .offset(from),
+        db.select({ n: count() }).from(products).where(whereExpr),
+        // One grouped count for the status tabs; featured is its own dimension.
+        db
+          .select({ status: products.status, n: count() })
+          .from(products)
+          .where(eq(products.storeId, storeId))
+          .groupBy(products.status),
+        db
+          .select({ n: count() })
+          .from(products)
+          .where(
+            and(eq(products.storeId, storeId), eq(products.featured, true)),
+          ),
+        db
+          .select({
+            id: categories.id,
+            name: categories.name,
+            slug: categories.slug,
+            status: categories.status,
+          })
+          .from(categories)
+          .where(eq(categories.storeId, storeId))
+          .orderBy(asc(categories.sortOrder), asc(categories.name)),
+        db
+          .select({
+            id: cardColors.id,
+            name: cardColors.name,
+            hex: cardColors.hex,
+          })
+          .from(cardColors)
+          .where(eq(cardColors.storeId, storeId))
+          .orderBy(asc(cardColors.sortOrder), asc(cardColors.name)),
+        db
+          .select({
+            id: taxClasses.id,
+            name: taxClasses.name,
+            rate: taxClasses.rate,
+          })
+          .from(taxClasses)
+          .where(eq(taxClasses.storeId, storeId))
+          .orderBy(asc(taxClasses.sortOrder), asc(taxClasses.name)),
+        db
+          .select({ settings: stores.settings, plan: stores.plan })
+          .from(stores)
+          .where(eq(stores.id, storeId))
+          .limit(1),
+      ]);
 
-  const [
-    { data: products, error, count },
-    { data: categories },
-    { data: colors },
-    { data: storeRow },
-    allRes,
-    publishedRes,
-    draftsRes,
-    featuredRes,
-  ] = await Promise.all([
-    listQuery.range(from, from + pageSize - 1),
-    supabase
-      .from("categories")
-      .select("id, name, slug, status")
-      .eq("store_id", storeId)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
-    supabase
-      .from("card_colors")
-      .select("id, name, hex")
-      .eq("store_id", storeId)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
-    supabase.from("stores").select("settings, plan").eq("id", storeId).single(),
-    countQuery(),
-    countQuery().eq("status", "published"),
-    countQuery().eq("status", "draft"),
-    countQuery().eq("featured", true),
-  ]);
+      // The list view only shows a variant COUNT (editing re-fetches the full
+      // product + variants via /dashboard/products/[id]), so pull just variant
+      // ids for the products on this page.
+      const pageIds = rows.map((r) => r.id);
+      const variantIds = pageIds.length
+        ? await db
+            .select({
+              id: productVariants.id,
+              product_id: productVariants.productId,
+            })
+            .from(productVariants)
+            .where(inArray(productVariants.productId, pageIds))
+        : [];
 
-  // Store default for the "track inventory" checkbox on NEW simple products.
-  const settings = resolveStoreSettings(
-    storeRow?.settings as Record<string, unknown>,
-    storeRow?.plan,
-  );
-  const defaultTrackInventory = Boolean(
-    settings["inventory.simpleTrackDefault"],
-  );
+      return {
+        rows,
+        total: countRows[0]?.n ?? 0,
+        statusRows,
+        featuredCount: featuredRows[0]?.n ?? 0,
+        categoryRows,
+        colorRows,
+        taxClassRows,
+        storeRow: storeRows[0],
+        variantIds,
+      };
+    });
 
-  const counts: ProductCounts = {
-    all: allRes.count ?? 0,
-    published: publishedRes.count ?? 0,
-    drafts: draftsRes.count ?? 0,
-    featured: featuredRes.count ?? 0,
-  };
+    const variantsByProduct = new Map<string, { id: string }[]>();
+    for (const v of result.variantIds) {
+      const listForProduct = variantsByProduct.get(v.product_id) ?? [];
+      listForProduct.push({ id: v.id });
+      variantsByProduct.set(v.product_id, listForProduct);
+    }
 
-  if (error) {
+    list = result.rows.map((row) => {
+      const { cat_id, cat_name, cat_slug, ...productFields } = row;
+      return {
+        ...productFields,
+        category: cat_id
+          ? { id: cat_id, name: cat_name!, slug: cat_slug! }
+          : null,
+        variants: variantsByProduct.get(row.id) ?? [],
+      };
+    }) as unknown as Product[];
+    total = result.total;
+
+    counts = {
+      all: 0,
+      published: 0,
+      drafts: 0,
+      featured: result.featuredCount,
+    };
+    for (const row of result.statusRows) {
+      counts.all += row.n;
+      if (row.status === "published") counts.published = row.n;
+      else if (row.status === "draft") counts.drafts = row.n;
+    }
+
+    // Store default for the "track inventory" checkbox on NEW simple products.
+    const settings = resolveStoreSettings(
+      result.storeRow?.settings as Record<string, unknown>,
+      result.storeRow?.plan,
+    );
+    defaultTrackInventory = Boolean(settings["inventory.simpleTrackDefault"]);
+
+    categoryOptions = result.categoryRows as CategoryOption[];
+    colorOptions = result.colorRows as CardColorOption[];
+    taxClassOptions = result.taxClassRows as TaxClassOption[];
+  } catch (err) {
+    console.error("ProductsPage load error:", err);
     return (
       <div className="max-w-md border border-destructive/20 bg-destructive/5 p-6 text-sm text-destructive">
         <div className="mb-1 flex items-center gap-2 font-semibold">
@@ -200,22 +315,25 @@ export default async function ProductsPage({
     );
   }
 
-  const list = (products ?? []) as Product[];
-
   return (
-    <ProductsManagementView
-      products={list}
-      categories={(categories ?? []) as CategoryOption[]}
-      colors={(colors ?? []) as CardColorOption[]}
-      canManage={canManage}
-      counts={counts}
-      total={count ?? 0}
-      page={page}
-      pageSize={pageSize}
-      query={q}
-      filter={filter}
-      categoryFilter={categoryFilter}
-      defaultTrackInventory={defaultTrackInventory}
-    />
+    <>
+      {/* Live updates: reflect stock changes from checkout + other admins' edits. */}
+      <RealtimeRefresher tables={["products", "product_variants"]} />
+      <ProductsManagementView
+        products={list}
+        categories={categoryOptions}
+        colors={colorOptions}
+        taxClasses={taxClassOptions}
+        canManage={canManage}
+        counts={counts}
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        query={q}
+        filter={filter}
+        categoryFilter={categoryFilter}
+        defaultTrackInventory={defaultTrackInventory}
+      />
+    </>
   );
 }

@@ -1,7 +1,15 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { eq } from "drizzle-orm";
+import { getServerUser } from "@/lib/auth/server-user";
+import {
+  createAuthUser,
+  deleteAuthUser,
+  authErrorCode,
+} from "@/lib/auth/firebase-users";
+import { setUserClaims } from "@/lib/auth/firebase-claims";
+import { withService, withUser } from "@/lib/db/client";
+import { admins } from "@/drizzle/schema";
 import { Resend } from "resend";
 import { wrapBrandedEmail } from "@/lib/email/layout";
 import { getStoreBrandById } from "@/lib/store/brand";
@@ -48,77 +56,97 @@ export async function inviteUser(formData: FormData) {
     return { error: "Invalid role." };
   }
 
-  // Verify the caller is a superadmin
-  const supabase = await createClient();
-  const {
-    data: { user: caller },
-  } = await supabase.auth.getUser();
-
+  // Verify the caller is a superadmin (own-row read under their identity).
+  const caller = await getServerUser();
   if (!caller) {
     return { error: "Not authenticated." };
   }
 
-  const { data: callerProfile } = await supabase
-    .from("admins")
-    .select("role, store_id")
-    .eq("id", caller.id)
-    .single();
+  const callerRows = await withUser(
+    { uid: caller.id, email: caller.email },
+    (db) =>
+      db
+        .select({ role: admins.role, store_id: admins.storeId })
+        .from(admins)
+        .where(eq(admins.id, caller.id))
+        .limit(1),
+  ).catch(() => []);
+  const callerProfile = callerRows[0];
 
   if (callerProfile?.role !== "superadmin") {
     return { error: "Unauthorized. Superadmin access required." };
   }
 
   // The invited admin joins the inviter's store.
-  const storeId = callerProfile.store_id as string;
+  const storeId = callerProfile.store_id;
 
   const tempPassword = generateTempPassword();
-  const adminClient = createAdminClient();
 
-  // Reject emails already attached to a dashboard profile. Supabase Auth
+  // Reject emails already attached to a dashboard profile. Identity Platform
   // blocks duplicate auth emails, but an auth account created without an email
-  // (e.g. phone sign-up) can still collide at the profile layer.
+  // (e.g. phone sign-up) can still collide at the profile layer. Exact match on
+  // the already-lowercased email (not ILIKE, whose _/% wildcards would let a
+  // crafted invite address collide with an unrelated admin).
   const normalizedEmail = email.trim().toLowerCase();
-  // Exact match on the already-lowercased email (not `.ilike()`, whose `_`/`%`
-  // wildcards would let a crafted invite address collide with an unrelated admin).
-  const { data: existingProfile } = await adminClient
-    .from("admins")
-    .select("id")
-    .eq("email", normalizedEmail)
-    .maybeSingle();
+  const existingRows = await withService((db) =>
+    db
+      .select({ id: admins.id })
+      .from(admins)
+      .where(eq(admins.email, normalizedEmail))
+      .limit(1),
+  ).catch(() => []);
 
-  if (existingProfile) {
+  if (existingRows[0]) {
     return { error: "A user with this email already exists." };
   }
 
-  // Create user in Supabase Auth
-  const { data: newUser, error: createError } =
-    await adminClient.auth.admin.createUser({
+  // Create the Identity Platform user.
+  let uid: string;
+  try {
+    uid = await createAuthUser({
       email,
       password: tempPassword,
-      email_confirm: true,
+      emailVerified: true,
     });
-
-  if (createError) {
-    return { error: createError.message };
+  } catch (err) {
+    if (authErrorCode(err) === "auth/email-already-exists") {
+      return { error: "A user with this email already exists." };
+    }
+    console.error("inviteUser createUser error:", err);
+    return { error: "Failed to create user." };
   }
 
-  // Insert profile
-  const { error: profileError } = await adminClient.from("admins").upsert({
-    id: newUser.user.id,
+  // Insert the profile (upsert on the primary key so a leftover row is reused).
+  const profileFields = {
     email: normalizedEmail,
-    first_name: firstName.trim(),
-    last_name: lastName?.trim() || null,
+    firstName: firstName.trim(),
+    lastName: lastName?.trim() || null,
     role,
-    force_password_reset: true,
-    invited_by: caller.id,
-    store_id: storeId,
-  });
-
-  if (profileError) {
-    // Cleanup: delete the auth user
-    await adminClient.auth.admin.deleteUser(newUser.user.id);
+    forcePasswordReset: true,
+    invitedBy: caller.id,
+    storeId,
+  };
+  try {
+    await withService((db) =>
+      db
+        .insert(admins)
+        .values({ id: uid, ...profileFields })
+        .onConflictDoUpdate({ target: admins.id, set: profileFields }),
+    );
+  } catch (err) {
+    console.error("inviteUser profile insert error:", err);
+    // Cleanup: delete the auth user so no orphan account is left behind.
+    await deleteAuthUser(uid);
     return { error: "Failed to create user profile." };
   }
+
+  // Mirror role + force_password_reset into the auth token as custom claims so
+  // the proxy can gate the new admin's first login (replaces the Postgres
+  // custom_access_token_hook). Best-effort: the admins row is authoritative for
+  // permission checks, so a claim hiccup only softens the proxy's fast-path.
+  await setUserClaims(uid, { role, forcePasswordReset: true }).catch((err) =>
+    console.error("inviteUser setUserClaims error:", err),
+  );
 
   // Send email via Resend
   const resendApiKey = process.env.RESEND_API_KEY;

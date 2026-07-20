@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, useRef, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import {
+  PhoneAuthProvider,
+  RecaptchaVerifier,
+  updatePhoneNumber,
+} from "firebase/auth";
 import {
   Check,
   KeyRound,
@@ -15,7 +20,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase/client";
+import {
+  getFirebaseAuth,
+  establishSession,
+  firebaseAuthErrorMessage,
+} from "@/lib/auth/firebase-client";
 import {
   changePassword,
   setVerifiedPhone,
@@ -375,7 +384,23 @@ function PhoneCard({
   const [err, setErr] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  // Firebase phone linking: invisible reCAPTCHA + verificationId.
+  const recaptchaRef = useRef<HTMLDivElement | null>(null);
+  const verifierRef = useRef<RecaptchaVerifier | null>(null);
+  const verificationIdRef = useRef<string | null>(null);
+
   const fullPhone = newPhone || "";
+
+  const getVerifier = (): RecaptchaVerifier => {
+    if (!verifierRef.current) {
+      verifierRef.current = new RecaptchaVerifier(
+        getFirebaseAuth(),
+        recaptchaRef.current!,
+        { size: "invisible" },
+      );
+    }
+    return verifierRef.current;
+  };
 
   const reset = () => {
     setEditing(false);
@@ -392,10 +417,16 @@ function PhoneCard({
     }
     setErr("");
     setBusy(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.updateUser({ phone: fullPhone });
-    if (error) setErr(error.message);
-    else setOtpSent(true);
+    try {
+      const provider = new PhoneAuthProvider(getFirebaseAuth());
+      verificationIdRef.current = await provider.verifyPhoneNumber(
+        fullPhone,
+        getVerifier(),
+      );
+      setOtpSent(true);
+    } catch (e) {
+      setErr(firebaseAuthErrorMessage(e));
+    }
     setBusy(false);
   };
 
@@ -404,16 +435,25 @@ function PhoneCard({
       setErr("Enter the 6-digit code.");
       return;
     }
+    if (!verificationIdRef.current) {
+      setErr("Please request a code first.");
+      return;
+    }
     setErr("");
     setBusy(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.verifyOtp({
-      phone: fullPhone,
-      token: otp,
-      type: "phone_change",
-    });
-    if (error) {
-      setErr(error.message);
+    try {
+      const credential = PhoneAuthProvider.credential(
+        verificationIdRef.current,
+        otp,
+      );
+      const user = getFirebaseAuth().currentUser;
+      if (!user) throw new Error("Not signed in.");
+      await updatePhoneNumber(user, credential);
+      // Re-mint the session cookie so getServerUser sees the new verified phone
+      // (setVerifiedPhone only accepts a number auth has actually recorded).
+      await establishSession(true);
+    } catch (e) {
+      setErr(firebaseAuthErrorMessage(e));
       setBusy(false);
       return;
     }
@@ -433,6 +473,8 @@ function PhoneCard({
 
   return (
     <div className="dash-card">
+      {/* Invisible reCAPTCHA anchor for Identity Platform phone verification. */}
+      <div ref={recaptchaRef} />
       <div className="dash-card-header">
         <div className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--dash-accent-soft)] text-[var(--dash-accent)]">

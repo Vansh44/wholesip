@@ -170,18 +170,18 @@ describe("theme registry", () => {
         }
       });
 
-      it("flattens into the full --wholesip-* token override set", () => {
+      it("flattens into the full --sm-* token override set", () => {
         const vars = designToCssVars(theme.design, theme.brand.primaryColor);
         // Core tokens the storefront cascade depends on.
         for (const token of [
-          "--wholesip-cream",
-          "--wholesip-ink",
-          "--wholesip-surface",
-          "--wholesip-on-accent",
-          "--wholesip-shadow-rgb",
+          "--sm-cream",
+          "--sm-ink",
+          "--sm-surface",
+          "--sm-on-accent",
+          "--sm-shadow-rgb",
           "--font-outfit",
           "--font-stick-no-bills",
-          "--wholesip-radius-card",
+          "--sm-radius-card",
         ]) {
           expect(vars[token], token).toBeTruthy();
         }

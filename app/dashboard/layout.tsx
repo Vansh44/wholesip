@@ -1,14 +1,18 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Sora, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { getStoreBrand } from "@/lib/store/brand";
+import { getCurrentStore } from "@/lib/store/resolve";
+import { effectivePlan, PLAN_META } from "@/lib/plans";
 import { DashboardTopbar } from "./dashboard-topbar";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { MobileNavProvider } from "./dashboard-mobile-nav";
 import { getViewerContext } from "./lib/access";
+import { SwitchAccountButton } from "./switch-account-button";
 import { getNewEnquiriesCount } from "./enquiries/data";
 import { getLowStockAlertCount } from "./inventory/data";
+import { ChatProvider } from "./chat-context";
+import { DashboardChat } from "./dashboard-chat";
 import {
   SECTIONS,
   SECTION_GROUPS,
@@ -17,7 +21,7 @@ import {
 } from "./lib/permissions";
 import "./dashboard.css";
 
-const dashFont = Sora({
+const dashFont = Inter({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
   variable: "--font-dash",
@@ -70,12 +74,7 @@ export default async function DashboardLayout({
             this account isn&apos;t a staff member of this store. If this is
             your store, sign in with the account you used to create it.
           </p>
-          <Link
-            href="/auth/login"
-            className="inline-block rounded-lg bg-[#E5E4E2] hover:bg-[#CFCFCF] px-5 py-2.5 text-sm font-semibold text-[#ffffff] transition-colors duration-200"
-          >
-            Switch account
-          </Link>
+          <SwitchAccountButton />
         </div>
       </div>
     );
@@ -90,6 +89,13 @@ export default async function DashboardLayout({
 
   const canViewInventory = can(permissions, "inventory", "view", isSuperadmin);
   const lowStockAlerts = canViewInventory ? await getLowStockAlertCount() : 0;
+
+  // Store identity for the topbar (name + current plan, Shopify-style). Cached
+  // host lookup, so this adds no query. effectivePlan folds an expired timed
+  // plan back to free so the badge never overstates what the store can do.
+  const store = await getCurrentStore();
+  const planId = effectivePlan(store);
+  const planName = PLAN_META[planId].name;
 
   // Build the sidebar from the permission catalog: a section appears only when
   // the viewer can view it. The Dashboard home is always shown so everyone has
@@ -118,7 +124,9 @@ export default async function DashboardLayout({
         };
       }
       if (s.key === "inventory") {
-        const { badge: _badge, badgeTone: _badgeTone, ...rest } = s;
+        const rest = { ...s };
+        delete rest.badge;
+        delete rest.badgeTone;
         return rest;
       }
       return s;
@@ -128,30 +136,34 @@ export default async function DashboardLayout({
     items: typeof SECTIONS;
   }[];
 
-  // The acting store's brand (logo + name) for the sidebar.
-  const brand = await getStoreBrand();
-
   return (
     <div
-      className={`dashboard-shell ${dashFont.variable} ${dashMono.variable} flex`}
+      className={`dashboard-shell ${dashFont.variable} ${dashMono.variable} flex flex-col`}
     >
-      <MobileNavProvider>
-        <DashboardSidebar
-          groups={navGroups}
-          logoUrl={brand.logoUrl}
-          storeName={brand.name}
-        />
-
-        <div className="dash-main">
+      <ChatProvider>
+        <MobileNavProvider>
           <DashboardTopbar
             email={profile.email}
             role={profile.role ?? ""}
             firstName={profile.first_name}
             lastName={profile.last_name}
+            storeName={store.name}
+            planId={planId}
+            planName={planName}
           />
-          <div className="dash-content">{children}</div>
-        </div>
-      </MobileNavProvider>
+          <div className="flex flex-1 overflow-hidden">
+            <DashboardSidebar groups={navGroups} />
+
+            <div className="dash-main rounded-none md:rounded-tl-[16px] shadow-sm border-l-0 md:border-l border-t-0 md:border-t border-[#e5e5e5] overflow-hidden flex-1 relative flex flex-col mt-0 md:mt-2 ml-0 md:ml-2 mb-0 md:mb-2 mr-0 md:mr-2">
+              <div className="dash-content flex-1 overflow-y-auto relative z-10">
+                {children}
+              </div>
+            </div>
+
+            <DashboardChat />
+          </div>
+        </MobileNavProvider>
+      </ChatProvider>
 
       <Toaster richColors />
     </div>

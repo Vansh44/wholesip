@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { and, count, eq, lte } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { productVariants, products, stores } from "@/drizzle/schema";
 import { getActingStoreId } from "@/app/dashboard/lib/access";
 import { resolveStoreSettings } from "@/lib/settings/registry";
 
@@ -13,33 +15,52 @@ export async function getLowStockAlertCount(): Promise<number> {
   const storeId = await getActingStoreId();
   if (!storeId) return 0;
 
-  const supabase = await createClient();
+  try {
+    return await withService(async (db) => {
+      // Resolve the acting store's threshold (scoped to the acting store so
+      // it's correct for platform operators too).
+      const storeRows = await db
+        .select({ settings: stores.settings, plan: stores.plan })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1);
+      const settings = resolveStoreSettings(
+        storeRows[0]?.settings as Record<string, unknown>,
+        storeRows[0]?.plan,
+      );
+      const threshold =
+        (settings["inventory.lowStockThreshold"] as number) ?? 5;
 
-  // Resolve the acting store's threshold (not a hardcoded default, and scoped to
-  // the acting store so it's correct for platform operators too).
-  const { data: store } = await supabase
-    .from("stores")
-    .select("settings, plan")
-    .eq("id", storeId)
-    .single();
-  const settings = resolveStoreSettings(
-    store?.settings as Record<string, unknown>,
-    store?.plan,
-  );
-  const threshold = (settings["inventory.lowStockThreshold"] as number) ?? 5;
+      const [pRows, vRows] = await Promise.all([
+        db
+          .select({ n: count() })
+          .from(products)
+          .where(
+            and(
+              eq(products.storeId, storeId),
+              eq(products.trackInventory, true),
+              lte(products.stock, threshold),
+            ),
+          ),
+        db
+          .select({ n: count() })
+          .from(productVariants)
+          .where(
+            and(
+              eq(productVariants.storeId, storeId),
+              eq(productVariants.trackInventory, true),
+              lte(productVariants.stock, threshold),
+            ),
+          ),
+      ]);
 
-  const lowStockQuery = (table: "products" | "product_variants") =>
-    supabase
-      .from(table)
-      .select("id", { count: "exact", head: true })
-      .eq("store_id", storeId)
-      .eq("track_inventory", true)
-      .lte("stock", threshold);
-
-  const [pRes, vRes] = await Promise.all([
-    lowStockQuery("products"),
-    lowStockQuery("product_variants"),
-  ]);
-
-  return (pRes.count ?? 0) + (vRes.count ?? 0);
+      return (pRows[0]?.n ?? 0) + (vRows[0]?.n ?? 0);
+    });
+  } catch (err) {
+    console.error(
+      "getLowStockAlertCount:",
+      err instanceof Error ? err.message : err,
+    );
+    return 0;
+  }
 }

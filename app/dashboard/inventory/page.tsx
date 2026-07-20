@@ -1,11 +1,14 @@
+import { asc, eq } from "drizzle-orm";
 import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import { DASHBOARD_PAGE_SIZE, pickPage, pickParam } from "../lib/list-params";
 import {
   getInventory,
   type InventoryFilter,
 } from "@/app/actions/inventory-actions";
-import { createClient } from "@/lib/supabase/server";
+import { withService } from "@/lib/db/client";
+import { categories } from "@/drizzle/schema";
 import { InventoryManagementView } from "./inventory-management-view";
+import { RealtimeRefresher } from "../components/realtime-refresher";
 
 const INVENTORY_FILTERS: InventoryFilter[] = ["all", "low", "out"];
 
@@ -28,10 +31,9 @@ export default async function InventoryPage({
   const filter = INVENTORY_FILTERS.includes(filterParam) ? filterParam : "all";
   const pageSize = DASHBOARD_PAGE_SIZE;
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
 
-  const [inventoryRes, { data: categories }] = await Promise.all([
+  const [inventoryRes, categoryList] = await Promise.all([
     getInventory({
       page,
       pageSize,
@@ -39,12 +41,13 @@ export default async function InventoryPage({
       q,
       categoryId: categoryId === "all" ? undefined : categoryId,
     }),
-    supabase
-      .from("categories")
-      .select("id, name")
-      .eq("store_id", storeId)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
+    withService((db) =>
+      db
+        .select({ id: categories.id, name: categories.name })
+        .from(categories)
+        .where(eq(categories.storeId, storeId))
+        .orderBy(asc(categories.sortOrder), asc(categories.name)),
+    ).catch(() => [] as { id: string; name: string }[]),
   ]);
 
   if (inventoryRes.error) {
@@ -61,17 +64,21 @@ export default async function InventoryPage({
   }
 
   return (
-    <InventoryManagementView
-      rows={inventoryRes.rows}
-      total={inventoryRes.total}
-      categories={(categories ?? []) as { id: string; name: string }[]}
-      canManage={canManage}
-      page={page}
-      pageSize={pageSize}
-      query={q}
-      filter={filter}
-      categoryFilter={categoryId}
-      storeLowStockThreshold={inventoryRes.lowStockThreshold}
-    />
+    <>
+      {/* Live updates: stock changes the moment a checkout reserves it. */}
+      <RealtimeRefresher tables={["products", "product_variants"]} />
+      <InventoryManagementView
+        rows={inventoryRes.rows}
+        total={inventoryRes.total}
+        categories={categoryList}
+        canManage={canManage}
+        page={page}
+        pageSize={pageSize}
+        query={q}
+        filter={filter}
+        categoryFilter={categoryId}
+        storeLowStockThreshold={inventoryRes.lowStockThreshold}
+      />
+    </>
   );
 }

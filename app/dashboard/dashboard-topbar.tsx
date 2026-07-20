@@ -1,140 +1,158 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { Bell, Search, ArrowUpRight, Menu } from "lucide-react";
-import { TopbarProfile } from "./topbar-profile";
+import Image from "next/image";
+import Link from "next/link";
+import { Bell, Search, Store, Menu, MessageSquare } from "lucide-react";
+import { TopbarProfile, formatRole } from "./topbar-profile";
 import { useMobileNav } from "./dashboard-mobile-nav";
+import { useChat } from "./chat-context";
 
-const routeMeta: Record<string, { title: string; breadcrumb: string }> = {
-  "/dashboard": { title: "Dashboard", breadcrumb: "Home / Dashboard" },
-  "/dashboard/orders": { title: "Orders", breadcrumb: "Workspace / Orders" },
-  "/dashboard/products": {
-    title: "Products",
-    breadcrumb: "Workspace / Products",
-  },
-  "/dashboard/users": {
-    title: "Users",
-    breadcrumb: "Workspace / Users",
-  },
-  "/dashboard/inventory": {
-    title: "Inventory",
-    breadcrumb: "Workspace / Inventory",
-  },
-  "/dashboard/analytics": {
-    title: "Analytics",
-    breadcrumb: "Workspace / Analytics",
-  },
-  "/dashboard/blogs": { title: "Blogs", breadcrumb: "Content / Blogs" },
-  "/dashboard/blogs/settings": {
-    title: "Blog Settings",
-    breadcrumb: "Content / Blogs / Settings",
-  },
-  "/dashboard/builder/settings": {
-    title: "Website Settings",
-    breadcrumb: "Content / Website / Settings",
-  },
-  "/dashboard/marketing": {
-    title: "Marketing",
-    breadcrumb: "Content / Marketing",
-  },
-  "/dashboard/promotions": {
-    title: "Promotions",
-    breadcrumb: "Content / Promotions",
-  },
-  "/dashboard/admins": {
-    title: "Admins",
-    breadcrumb: "Administration / Admins",
-  },
-  "/dashboard/media": {
-    title: "Media Library",
-    breadcrumb: "Administration / Media Library",
-  },
-  "/dashboard/roles": {
-    title: "Roles & Permissions",
-    breadcrumb: "Administration / Roles",
-  },
-  "/dashboard/activity": {
-    title: "Activity Logs",
-    breadcrumb: "Administration / Activity Logs",
-  },
-  "/dashboard/settings": {
-    title: "Settings",
-    breadcrumb: "Administration / Settings",
-  },
+// Plan pill styling on the dark topbar — neutral for free, brand-tinted as the
+// plan climbs, mirroring the console's plan colours.
+const PLAN_PILL: Record<string, string> = {
+  free: "bg-white/10 text-[#d1d5db]",
+  basic: "bg-sky-400/20 text-sky-200",
+  pro: "bg-[#7F4AFA]/25 text-[#c9b8fb]",
 };
-
-function resolveMeta(pathname: string) {
-  if (routeMeta[pathname]) return routeMeta[pathname];
-  const match = Object.keys(routeMeta)
-    .filter((k) => k !== "/dashboard")
-    .find((k) => pathname.startsWith(k));
-  if (match) return routeMeta[match];
-  return { title: "Dashboard", breadcrumb: "Home / Dashboard" };
-}
 
 export function DashboardTopbar({
   email,
   role,
   firstName,
   lastName,
+  storeName,
+  planId,
+  planName,
 }: {
   email: string;
   role: string;
   firstName?: string | null;
   lastName?: string | null;
+  // Store context (store dashboards only). Absent on the platform operator
+  // console, which manages every store rather than one.
+  storeName?: string;
+  planId?: string;
+  planName?: string;
 }) {
-  const pathname = usePathname();
-  const { title, breadcrumb } = resolveMeta(pathname);
   const { setOpen } = useMobileNav();
+  const { isChatOpen, toggleChat } = useChat();
+  const planPill = PLAN_PILL[planId ?? "free"] ?? PLAN_PILL.free;
 
   return (
-    <header className="dash-topbar">
-      <button
-        type="button"
-        className="dash-icon-btn dash-nav-toggle md:hidden"
-        aria-label="Open navigation menu"
-        onClick={() => setOpen(true)}
-      >
-        <Menu className="h-5 w-5" />
-      </button>
-
-      <div className="min-w-0 flex-1">
-        <div className="dash-topbar-title">{title}</div>
-        <div className="dash-topbar-bc">{breadcrumb}</div>
-      </div>
-
-      <div className="dash-search-bar hidden md:flex">
-        <Search className="h-4 w-4 shrink-0 text-[var(--dash-text-3)]" />
-        <input
-          type="search"
-          placeholder="Search orders, products, customers…"
-        />
-        <kbd className="dash-search-kbd shrink-0">⌘K</kbd>
-      </div>
-
-      <div className="flex items-center gap-2">
+    <header className="dash-topbar flex items-center justify-between px-2 sm:px-4 h-14 bg-slate-800 text-white">
+      <div className="flex items-center gap-1 sm:gap-3 shrink-0">
         <button
           type="button"
-          className="dash-icon-btn"
+          className="md:hidden flex items-center justify-center w-10 h-10 -ml-1 sm:-ml-2 rounded-md text-white hover:bg-slate-700 shrink-0"
+          aria-label="Open navigation menu"
+          onClick={() => setOpen(true)}
+        >
+          <Menu className="h-6 w-6" />
+        </button>
+
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 no-underline hover:opacity-80 transition-opacity shrink-0 pr-1"
+        >
+          <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md bg-white/10">
+            <Image
+              src="/icon.svg"
+              alt="StoreMink logo"
+              width={20}
+              height={20}
+              className="h-5 w-5 object-contain"
+            />
+          </div>
+          <span className="hidden xs:inline-block sm:inline-block text-[17px] font-semibold tracking-tight text-white">
+            StoreMink
+          </span>
+        </Link>
+
+        {/* Store identity + plan (Shopify-style): which store you're managing
+            and the plan it's on, right next to the product logo. Hidden on the
+            platform console, which has no single store. */}
+        {storeName && (
+          <div className="hidden items-center gap-2 lg:flex shrink-0">
+            <span className="h-5 w-px bg-white/15" aria-hidden />
+            <span
+              className="max-w-[160px] truncate text-[13px] font-medium text-white/90"
+              title={storeName}
+            >
+              {storeName}
+            </span>
+            {planName && (
+              <span
+                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${planPill}`}
+                title={`This store is on the ${planName} plan`}
+              >
+                {planName}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 flex-1 justify-center max-w-xl mx-2">
+        <div className="hidden md:flex flex-1 max-w-md bg-slate-700 hover:bg-slate-600 transition-colors border border-transparent hover:border-slate-500 rounded-lg h-[34px] px-3 items-center gap-2 group cursor-text">
+          <Search className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-white transition-colors" />
+          <input
+            type="search"
+            placeholder="Search"
+            className="flex-1 bg-transparent border-none outline-none text-white text-[13px] placeholder:text-slate-400"
+          />
+          <kbd className="shrink-0 bg-slate-800 border border-slate-600 text-slate-400 text-[10px] font-medium px-1.5 py-0.5 rounded">
+            ⌘ K
+          </kbd>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-0.5 sm:gap-3 shrink-0 justify-end">
+        {/* The role this session is signed in with, next to My Store. */}
+        <span className="hidden sm:inline-flex items-center rounded-full bg-white/10 px-2.5 h-[34px] text-[12.5px] font-medium text-white/85 shrink-0">
+          {formatRole(role)}
+        </span>
+        <button
+          type="button"
+          onClick={() => window.open("/", "_blank")}
+          className="hidden sm:flex items-center gap-2 text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 h-[34px] px-3 rounded-lg text-[13px] font-medium transition-colors shrink-0"
+        >
+          <Store className="h-4 w-4" />
+          My Store
+        </button>
+        {/* Mobile Search Icon (hidden on md+) */}
+        <button
+          type="button"
+          className="md:hidden relative text-slate-300 hover:text-white w-8 h-8 rounded-md flex items-center justify-center transition-colors hover:bg-slate-700 shrink-0"
+          aria-label="Search"
+        >
+          <Search className="h-[18px] w-[18px]" />
+        </button>
+        <button
+          type="button"
+          onClick={toggleChat}
+          className={`relative text-slate-300 hover:text-white w-8 h-8 rounded-md flex items-center justify-center transition-colors hover:bg-slate-700 shrink-0 ${isChatOpen ? "bg-slate-700 text-white" : ""}`}
+          aria-label="AI Assistant"
+        >
+          <MessageSquare className="h-[18px] w-[18px]" />
+        </button>
+        <button
+          type="button"
+          className="relative text-slate-300 hover:text-white w-8 h-8 rounded-md flex items-center justify-center transition-colors hover:bg-slate-700 shrink-0"
           aria-label="Notifications"
         >
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-1.5 top-1.5 h-[7px] w-[7px] rounded-full border-[1.5px] border-[var(--dash-surface)] bg-[var(--dash-red)]" />
+          <Bell className="h-[18px] w-[18px]" />
+          <span className="absolute right-[5px] top-[4px] h-2 w-2 rounded-full bg-red-500 border border-slate-800" />
         </button>
-        <button
-          type="button"
-          className="dash-icon-btn hidden sm:flex"
-          aria-label="Messages"
-          onClick={() => window.open("/", "_blank")}
-        >
-          <ArrowUpRight className="h-4 w-4" />
-        </button>
-        <TopbarProfile
-          email={email}
-          role={role}
-          firstName={firstName}
-          lastName={lastName}
-        />
+        <div className="shrink-0 ml-1">
+          <TopbarProfile
+            email={email}
+            role={role}
+            firstName={firstName}
+            lastName={lastName}
+            storeName={storeName}
+            planName={planName}
+          />
+        </div>
       </div>
     </header>
   );

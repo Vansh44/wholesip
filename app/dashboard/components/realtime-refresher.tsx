@@ -1,47 +1,69 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+
+const DEFAULT_POLL_MS = 20_000;
 
 /**
- * Subscribes to Supabase Realtime changes on the given tables and refreshes the
- * current dashboard route when one fires — so storefront-driven changes (e.g. a
- * customer submitting a blog for review) show up without a manual refresh.
+ * Keeps a dashboard list fresh without a manual reload, so storefront-driven
+ * changes (a new order, a customer blog submitted for review) show up on their
+ * own. `router.refresh()` re-runs the server components in place, so the list
+ * updates SPA-style (no full page reload).
  *
- * Realtime respects RLS: the signed-in admin only receives events for rows they
- * can SELECT. Renders nothing.
+ * MECHANISM (GCP migration Phase 5): polls on an interval and refreshes when the
+ * tab regains focus. This replaced Supabase Realtime, which has no Cloud SQL
+ * equivalent — plain Postgres can't push row-change events to the browser. The
+ * poll runs ONLY while the tab is visible (no wasted refreshes / DB load in the
+ * background), and the focus refresh makes returning to the tab feel instant.
+ * (A future Postgres LISTEN/NOTIFY → SSE service could restore true push.)
+ *
+ * `tables` is retained for API stability and as a hint of what the view watches;
+ * the poll itself is table-agnostic. Renders nothing.
  */
-export function RealtimeRefresher({ tables }: { tables: string[] }) {
+export function RealtimeRefresher({
+  tables,
+  intervalMs = DEFAULT_POLL_MS,
+}: {
+  tables: string[];
+  intervalMs?: number;
+}) {
   const router = useRouter();
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Stable key so the effect doesn't re-subscribe on every render.
-  const tableKey = tables.join(",");
+  // Stable dependency so the effect only restarts when the watched set changes.
+  const key = tables.join(",");
 
   useEffect(() => {
-    const supabase = createClient();
+    let timer: ReturnType<typeof setInterval> | null = null;
 
-    // Coalesce bursts (e.g. a multi-row write) into a single refresh.
-    const scheduleRefresh = () => {
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => router.refresh(), 400);
+    const start = () => {
+      if (timer === null) {
+        timer = setInterval(() => router.refresh(), intervalMs);
+      }
+    };
+    const stop = () => {
+      if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+      }
     };
 
-    const channel = supabase.channel(`dashboard-realtime:${tableKey}`);
-    for (const table of tableKey.split(",").filter(Boolean)) {
-      channel.on(
-        "postgres_changes",
-        { event: "*", schema: "public", table },
-        scheduleRefresh,
-      );
-    }
-    channel.subscribe();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        router.refresh(); // catch up immediately on return
+        start();
+      } else {
+        stop(); // don't poll a backgrounded tab
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    if (document.visibilityState === "visible") start();
 
     return () => {
-      if (timer.current) clearTimeout(timer.current);
-      supabase.removeChannel(channel);
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [tableKey, router]);
+  }, [router, intervalMs, key]);
 
   return null;
 }

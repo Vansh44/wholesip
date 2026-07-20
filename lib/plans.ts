@@ -2,11 +2,16 @@
 // Plan catalog — the single source of truth for StoreMink's subscription plans.
 //
 // Three plans, gated by business maturity:
-//   free    → try it        (COD only, subdomain, small catalog)
-//   starter → run a business (custom domain, online payments, AI copy)
-//   pro     → scale it       (no limits, staff roles, campaigns)
+//   free  → try it         (COD only, subdomain, small catalog)
+//   basic → run a business (custom domain, online payments, AI copy)
+//   pro   → scale it        (no product limits, staff roles, campaigns)
 //
-// `stores.plan` holds one of PLAN_IDS (DB CHECK constraint, plans_01_schema.sql).
+// `stores.plan` holds one of PLAN_IDS (DB CHECK constraint, plans_02_*.sql).
+// Plans can be TIMED: `stores.plan_expires_at` (timestamptz, NULL = indefinite)
+// bounds an operator-granted plan. Enforcement is two-layered — every read-site
+// resolves the plan through effectivePlan() (expired ⇒ free, precise), and the
+// daily /api/cron/plan-expiry job durably flips expired rows to free.
+//
 // Feature gating goes through planAllows()/limits here + the settings registry's
 // per-setting `minPlan`. Pricing lives ONLY in this file so repricing is a
 // one-line change; billing (Razorpay subscriptions) will consume these values.
@@ -15,37 +20,55 @@
 // components, and tests alike. Mirrors lib/settings/registry.ts.
 // ---------------------------------------------------------------------------
 
-export const PLAN_IDS = ["free", "starter", "pro"] as const;
+export const PLAN_IDS = ["free", "basic", "pro"] as const;
 export type Plan = (typeof PLAN_IDS)[number];
 
 export const PLAN_RANK: Record<Plan, number> = {
   free: 0,
-  starter: 1,
+  basic: 1,
   pro: 2,
+};
+
+// Retired plan ids that may linger in un-migrated rows (or cached store
+// objects) during a rollout — they degrade to their nearest live plan, never
+// to a crash. "starter" was renamed to "basic" in plans_02_basic_and_expiry.sql.
+const LEGACY_PLAN_ALIASES: Record<string, Plan> = {
+  starter: "basic",
 };
 
 /** Coerce an arbitrary stores.plan value to a known plan (unknown → free). */
 export function normalizePlan(plan: unknown): Plan {
-  return typeof plan === "string" && plan in PLAN_RANK
-    ? (plan as Plan)
-    : "free";
+  if (typeof plan !== "string") return "free";
+  if (plan in PLAN_RANK) return plan as Plan;
+  return LEGACY_PLAN_ALIASES[plan] ?? "free";
+}
+
+/**
+ * The plan a store is ACTUALLY entitled to right now: its stored plan unless
+ * that plan has expired (plan_expires_at in the past ⇒ free). Every gate that
+ * reads stores.plan must resolve through this — the expiry cron flips rows
+ * durably, but only once a day. An unparseable expiry is treated as
+ * indefinite (fail open — junk data must never strip a paying merchant).
+ */
+export function effectivePlan(
+  store: {
+    plan?: unknown;
+    plan_expires_at?: string | Date | null;
+  },
+  now: Date = new Date(),
+): Plan {
+  const plan = normalizePlan(store.plan);
+  const raw = store.plan_expires_at;
+  if (plan === "free" || raw == null) return plan;
+  const expiresAt = raw instanceof Date ? raw : new Date(raw);
+  if (Number.isNaN(expiresAt.getTime())) return plan;
+  return expiresAt.getTime() <= now.getTime() ? "free" : plan;
 }
 
 /** Is `plan` at or above `minPlan`? (No minPlan = available on every plan.) */
 export function planAllows(plan: Plan, minPlan?: Plan): boolean {
   if (!minPlan) return true;
   return PLAN_RANK[plan] >= PLAN_RANK[minPlan];
-}
-
-/** True when moving from → to is a strict upgrade (never same or downward). */
-export function isUpgrade(from: Plan, to: Plan): boolean {
-  return PLAN_RANK[to] > PLAN_RANK[from];
-}
-
-/** The plans a store may be promoted to from its current plan (upgrade-only:
- *  free → starter/pro, starter → pro, pro → none). */
-export function upgradeTargets(from: Plan): Plan[] {
-  return PLAN_IDS.filter((p) => isUpgrade(from, p));
 }
 
 /** How a store came to be on its plan — a comp (operator-granted) plan must
@@ -73,19 +96,19 @@ export const PLAN_META: Record<Plan, PlanMeta> = {
     monthlyInr: 0,
     yearlyInr: 0,
   },
-  starter: {
-    id: "starter",
-    name: "Starter",
+  basic: {
+    id: "basic",
+    name: "Basic",
     tagline: "Run a real business — domain, payments, AI",
-    monthlyInr: 499,
-    yearlyInr: 4999,
+    monthlyInr: 500,
+    yearlyInr: 5000,
   },
   pro: {
     id: "pro",
     name: "Pro",
-    tagline: "Scale with your team — no limits",
-    monthlyInr: 1499,
-    yearlyInr: 14999,
+    tagline: "Scale with your team — campaigns, no product limits",
+    monthlyInr: 1500,
+    yearlyInr: 15000,
   },
 };
 
@@ -100,7 +123,8 @@ export interface PlanLimits {
   maxProducts: number | null;
   /** Max staff accounts incl. the owner (null = unlimited). */
   maxStaff: number | null;
-  /** AI generations per calendar month (null = unlimited). */
+  /** AI generations per calendar month (null = unlimited). Purchased AI
+   *  credits (lib/ai) top this up — the monthly allowance is consumed first. */
   aiGenerationsPerMonth: number | null;
   /** Max simultaneously-active coupons (null = unlimited). */
   maxActiveCoupons: number | null;
@@ -118,17 +142,17 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   free: {
     maxProducts: 25,
     maxStaff: 1,
-    aiGenerationsPerMonth: 10,
+    aiGenerationsPerMonth: 3,
     maxActiveCoupons: 3,
     customDomain: false,
     onlinePayments: false,
     emailCampaigns: false,
     removeBadge: false,
   },
-  starter: {
+  basic: {
     maxProducts: 500,
     maxStaff: 3,
-    aiGenerationsPerMonth: 100,
+    aiGenerationsPerMonth: 10,
     maxActiveCoupons: null,
     customDomain: true,
     onlinePayments: true,
@@ -138,7 +162,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   pro: {
     maxProducts: null,
     maxStaff: null,
-    aiGenerationsPerMonth: null,
+    aiGenerationsPerMonth: 50,
     maxActiveCoupons: null,
     customDomain: true,
     onlinePayments: true,

@@ -338,7 +338,7 @@ export function EnquiriesManagementView({
           </div>
         ) : (
           <div className="enquiries-table-wrap">
-            <table className="dash-table enquiries-table">
+            <table className="dash-table dash-table-wide enquiries-table">
               <thead>
                 <tr>
                   <th>From</th>

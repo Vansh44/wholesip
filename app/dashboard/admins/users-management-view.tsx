@@ -160,7 +160,7 @@ export function UsersManagementView({
         <div className="dash-card-header">
           <div className="dash-card-title">Dashboard Admins</div>
         </div>
-        <table className="dash-table">
+        <table className="dash-table dash-table-wide">
           <thead>
             <tr>
               <th>User</th>

@@ -1,10 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Self-contained server bundle (.next/standalone) for the Cloud Run container
+  // (GCP migration Phase 4). Copies only the traced node_modules + a minimal
+  // server.js, so the runtime image stays small. Ignored by Vercel (which uses
+  // its own build adapter), so this is safe to keep on during the transition.
+  output: "standalone",
   // The AI copy actions read brand/tasks/*.md at runtime via fs. On serverless
   // hosts (e.g. Vercel) a function only bundles files Next.js traces, and a
   // runtime readFile path isn't traced automatically — so force the brand task
-  // prompts into every server trace. Harmless on Node hosts.
+  // prompts into every server trace. Also ensures they land in .next/standalone
+  // for the container. Harmless on Node hosts.
   outputFileTracingIncludes: {
     "/**": ["./brand/tasks/**"],
   },
@@ -18,6 +24,13 @@ const nextConfig: NextConfig = {
         hostname: "*.supabase.co",
         port: "",
         pathname: "/storage/v1/object/public/**",
+      },
+      // Google Cloud Storage (media backend, GCP migration Phase 3).
+      {
+        protocol: "https",
+        hostname: "storage.googleapis.com",
+        port: "",
+        pathname: "/**",
       },
     ],
     // DEV ONLY: on DNS64/NAT64 networks (common on Indian ISPs) public hosts

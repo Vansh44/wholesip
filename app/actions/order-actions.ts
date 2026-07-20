@@ -1,10 +1,15 @@
 "use server";
 
+import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService, withUser } from "@/lib/db/client";
+import { dbErrorMessage } from "@/lib/db/errors";
+import { orderItems, orders } from "@/drizzle/schema";
 import { getActingStoreId, getManagerUserId } from "@/app/dashboard/lib/access";
-import { DASHBOARD_PAGE_SIZE } from "@/app/dashboard/lib/list-params";
+import {
+  DASHBOARD_PAGE_SIZE,
+  sanitizeSearch,
+} from "@/app/dashboard/lib/list-params";
 
 // Allowlists — order/payment state is a closed set, so never trust an arbitrary
 // string from the client into the DB (keeps the status column clean + prevents
@@ -17,55 +22,177 @@ const ORDER_STATUSES = [
   "cancelled",
 ] as const;
 const PAYMENT_STATUSES = ["pending", "paid", "failed"] as const;
+const PAYMENT_METHODS = ["cash_on_delivery", "razorpay"] as const;
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
-// Columns the dashboard orders LIST renders. Deliberately not `*` and not the
-// order_items join — the table only needs these, and pulling every line item
-// for every order made the query grow without bound.
-const ORDER_LIST_COLUMNS =
-  "id, order_no, order_ref, created_at, total, currency, payment_method, payment_status, status, shipping_address";
+// Per-status row counts for the list's filter tabs (store-wide, ignoring the
+// active filters — mirrors the products list). `all` is the store total.
+export interface OrderStatusCounts {
+  all: number;
+  pending: number;
+  processing: number;
+  shipped: number;
+  delivered: number;
+  cancelled: number;
+}
+
+const ZERO_COUNTS: OrderStatusCounts = {
+  all: 0,
+  pending: 0,
+  processing: 0,
+  shipped: 0,
+  delivered: 0,
+  cancelled: 0,
+};
+
+// Filters accepted by the orders list. All optional; anything not in the
+// allowlists is ignored (treated as "all") so a bad query param can never
+// reach the DB or break the query.
+export interface GetOrdersParams {
+  page?: number;
+  pageSize?: number;
+  /** Order status tab (one of ORDER_STATUSES); "" / unknown = all. */
+  status?: string;
+  /** Payment status facet (one of PAYMENT_STATUSES); "" / unknown = all. */
+  paymentStatus?: string;
+  /** Payment method facet (one of PAYMENT_METHODS); "" / unknown = all. */
+  paymentMethod?: string;
+  /** Free-text search over order ref + customer name/city. */
+  q?: string;
+}
+
+// Columns the dashboard orders LIST renders. Deliberately not every column and
+// not the order_items join — the table only needs these, and pulling every
+// line item for every order made the query grow without bound. Aliased to the
+// snake_case shape the view expects.
+const ORDER_LIST_COLUMNS = {
+  id: orders.id,
+  order_no: orders.orderNo,
+  order_ref: orders.orderRef,
+  created_at: orders.createdAt,
+  total: orders.total,
+  currency: orders.currency,
+  payment_method: orders.paymentMethod,
+  payment_status: orders.paymentStatus,
+  status: orders.status,
+  shipping_address: orders.shippingAddress,
+};
 
 export interface OrdersResult {
   orders: Record<string, unknown>[];
   total: number;
+  counts: OrderStatusCounts;
   error?: string;
 }
 
 export async function getOrders(
-  page = 1,
-  pageSize = DASHBOARD_PAGE_SIZE,
+  params: GetOrdersParams = {},
 ): Promise<OrdersResult> {
   const userId = await getManagerUserId("orders");
-  if (!userId) return { error: "Not authenticated", orders: [], total: 0 };
+  if (!userId)
+    return {
+      error: "Not authenticated",
+      orders: [],
+      total: 0,
+      counts: ZERO_COUNTS,
+    };
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
 
-  const safePage = Number.isFinite(page) && page > 0 ? Math.trunc(page) : 1;
+  const safePage =
+    Number.isFinite(params.page) && (params.page ?? 0) > 0
+      ? Math.trunc(params.page as number)
+      : 1;
+  const rawSize = params.pageSize ?? DASHBOARD_PAGE_SIZE;
   const safeSize =
-    Number.isFinite(pageSize) && pageSize > 0
-      ? Math.min(Math.trunc(pageSize), 100)
+    Number.isFinite(rawSize) && rawSize > 0
+      ? Math.min(Math.trunc(rawSize), 100)
       : DASHBOARD_PAGE_SIZE;
   const from = (safePage - 1) * safeSize;
 
-  const { data, error, count } = await supabase
-    .from("orders")
-    .select(ORDER_LIST_COLUMNS, { count: "exact" })
-    .eq("store_id", storeId)
-    .order("created_at", { ascending: false })
-    .range(from, from + safeSize - 1);
+  // Validate each filter against its allowlist; anything else = "all" (undefined).
+  const status = ORDER_STATUSES.includes(params.status as OrderStatus)
+    ? (params.status as OrderStatus)
+    : undefined;
+  const paymentStatus = PAYMENT_STATUSES.includes(
+    params.paymentStatus as PaymentStatus,
+  )
+    ? (params.paymentStatus as PaymentStatus)
+    : undefined;
+  const paymentMethod = PAYMENT_METHODS.includes(
+    params.paymentMethod as PaymentMethod,
+  )
+    ? (params.paymentMethod as PaymentMethod)
+    : undefined;
+  const term = sanitizeSearch(params.q ?? "");
 
-  if (error) {
-    console.error("Error fetching orders:", error);
-    return { error: error.message, orders: [], total: 0 };
+  // WHERE for the (filtered) page + its total. Store scope is always first.
+  const conds = [eq(orders.storeId, storeId)];
+  if (status) conds.push(eq(orders.status, status));
+  if (paymentStatus) conds.push(eq(orders.paymentStatus, paymentStatus));
+  if (paymentMethod) conds.push(eq(orders.paymentMethod, paymentMethod));
+  if (term) {
+    const pat = `%${term}%`;
+    // Search the human order ref + the customer name/city stored in the
+    // shipping_address jsonb (->> extracts text for ILIKE).
+    conds.push(
+      or(
+        ilike(orders.orderRef, pat),
+        sql`${orders.shippingAddress}->>'firstName' ilike ${pat}`,
+        sql`${orders.shippingAddress}->>'lastName' ilike ${pat}`,
+        sql`${orders.shippingAddress}->>'city' ilike ${pat}`,
+      )!,
+    );
   }
+  const whereExpr = and(...conds);
 
-  return {
-    orders: (data ?? []) as Record<string, unknown>[],
-    total: count ?? 0,
-  };
+  try {
+    // RLS (store admins get FOR ALL on their own orders) + explicit store scope.
+    const { rows, total, statusRows } = await withUser(
+      { uid: userId },
+      async (db) => {
+        const [rows, countRows, statusRows] = await Promise.all([
+          db
+            .select(ORDER_LIST_COLUMNS)
+            .from(orders)
+            .where(whereExpr)
+            .orderBy(desc(orders.createdAt))
+            .limit(safeSize)
+            .offset(from),
+          db.select({ n: count() }).from(orders).where(whereExpr),
+          // Store-wide per-status counts for the filter tabs (ignores the
+          // active facets, so a tab always shows its full store count).
+          db
+            .select({ status: orders.status, n: count() })
+            .from(orders)
+            .where(eq(orders.storeId, storeId))
+            .groupBy(orders.status),
+        ]);
+        return { rows, total: countRows[0]?.n ?? 0, statusRows };
+      },
+    );
+
+    const counts: OrderStatusCounts = { ...ZERO_COUNTS };
+    for (const row of statusRows) {
+      counts.all += row.n;
+      if (row.status && row.status in counts) {
+        (counts as unknown as Record<string, number>)[row.status] = row.n;
+      }
+    }
+
+    return { orders: rows as Record<string, unknown>[], total, counts };
+  } catch (err) {
+    console.error("Error fetching orders:", err);
+    return {
+      error: dbErrorMessage(err, "Failed to load orders."),
+      orders: [],
+      total: 0,
+      counts: ZERO_COUNTS,
+    };
+  }
 }
 
 export async function updateOrderStatus(
@@ -89,13 +216,7 @@ export async function updateOrderStatus(
     return { error: "Invalid payment status." };
   }
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
-
-  const updateData: Record<string, string> = { status };
-  if (paymentStatus) {
-    updateData.payment_status = paymentStatus;
-  }
 
   // If cancelling, restock the order's stock EXACTLY ONCE. We atomically
   // "claim" the release by flipping stock_status 'reserved' → 'released' in a
@@ -108,47 +229,69 @@ export async function updateOrderStatus(
   // The release itself never blocks the status change (fails open); the ledger
   // is best-effort, the status update is the source of truth.
   if (status === "cancelled") {
-    const { data: claimed, error: claimError } = await supabase
-      .from("orders")
-      .update({ stock_status: "released" })
-      .eq("id", orderId)
-      .eq("store_id", storeId)
-      .eq("stock_status", "reserved")
-      .select("id");
+    const claimed = await withUser({ uid: userId }, (db) =>
+      db
+        .update(orders)
+        .set({ stockStatus: "released" })
+        .where(
+          and(
+            eq(orders.id, orderId),
+            eq(orders.storeId, storeId),
+            eq(orders.stockStatus, "reserved"),
+          ),
+        )
+        .returning({ id: orders.id }),
+    ).catch((err) => {
+      console.error(
+        "stock release claim:",
+        err instanceof Error ? err.message : err,
+      );
+      return [] as { id: string }[];
+    });
 
-    if (claimError) {
-      console.error("stock release claim:", claimError.message);
-    } else if (claimed && claimed.length > 0) {
-      const { data: items } = await supabase
-        .from("order_items")
-        .select("product_id, variant_id, quantity")
-        .eq("order_id", orderId);
+    if (claimed.length > 0) {
+      const items = await withUser({ uid: userId }, (db) =>
+        db
+          .select({
+            product_id: orderItems.productId,
+            variant_id: orderItems.variantId,
+            quantity: orderItems.quantity,
+          })
+          .from(orderItems)
+          .where(eq(orderItems.orderId, orderId)),
+      ).catch(() => []);
 
-      if (items && items.length > 0) {
-        const admin = createAdminClient();
-        for (const item of items) {
-          await admin.rpc("release_stock", {
-            p_store: storeId,
-            p_product: item.product_id,
-            p_variant: item.variant_id,
-            p_qty: item.quantity,
-            p_order: orderId,
-            p_reason: "order_cancelled",
-          });
-        }
+      for (const item of items) {
+        // The unchanged Postgres function does the atomic restock + ledger row.
+        await withService((db) =>
+          db.execute(
+            sql`select release_stock(p_store => ${storeId}, p_product => ${item.product_id}, p_variant => ${item.variant_id}, p_qty => ${item.quantity}, p_order => ${orderId}, p_reason => ${"order_cancelled"})`,
+          ),
+        ).catch((err) =>
+          console.error(
+            "release_stock:",
+            err instanceof Error ? err.message : err,
+          ),
+        );
       }
     }
   }
 
-  const { error } = await supabase
-    .from("orders")
-    .update(updateData)
-    .eq("id", orderId)
-    .eq("store_id", storeId);
+  const updateData: { status: string; paymentStatus?: string } = { status };
+  if (paymentStatus) {
+    updateData.paymentStatus = paymentStatus;
+  }
 
-  if (error) {
-    console.error("Error updating order status:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db
+        .update(orders)
+        .set(updateData)
+        .where(and(eq(orders.id, orderId), eq(orders.storeId, storeId))),
+    );
+  } catch (err) {
+    console.error("Error updating order status:", err);
+    return { error: dbErrorMessage(err, "Failed to update order status.") };
   }
 
   revalidatePath("/dashboard/orders");

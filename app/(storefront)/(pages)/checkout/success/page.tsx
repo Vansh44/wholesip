@@ -3,14 +3,24 @@
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
+import { reconcileMyOrderPayment } from "@/app/actions/checkout-actions";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
   // The human-readable reference (ORD…) when present; fall back to the raw id.
   const orderRef = searchParams.get("ref") || orderId;
+  const paidOnline = searchParams.get("pm") === "rzp";
+
+  // Online orders: reconcile-on-read. If the client-side confirm call was
+  // dropped (network blip right after paying), this asks the server to check
+  // Razorpay directly and mark the order paid. Fire-and-forget — the hourly
+  // reaper is the ultimate safety net.
+  useEffect(() => {
+    if (!paidOnline || !orderId) return;
+    reconcileMyOrderPayment(orderId).catch(() => {});
+  }, [paidOnline, orderId]);
 
   return (
     <div className="max-w-xl mx-auto px-4 py-24 text-center">
@@ -29,11 +39,27 @@ function SuccessContent() {
       )}
 
       <div className="space-y-4">
-        <Link href="/shop" passHref legacyBehavior>
-          <Button size="lg" className="w-full sm:w-auto px-8">
-            Continue Shopping
-          </Button>
+        {/* Themed on the storefront accent (matches the checkout "Place Order"
+            button). Color is set via inline style so it beats the storefront's
+            `.storefront-root a { color: inherit }` rule (which would otherwise
+            drag the text to dark ink on this accent-filled button). */}
+        <Link
+          href="/shop"
+          className="inline-flex w-full items-center justify-center rounded-[var(--sm-radius-control)] bg-[var(--sm-accent)] px-8 py-3.5 text-base font-semibold transition-colors hover:bg-[var(--sm-accent-deep)] sm:w-auto"
+          style={{ color: "var(--sm-on-accent)" }}
+        >
+          Continue Shopping
         </Link>
+        {orderId && (
+          <div>
+            <Link
+              href={`/checkout/invoice/${orderId}`}
+              className="text-sm font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              View / download invoice
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

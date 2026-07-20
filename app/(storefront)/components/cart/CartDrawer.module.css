@@ -1,6 +1,6 @@
 /* ============================================
    Cart Drawer — right-side slide-in panel
-   Driven by the global --wholesip-* tokens.
+   Driven by the global --sm-* tokens.
    ============================================ */
 
 .overlay {
@@ -9,7 +9,7 @@
   z-index: 300;
   display: flex;
   justify-content: flex-end;
-  background: rgba(var(--wholesip-shadow-rgb), 0.4);
+  background: rgba(var(--sm-shadow-rgb), 0.4);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   opacity: 0;
@@ -31,9 +31,9 @@
   width: 100%;
   max-width: 420px;
   height: 100%;
-  background: var(--wholesip-cream);
-  color: var(--wholesip-ink);
-  box-shadow: -8px 0 40px rgba(var(--wholesip-shadow-rgb), 0.16);
+  background: var(--sm-cream);
+  color: var(--sm-ink);
+  box-shadow: -8px 0 40px rgba(var(--sm-shadow-rgb), 0.16);
   transform: translateX(100%);
   transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -48,7 +48,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 20px 22px;
-  border-bottom: 1px solid var(--wholesip-border);
+  border-bottom: 1px solid var(--sm-border);
   flex: 0 0 auto;
 }
 
@@ -68,8 +68,8 @@
   height: 22px;
   padding: 0 6px;
   border-radius: 999px;
-  background: var(--wholesip-ink);
-  color: var(--wholesip-on-accent);
+  background: var(--sm-ink);
+  color: var(--sm-on-accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -79,13 +79,13 @@
   width: 36px;
   height: 36px;
   border: none;
-  background: var(--wholesip-sand);
+  background: var(--sm-sand);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   transition:
     background 0.2s ease,
     color 0.2s ease,
@@ -93,8 +93,8 @@
 }
 
 .closeBtn:hover {
-  background: var(--wholesip-cream-deep);
-  color: var(--wholesip-ink);
+  background: var(--sm-cream-deep);
+  color: var(--sm-ink);
   transform: scale(1.05);
 }
 
@@ -115,7 +115,7 @@
   gap: 14px;
   align-items: flex-start;
   padding-bottom: 14px;
-  border-bottom: 1px solid var(--wholesip-border);
+  border-bottom: 1px solid var(--sm-border);
 }
 
 .item:last-child {
@@ -130,7 +130,7 @@
   height: 72px;
   border-radius: 12px;
   overflow: hidden;
-  background: var(--wholesip-cream-deep);
+  background: var(--sm-cream-deep);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -156,7 +156,7 @@
 .itemName {
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   text-decoration: none;
   line-height: 1.25;
 }
@@ -167,7 +167,7 @@
 
 .itemVariant {
   font-size: 0.8rem;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 
 .itemFooter {
@@ -181,10 +181,10 @@
 .stepper {
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--wholesip-border);
+  border: 1px solid var(--sm-border);
   border-radius: 8px;
   overflow: hidden;
-  background: var(--wholesip-surface);
+  background: var(--sm-surface);
 }
 
 .stepperBtn {
@@ -195,7 +195,7 @@
   justify-content: center;
   font-size: 1.05rem;
   line-height: 1;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -203,7 +203,7 @@
 }
 
 .stepperBtn:hover:not(:disabled) {
-  background: rgba(var(--wholesip-shadow-rgb), 0.08);
+  background: rgba(var(--sm-shadow-rgb), 0.08);
 }
 
 .stepperBtn:disabled {
@@ -216,7 +216,7 @@
   margin-top: 4px;
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--wholesip-error, #c2410c);
+  color: var(--sm-error, #c2410c);
 }
 
 .stepperValue {
@@ -224,8 +224,8 @@
   text-align: center;
   font-size: 0.88rem;
   font-weight: 600;
-  border-left: 1px solid var(--wholesip-border);
-  border-right: 1px solid var(--wholesip-border);
+  border-left: 1px solid var(--sm-border);
+  border-right: 1px solid var(--sm-border);
   align-self: stretch;
   display: flex;
   align-items: center;
@@ -235,14 +235,14 @@
 .itemPrice {
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .itemRemove {
   flex: 0 0 auto;
   background: transparent;
   border: none;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
   cursor: pointer;
   padding: 2px;
   display: flex;
@@ -250,15 +250,15 @@
 }
 
 .itemRemove:hover {
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 /* ── Footer ── */
 .footer {
   flex: 0 0 auto;
   padding: 18px 22px 22px;
-  border-top: 1px solid var(--wholesip-border);
-  background: var(--wholesip-surface);
+  border-top: 1px solid var(--sm-border);
+  background: var(--sm-surface);
 }
 
 .couponWrap {
@@ -270,12 +270,12 @@
   align-items: baseline;
   justify-content: space-between;
   font-size: 0.88rem;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   margin-bottom: 6px;
 }
 
 .discountRow {
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   font-weight: 600;
 }
 
@@ -296,7 +296,7 @@
 .shippingNote {
   margin: 6px 0 16px;
   font-size: 0.8rem;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 
 .actions {
@@ -321,23 +321,23 @@
 
 .viewCartBtn {
   background: transparent;
-  color: var(--wholesip-ink);
-  border: 1.5px solid var(--wholesip-ink);
+  color: var(--sm-ink);
+  border: 1.5px solid var(--sm-ink);
 }
 
 .viewCartBtn:hover {
-  background: rgba(var(--wholesip-shadow-rgb), 0.06);
+  background: rgba(var(--sm-shadow-rgb), 0.06);
 }
 
 .checkoutBtn {
-  background: var(--wholesip-ink);
-  color: var(--wholesip-on-accent);
-  border: 1.5px solid var(--wholesip-ink);
+  background: var(--sm-ink);
+  color: var(--sm-on-accent);
+  border: 1.5px solid var(--sm-ink);
 }
 
 .checkoutBtn:hover {
-  background: var(--wholesip-accent-deep);
-  border-color: var(--wholesip-accent-deep);
+  background: var(--sm-accent-deep);
+  border-color: var(--sm-accent-deep);
 }
 
 /* ── Empty state ── */
@@ -365,8 +365,8 @@
 
 .emptyCta {
   margin-top: 4px;
-  background: var(--wholesip-ink);
-  color: var(--wholesip-on-accent);
+  background: var(--sm-ink);
+  color: var(--sm-on-accent);
   border: none;
   border-radius: 11px;
   padding: 12px 26px;
@@ -377,5 +377,5 @@
 }
 
 .emptyCta:hover {
-  background: var(--wholesip-accent-deep);
+  background: var(--sm-accent-deep);
 }

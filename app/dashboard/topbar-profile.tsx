@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Settings, LogOut } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { endSession } from "@/lib/auth/firebase-client";
 import { useEffect, useRef, useState } from "react";
 
 function getDisplayName(
@@ -55,16 +55,33 @@ function getInitials(
   return name.slice(0, 2).toUpperCase();
 }
 
+// The role a staff member signed in with, humanised. Superadmin is special;
+// any other role (incl. custom ones) title-cases its slug so it shows the real
+// role rather than a generic "Admin".
+export function formatRole(role: string): string {
+  if (!role) return "Admin";
+  if (role === "superadmin") return "Superadmin";
+  return role
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 export function TopbarProfile({
   email,
   role,
   firstName,
   lastName,
+  storeName,
+  planName,
 }: {
   email: string;
   role: string;
   firstName?: string | null;
   lastName?: string | null;
+  storeName?: string;
+  planName?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -72,7 +89,7 @@ export function TopbarProfile({
   const name = getDisplayName(email, firstName, lastName);
   const short = getShortName(email, firstName, lastName);
   const initials = getInitials(email, firstName, lastName);
-  const roleLabel = role === "superadmin" ? "Superadmin" : "Admin";
+  const roleLabel = formatRole(role);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -83,8 +100,7 @@ export function TopbarProfile({
   }, []);
 
   async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await endSession();
     router.push("/auth/login");
     router.refresh();
   }
@@ -94,7 +110,7 @@ export function TopbarProfile({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-[var(--dash-border-strong)] bg-[var(--dash-surface)] py-1 pl-1 pr-2.5 transition-all hover:border-[var(--dash-border-hover)] hover:bg-[var(--dash-surface-2)]"
+        className="flex items-center gap-2 rounded-full border border-[var(--dash-border-strong)] bg-[var(--dash-surface)] p-1 sm:py-1 sm:pl-1 sm:pr-2.5 transition-all hover:border-[var(--dash-border-hover)] hover:bg-[var(--dash-surface-2)]"
       >
         <div
           className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
@@ -106,11 +122,8 @@ export function TopbarProfile({
           {initials}
         </div>
         <div className="hidden text-left sm:block">
-          <div className="text-[12.5px] font-medium leading-tight text-[var(--dash-text)]">
+          <div className="text-[13px] font-medium leading-tight text-[var(--dash-text)]">
             {short}
-          </div>
-          <div className="text-[10px] text-[var(--dash-text-3)]">
-            {roleLabel}
           </div>
         </div>
         <svg
@@ -129,12 +142,25 @@ export function TopbarProfile({
       {open && (
         <div className="absolute right-0 top-[calc(100%+8px)] z-[200] w-[214px] overflow-hidden rounded-[var(--dash-radius)] border border-[var(--dash-border-strong)] bg-[var(--dash-surface)] shadow-[var(--dash-shadow-lg)]">
           <div className="border-b border-[var(--dash-border)] px-4 py-3">
-            <div className="text-[13px] font-semibold text-[var(--dash-text)]">
-              {name}
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[13px] font-semibold text-[var(--dash-text)]">
+                {name}
+              </div>
+              <span className="shrink-0 rounded-full bg-[var(--dash-surface-2)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dash-text-2)]">
+                {roleLabel}
+              </span>
             </div>
             <div className="mt-0.5 text-[11px] text-[var(--dash-text-3)]">
               {email}
             </div>
+            {storeName && planName && (
+              <div className="mt-1.5 text-[11px] text-[var(--dash-text-3)]">
+                <span className="font-medium text-[var(--dash-text-2)]">
+                  {storeName}
+                </span>{" "}
+                · {planName} plan
+              </div>
+            )}
           </div>
           <div className="p-1.5">
             <Link

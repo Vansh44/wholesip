@@ -3,8 +3,11 @@
 // resolution lives in ./resolve.ts (which re-exports parseHost from here).
 
 // The platform's apex domain. Subdomains of it map to stores.
+// NOTE: `||` (not `??`) so an EMPTY string falls back too — a build that omits
+// the NEXT_PUBLIC_ROOT_DOMAIN arg would otherwise yield "" → PLATFORM_URL
+// "https:" → `new URL()` crashes `next build` (see lib/site.ts / app/layout.tsx).
 export const ROOT_DOMAIN = (
-  process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "storemink.com"
+  process.env.NEXT_PUBLIC_ROOT_DOMAIN || "storemink.com"
 ).toLowerCase();
 
 export type HostKind =

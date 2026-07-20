@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { uploadImage } from "@/lib/supabase/storage";
+import { uploadImage } from "@/lib/storage/uploads";
 import { UploadCloud, Loader2, X, Check } from "lucide-react";
 import { Button } from "./button";
 

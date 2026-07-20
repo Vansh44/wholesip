@@ -1,12 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock } from "./_test-helpers";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
+}));
+
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withUser: vi.fn((_identity: any, fn: any) =>
+    Promise.resolve(fn(dbHolder.current.db)),
+  ),
+  withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+  withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
 }));
 
 import {
@@ -15,9 +25,9 @@ import {
   deleteUserGroup,
   setGroupMembers,
 } from "./user-group-actions";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
-import { makeChain, makeSupabase } from "./_test-helpers";
+
+const STORE = "a0000000-0000-4000-8000-000000000001";
 
 const validForm = {
   name: "  VIPs  ",
@@ -26,70 +36,54 @@ const validForm = {
 };
 
 // user-group-actions.ts is admin-only CRUD over the user_groups table plus a
-// membership replace (clear-then-insert). All writes go through the
-// service-role admin client; the "users" section's manage right gates access.
+// membership replace (clear-then-insert, now in one withService transaction).
+// The "users" section's manage right gates access.
 describe("user-group-actions", () => {
-  let admin: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    admin = makeSupabase({
-      user_groups: makeChain({ data: { id: "g1" }, error: null }),
-      user_group_members: makeChain({ data: null, error: null }),
-    });
-    vi.mocked(createAdminClient).mockReturnValue(admin);
+    dbHolder.current = makeDbMock({ returning: [{ id: "g1" }] });
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
   });
 
   describe("createUserGroup", () => {
-    // Auth gate.
     it("rejects when caller lacks users.manage", async () => {
       vi.mocked(getManagerUserId).mockResolvedValue(null);
       const result = await createUserGroup(validForm);
       expect(result.error).toMatch(/not authenticated/i);
     });
 
-    // Empty / whitespace-only name is rejected before any DB call.
     it("rejects empty name", async () => {
       const result = await createUserGroup({ ...validForm, name: "   " });
       expect(result.error).toMatch(/group name is required/i);
     });
 
-    // Happy path — trims name/description, defaults colour to blue, stamps
-    // created_by with the caller.
     it("inserts a normalised row and returns the created data", async () => {
       const result = await createUserGroup(validForm);
       expect(result.success).toBe(true);
       expect(result.data).toEqual({ id: "g1" });
-      const inserted = admin._tables.user_groups.insert.mock.calls[0][0];
+      const inserted = dbHolder.current.calls.values[0];
       expect(inserted.name).toBe("VIPs");
       expect(inserted.description).toBe("big spenders");
       expect(inserted.color).toBe("blue");
-      expect(inserted.created_by).toBe("user-1");
+      expect(inserted.createdBy).toBe("user-1");
     });
 
-    // An empty description becomes null rather than an empty string.
     it("stores a null description when blank", async () => {
       await createUserGroup({ ...validForm, description: "   " });
-      const inserted = admin._tables.user_groups.insert.mock.calls[0][0];
-      expect(inserted.description).toBeNull();
+      expect(dbHolder.current.calls.values[0].description).toBeNull();
     });
 
-    // 23505 duplicate-key → friendly message instead of raw DB error.
     it("returns friendly error on unique-violation", async () => {
-      admin._tables.user_groups = makeChain({
-        data: null,
-        error: { code: "23505", message: "dup" },
+      dbHolder.current.db.insert = vi.fn(() => {
+        throw Object.assign(new Error("dup"), { code: "23505" });
       });
       const result = await createUserGroup(validForm);
       expect(result.error).toMatch(/already exists/i);
     });
 
-    // Any other DB error surfaces its message verbatim.
-    it("returns the raw message on a generic DB error", async () => {
-      admin._tables.user_groups = makeChain({
-        data: null,
-        error: { code: "P0001", message: "boom" },
+    it("returns the message on a generic DB error", async () => {
+      dbHolder.current.db.insert = vi.fn(() => {
+        throw new Error("boom");
       });
       const result = await createUserGroup(validForm);
       expect(result.error).toBe("boom");
@@ -97,182 +91,120 @@ describe("user-group-actions", () => {
   });
 
   describe("updateUserGroup", () => {
-    // Auth gate.
     it("rejects unauthorised callers", async () => {
       vi.mocked(getManagerUserId).mockResolvedValue(null);
       const result = await updateUserGroup("g1", validForm);
       expect(result.error).toMatch(/not authenticated/i);
     });
 
-    // Empty name is rejected on update too.
     it("rejects empty name", async () => {
       const result = await updateUserGroup("g1", { ...validForm, name: "  " });
       expect(result.error).toMatch(/group name is required/i);
     });
 
-    // Happy path — updates the row by id with normalised fields.
-    it("updates a normalised row by id", async () => {
+    it("updates a normalised row by id (store scoped)", async () => {
       const result = await updateUserGroup("g1", validForm);
       expect(result.success).toBe(true);
-      const updated = admin._tables.user_groups.update.mock.calls[0][0];
+      const updated = dbHolder.current.calls.set[0];
       expect(updated.name).toBe("VIPs");
       expect(updated.description).toBe("big spenders");
       expect(updated.color).toBe("blue");
-      expect(admin._tables.user_groups.eq).toHaveBeenCalledWith("id", "g1");
+      expect(dbHolder.current.calls.where).toHaveLength(1);
     });
 
-    // 23505 duplicate-key → friendly message.
     it("returns friendly error on unique-violation", async () => {
-      admin._tables.user_groups = makeChain(
-        {},
-        {
-          data: null,
-          error: { code: "23505", message: "dup" },
-        },
-      );
+      dbHolder.current.db.update = vi.fn(() => {
+        throw Object.assign(new Error("dup"), { code: "23505" });
+      });
       const result = await updateUserGroup("g1", validForm);
       expect(result.error).toMatch(/already exists/i);
     });
 
-    // Generic DB error surfaces its message.
-    it("returns the raw message on a generic DB error", async () => {
-      admin._tables.user_groups = makeChain(
-        {},
-        {
-          data: null,
-          error: { code: "P0001", message: "boom" },
-        },
-      );
+    it("returns the message on a generic DB error", async () => {
+      dbHolder.current.db.update = vi.fn(() => {
+        throw new Error("boom");
+      });
       const result = await updateUserGroup("g1", validForm);
       expect(result.error).toBe("boom");
     });
   });
 
   describe("deleteUserGroup", () => {
-    // Auth gate.
     it("rejects unauthorised callers", async () => {
       vi.mocked(getManagerUserId).mockResolvedValue(null);
       const result = await deleteUserGroup("g1");
       expect(result.error).toMatch(/not authenticated/i);
     });
 
-    // Happy path — deletes the row by id.
-    it("deletes the group by id", async () => {
+    it("deletes the group by id (store scoped)", async () => {
       const result = await deleteUserGroup("g1");
       expect(result.success).toBe(true);
-      expect(admin._tables.user_groups.delete).toHaveBeenCalled();
-      expect(admin._tables.user_groups.eq).toHaveBeenCalledWith("id", "g1");
+      expect(dbHolder.current.calls.delete).toHaveLength(1);
+      expect(dbHolder.current.calls.where).toHaveLength(1);
     });
 
-    // DB error surfaces its message.
-    it("returns the raw message on a DB error", async () => {
-      admin._tables.user_groups = makeChain(
-        {},
-        {
-          data: null,
-          error: { code: "P0001", message: "boom" },
-        },
-      );
+    it("returns the message on a DB error", async () => {
+      dbHolder.current.db.delete = vi.fn(() => {
+        throw new Error("boom");
+      });
       const result = await deleteUserGroup("g1");
       expect(result.error).toBe("boom");
     });
   });
 
-  // setGroupMembers replaces the group's whole membership: clear all rows for
-  // the group, then insert the (de-duped, truthy) selection.
+  // setGroupMembers replaces the group's whole membership: verify the group
+  // belongs to the store, clear all rows, then insert the (de-duped, truthy)
+  // selection — all in one transaction. select #1 = the ownership check.
   describe("setGroupMembers", () => {
-    // Auth gate.
     it("rejects unauthorised callers", async () => {
       vi.mocked(getManagerUserId).mockResolvedValue(null);
       const result = await setGroupMembers("g1", ["c1"]);
       expect(result.error).toMatch(/not authenticated/i);
     });
 
-    // Happy path — clears then inserts one row per selected customer.
+    it("errors when the group isn't in the acting store", async () => {
+      dbHolder.current = makeDbMock({ selectQueue: [[]] }); // ownership check empty
+      const result = await setGroupMembers("g1", ["c1"]);
+      expect(result.error).toMatch(/group not found/i);
+      expect(dbHolder.current.calls.insert).toHaveLength(0);
+    });
+
     it("clears existing members then inserts the selection", async () => {
+      dbHolder.current = makeDbMock({ selectQueue: [[{ id: "g1" }]] });
       const result = await setGroupMembers("g1", ["c1", "c2"]);
       expect(result.success).toBe(true);
-      expect(admin._tables.user_group_members.delete).toHaveBeenCalled();
-      expect(admin._tables.user_group_members.eq).toHaveBeenCalledWith(
-        "group_id",
-        "g1",
-      );
-      const rows = admin._tables.user_group_members.insert.mock.calls[0][0];
-      expect(rows).toEqual([
-        {
-          group_id: "g1",
-          user_id: "c1",
-          added_by: "user-1",
-          store_id: "a0000000-0000-4000-8000-000000000001",
-        },
-        {
-          group_id: "g1",
-          user_id: "c2",
-          added_by: "user-1",
-          store_id: "a0000000-0000-4000-8000-000000000001",
-        },
+      expect(dbHolder.current.calls.delete).toHaveLength(1);
+      expect(dbHolder.current.calls.values[0]).toEqual([
+        { groupId: "g1", userId: "c1", addedBy: "user-1", storeId: STORE },
+        { groupId: "g1", userId: "c2", addedBy: "user-1", storeId: STORE },
       ]);
     });
 
-    // An empty selection just clears the group — no insert is attempted.
     it("clears only when the selection is empty", async () => {
+      dbHolder.current = makeDbMock({ selectQueue: [[{ id: "g1" }]] });
       const result = await setGroupMembers("g1", []);
       expect(result.success).toBe(true);
-      expect(admin._tables.user_group_members.delete).toHaveBeenCalled();
-      expect(admin._tables.user_group_members.insert).not.toHaveBeenCalled();
+      expect(dbHolder.current.calls.delete).toHaveLength(1);
+      expect(dbHolder.current.calls.insert).toHaveLength(0);
     });
 
-    // Falsy and duplicate ids are dropped before insert.
     it("de-dupes and drops falsy ids before insert", async () => {
+      dbHolder.current = makeDbMock({ selectQueue: [[{ id: "g1" }]] });
       await setGroupMembers("g1", ["c1", "c1", "", "c2"]);
-      const rows = admin._tables.user_group_members.insert.mock.calls[0][0];
-      expect(rows).toEqual([
-        {
-          group_id: "g1",
-          user_id: "c1",
-          added_by: "user-1",
-          store_id: "a0000000-0000-4000-8000-000000000001",
-        },
-        {
-          group_id: "g1",
-          user_id: "c2",
-          added_by: "user-1",
-          store_id: "a0000000-0000-4000-8000-000000000001",
-        },
+      expect(dbHolder.current.calls.values[0]).toEqual([
+        { groupId: "g1", userId: "c1", addedBy: "user-1", storeId: STORE },
+        { groupId: "g1", userId: "c2", addedBy: "user-1", storeId: STORE },
       ]);
     });
 
-    // If the clear step fails the action bails before inserting.
     it("returns error when the clear step fails", async () => {
-      admin._tables.user_group_members = makeChain(
-        {},
-        {
-          data: null,
-          error: { message: "delete failed" },
-        },
-      );
+      dbHolder.current = makeDbMock({ selectQueue: [[{ id: "g1" }]] });
+      dbHolder.current.db.delete = vi.fn(() => {
+        throw new Error("delete failed");
+      });
       const result = await setGroupMembers("g1", ["c1"]);
       expect(result.error).toBe("delete failed");
-      expect(admin._tables.user_group_members.insert).not.toHaveBeenCalled();
-    });
-
-    // The insert chain is awaited directly (listResult); surface its error.
-    it("returns error when the insert step fails", async () => {
-      // First await (delete) succeeds; the insert await must fail. Drive both
-      // off the same chain's listResult by overriding `then` after delete.
-      const chain = makeChain();
-      let call = 0;
-      chain.then = (resolve: any) => {
-        call += 1;
-        const result =
-          call === 1
-            ? { data: null, error: null } // delete().eq()
-            : { data: null, error: { message: "insert failed" } }; // insert()
-        return Promise.resolve(result).then(resolve);
-      };
-      admin._tables.user_group_members = chain;
-      const result = await setGroupMembers("g1", ["c1"]);
-      expect(result.error).toBe("insert failed");
+      expect(dbHolder.current.calls.insert).toHaveLength(0);
     });
   });
 });

@@ -1,0 +1,107 @@
+# Cloud Build CI/CD — build, push, and DEPLOY to Cloud Run, per environment.
+#
+# Triggered by GitHub pushes; one trigger per branch → environment:
+#   staging branch → service storemink-web       (staging Firebase / DB / bucket)
+#   main    branch → service storemink-web-prod  (prod    Firebase / DB / bucket)
+#
+# Each trigger supplies the per-env substitution VALUES — see docs/gcp-ci-cd.md
+# for the exact staging + prod value sets and the one-time IAM/secret setup.
+#
+# ⚠ NEXT_PUBLIC_* are BAKED INTO THE IMAGE at build time (they end up in the
+# client bundle), so they MUST be passed as build args here. An empty value
+# ships a broken bundle — and historically crashed `next build` (an empty
+# ROOT_DOMAIN → PLATFORM_URL "https:" → new URL() throws). The code now degrades
+# to storemink.com, but the trigger must still pass the real per-env values.
+
+steps:
+  # 1. Build (bakes the per-env NEXT_PUBLIC_* into the client bundle).
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_IMAGE}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_API_KEY=${_NEXT_PUBLIC_FIREBASE_API_KEY}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${_NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_APP_ID=${_NEXT_PUBLIC_FIREBASE_APP_ID}
+      - --build-arg
+      - NEXT_PUBLIC_ROOT_DOMAIN=${_NEXT_PUBLIC_ROOT_DOMAIN}
+      - --build-arg
+      - NEXT_PUBLIC_APP_URL=${_NEXT_PUBLIC_APP_URL}
+      - .
+
+  # 2. Push the image to Artifact Registry.
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_IMAGE}
+
+  # 3. Deploy to the per-env Cloud Run service (runtime env + secrets + Cloud SQL).
+  #    --set-env-vars / --set-secrets REPLACE the full set, so every runtime value
+  #    the app needs is listed here. Server secrets stay in Secret Manager.
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_IMAGE}
+      - --region=${_RUN_REGION}
+      - --service-account=${_RUN_SA}
+      - --allow-unauthenticated
+      - --port=8080
+      - --min-instances=${_MIN_INSTANCES}
+      - --max-instances=4
+      - --add-cloudsql-instances=${_DB_CONN}
+      - --set-env-vars=GCP_PROJECT_ID=${_GCP_PROJECT_ID},GCP_LOCATION=global,GCS_BUCKET=${_GCS_BUCKET},DB_HOST=/cloudsql/${_DB_CONN},DB_USER=app,DB_NAME=storemink,FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID},FIREBASE_SERVICE_ACCOUNT_ID=${_FIREBASE_SA_ID},FIREBASE_API_KEY=${_NEXT_PUBLIC_FIREBASE_API_KEY},NEXT_PUBLIC_ROOT_DOMAIN=${_NEXT_PUBLIC_ROOT_DOMAIN},NEXT_PUBLIC_APP_URL=${_NEXT_PUBLIC_APP_URL}
+      - --set-secrets=DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,CRON_SECRET=CRON_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest
+
+images:
+  - ${_IMAGE}
+
+# npm ci + next build for this app can exceed Cloud Build's 10-min default.
+timeout: 1800s
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+# Defaults target STAGING, so a bare `gcloud builds submit` is the safe env.
+# The two triggers override these — see docs/gcp-ci-cd.md.
+substitutions:
+  _IMAGE: asia-south1-docker.pkg.dev/storemink-prod/storemink/web:staging
+  _SERVICE: storemink-web
+  _RUN_REGION: asia-south1
+  _RUN_SA: storemink-run@storemink-prod.iam.gserviceaccount.com
+  _GCP_PROJECT_ID: storemink-prod
+  _MIN_INSTANCES: "0"
+  _DB_CONN: storemink-prod:asia-south1:storemink-staging
+  _DB_PASSWORD_SECRET: CLOUDSQL_STAGING_APP_PW
+  _GCS_BUCKET: storemink-media
+  _FIREBASE_PROJECT_ID: storemink-staging
+  # The Firebase project's own firebase-adminsdk SA — the SIGNER for custom
+  # tokens / session cookies (see lib/auth/firebase-admin.ts). Per-env.
+  _FIREBASE_SA_ID: firebase-adminsdk-fbsvc@storemink-staging.iam.gserviceaccount.com
+  # Firebase web config is PUBLIC (it ships in the client bundle) — not secret.
+  # The apiKey is left blank here only to keep GitHub secret-scanning quiet; the
+  # triggers always pass the real per-env values via --substitutions (see
+  # docs/gcp-ci-cd.md). A bare `gcloud builds submit` must pass it explicitly.
+  _NEXT_PUBLIC_FIREBASE_API_KEY: ""
+  _NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: storemink-staging.firebaseapp.com
+  _NEXT_PUBLIC_FIREBASE_PROJECT_ID: storemink-staging
+  _NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: storemink-staging.firebasestorage.app
+  _NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "68037646295"
+  _NEXT_PUBLIC_FIREBASE_APP_ID: "1:68037646295:web:388ef47d32e39c822b1d92"
+  _NEXT_PUBLIC_ROOT_DOMAIN: staging.storemink.com
+  _NEXT_PUBLIC_APP_URL: https://staging.storemink.com

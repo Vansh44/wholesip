@@ -1,4 +1,6 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { storePages } from "@/drizzle/schema";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import type { PageSectionItem } from "@/lib/sections/registry";
 
@@ -11,9 +13,9 @@ import type { PageSectionItem } from "@/lib/sections/registry";
 //   • is UNCACHED (a fresh read every time — never poisons the published cache),
 //   • authorizes via getManagerUserId("builder") — the exact gate the builder's
 //     server actions use — so only a store admin sees unpublished content,
-//   • reads with the SERVICE-ROLE client, because the draft `sections` column is
+//   • reads with the SERVICE scope, because the draft `sections` column is
 //     revoked from anon+authenticated at the DB layer (store_pages.sql),
-//   • is store-scoped explicitly (service role bypasses RLS).
+//   • is store-scoped explicitly (the service scope bypasses RLS).
 // Returns null when unauthorized or missing — the caller then falls back to the
 // published render, so preview never leaks and never errors.
 // ---------------------------------------------------------------------------
@@ -36,13 +38,27 @@ export async function getDraftPageForPreview(
   const userId = await getManagerUserId("builder");
   if (!userId) return null;
 
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("store_pages")
-    .select("id, slug, title, seo_title, seo_description, sections")
-    .eq("store_id", storeId)
-    .eq("slug", slug)
-    .maybeSingle();
-  if (error || !data) return null;
-  return data as unknown as DraftPage;
+  try {
+    const rows = await withService((db) =>
+      db
+        .select({
+          id: storePages.id,
+          slug: storePages.slug,
+          title: storePages.title,
+          seo_title: storePages.seoTitle,
+          seo_description: storePages.seoDescription,
+          sections: storePages.sections,
+        })
+        .from(storePages)
+        .where(and(eq(storePages.storeId, storeId), eq(storePages.slug, slug)))
+        .limit(1),
+    );
+    return (rows[0] as unknown as DraftPage | undefined) ?? null;
+  } catch (err) {
+    console.error(
+      "getDraftPageForPreview:",
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PLATFORM_URL } from "@/lib/site";
+import { PLAN_LIMITS, PLAN_META } from "@/lib/plans";
 import {
   ArrowRight,
   Building2,
@@ -64,7 +65,7 @@ const COMPARE: {
 }[] = [
   {
     label: "Monthly price",
-    mink: { ok: true, text: "₹399–₹2,499, in rupees" },
+    mink: { ok: true, text: "₹0–₹1,500, in rupees" },
     other: { ok: false, text: "₹1,994+ before apps, USD-linked" },
   },
   {
@@ -99,65 +100,55 @@ const COMPARE: {
   },
   {
     label: "B2B / wholesale selling",
-    mink: { ok: true, text: "From ₹2,499/mo" },
+    mink: { ok: true, text: "Enquiry-based selling built in" },
     other: { ok: false, text: "Enterprise plans, lakhs per month" },
   },
 ];
 
+// Derived from the canonical plan catalog (lib/plans.ts) — prices and AI
+// generation counts render from PLAN_META/PLAN_LIMITS so this page can never
+// drift from what the platform actually sells.
 const PLANS = [
   {
-    name: "Free",
-    price: "₹0",
+    meta: PLAN_META.free,
     who: "Try everything. Launch your first store.",
     features: [
       "Storefront at you.storemink.com",
-      "Products, categories & enquiries",
+      `Up to ${PLAN_LIMITS.free.maxProducts} products`,
       "Full admin dashboard",
-      "Community support",
+      `${PLAN_LIMITS.free.aiGenerationsPerMonth} AI generations a month`,
     ],
     cta: "Start free",
     popular: false,
   },
   {
-    name: "Starter",
-    price: "₹399",
+    meta: PLAN_META.basic,
     who: "For new brands getting their first orders.",
     features: [
       "Everything in Free",
-      "Blogs, reviews & coupons",
-      "Email campaigns",
-      "Homepage builder",
-    ],
-    cta: "Choose Starter",
-    popular: false,
-  },
-  {
-    name: "Growth",
-    price: "₹999",
-    who: "For growing brands that want to look the part.",
-    features: [
-      "Everything in Starter",
       "Your own custom domain",
-      "Customer groups & targeted offers",
-      "Team roles & permissions",
+      "Online payments — your own gateway",
+      `${PLAN_LIMITS.basic.maxProducts} products & ${PLAN_LIMITS.basic.maxStaff} staff accounts`,
+      `${PLAN_LIMITS.basic.aiGenerationsPerMonth} AI generations a month`,
     ],
-    cta: "Choose Growth",
+    cta: `Choose ${PLAN_META.basic.name}`,
     popular: true,
   },
   {
-    name: "Pro B2B",
-    price: "₹2,499",
-    who: "For wholesalers selling to businesses too.",
+    meta: PLAN_META.pro,
+    who: "For growing brands ready to scale with a team.",
     features: [
-      "Everything in Growth",
-      "B2B enquiry-based selling",
-      "Wholesale customer groups",
-      "Priority support",
+      `Everything in ${PLAN_META.basic.name}`,
+      "Unlimited products & staff",
+      "Email campaigns",
+      `${PLAN_LIMITS.pro.aiGenerationsPerMonth} AI generations a month`,
     ],
-    cta: "Choose Pro B2B",
+    cta: `Choose ${PLAN_META.pro.name}`,
     popular: false,
   },
 ];
+
+const priceInr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
 const FAQS = [
   {
@@ -174,11 +165,11 @@ const FAQS = [
   },
   {
     q: "Can I use my own domain?",
-    a: "Yes — on the Growth plan and above you can connect your own domain (like yourbrand.com) with guided DNS verification. Until then your store lives at your-name.storemink.com.",
+    a: "Yes — on the Basic plan and above you can connect your own domain (like yourbrand.com) with guided DNS verification. Until then your store lives at your-name.storemink.com.",
   },
   {
     q: "Can I sell B2B and D2C from the same store?",
-    a: "Yes — that's one of the main reasons StoreMink exists. The Pro B2B plan adds enquiry-based selling and wholesale customer groups on top of your regular storefront, so distributors and retail customers are served from one place.",
+    a: "Yes — that's one of the main reasons StoreMink exists. Enquiry-based selling and wholesale customer groups sit on top of your regular storefront, so distributors and retail customers are served from one place.",
   },
   {
     q: "What happens when I outgrow my plan?",
@@ -188,7 +179,7 @@ const FAQS = [
 
 export default function StoreminkLanding() {
   // Organization + SoftwareApplication JSON-LD so search engines understand
-  // what StoreMink is and its price range (₹0–₹2,499 across the plans).
+  // what StoreMink is and its price range (₹0 up to the Pro monthly price).
   const jsonLd = {
     "@context": "https://schema.org",
     "@graph": [
@@ -225,7 +216,7 @@ export default function StoreminkLanding() {
           "@type": "AggregateOffer",
           priceCurrency: "INR",
           lowPrice: 0,
-          highPrice: 2499,
+          highPrice: PLAN_META.pro.monthlyInr,
           offerCount: PLANS.length,
         },
       },
@@ -270,12 +261,13 @@ export default function StoreminkLanding() {
             </span>
             <h1 className="stq-rise stq-rise-1">
               Launch your store in a day.{" "}
-              <span className="stq-grad">Keep 100% of every sale.</span>
+              <span className="stq-grad">Keep 100% of every sales.</span>
             </h1>
             <p className="stq-sub stq-rise stq-rise-2">
               StoreMink is the India-first store builder with everything
               included — storefront, blogs, reviews, coupons, email campaigns
-              and a full team dashboard. From ₹399/month. No apps to buy. No
+              and a full team dashboard. From{" "}
+              {priceInr(PLAN_META.basic.monthlyInr)}/month. No apps to buy. No
               transaction fees. Ever.
             </p>
             <div className="stq-hero-cta stq-rise stq-rise-3">
@@ -593,15 +585,15 @@ export default function StoreminkLanding() {
           {PLANS.map((plan) => (
             <div
               className={`stq-price-card${plan.popular ? " popular" : ""}`}
-              key={plan.name}
+              key={plan.meta.id}
             >
               {plan.popular && (
                 <span className="stq-price-flag">Most popular</span>
               )}
-              <h3>{plan.name}</h3>
+              <h3>{plan.meta.name}</h3>
               <p className="who">{plan.who}</p>
               <div className="stq-price">
-                {plan.price}
+                {priceInr(plan.meta.monthlyInr)}
                 <sub>/month</sub>
               </div>
               <ul>
