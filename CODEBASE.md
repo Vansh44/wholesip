@@ -142,7 +142,10 @@ wholesip/
 │   │   │                      # list-params.ts, use-row-selection.ts
 │   │   ├── products/          # CRUD; edit = full page [id]/ (Shopify-style, no modal)
 │   │   ├── orders/            # Orders list (server-paginated) — reads order-actions
-│   │   ├── categories/ colors/ blogs/ media/   # content management
+│   │   ├── categories/ colors/ blogs/ media/   # content management (media/ = the
+│   │   │                      # per-store Media Library: confirm-first upload + grid +
+│   │   │                      # view + copy-URL + delete (media_assets row + GCS object),
+│   │   │                      # via app/actions/media-actions.ts)
 │   │   │   └── blogs/settings/  # blog feature toggles + per-store categories/tags manager
 │   │   │   (homepage editor RETIRED in Phase 4a — the homepage is now edited in builder/)
 │   │   ├── navigation/        # ★ Menu builder (§11): edit header + footer nav (store_menus)
@@ -259,7 +262,9 @@ wholesip/
 │   │                          # client helpers (uploadImage POSTs /api/upload; uploadVideo
 │   │                          # PUTs to a signed GCS URL). cleanup.ts — deleteStorageUrls/
 │   │                          # extractMediaUrlsFromHtml orphan cleanup (legacy Supabase
-│   │                          # URLs ignored). Tested.
+│   │                          # URLs ignored). process-image.ts — shared validate+optimize
+│   │                          # (sharp→WebP, SVG rasterize) used by BOTH /api/upload and
+│   │                          # the media-library action. Tested.
 │   ├── db/                    # ★ Cloud SQL data layer (GCP Phase 5, IN PROGRESS — NOT yet
 │   │                          # the active path; app still on Supabase). client.ts: Drizzle
 │   │                          # over pg Pool w/ the 2A tenancy model — withService (BYPASSRLS),
@@ -385,6 +390,8 @@ wholesip/
 │   │                          # reserve/release (enforces max_uses under concurrency)
 │   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
 │   ├── store_menus.sql        # ★ per-store header/footer nav (+ RLS + WholeSip seed) — §11
+│   ├── media_assets.sql       # ★ per-store Media Library table (RLS is_store_admin; NOT
+│   │                          # public — object URLs are public, the listing is admin-only)
 │   ├── invoicing.sql          # ★ tax_classes + products.tax_class_id + order_items tax
 │   │                          # cols + orders.tax_inclusive + store_billing_settings — §17
 │   ├── plans_02_basic_and_expiry.sql # ★ starter→basic rename + plan_expires_at — §15
