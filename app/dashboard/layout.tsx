@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { getStoreBrand } from "@/lib/store/brand";
@@ -9,6 +8,7 @@ import { DashboardTopbar } from "./dashboard-topbar";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { MobileNavProvider } from "./dashboard-mobile-nav";
 import { getViewerContext } from "./lib/access";
+import { SwitchAccountButton } from "./switch-account-button";
 import { getNewEnquiriesCount } from "./enquiries/data";
 import { getLowStockAlertCount } from "./inventory/data";
 import { ChatProvider } from "./chat-context";
@@ -74,12 +74,7 @@ export default async function DashboardLayout({
             this account isn&apos;t a staff member of this store. If this is
             your store, sign in with the account you used to create it.
           </p>
-          <Link
-            href="/auth/login"
-            className="inline-block rounded-lg bg-[#E5E4E2] hover:bg-[#CFCFCF] px-5 py-2.5 text-sm font-semibold text-[#ffffff] transition-colors duration-200"
-          >
-            Switch account
-          </Link>
+          <SwitchAccountButton />
         </div>
       </div>
     );
