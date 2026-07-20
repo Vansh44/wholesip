@@ -90,11 +90,14 @@ substitutions:
   _DB_PASSWORD_SECRET: CLOUDSQL_STAGING_APP_PW
   _GCS_BUCKET: storemink-media
   _FIREBASE_PROJECT_ID: storemink-staging
-  _NEXT_PUBLIC_FIREBASE_API_KEY: ""
-  _NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ""
-  _NEXT_PUBLIC_FIREBASE_PROJECT_ID: ""
-  _NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ""
-  _NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ""
-  _NEXT_PUBLIC_FIREBASE_APP_ID: ""
+  # Firebase web config is PUBLIC (it ships in the client bundle) — not secret.
+  # These staging defaults let a bare `gcloud builds submit` produce a working
+  # staging build; the prod trigger overrides them (see docs/gcp-ci-cd.md).
+  _NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyBVxeZsIIQmiF_XeSsFaqa_CRfBUIoewHc
+  _NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: storemink-staging.firebaseapp.com
+  _NEXT_PUBLIC_FIREBASE_PROJECT_ID: storemink-staging
+  _NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: storemink-staging.firebasestorage.app
+  _NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "68037646295"
+  _NEXT_PUBLIC_FIREBASE_APP_ID: "1:68037646295:web:388ef47d32e39c822b1d92"
   _NEXT_PUBLIC_ROOT_DOMAIN: staging.storemink.com
   _NEXT_PUBLIC_APP_URL: https://staging.storemink.com
