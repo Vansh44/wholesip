@@ -1,86 +1,89 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  sendSignInLinkToEmail,
-  isSignInWithEmailLink,
-  signInWithEmailLink,
-} from "firebase/auth";
+import { signInWithCustomToken } from "firebase/auth";
 import {
   getFirebaseAuth,
   establishSession,
   firebaseAuthErrorMessage,
 } from "@/lib/auth/firebase-client";
+import {
+  requestOperatorOtp,
+  verifyOperatorOtp,
+} from "@/app/actions/operator-otp-actions";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const EMAIL_KEY = "sm_operator_email_for_signin";
 
-// Platform-operator login (storemink.com/dashboard/login). Passwordless email-
-// link sign-in (Identity Platform); access to the console is then gated by
-// platform_admins membership.
+// Platform-operator login (storemink.com/dashboard/login). A 6-digit code is
+// emailed (via our Resend domain — deliverable, not the magic link's spam), then
+// verified server-side → Firebase custom token → session. Console access is then
+// gated by platform_admins membership.
 export default function OperatorLoginPage() {
   const router = useRouter();
-  const [step, setStep] = useState<"email" | "sent">("email");
+  const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
-  // Complete sign-in when the page is opened from the emailed link.
-  useEffect(() => {
-    const auth = getFirebaseAuth();
-    if (!isSignInWithEmailLink(auth, window.location.href)) return;
-    (async () => {
-      setBusy(true);
-      let addr = window.localStorage.getItem(EMAIL_KEY) ?? "";
-      if (!addr) {
-        addr = window.prompt("Confirm your email to finish signing in") ?? "";
-      }
-      if (!addr) {
-        setBusy(false);
-        setError("Enter the email you requested the link with.");
-        return;
-      }
-      try {
-        await signInWithEmailLink(auth, addr, window.location.href);
-        window.localStorage.removeItem(EMAIL_KEY);
-        const sessErr = await establishSession();
-        if (sessErr) {
-          setBusy(false);
-          setError(sessErr);
-          return;
-        }
-        router.replace("/dashboard");
-        router.refresh();
-      } catch (err) {
-        setBusy(false);
-        setError(firebaseAuthErrorMessage(err));
-      }
-    })();
-  }, [router]);
-
-  async function sendLink(e: React.FormEvent) {
+  async function sendCode(e: React.FormEvent) {
     e.preventDefault();
-    if (!EMAIL_RE.test(email)) return setError("Enter a valid email.");
+    if (!EMAIL_RE.test(email.trim())) return setError("Enter a valid email.");
     setBusy(true);
     setError("");
     try {
-      await sendSignInLinkToEmail(getFirebaseAuth(), email.trim(), {
-        url: window.location.href,
-        handleCodeInApp: true,
-      });
-      window.localStorage.setItem(EMAIL_KEY, email.trim());
-      setStep("sent");
+      const res = await requestOperatorOtp(email.trim());
+      if (!res.ok) {
+        setError(res.error || "Something went wrong. Please try again.");
+        return;
+      }
+      setStep("code");
+      setNotice(
+        `If ${email.trim()} is an operator, a 6-digit code is on its way.`,
+      );
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verify(e: React.FormEvent) {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(code.trim()))
+      return setError("Enter the 6-digit code.");
+    setBusy(true);
+    setError("");
+    try {
+      const res = await verifyOperatorOtp(email.trim(), code.trim());
+      if (res.error || !res.customToken) {
+        setError(res.error || "Something went wrong. Please try again.");
+        return;
+      }
+      await signInWithCustomToken(getFirebaseAuth(), res.customToken);
+      const sessErr = await establishSession();
+      if (sessErr) {
+        setError(sessErr);
+        return;
+      }
+      router.replace("/dashboard");
+      router.refresh();
     } catch (err) {
       setError(firebaseAuthErrorMessage(err));
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   return (
     <div className="stq-auth-wrap">
-      <form className="stq-auth" onSubmit={sendLink}>
+      <form
+        className="stq-auth"
+        onSubmit={step === "email" ? sendCode : verify}
+      >
         <Link href="/" className="stq-logo" style={{ fontSize: 20 }}>
           Stor<span>eMink</span>
         </Link>
@@ -88,10 +91,10 @@ export default function OperatorLoginPage() {
         <p className="sub">
           {step === "email"
             ? "Sign in to the StoreMink admin console."
-            : `We emailed a sign-in link to ${email}. Open it on this device to continue.`}
+            : notice || `Enter the code we sent to ${email.trim()}.`}
         </p>
 
-        {step === "email" && (
+        {step === "email" ? (
           <>
             <div className="stq-field">
               <label className="stq-label" htmlFor="email">
@@ -103,6 +106,7 @@ export default function OperatorLoginPage() {
                 className="stq-input"
                 placeholder="you@storemink.com"
                 autoFocus
+                autoComplete="email"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -116,8 +120,54 @@ export default function OperatorLoginPage() {
               className="stq-btn stq-btn-primary stq-btn-block"
               disabled={busy}
             >
-              {busy ? "Please wait…" : "Email me a sign-in link"}
+              {busy ? "Please wait…" : "Email me a code"}
             </button>
+          </>
+        ) : (
+          <>
+            <div className="stq-field">
+              <label className="stq-label" htmlFor="code">
+                6-digit code
+              </label>
+              <input
+                id="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                className="stq-input"
+                placeholder="000000"
+                autoFocus
+                value={code}
+                onChange={(e) => {
+                  setCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  setError("");
+                }}
+                style={{ letterSpacing: 6, fontVariantNumeric: "tabular-nums" }}
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="stq-btn stq-btn-primary stq-btn-block"
+              disabled={busy}
+            >
+              {busy ? "Verifying…" : "Verify & sign in"}
+            </button>
+
+            <p className="stq-alt">
+              <button
+                type="button"
+                className="stq-linkbtn"
+                onClick={() => {
+                  setStep("email");
+                  setCode("");
+                  setError("");
+                  setNotice("");
+                }}
+              >
+                Use a different email
+              </button>
+            </p>
           </>
         )}
 

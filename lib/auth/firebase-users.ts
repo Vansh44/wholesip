@@ -85,6 +85,45 @@ export async function updateAuthUser(
 }
 
 /**
+ * Resolve an email to its Identity Platform uid, creating the auth user if it
+ * doesn't exist yet (email pre-verified — the caller has already proven control
+ * of the address, e.g. via an emailed one-time code). Used by the operator
+ * email-OTP login so an allowlisted operator can sign in even before a Firebase
+ * user exists for their address.
+ */
+export async function getOrCreateAuthUserIdByEmail(
+  email: string,
+): Promise<string> {
+  const auth = getFirebaseAdminAuth();
+  if (!auth) throw new Error("Identity Platform is not configured.");
+  try {
+    const rec = await auth.getUserByEmail(email);
+    return rec.uid;
+  } catch (err) {
+    if (authErrorCode(err) === "auth/user-not-found") {
+      const rec = await auth.createUser({ email, emailVerified: true });
+      return rec.uid;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Mint a Firebase custom token for a uid. The client exchanges it via
+ * `signInWithCustomToken` → ID token → the session-cookie bridge. On Cloud Run
+ * the signing uses the runtime SA's self `serviceAccountTokenCreator` (IAM
+ * signBlob) since ADC carries no private key.
+ */
+export async function createCustomAuthToken(
+  uid: string,
+  claims?: Record<string, unknown>,
+): Promise<string> {
+  const auth = getFirebaseAdminAuth();
+  if (!auth) throw new Error("Identity Platform is not configured.");
+  return auth.createCustomToken(uid, claims);
+}
+
+/**
  * Server-side re-verification of an email + password (firebase-admin can't check
  * a password). Calls the Identity Platform REST endpoint with the web API key;
  * returns true only on a valid credential. Used by "change password" reauth.
