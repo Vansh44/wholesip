@@ -1,4 +1,4 @@
-name: Next.js CI/CD
+name: Next.js CI
 
 on:
   push:
@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: read
-  actions: write
-  id-token: write # Required for secure GCP Workload Identity authentication
 
 jobs:
   ci:
@@ -41,55 +39,17 @@ jobs:
       - name: Format Check
         run: npm run prettier --check
 
-      # Cloud Run automatically builds the image, so you don't strictly need
-      # this build step here unless it's just for CI verification.
+      # CI verification only — catches build breaks before deploy. Deploys are
+      # OWNED by the Cloud Build triggers (cloudbuild.yaml): staging -> service
+      # storemink-web, main -> storemink-web-prod. They are the ONLY path that
+      # bakes the NEXT_PUBLIC_* build args (e.g. NEXT_PUBLIC_ROOT_DOMAIN) into
+      # the client bundle and wires runtime env/secrets/Cloud SQL. See
+      # docs/gcp-ci-cd.md.
+      #
+      # Do NOT add a `gcloud run deploy --source` / deploy-cloudrun step here:
+      # a source deploy CANNOT pass Docker build args, so it ships an empty
+      # NEXT_PUBLIC_ROOT_DOMAIN and (finishing after the Cloud Build trigger)
+      # clobbers the good revision — which broke staging (apex resolved as a
+      # store slug "staging"; /dashboard fell back to the WholeSip store).
       - name: Build Project
         run: npm run build
-
-  deploy-staging:
-    name: Deploy to Staging
-    needs: ci # This ensures the job ONLY runs if the 'ci' job passes
-    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
-          service_account: "${{ secrets.GCP_SERVICE_ACCOUNT }}"
-
-      - name: Deploy to Cloud Run (Staging)
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: "storemink-web"
-          region: "asia-south1"
-          source: "."
-          flags: "--allow-unauthenticated"
-
-  deploy-prod:
-    name: Deploy to Production
-    needs: ci
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
-          service_account: "${{ secrets.GCP_SERVICE_ACCOUNT }}"
-
-      - name: Deploy to Cloud Run (Prod)
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: "storemink-web-prod"
-          region: "asia-south1"
-          source: "."
-          flags: "--min-instances=1 --allow-unauthenticated"
