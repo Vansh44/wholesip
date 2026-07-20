@@ -60,48 +60,47 @@ const STORE_COLUMNS = {
 };
 
 // Cached store lookup by Host header. Returns null for platform hosts and for
-// hosts that don't map to an active store. Tolerates DB errors (returns null).
+// hosts that don't map to an active store — those genuine nulls ARE cached
+// (cheap 404s). A DB error is deliberately NOT swallowed here: this fn is
+// wrapped in unstable_cache and a returned null is cached for `revalidate`s, so
+// turning a transient DB outage into null would make a REAL store vanish
+// (storefront 404 / dashboard "no access") for the whole window even after the
+// DB recovers. A thrown/rejected promise is never cached, so we let the error
+// propagate and getCurrentStoreOrNull degrades it to an UNCACHED null → the next
+// request retries and self-heals.
 const lookupStoreByHost = unstable_cache(
   async (host: string): Promise<Store | null> => {
     const kind = parseHost(host);
     if (kind.type === "platform") return null;
 
-    try {
-      const rows = await withAnon((db) =>
-        db
-          .select(STORE_COLUMNS)
-          .from(stores)
-          .where(
-            and(
-              eq(stores.status, "active"),
-              kind.type === "store-subdomain"
-                ? eq(stores.slug, kind.slug)
-                : eq(stores.customDomain, kind.domain),
-            ),
-          )
-          .limit(1),
-      );
-      const store = (rows[0] as Store | undefined) ?? null;
+    const rows = await withAnon((db) =>
+      db
+        .select(STORE_COLUMNS)
+        .from(stores)
+        .where(
+          and(
+            eq(stores.status, "active"),
+            kind.type === "store-subdomain"
+              ? eq(stores.slug, kind.slug)
+              : eq(stores.customDomain, kind.domain),
+          ),
+        )
+        .limit(1),
+    );
+    const store = (rows[0] as Store | undefined) ?? null;
 
-      // A custom domain must be proven-owned before we serve on it — otherwise a
-      // store could pre-claim a domain it doesn't control. Ownership is confirmed
-      // via the Resend DNS-verification flow, which flips settings.custom_domain_verified.
-      // (Store subdomains are inherently ours, so they need no such check.)
-      if (
-        store &&
-        kind.type === "custom-domain" &&
-        store.settings?.custom_domain_verified !== true
-      ) {
-        return null;
-      }
-      return store;
-    } catch (err) {
-      console.error(
-        "lookupStoreByHost:",
-        err instanceof Error ? err.message : err,
-      );
+    // A custom domain must be proven-owned before we serve on it — otherwise a
+    // store could pre-claim a domain it doesn't control. Ownership is confirmed
+    // via the Resend DNS-verification flow, which flips settings.custom_domain_verified.
+    // (Store subdomains are inherently ours, so they need no such check.)
+    if (
+      store &&
+      kind.type === "custom-domain" &&
+      store.settings?.custom_domain_verified !== true
+    ) {
       return null;
     }
+    return store;
   },
   ["store-by-host"],
   { tags: [STORE_TAG], revalidate: 300 },
@@ -111,18 +110,12 @@ const lookupStoreByHost = unstable_cache(
 // old anon client: only active stores are visible without an identity.)
 export const lookupStoreById = unstable_cache(
   async (id: string): Promise<Store | null> => {
-    try {
-      const rows = await withAnon((db) =>
-        db.select(STORE_COLUMNS).from(stores).where(eq(stores.id, id)).limit(1),
-      );
-      return (rows[0] as Store | undefined) ?? null;
-    } catch (err) {
-      console.error(
-        "lookupStoreById:",
-        err instanceof Error ? err.message : err,
-      );
-      return null;
-    }
+    // Same rule as lookupStoreByHost: never swallow a DB error into a cached
+    // null. Let it throw (uncached); getCurrentStore catches it below.
+    const rows = await withAnon((db) =>
+      db.select(STORE_COLUMNS).from(stores).where(eq(stores.id, id)).limit(1),
+    );
+    return (rows[0] as Store | undefined) ?? null;
   },
   ["store-by-id"],
   { tags: [STORE_TAG], revalidate: 300 },
@@ -137,7 +130,19 @@ export const lookupStoreById = unstable_cache(
 export async function getCurrentStoreOrNull(): Promise<Store | null> {
   const headersList = await headers();
   const host = headersList.get("x-forwarded-host") || headersList.get("host");
-  return lookupStoreByHost(host ?? "");
+  try {
+    return await lookupStoreByHost(host ?? "");
+  } catch (err) {
+    // Transient DB error → degrade to "no store" for THIS request only. Crucially
+    // this null is NOT cached (the throw inside lookupStoreByHost bypasses
+    // unstable_cache), so once the DB is back the very next request resolves the
+    // real store instead of serving a poisoned null for the revalidate window.
+    console.error(
+      "lookupStoreByHost:",
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
 }
 
 // Resolve the store for the *current* request. Never returns null: unresolved
@@ -150,8 +155,14 @@ export async function getCurrentStore(): Promise<Store> {
   const resolved = await getCurrentStoreOrNull();
   if (resolved) return resolved;
 
-  const fallback = await lookupStoreById(FALLBACK_STORE_ID);
-  if (fallback) return fallback;
+  try {
+    const fallback = await lookupStoreById(FALLBACK_STORE_ID);
+    if (fallback) return fallback;
+  } catch (err) {
+    // DB error resolving the fallback → fall through to the synthetic store
+    // (never cached as null; retries next request).
+    console.error("lookupStoreById:", err instanceof Error ? err.message : err);
+  }
 
   // Last-resort synthetic store so callers never crash even if the row is
   // somehow missing (e.g. mid-migration). store_id still resolves correctly.

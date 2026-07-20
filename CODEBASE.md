@@ -964,6 +964,11 @@ amountPaise}` for the modal. `confirmOnlinePayment` verifies the HMAC
 
 ```bash
 npm run dev         # next dev --turbopack (test stores via {slug}.localhost:3000)
+npm run dev:all     # ↑ dev + the Cloud SQL Auth Proxy together (concurrently) — one command
+npm run db:proxy    # just the Cloud SQL Auth Proxy → staging DB on localhost:6543 (needs
+                    #   `gcloud auth application-default login` once for ADC). Local dev
+                    #   reads/writes the staging Cloud SQL instance THROUGH this proxy, so
+                    #   it must be running (else lookupStoreByHost → ECONNREFUSED/ECONNRESET).
 npm run build       # production build
 npm run lint        # eslint
 npm run typecheck   # tsc --noEmit

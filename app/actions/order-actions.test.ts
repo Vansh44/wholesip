@@ -49,14 +49,25 @@ describe("order-actions", () => {
     // Happy path — store-scoped, returns rows + total count.
     it("returns store-scoped, paginated orders with a total", async () => {
       dbHolder.current = makeDbMock({
-        selectQueue: [[{ id: "o1", total: 100 }], [{ n: 3 }]],
+        selectQueue: [
+          [{ id: "o1", total: 100 }],
+          [{ n: 3 }],
+          [
+            { status: "pending", n: 2 },
+            { status: "delivered", n: 1 },
+          ],
+        ],
       });
-      const result = await getOrders(1, 50);
+      const result = await getOrders({ page: 1, pageSize: 50 });
       expect(result.error).toBeUndefined();
       expect(result.orders).toEqual([{ id: "o1", total: 100 }]);
       expect(result.total).toBe(3);
-      // List + count queries, both store-scoped.
-      expect(dbHolder.current.calls.where).toHaveLength(2);
+      // Per-status tab counts come from the grouped-count query.
+      expect(result.counts.all).toBe(3);
+      expect(result.counts.pending).toBe(2);
+      expect(result.counts.delivered).toBe(1);
+      // List + count + grouped-count queries, all store-scoped.
+      expect(dbHolder.current.calls.where).toHaveLength(3);
       // Never selects the order_items join for the list.
       expect(Object.keys(dbHolder.current.calls.select[0] ?? {})).not.toContain(
         "order_items",
@@ -65,7 +76,7 @@ describe("order-actions", () => {
 
     // Page size is clamped so a client can't request an unbounded range.
     it("clamps an oversized page size", async () => {
-      await getOrders(1, 100000);
+      await getOrders({ page: 1, pageSize: 100000 });
       expect(dbHolder.current.calls.limit[0]).toBe(100);
       expect(dbHolder.current.calls.offset[0]).toBe(0);
     });

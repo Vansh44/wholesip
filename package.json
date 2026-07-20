@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "db:proxy": "cloud-sql-proxy --port 6543 storemink-prod:asia-south1:storemink-staging",
+    "dev:all": "concurrently -n proxy,next -c blue,green \"npm run db:proxy\" \"npm run dev\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -71,6 +73,7 @@
     "@types/sanitize-html": "^2.16.1",
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.8",
+    "concurrently": "^10.0.3",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",

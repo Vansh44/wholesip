@@ -1,18 +1,20 @@
-import Link from "next/link";
 import { getOrders } from "@/app/actions/order-actions";
-import { formatPrice } from "@/lib/pricing";
-import { Badge } from "@/components/ui/badge";
-import { DASHBOARD_PAGE_SIZE, pickPage } from "@/app/dashboard/lib/list-params";
+import {
+  DASHBOARD_PAGE_SIZE,
+  pickPage,
+  pickParam,
+} from "@/app/dashboard/lib/list-params";
+import { OrdersManagementView } from "./orders-management-view";
 import { RealtimeRefresher } from "../components/realtime-refresher";
 
-interface ShippingAddress {
+export interface ShippingAddress {
   firstName?: string;
   lastName?: string;
   city?: string;
   state?: string;
 }
 
-interface OrderRow {
+export interface OrderRow {
   id: string;
   order_no: number;
   order_ref: string;
@@ -31,10 +33,20 @@ export default async function OrdersPage({
 }) {
   const sp = await searchParams;
   const page = pickPage(sp.page);
+  const q = pickParam(sp.q);
+  const status = pickParam(sp.status);
+  const paymentStatus = pickParam(sp.payment);
+  const paymentMethod = pickParam(sp.method);
   const pageSize = DASHBOARD_PAGE_SIZE;
 
-  const { orders: rawOrders, total, error } = await getOrders(page, pageSize);
-  const orders = rawOrders as unknown as OrderRow[];
+  const { orders, total, counts, error } = await getOrders({
+    page,
+    pageSize,
+    status,
+    paymentStatus,
+    paymentMethod,
+    q,
+  });
 
   if (error) {
     return (
@@ -46,141 +58,21 @@ export default async function OrdersPage({
     );
   }
 
-  if (!orders || orders.length === 0) {
-    return (
-      <div className="p-8">
-        {/* Still subscribe while empty, so the FIRST order appears live. */}
-        <RealtimeRefresher tables={["orders"]} />
-        <h1 className="text-2xl font-bold mb-4">Orders</h1>
-        <div className="bg-white border rounded-lg p-12 text-center text-gray-500">
-          No orders have been placed yet.
-        </div>
-      </div>
-    );
-  }
-
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const hrefForPage = (p: number) => (p > 1 ? `?page=${p}` : "?page=1");
-
   return (
-    <div className="dash-page-enter">
+    <>
       {/* Live updates: re-fetch the list when an order is placed/updated. */}
       <RealtimeRefresher tables={["orders"]} />
-      <header className="dash-page-header row">
-        <div>
-          <h1>Orders</h1>
-          <p>View and manage all customer orders</p>
-        </div>
-      </header>
-
-      <div className="dash-card flex flex-col" style={{ flex: "1 1 auto" }}>
-        <table className="dash-table dash-table-wide">
-          <thead>
-            <tr>
-              <th>Order ID</th>
-              <th>Customer Info</th>
-              <th>Date</th>
-              <th className="text-right">Total</th>
-              <th className="text-center">Payment</th>
-              <th className="text-center">Status</th>
-              <th className="text-right">Invoice</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => {
-              const customerName =
-                `${order.shipping_address?.firstName || ""} ${order.shipping_address?.lastName || ""}`.trim();
-
-              return (
-                <tr key={order.id}>
-                  <td
-                    className="font-mono text-sm font-semibold text-gray-900"
-                    title={order.id}
-                  >
-                    {order.order_ref}
-                  </td>
-                  <td>
-                    <div className="font-medium text-gray-900">
-                      {customerName || "Unknown"}
-                    </div>
-                    <div className="text-xs">
-                      {order.shipping_address?.city},{" "}
-                      {order.shipping_address?.state}
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap text-xs">
-                    {new Date(order.created_at).toLocaleString()}
-                  </td>
-                  <td className="text-right font-medium text-gray-900">
-                    {formatPrice(order.total)}
-                  </td>
-                  <td className="text-center">
-                    <Badge
-                      variant={
-                        order.payment_status === "paid"
-                          ? "default"
-                          : "secondary"
-                      }
-                    >
-                      {order.payment_method === "cash_on_delivery"
-                        ? "COD"
-                        : order.payment_method}
-                      ({order.payment_status})
-                    </Badge>
-                  </td>
-                  <td className="text-center">
-                    <Badge
-                      variant={
-                        order.status === "delivered"
-                          ? "default"
-                          : order.status === "cancelled"
-                            ? "destructive"
-                            : "outline"
-                      }
-                    >
-                      {order.status}
-                    </Badge>
-                  </td>
-                  <td className="text-right">
-                    <Link
-                      href={`/dashboard/orders/${order.id}/invoice`}
-                      className="font-medium text-indigo-600 hover:underline"
-                    >
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {totalPages > 1 && (
-        <div className="mt-6 flex items-center justify-between text-sm text-gray-600">
-          <span>
-            Page {page} of {totalPages} · {total} orders
-          </span>
-          <div className="flex gap-2">
-            {page > 1 && (
-              <Link
-                href={hrefForPage(page - 1)}
-                className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
-              >
-                Previous
-              </Link>
-            )}
-            {page < totalPages && (
-              <Link
-                href={hrefForPage(page + 1)}
-                className="rounded-md border px-3 py-1.5 hover:bg-gray-50"
-              >
-                Next
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      <OrdersManagementView
+        orders={orders as unknown as OrderRow[]}
+        total={total}
+        counts={counts}
+        page={page}
+        pageSize={pageSize}
+        query={q}
+        status={status}
+        paymentStatus={paymentStatus}
+        paymentMethod={paymentMethod}
+      />
+    </>
   );
 }
