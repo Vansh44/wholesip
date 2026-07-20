@@ -1,6 +1,10 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { eq } from "drizzle-orm";
+import { getServerUser } from "@/lib/auth/server-user";
+import { verifyPassword, updateAuthUser } from "@/lib/auth/firebase-users";
+import { withUser } from "@/lib/db/client";
+import { admins } from "@/drizzle/schema";
 
 type Result = { error?: string; success?: boolean };
 
@@ -13,22 +17,19 @@ export async function updateProfileName(formData: FormData): Promise<Result> {
     return { error: "First name is required." };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "Not authenticated." };
 
-  const { error } = await supabase
-    .from("admins")
-    .update({
-      first_name: firstName,
-      last_name: lastName || null,
-    })
-    .eq("id", user.id);
-
-  if (error) {
-    console.error("Failed to update profile name:", error);
+  try {
+    // Own-row update (admins RLS lets a user edit their own row).
+    await withUser({ uid: user.id }, (db) =>
+      db
+        .update(admins)
+        .set({ firstName, lastName: lastName || null })
+        .where(eq(admins.id, user.id)),
+    );
+  } catch (err) {
+    console.error("Failed to update profile name:", err);
     return { error: "Couldn't save your name. Please try again." };
   }
 
@@ -37,8 +38,8 @@ export async function updateProfileName(formData: FormData): Promise<Result> {
 
 /**
  * Change the signed-in admin's password. The current password is re-verified
- * with signInWithPassword first (Supabase lets a recent session update the
- * password without it, but we require it like Notion/Linear do for safety).
+ * first (via the Identity Platform REST sign-in — firebase-admin can't check a
+ * password), like Notion/Linear do, then updated with the Admin SDK.
  */
 export async function changePassword(formData: FormData): Promise<Result> {
   const currentPassword = (formData.get("currentPassword") as string) || "";
@@ -58,26 +59,20 @@ export async function changePassword(formData: FormData): Promise<Result> {
     return { error: "New password must be different from the current one." };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user?.email) return { error: "Not authenticated." };
 
-  // Re-verify the current password.
-  const { error: verifyError } = await supabase.auth.signInWithPassword({
-    email: user.email,
-    password: currentPassword,
-  });
-  if (verifyError) {
+  // Re-verify the current password before allowing the change.
+  const ok = await verifyPassword(user.email, currentPassword);
+  if (!ok) {
     return { error: "Your current password is incorrect." };
   }
 
-  const { error: updateError } = await supabase.auth.updateUser({
-    password: newPassword,
-  });
-  if (updateError) {
-    return { error: updateError.message || "Couldn't update your password." };
+  try {
+    await updateAuthUser(user.id, { password: newPassword });
+  } catch (err) {
+    console.error("changePassword error:", err);
+    return { error: "Couldn't update your password." };
   }
 
   return { success: true };
@@ -85,31 +80,30 @@ export async function changePassword(formData: FormData): Promise<Result> {
 
 /**
  * Persist a phone number to the profile after it has been OTP-verified on the
- * client (Supabase `verifyOtp` with type "phone_change" updates auth.users.phone).
- * We only accept the number that auth has actually recorded as verified.
+ * client (Firebase `updatePhoneNumber`, which sets the user's phone_number and
+ * is reflected in the re-minted session cookie). We only accept the number auth
+ * has actually recorded as verified.
  */
 export async function setVerifiedPhone(phone: string): Promise<Result> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "Not authenticated." };
 
   const normalized = phone.trim();
-  if (!user.phone || `+${user.phone}` !== normalized) {
-    // Supabase stores phone without the leading "+"; accept either form.
-    if (user.phone !== normalized.replace(/^\+/, "")) {
-      return { error: "Phone number hasn't been verified yet." };
-    }
+  // Identity Platform stores E.164 (with a leading "+"); getServerUser reports
+  // the verified phone as-is, so it must match exactly.
+  if (!user.phone || user.phone !== normalized) {
+    return { error: "Phone number hasn't been verified yet." };
   }
 
-  const { error } = await supabase
-    .from("admins")
-    .update({ phone: normalized })
-    .eq("id", user.id);
-
-  if (error) {
-    console.error("Failed to save verified phone:", error);
+  try {
+    await withUser({ uid: user.id }, (db) =>
+      db
+        .update(admins)
+        .set({ phone: normalized })
+        .where(eq(admins.id, user.id)),
+    );
+  } catch (err) {
+    console.error("Failed to save verified phone:", err);
     return { error: "Couldn't save your phone number. Please try again." };
   }
 

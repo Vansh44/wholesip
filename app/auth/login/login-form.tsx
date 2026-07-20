@@ -3,7 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import {
+  signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+} from "firebase/auth";
+import {
+  getFirebaseAuth,
+  establishSession,
+  firebaseAuthErrorMessage,
+} from "@/lib/auth/firebase-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,39 +30,43 @@ export function LoginForm({ storeName }: { storeName: string }) {
     setError("");
     setLoading(true);
 
-    const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (signInError) {
-      setError(signInError.message);
+    try {
+      await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+      // Exchange the fresh ID token for the httpOnly server session cookie.
+      const sessErr = await establishSession();
+      if (sessErr) {
+        setError(sessErr);
+        setLoading(false);
+        return;
+      }
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err) {
+      setError(firebaseAuthErrorMessage(err));
       setLoading(false);
-      return;
     }
-
-    router.push("/dashboard");
-    router.refresh();
   }
 
   // Google sign-in — the counterpart to signup's "Continue with Google". A
   // Google-created owner has NO password, so without this they'd be locked out
-  // of the email+password form. On a store host the proxy serves /auth/callback
-  // directly (no platform rewrite), so the existing callback route exchanges
-  // the code and lands them on /dashboard.
+  // of the email+password form. signInWithPopup keeps it entirely client-side
+  // (no OAuth callback route), then we exchange the ID token for the session.
   async function handleGoogle() {
     setError("");
     setGoogleLoading(true);
-    const supabase = createClient();
-    const { error: oErr } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
-      },
-    });
-    if (oErr) {
-      setError(oErr.message);
+    try {
+      await signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider());
+      const sessErr = await establishSession();
+      if (sessErr) {
+        setError(sessErr);
+        setGoogleLoading(false);
+        return;
+      }
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err) {
+      // firebaseAuthErrorMessage returns "" for a user-cancelled popup.
+      setError(firebaseAuthErrorMessage(err));
       setGoogleLoading(false);
     }
   }

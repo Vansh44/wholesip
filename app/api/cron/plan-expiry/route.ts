@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, inArray, lte, ne } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { planEvents, stores } from "@/drizzle/schema";
 import { STORE_TAG } from "@/lib/store/resolve";
 import { PLAN_META, normalizePlan } from "@/lib/plans";
 import {
@@ -33,69 +35,85 @@ async function handle(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
   const nowIso = new Date().toISOString();
 
-  // Snapshot the lapsed stores first — the UPDATE returns new values, and the
-  // audit rows need the plan each store is falling FROM.
-  const { data: lapsed, error: readErr } = await admin
-    .from("stores")
-    .select("id, plan")
-    .neq("plan", "free")
-    .lte("plan_expires_at", nowIso);
-  if (readErr) {
-    console.error("plan-expiry (read):", readErr.message);
-    return NextResponse.json({ error: "read failed" }, { status: 500 });
-  }
-  if (!lapsed?.length) {
-    return NextResponse.json({ ok: true, expired: 0 });
-  }
+  let lapsed: { id: string; plan: string }[];
+  let flippedIds: Set<string>;
+  try {
+    ({ lapsed, flippedIds } = await withService(async (db) => {
+      // Snapshot the lapsed stores first — the UPDATE returns new values, and
+      // the audit rows need the plan each store is falling FROM.
+      const lapsed = await db
+        .select({ id: stores.id, plan: stores.plan })
+        .from(stores)
+        .where(and(ne(stores.plan, "free"), lte(stores.planExpiresAt, nowIso)));
+      if (lapsed.length === 0) {
+        return { lapsed, flippedIds: new Set<string>() };
+      }
 
-  // Re-check the expiry inside the UPDATE so a store whose plan was extended
-  // between the snapshot and now is left alone; .select() returns only the
-  // rows actually flipped, which is what gets audited.
-  const { data: flipped, error: updateErr } = await admin
-    .from("stores")
-    .update({ plan: "free", plan_expires_at: null })
-    .in(
-      "id",
-      lapsed.map((s) => s.id),
-    )
-    .neq("plan", "free")
-    .lte("plan_expires_at", nowIso)
-    .select("id");
-  if (updateErr) {
-    console.error("plan-expiry (update):", updateErr.message);
+      // Re-check the expiry inside the UPDATE so a store whose plan was extended
+      // between the snapshot and now is left alone; .returning() gives only the
+      // rows actually flipped, which is what gets audited.
+      const flipped = await db
+        .update(stores)
+        .set({ plan: "free", planExpiresAt: null })
+        .where(
+          and(
+            inArray(
+              stores.id,
+              lapsed.map((s) => s.id),
+            ),
+            ne(stores.plan, "free"),
+            lte(stores.planExpiresAt, nowIso),
+          ),
+        )
+        .returning({ id: stores.id });
+      return { lapsed, flippedIds: new Set(flipped.map((s) => s.id)) };
+    }));
+  } catch (err) {
+    console.error(
+      "plan-expiry (read/update):",
+      err instanceof Error ? err.message : err,
+    );
     return NextResponse.json({ error: "update failed" }, { status: 500 });
   }
 
-  const flippedIds = new Set((flipped ?? []).map((s) => s.id as string));
+  if (!lapsed.length) {
+    return NextResponse.json({ ok: true, expired: 0 });
+  }
+
   const events = lapsed
-    .filter((s) => flippedIds.has(s.id as string))
+    .filter((s) => flippedIds.has(s.id))
     .map((s) => ({
-      store_id: s.id as string,
-      from_plan: s.plan as string,
-      to_plan: "free",
+      storeId: s.id,
+      fromPlan: s.plan,
+      toPlan: "free",
       source: "system",
       actor: "plan-expiry-cron",
       note: "plan expired",
     }));
   if (events.length) {
     // Best-effort audit trail — the flip itself is the source of truth.
-    const { error: auditErr } = await admin.from("plan_events").insert(events);
-    if (auditErr) console.error("plan-expiry (audit):", auditErr.message);
+    try {
+      await withService((db) => db.insert(planEvents).values(events));
+    } catch (auditErr) {
+      console.error(
+        "plan-expiry (audit):",
+        auditErr instanceof Error ? auditErr.message : auditErr,
+      );
+    }
     revalidateTag(STORE_TAG, "max");
 
     // Tell each merchant their plan lapsed to free (best-effort).
     await Promise.all(
       events.map(async (ev) => {
-        const recip = await resolveBillingEmail(ev.store_id);
+        const recip = await resolveBillingEmail(ev.storeId);
         if (!recip) return;
         await sendBillingEmail(
           recip.email,
           planDowngradedTemplate({
             storeName: recip.storeName,
-            fromPlanName: PLAN_META[normalizePlan(ev.from_plan)].name,
+            fromPlanName: PLAN_META[normalizePlan(ev.fromPlan)].name,
             manageUrl: manageUrl(recip.slug),
           }),
         );

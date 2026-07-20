@@ -1,7 +1,11 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
+import { and, asc, eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { cardColors, categories, products, taxClasses } from "@/drizzle/schema";
 import { getActingStoreId } from "@/app/dashboard/lib/access";
+import { PRODUCT_COLUMNS, VARIANT_COLUMNS } from "./columns";
+import { productVariants } from "@/drizzle/schema";
 import type {
   Product,
   CategoryOption,
@@ -12,8 +16,9 @@ import type {
 /**
  * Everything the product editor needs for one product: the product (with its
  * category + variants) plus the category, card-colour and tax-class option
- * lists. Returns null if the product doesn't exist. Mirrors the list page's
- * query so RLS (admins can read) behaves identically.
+ * lists. Returns null if the product doesn't exist for this store. Service
+ * scope + explicit store filter (the editor needs drafts too), mirroring the
+ * list page.
  */
 export async function getProductEditData(id: string): Promise<{
   product: Product;
@@ -21,62 +26,90 @@ export async function getProductEditData(id: string): Promise<{
   colors: CardColorOption[];
   taxClasses: TaxClassOption[];
 } | null> {
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
 
-  const [
-    { data: product, error: productError },
-    { data: categories },
-    { data: colors },
-    { data: taxClasses },
-  ] = await Promise.all([
-    supabase
-      .from("products")
-      .select(
-        "*, category:categories(id, name, slug), variants:product_variants(*)",
-      )
-      .eq("id", id)
-      .eq("store_id", storeId)
-      .single(),
-    supabase
-      .from("categories")
-      .select("id, name, slug, status")
-      .eq("store_id", storeId)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
-    supabase
-      .from("card_colors")
-      .select("id, name, hex")
-      .eq("store_id", storeId)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
-    supabase
-      .from("tax_classes")
-      .select("id, name, rate")
-      .eq("store_id", storeId)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
-  ]);
+  try {
+    return await withService(async (db) => {
+      const [productRows, variants, categoryRows, colorRows, taxClassRows] =
+        await Promise.all([
+          db
+            .select({
+              ...PRODUCT_COLUMNS,
+              cat_id: categories.id,
+              cat_name: categories.name,
+              cat_slug: categories.slug,
+            })
+            .from(products)
+            .leftJoin(categories, eq(products.categoryId, categories.id))
+            .where(and(eq(products.id, id), eq(products.storeId, storeId)))
+            .limit(1),
+          db
+            .select(VARIANT_COLUMNS)
+            .from(productVariants)
+            .where(eq(productVariants.productId, id))
+            .orderBy(asc(productVariants.sortOrder)),
+          db
+            .select({
+              id: categories.id,
+              name: categories.name,
+              slug: categories.slug,
+              status: categories.status,
+            })
+            .from(categories)
+            .where(eq(categories.storeId, storeId))
+            .orderBy(asc(categories.sortOrder), asc(categories.name)),
+          db
+            .select({
+              id: cardColors.id,
+              name: cardColors.name,
+              hex: cardColors.hex,
+            })
+            .from(cardColors)
+            .where(eq(cardColors.storeId, storeId))
+            .orderBy(asc(cardColors.sortOrder), asc(cardColors.name)),
+          db
+            .select({
+              id: taxClasses.id,
+              name: taxClasses.name,
+              rate: taxClasses.rate,
+            })
+            .from(taxClasses)
+            .where(eq(taxClasses.storeId, storeId))
+            .orderBy(asc(taxClasses.sortOrder), asc(taxClasses.name)),
+        ]);
 
-  if (!product) {
-    // Don't swallow the reason: a null here renders a 404. If the row exists
-    // (it usually does), the culprit is almost always the authenticated read
-    // being rejected (e.g. an ES256 session token PostgREST won't verify) or a
-    // store_id mismatch — both of which this log makes obvious.
+      const row = productRows[0];
+      if (!row) {
+        // Don't swallow the reason: a null here renders a 404. If the row
+        // exists (it usually does), the culprit is almost always a store_id
+        // mismatch — this log makes it obvious.
+        console.error(
+          `getProductEditData: no product for id=${id} store=${storeId} (0 rows matched)`,
+        );
+        return null;
+      }
+
+      const { cat_id, cat_name, cat_slug, ...productFields } = row;
+      const product = {
+        ...productFields,
+        category: cat_id
+          ? { id: cat_id, name: cat_name!, slug: cat_slug! }
+          : null,
+        variants,
+      } as unknown as Product;
+
+      return {
+        product,
+        categories: categoryRows as CategoryOption[],
+        colors: colorRows as CardColorOption[],
+        taxClasses: taxClassRows as TaxClassOption[],
+      };
+    });
+  } catch (err) {
     console.error(
-      `getProductEditData: no product for id=${id} store=${storeId}`,
-      productError?.message ?? "(no error — 0 rows matched)",
+      "getProductEditData:",
+      err instanceof Error ? err.message : err,
     );
     return null;
   }
-
-  const p = product as Product;
-  p.variants = (p.variants ?? []).sort((a, b) => a.sort_order - b.sort_order);
-
-  return {
-    product: p,
-    categories: (categories ?? []) as CategoryOption[],
-    colors: (colors ?? []) as CardColorOption[],
-    taxClasses: (taxClasses ?? []) as TaxClassOption[],
-  };
 }

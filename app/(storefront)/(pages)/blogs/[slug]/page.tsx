@@ -3,8 +3,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/server";
-import { createPublicClient } from "@/lib/supabase/public";
+import { and, arrayOverlaps, desc, eq, ne } from "drizzle-orm";
+import { withAnon, withUser, type Db } from "@/lib/db/client";
+import { blogComments, blogs } from "@/drizzle/schema";
+import { getServerUser } from "@/lib/auth/server-user";
 import { requireStorefrontStoreId } from "@/lib/store/resolve";
 import { getStoreBrand } from "@/lib/store/brand";
 import { getStoreUrl } from "@/lib/site";
@@ -54,67 +56,109 @@ type Props = {
 // body) so the full-content row is fetched once instead of twice.
 const getBlog = cache(
   async (slug: string, storeId: string): Promise<Blog | null> => {
-    const supabase = await createClient();
     // No status filter — RLS decides visibility. Anonymous visitors can only read
     // published blogs (so unpublished slugs 404 for them), while admins and a
     // blog's own submitter are allowed to read drafts / pending submissions. This
     // lets the dashboard "Preview" action work for blogs awaiting review.
-    const { data } = await supabase
-      .from("blogs")
-      .select("*")
-      .eq("store_id", storeId)
-      .eq("slug", slug)
-      .maybeSingle();
-    return data;
+    // Signed-in readers run withUser (their RLS branches apply); others withAnon.
+    try {
+      const run = (db: Db) =>
+        db
+          .select({
+            id: blogs.id,
+            title: blogs.title,
+            slug: blogs.slug,
+            excerpt: blogs.excerpt,
+            content: blogs.content,
+            cover_image_url: blogs.coverImageUrl,
+            author: blogs.author,
+            status: blogs.status,
+            tags: blogs.tags,
+            categories: blogs.categories,
+            featured: blogs.featured,
+            seo_title: blogs.seoTitle,
+            seo_description: blogs.seoDescription,
+            reading_time: blogs.readingTime,
+            published_at: blogs.publishedAt,
+            created_at: blogs.createdAt,
+            updated_at: blogs.updatedAt,
+          })
+          .from(blogs)
+          .where(and(eq(blogs.storeId, storeId), eq(blogs.slug, slug)))
+          .limit(1);
+      const user = await getServerUser();
+      const rows = user
+        ? await withUser({ uid: user.id, email: user.email }, run)
+        : await withAnon(run);
+      const row = rows[0];
+      if (!row) return null;
+      return { ...row, tags: row.tags ?? [] } as Blog;
+    } catch (err) {
+      console.error("getBlog:", err instanceof Error ? err.message : err);
+      return null;
+    }
   },
 );
 
 // Related posts render as cards only — never the article body, so don't pull
 // the heavy `content` column the way `select("*")` did.
-const RELATED_BLOG_COLUMNS =
-  "id, title, slug, excerpt, cover_image_url, author, published_at, reading_time, tags, categories";
+const RELATED_BLOG_COLUMNS = {
+  id: blogs.id,
+  title: blogs.title,
+  slug: blogs.slug,
+  excerpt: blogs.excerpt,
+  cover_image_url: blogs.coverImageUrl,
+  author: blogs.author,
+  published_at: blogs.publishedAt,
+  reading_time: blogs.readingTime,
+  tags: blogs.tags,
+  categories: blogs.categories,
+};
 
 async function getRelatedBlogs(blog: Blog, storeId: string): Promise<Blog[]> {
-  // Public, published-only reads — use the cookie-free anon client.
-  const supabase = createPublicClient();
-
+  // Public, published-only reads — the anonymous scope.
   // Fetch category matches and recent posts in parallel (no waterfall), then
   // merge: category matches first, topped up with recents, deduped, capped at 3.
   const hasCategories = !!blog.categories && blog.categories.length > 0;
-  const [categoryRes, recentRes] = await Promise.all([
-    hasCategories
-      ? supabase
-          .from("blogs")
+  try {
+    const [categoryRows, recentRows] = await withAnon((db) => {
+      const base = () =>
+        db
           .select(RELATED_BLOG_COLUMNS)
-          .eq("store_id", storeId)
-          .eq("status", "published")
-          .neq("id", blog.id)
-          .overlaps("categories", blog.categories!)
-          .order("published_at", { ascending: false })
-          .limit(3)
-      : Promise.resolve({ data: [] as unknown[] }),
-    supabase
-      .from("blogs")
-      .select(RELATED_BLOG_COLUMNS)
-      .eq("store_id", storeId)
-      .eq("status", "published")
-      .neq("id", blog.id)
-      .order("published_at", { ascending: false })
-      .limit(3),
-  ]);
+          .from(blogs)
+          .orderBy(desc(blogs.publishedAt))
+          .limit(3);
+      const published = and(
+        eq(blogs.storeId, storeId),
+        eq(blogs.status, "published"),
+        ne(blogs.id, blog.id),
+      );
+      return Promise.all([
+        hasCategories
+          ? base().where(
+              and(published, arrayOverlaps(blogs.categories, blog.categories!)),
+            )
+          : Promise.resolve([]),
+        base().where(published),
+      ]);
+    });
 
-  const seen = new Set<string>([blog.id]);
-  const related: Blog[] = [];
-  for (const b of [
-    ...((categoryRes.data ?? []) as unknown as Blog[]),
-    ...((recentRes.data ?? []) as unknown as Blog[]),
-  ]) {
-    if (seen.has(b.id)) continue;
-    seen.add(b.id);
-    related.push(b);
-    if (related.length >= 3) break;
+    const seen = new Set<string>([blog.id]);
+    const related: Blog[] = [];
+    for (const b of [
+      ...(categoryRows as unknown as Blog[]),
+      ...(recentRows as unknown as Blog[]),
+    ]) {
+      if (seen.has(b.id)) continue;
+      seen.add(b.id);
+      related.push(b);
+      if (related.length >= 3) break;
+    }
+    return related;
+  } catch (err) {
+    console.error("getRelatedBlogs:", err instanceof Error ? err.message : err);
+    return [];
   }
-  return related;
 }
 
 // Public comments for a blog, newest first. Empty if not migrated yet.
@@ -122,14 +166,29 @@ async function getComments(
   blogId: string,
   storeId: string,
 ): Promise<BlogComment[]> {
-  const supabase = createPublicClient();
-  const { data } = await supabase
-    .from("blog_comments")
-    .select("id, user_id, author_name, body, created_at")
-    .eq("store_id", storeId)
-    .eq("blog_id", blogId)
-    .order("created_at", { ascending: false });
-  return (data ?? []) as BlogComment[];
+  try {
+    return await withAnon((db) =>
+      db
+        .select({
+          id: blogComments.id,
+          user_id: blogComments.userId,
+          author_name: blogComments.authorName,
+          body: blogComments.body,
+          created_at: blogComments.createdAt,
+        })
+        .from(blogComments)
+        .where(
+          and(
+            eq(blogComments.storeId, storeId),
+            eq(blogComments.blogId, blogId),
+          ),
+        )
+        .orderBy(desc(blogComments.createdAt)),
+    );
+  } catch (err) {
+    console.error("getComments:", err instanceof Error ? err.message : err);
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import { requireSectionAccess, getActingStoreId } from "../../lib/access";
 import { getStoreSettingsForEditor } from "@/app/actions/store-settings";
 import { fetchBlogTaxonomy } from "@/lib/blog-taxonomy";
@@ -10,11 +9,10 @@ import { BlogSettingsView } from "./blog-settings-view";
 export default async function BlogSettingsPage() {
   const access = await requireSectionAccess("blogs", "view");
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
   const [{ plan, settings }, taxonomy] = await Promise.all([
     getStoreSettingsForEditor("Blogs"),
-    fetchBlogTaxonomy(supabase, storeId),
+    fetchBlogTaxonomy(storeId),
   ]);
 
   return (

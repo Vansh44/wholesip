@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { and, asc, eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { coupons, userGroups } from "@/drizzle/schema";
 import { requireSectionAccess, getActingStoreId } from "../../../../lib/access";
 import { CouponEmailForm } from "../../coupon-email-form";
+import { COUPON_COLUMNS } from "../../page";
 import type { Coupon, CouponGroup } from "../../page";
 
 export default async function CouponEmailPage({
@@ -12,32 +15,32 @@ export default async function CouponEmailPage({
   await requireSectionAccess("marketing", "manage");
   const { id } = await params;
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
-  const [{ data: coupon, error }, { data: groups }] = await Promise.all([
-    supabase
-      .from("coupons")
-      .select("*")
-      .eq("id", id)
-      .eq("store_id", storeId)
-      .maybeSingle(),
-    supabase
-      .from("user_groups")
-      .select("id, name, color")
-      .order("name", { ascending: true }),
-  ]);
+  const result = await withService(async (db) => {
+    const [couponRows, groupRows] = await Promise.all([
+      db
+        .select(COUPON_COLUMNS)
+        .from(coupons)
+        .where(and(eq(coupons.id, id), eq(coupons.storeId, storeId)))
+        .limit(1),
+      db
+        .select({
+          id: userGroups.id,
+          name: userGroups.name,
+          color: userGroups.color,
+        })
+        .from(userGroups)
+        .orderBy(asc(userGroups.name)),
+    ]);
+    return { coupon: couponRows[0], groups: groupRows as CouponGroup[] };
+  }).catch(() => null);
 
-  if (error || !coupon) notFound();
+  if (!result?.coupon) notFound();
 
   const enriched: Coupon = {
-    ...(coupon as Omit<Coupon, "restricted_group_ids">),
+    ...(result.coupon as unknown as Omit<Coupon, "restricted_group_ids">),
     restricted_group_ids: [],
   };
 
-  return (
-    <CouponEmailForm
-      coupon={enriched}
-      groups={(groups ?? []) as CouponGroup[]}
-    />
-  );
+  return <CouponEmailForm coupon={enriched} groups={result.groups} />;
 }

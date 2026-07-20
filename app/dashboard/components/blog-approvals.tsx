@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { ClipboardCheck, ArrowRight } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { and, desc, eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { blogs } from "@/drizzle/schema";
+import { getActingStoreId } from "../lib/access";
 
 interface PendingBlog {
   id: string;
@@ -34,15 +37,28 @@ const AMBER = "var(--dash-amber)";
  * mini bar chart, and a deep link into the pending review queue.
  */
 export async function BlogApprovals() {
-  const supabase = await createClient();
+  const storeId = await getActingStoreId();
 
-  const { data, error } = await supabase
-    .from("blogs")
-    .select("id, title, created_at")
-    .eq("status", "pending_review")
-    .order("created_at", { ascending: false });
-
-  const pending = (data ?? []) as PendingBlog[];
+  let pending: PendingBlog[];
+  let error = false;
+  try {
+    pending = (await withService((db) =>
+      db
+        .select({
+          id: blogs.id,
+          title: blogs.title,
+          created_at: blogs.createdAt,
+        })
+        .from(blogs)
+        .where(
+          and(eq(blogs.storeId, storeId), eq(blogs.status, "pending_review")),
+        )
+        .orderBy(desc(blogs.createdAt)),
+    )) as PendingBlog[];
+  } catch {
+    pending = [];
+    error = true;
+  }
   const count = pending.length;
 
   // Bucket submissions into the last 7 days (oldest → newest).

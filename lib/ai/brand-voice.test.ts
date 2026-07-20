@@ -1,16 +1,23 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock } from "@/app/actions/_test-helpers";
 
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withUser: vi.fn((_identity: any, fn: any) =>
+    Promise.resolve(fn(dbHolder.current.db)),
+  ),
+  withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+  withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+}));
 
 import {
   normalizeStructured,
   defaultBrandSoul,
   getBrandSoulForStore,
 } from "./brand-voice";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { makeChain, makeSupabase } from "@/app/actions/_test-helpers";
 
 describe("normalizeStructured", () => {
   it("keeps known keys, trims, and drops junk", () => {
@@ -52,52 +59,33 @@ describe("defaultBrandSoul", () => {
   });
 });
 
+// Selects: #1 the saved profile, #2 (fallback only) the store's branding.
 describe("getBrandSoulForStore", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns the saved brand guide when one exists", async () => {
-    vi.mocked(createAdminClient).mockReturnValue(
-      makeSupabase({
-        store_brand_profiles: makeChain({
-          data: { content_md: "# My soul" },
-          error: null,
-        }),
-      }) as any,
-    );
+    dbHolder.current = makeDbMock({
+      selectQueue: [[{ content_md: "# My soul" }]],
+    });
     expect(await getBrandSoulForStore("s1")).toBe("# My soul");
   });
 
   it("falls back to the generic default built from the store's branding", async () => {
-    vi.mocked(createAdminClient).mockReturnValue(
-      makeSupabase({
-        store_brand_profiles: makeChain({ data: null, error: null }),
-        stores: makeChain({
-          data: {
-            name: "Echos",
-            settings: { brand: { tagline: "Fresh, daily" } },
-          },
-          error: null,
-        }),
-      }) as any,
-    );
+    dbHolder.current = makeDbMock({
+      selectQueue: [
+        [],
+        [{ name: "Echos", settings: { brand: { tagline: "Fresh, daily" } } }],
+      ],
+    });
     const soul = await getBrandSoulForStore("s1");
     expect(soul).toContain("**Echos**");
     expect(soul).toContain("Fresh, daily");
   });
 
   it("treats a whitespace-only saved guide as unset", async () => {
-    vi.mocked(createAdminClient).mockReturnValue(
-      makeSupabase({
-        store_brand_profiles: makeChain({
-          data: { content_md: "   " },
-          error: null,
-        }),
-        stores: makeChain({
-          data: { name: "Echos", settings: {} },
-          error: null,
-        }),
-      }) as any,
-    );
+    dbHolder.current = makeDbMock({
+      selectQueue: [[{ content_md: "   " }], [{ name: "Echos", settings: {} }]],
+    });
     expect(await getBrandSoulForStore("s1")).toContain("**Echos**");
   });
 });

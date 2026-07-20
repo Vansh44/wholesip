@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { asc } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { userGroups } from "@/drizzle/schema";
 import { requireSectionAccess } from "../../../lib/access";
 import { CouponForm } from "../coupon-form";
 import type { CouponGroup } from "../page";
@@ -6,11 +8,16 @@ import type { CouponGroup } from "../page";
 export default async function NewCouponPage() {
   await requireSectionAccess("marketing", "manage");
 
-  const supabase = await createClient();
-  const { data: groups } = await supabase
-    .from("user_groups")
-    .select("id, name, color")
-    .order("name", { ascending: true });
+  const groups = await withService((db) =>
+    db
+      .select({
+        id: userGroups.id,
+        name: userGroups.name,
+        color: userGroups.color,
+      })
+      .from(userGroups)
+      .orderBy(asc(userGroups.name)),
+  ).catch(() => [] as CouponGroup[]);
 
-  return <CouponForm coupon={null} groups={(groups ?? []) as CouponGroup[]} />;
+  return <CouponForm coupon={null} groups={groups as CouponGroup[]} />;
 }

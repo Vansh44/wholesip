@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { admins } from "@/drizzle/schema";
+import { getServerUser } from "@/lib/auth/server-user";
 import { AccountSettingsView } from "./account-settings-view";
 
 type Tab = "profile" | "security";
@@ -11,17 +14,23 @@ export default async function SettingsPage({
 }) {
   const { tab, focus } = await searchParams;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) redirect("/auth/login");
 
-  const { data: profile } = await supabase
-    .from("admins")
-    .select("first_name, last_name, role, email, phone")
-    .eq("id", user.id)
-    .single();
+  const rows = await withService((db) =>
+    db
+      .select({
+        first_name: admins.firstName,
+        last_name: admins.lastName,
+        role: admins.role,
+        email: admins.email,
+        phone: admins.phone,
+      })
+      .from(admins)
+      .where(eq(admins.id, user.id))
+      .limit(1),
+  ).catch(() => []);
+  const profile = rows[0];
 
   const initialTab: Tab = tab === "security" ? "security" : "profile";
 

@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { and, asc, desc, eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { blogs, categories, products } from "@/drizzle/schema";
 import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import { listPages, ensureHomepage } from "@/app/actions/page-actions";
 import { getStoreBrand } from "@/lib/store/brand";
@@ -11,47 +13,54 @@ import "./builder.css";
 export default async function BuilderPage() {
   await requireSectionAccess("builder", "view");
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
 
-  const [
-    homepage,
-    pages,
-    { data: products },
-    { data: categories },
-    { data: blogs },
-    brand,
-  ] = await Promise.all([
+  const [homepage, pages, storeData, brand] = await Promise.all([
     ensureHomepage(),
     listPages(),
-    supabase
-      .from("products")
-      .select("id, name, slug, image_url, featured")
-      .eq("store_id", storeId)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
-    supabase
-      .from("categories")
-      .select("id, name, slug, image_url")
-      .eq("store_id", storeId)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
-    supabase
-      .from("blogs")
-      .select("id, title, slug")
-      .eq("store_id", storeId)
-      .eq("status", "published")
-      .order("published_at", { ascending: false }),
+    withService(async (db) => {
+      const [productRows, categoryRows, blogRows] = await Promise.all([
+        db
+          .select({
+            id: products.id,
+            name: products.name,
+            slug: products.slug,
+            image_url: products.imageUrl,
+            featured: products.featured,
+          })
+          .from(products)
+          .where(eq(products.storeId, storeId))
+          .orderBy(asc(products.sortOrder), asc(products.name)),
+        db
+          .select({
+            id: categories.id,
+            name: categories.name,
+            slug: categories.slug,
+            image_url: categories.imageUrl,
+          })
+          .from(categories)
+          .where(eq(categories.storeId, storeId))
+          .orderBy(asc(categories.sortOrder), asc(categories.name)),
+        db
+          .select({ id: blogs.id, title: blogs.title, slug: blogs.slug })
+          .from(blogs)
+          .where(and(eq(blogs.storeId, storeId), eq(blogs.status, "published")))
+          .orderBy(desc(blogs.publishedAt)),
+      ]);
+      return { productRows, categoryRows, blogRows };
+    }).catch(() => ({
+      productRows: [] as ProductOption[],
+      categoryRows: [] as CategoryOption[],
+      blogRows: [] as { id: string; title: string; slug: string }[],
+    })),
     getStoreBrand(),
   ]);
 
-  const blogOptions: BlogOption[] = (blogs ?? []).map(
-    (b: { id: string; title: string; slug: string }) => ({
-      id: b.id,
-      name: b.title,
-      slug: b.slug,
-    }),
-  );
+  const blogOptions: BlogOption[] = storeData.blogRows.map((b) => ({
+    id: b.id,
+    name: b.title,
+    slug: b.slug,
+  }));
 
   // The homepage sentinel (slug "") is pinned first in the builder; listPages
   // excludes it, so prepend it explicitly.
@@ -60,8 +69,8 @@ export default async function BuilderPage() {
   return (
     <BuilderClient
       initialPages={initialPages}
-      products={(products ?? []) as ProductOption[]}
-      categories={(categories ?? []) as CategoryOption[]}
+      products={storeData.productRows as ProductOption[]}
+      categories={storeData.categoryRows as CategoryOption[]}
       blogs={blogOptions}
       storeName={brand.name}
     />

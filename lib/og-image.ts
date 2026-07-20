@@ -17,16 +17,19 @@ export function getOgImageUrl(
 ): string | undefined {
   if (!imageUrl) return undefined;
 
-  // The proxy exists SOLELY to (a) shrink large Supabase storage images below
-  // WhatsApp's ~300 KB limit and (b) collapse Supabase transform URLs (which
-  // carry ?width=&quality=… params) into a single clean query param so Next.js
-  // can't turn a bare `&` into `&amp;`. The route ONLY accepts Supabase storage
-  // URLs (see app/api/og-image/route.ts) — so route only those through it.
-  // Anything else (a site-relative /public theme asset, an already-small CDN
-  // image) is returned untouched; metadataBase resolves a relative path to an
-  // absolute URL. Proxying such a URL would 403 and leave the share card with
-  // no image.
-  if (imageUrl.includes("supabase.co/storage/")) {
+  // The proxy exists SOLELY to (a) shrink large stored images below WhatsApp's
+  // ~300 KB limit and (b) collapse Supabase transform URLs (which carry
+  // ?width=&quality=… params) into a single clean query param so Next.js can't
+  // turn a bare `&` into `&amp;`. The route ONLY accepts our managed storage
+  // URLs (Supabase or GCS — see app/api/og-image/route.ts), so route only those
+  // through it. Anything else (a site-relative /public theme asset, an
+  // already-small CDN image) is returned untouched; metadataBase resolves a
+  // relative path to an absolute URL. Proxying such a URL would 403 and leave
+  // the share card with no image.
+  if (
+    imageUrl.includes("supabase.co/storage/") ||
+    imageUrl.includes("storage.googleapis.com/")
+  ) {
     return `/api/og-image?url=${encodeURIComponent(imageUrl)}`;
   }
   return imageUrl;

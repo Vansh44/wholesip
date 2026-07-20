@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { asc, eq, sql } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { categories } from "@/drizzle/schema";
 import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import { CategoriesManagementView } from "./categories-management-view";
 
@@ -20,37 +22,57 @@ export default async function CategoriesPage() {
   const access = await requireSectionAccess("categories", "view");
   const canManage = access.can("categories", "manage");
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
 
   // Categories + grouped product counts in parallel. Counts are tallied in
-  // Postgres (product_counts_by_category RPC) instead of pulling every product
-  // row into Node to count by hand.
-  const [{ data: categories, error }, { data: countRows }] = await Promise.all([
-    supabase
-      .from("categories")
-      .select("*")
-      .eq("store_id", storeId)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
-    supabase.rpc("product_counts_by_category", { p_store_id: storeId }),
-  ]);
-
-  if (error) {
+  // Postgres (product_counts_by_category function) instead of pulling every
+  // product row into Node to count by hand. Service scope + explicit store
+  // filter (the admin needs hidden categories too, and the app-layer scoping
+  // is what confines the read to this store).
+  let list: Category[];
+  let countRows: { category_id: string; cnt: number }[];
+  try {
+    ({ list, countRows } = await withService(async (db) => {
+      const [cats, counts] = await Promise.all([
+        // Aliased select preserves the snake_case shape the view expects.
+        db
+          .select({
+            id: categories.id,
+            name: categories.name,
+            slug: categories.slug,
+            description: categories.description,
+            image_url: categories.imageUrl,
+            sort_order: categories.sortOrder,
+            status: categories.status,
+            created_at: categories.createdAt,
+            updated_at: categories.updatedAt,
+          })
+          .from(categories)
+          .where(eq(categories.storeId, storeId))
+          .orderBy(asc(categories.sortOrder), asc(categories.name)),
+        db.execute(
+          sql`select category_id, cnt from product_counts_by_category(${storeId})`,
+        ),
+      ]);
+      return {
+        list: cats as Category[],
+        countRows: counts.rows as { category_id: string; cnt: number }[],
+      };
+    }));
+  } catch (err) {
+    console.error("CategoriesPage load error:", err);
     return (
       <div className="max-w-md border border-destructive/20 bg-destructive/5 p-6 text-sm text-destructive">
         <div className="mb-1 flex items-center gap-2 font-semibold">
           <span>⚠️</span> Failed to load categories
         </div>
         <p className="leading-relaxed text-destructive/80">
-          Make sure the <code>categories</code> table exists and you have the
-          correct permissions.
+          Could not load the categories. Please try again.
         </p>
       </div>
     );
   }
 
-  const list = (categories ?? []) as Category[];
   const counts = new Map<string, number>();
   for (const row of (countRows ?? []) as {
     category_id: string;

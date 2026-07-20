@@ -2,8 +2,11 @@
 
 import { revalidateTag } from "next/cache";
 import { after } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { isUniqueViolation } from "@/lib/db/errors";
+import { admins, stores } from "@/drizzle/schema";
+import { getServerUser } from "@/lib/auth/server-user";
 import { STORE_TAG } from "@/lib/store/resolve";
 import { ROOT_DOMAIN } from "@/lib/store/host";
 import { slugify } from "@/lib/slug";
@@ -78,21 +81,25 @@ export async function checkStoreSlugAvailability(
     return { slug, available: false, reason: "This name is reserved." };
   }
 
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("stores")
-    .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
-
-  if (error) {
-    console.error("checkStoreSlugAvailability:", error.message);
+  try {
+    const rows = await withService((db) =>
+      db
+        .select({ id: stores.id })
+        .from(stores)
+        .where(eq(stores.slug, slug))
+        .limit(1),
+    );
+    if (rows[0]) {
+      return { slug, available: false, reason: "This name is not available." };
+    }
+    return { slug, available: true };
+  } catch (err) {
+    console.error(
+      "checkStoreSlugAvailability:",
+      err instanceof Error ? err.message : err,
+    );
     return { slug, available: false, reason: "Couldn't check right now." };
   }
-  if (data) {
-    return { slug, available: false, reason: "This name is not available." };
-  }
-  return { slug, available: true };
 }
 
 export interface SignupResume {
@@ -117,33 +124,39 @@ export interface SignupResume {
  * name), or bounce a finished account to its dashboard.
  */
 export async function getSignupResumeInfo(): Promise<SignupResume> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) {
     return { authenticated: false, hasStore: false, phoneConfirmed: false };
   }
 
-  const admin = createAdminClient();
-  const { data: existing } = await admin
-    .from("admins")
-    .select("store_id")
-    .eq("id", user.id)
-    .maybeSingle();
-
+  let storeIdOwned: string | undefined;
   let slug: string | undefined;
-  if (existing?.store_id) {
-    const { data: store } = await admin
-      .from("stores")
-      .select("slug")
-      .eq("id", existing.store_id)
-      .maybeSingle();
-    slug = (store?.slug as string) ?? undefined;
+  try {
+    const existing = await withService((db) =>
+      db
+        .select({ store_id: admins.storeId })
+        .from(admins)
+        .where(eq(admins.id, user.id))
+        .limit(1),
+    );
+    storeIdOwned = existing[0]?.store_id ?? undefined;
+
+    if (storeIdOwned) {
+      const storeRows = await withService((db) =>
+        db
+          .select({ slug: stores.slug })
+          .from(stores)
+          .where(eq(stores.id, storeIdOwned!))
+          .limit(1),
+      );
+      slug = storeRows[0]?.slug ?? undefined;
+    }
+  } catch (err) {
+    console.error("getSignupResumeInfo:", err);
   }
 
   // Best-effort name prefill from OAuth profile metadata.
-  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const meta = user.metadata ?? {};
   const full = String(meta.full_name || meta.name || "").trim();
   const parts = full ? full.split(/\s+/) : [];
   const firstName = (meta.given_name as string) || parts[0] || undefined;
@@ -153,9 +166,9 @@ export async function getSignupResumeInfo(): Promise<SignupResume> {
 
   return {
     authenticated: true,
-    hasStore: !!existing?.store_id,
+    hasStore: !!storeIdOwned,
     slug,
-    phoneConfirmed: !!user.phone_confirmed_at,
+    phoneConfirmed: user.phoneConfirmed,
     email: user.email ?? undefined,
     firstName,
     lastName,
@@ -196,10 +209,7 @@ export async function createStore(
   const rawName = input.name;
   const template = input.template || DEFAULT_THEME_ID;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) {
     return { error: "Please sign in before creating a store." };
   }
@@ -207,7 +217,7 @@ export async function createStore(
   // bypass by invoking this action directly. Phone is the authoritative
   // verification (email confirmation is disabled — signup is phone-only), so a
   // store can't be provisioned without a confirmed phone number.
-  if (!user.phone_confirmed_at) {
+  if (!user.phoneConfirmed) {
     return {
       error: "Please verify your phone number before creating a store.",
     };
@@ -220,15 +230,15 @@ export async function createStore(
   }
   const slug = check.slug;
 
-  const admin = createAdminClient();
-
   // One store per owner for now (admins.id is the auth user id).
-  const { data: existing } = await admin
-    .from("admins")
-    .select("store_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (existing) {
+  const existing = await withService((db) =>
+    db
+      .select({ store_id: admins.storeId })
+      .from(admins)
+      .where(eq(admins.id, user.id))
+      .limit(1),
+  ).catch(() => []);
+  if (existing[0]) {
     return { error: "This account already has a store." };
   }
 
@@ -242,26 +252,33 @@ export async function createStore(
   if (city) business.city = city;
 
   // Create the store.
-  const { data: store, error: storeErr } = await admin
-    .from("stores")
-    .insert({
-      slug,
-      name: rawName.trim(),
-      status: "active",
-      plan: "free",
-      settings: {
-        template,
-        brand: { name: rawName.trim() },
-        ...(Object.keys(business).length ? { business } : {}),
-      },
-    })
-    .select("id, slug")
-    .single();
-  if (storeErr || !store) {
-    if (storeErr?.code === "23505") {
+  let store: { id: string; slug: string };
+  try {
+    const [created] = await withService((db) =>
+      db
+        .insert(stores)
+        .values({
+          slug,
+          name: rawName.trim(),
+          status: "active",
+          plan: "free",
+          settings: {
+            template,
+            brand: { name: rawName.trim() },
+            ...(Object.keys(business).length ? { business } : {}),
+          },
+        })
+        .returning({ id: stores.id, slug: stores.slug }),
+    );
+    store = created;
+  } catch (err) {
+    if (isUniqueViolation(err)) {
       return { error: "That name was just taken — try another." };
     }
-    console.error("createStore (store insert):", storeErr?.message);
+    console.error(
+      "createStore (store insert):",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not create your store. Please try again." };
   }
 
@@ -271,23 +288,31 @@ export async function createStore(
     (input.firstName || "").trim() ||
     (user.email ? user.email.split("@")[0] : "Owner");
   const lastName = (input.lastName || "").trim() || null;
-  const { error: adminErr } = await admin.from("admins").insert({
-    id: user.id,
-    email: user.email ?? "",
-    role: "superadmin",
-    store_id: store.id,
-    first_name: firstName.slice(0, 80),
-    last_name: lastName ? lastName.slice(0, 80) : null,
-    // The owner set their own password during signup — the admins column
-    // defaults force_password_reset=true (that's for INVITED staff who get a
-    // temporary password), so override it here or the owner is bounced to
-    // /auth/set-password on their first login.
-    force_password_reset: false,
-  });
-  if (adminErr) {
+  try {
+    await withService((db) =>
+      db.insert(admins).values({
+        id: user.id,
+        email: user.email ?? "",
+        role: "superadmin",
+        storeId: store.id,
+        firstName: firstName.slice(0, 80),
+        lastName: lastName ? lastName.slice(0, 80) : null,
+        // The owner set their own password during signup — the admins column
+        // defaults force_password_reset=true (that's for INVITED staff who get
+        // a temporary password), so override it here or the owner is bounced to
+        // /auth/set-password on their first login.
+        forcePasswordReset: false,
+      }),
+    );
+  } catch (err) {
     // Roll back the store so a retry isn't blocked by the now-taken slug.
-    await admin.from("stores").delete().eq("id", store.id);
-    console.error("createStore (admin insert):", adminErr.message);
+    await withService((db) =>
+      db.delete(stores).where(eq(stores.id, store.id)),
+    ).catch(() => {});
+    console.error(
+      "createStore (admin insert):",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not set up your store account. Please try again." };
   }
 
@@ -319,5 +344,5 @@ export async function createStore(
     ]);
   });
 
-  return { slug: store.slug as string, storeId: store.id as string };
+  return { slug: store.slug, storeId: store.id };
 }

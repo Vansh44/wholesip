@@ -1,15 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock } from "./_test-helpers";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/store/resolve", () => ({
   getCurrentStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
-  WHOLESIP_STORE_ID: "a0000000-0000-4000-8000-000000000001",
+  FALLBACK_STORE_ID: "a0000000-0000-4000-8000-000000000001",
 }));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn().mockResolvedValue({ allowed: true }),
@@ -29,17 +29,23 @@ vi.mock("@/lib/email/enquiry-notifications", () => ({
   sendEnquiryAcknowledgementEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withUser: vi.fn((_identity: any, fn: any) => fn(dbHolder.current.db)),
+  withService: vi.fn((fn: any) => fn(dbHolder.current.db)),
+  withAnon: vi.fn((fn: any) => fn(dbHolder.current.db)),
+}));
+
 import {
   submitEnquiry,
   updateEnquiryStatus,
   deleteEnquiry,
 } from "./enquiry-actions";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import { sendEnquiryAcknowledgementEmail } from "@/lib/email/enquiry-notifications";
 import { revalidatePath } from "next/cache";
 import { rateLimit } from "@/lib/rate-limit";
-import { makeChain, makeSupabase } from "./_test-helpers";
 
 const validInput = {
   name: "  Ada Lovelace  ",
@@ -50,21 +56,14 @@ const validInput = {
   message: "I'd like to know about bulk pricing.",
 };
 
-// enquiry-actions.ts — anonymous storefront submission (service-role insert +
+// enquiry-actions.ts — anonymous storefront submission (service-scope insert +
 // best-effort ack email) plus dashboard status/delete actions guarded by the
-// "enquiries" manage permission.
+// "enquiries" manage permission. All writes go through withService with
+// explicit store scoping.
 describe("enquiry-actions", () => {
-  let admin: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    admin = makeSupabase({
-      enquiries: makeChain(
-        { data: null, error: null },
-        { data: null, error: null },
-      ),
-    });
-    vi.mocked(createAdminClient).mockReturnValue(admin);
+    dbHolder.current = makeDbMock();
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
     vi.mocked(sendEnquiryAcknowledgementEmail).mockResolvedValue(undefined);
     vi.mocked(rateLimit).mockResolvedValue({ allowed: true });
@@ -115,15 +114,14 @@ describe("enquiry-actions", () => {
     it("inserts the enquiry, sends the email, and revalidates", async () => {
       const result = await submitEnquiry(validInput);
       expect(result.success).toBe(true);
-      const inserted = admin._tables.enquiries.insert.mock.calls[0][0];
-      expect(inserted).toEqual({
+      expect(dbHolder.current.calls.values[0]).toEqual({
         name: "Ada Lovelace",
         email: "ada@example.com",
         phone: "+91 9876543210",
         subject: "Wholesale",
-        subject_detail: null,
+        subjectDetail: null,
         message: "I'd like to know about bulk pricing.",
-        store_id: "a0000000-0000-4000-8000-000000000001",
+        storeId: "a0000000-0000-4000-8000-000000000001",
       });
       expect(sendEnquiryAcknowledgementEmail).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -146,9 +144,9 @@ describe("enquiry-actions", () => {
       expect(sendEnquiryAcknowledgementEmail).toHaveBeenCalledWith(
         expect.objectContaining({ subject: "Partnership idea" }),
       );
-      const inserted = admin._tables.enquiries.insert.mock.calls[0][0];
+      const inserted = dbHolder.current.calls.values[0];
       expect(inserted.subject).toBe("Other");
-      expect(inserted.subject_detail).toBe("Partnership idea");
+      expect(inserted.subjectDetail).toBe("Partnership idea");
     });
 
     // When the IP has exceeded its window, reject before touching the DB.
@@ -156,16 +154,15 @@ describe("enquiry-actions", () => {
       vi.mocked(rateLimit).mockResolvedValue({ allowed: false });
       const result = await submitEnquiry(validInput);
       expect(result.error).toMatch(/too many enquiries/i);
-      expect(admin._tables.enquiries.insert).not.toHaveBeenCalled();
+      expect(dbHolder.current.calls.insert).toHaveLength(0);
       expect(sendEnquiryAcknowledgementEmail).not.toHaveBeenCalled();
     });
 
     // DB insert failure → friendly message, no email, no revalidate.
     it("returns a friendly error when the insert fails", async () => {
-      admin._tables.enquiries = makeChain(
-        { data: null, error: null },
-        { data: null, error: { message: "boom" } },
-      );
+      dbHolder.current.db.insert = vi.fn(() => {
+        throw new Error("boom");
+      });
       const result = await submitEnquiry(validInput);
       expect(result.error).toMatch(/something went wrong/i);
       expect(sendEnquiryAcknowledgementEmail).not.toHaveBeenCalled();
@@ -179,31 +176,30 @@ describe("enquiry-actions", () => {
       vi.mocked(getManagerUserId).mockResolvedValue(null);
       const result = await updateEnquiryStatus("id", "resolved");
       expect(result.error).toMatch(/permission/i);
+      expect(dbHolder.current.calls.update).toHaveLength(0);
     });
 
     // Only the four known workflow statuses are accepted.
     it("rejects an invalid status value", async () => {
       const result = await updateEnquiryStatus("id", "bogus" as any);
       expect(result.error).toMatch(/invalid status/i);
+      expect(dbHolder.current.calls.update).toHaveLength(0);
     });
 
-    // Happy path — updates the row and revalidates.
+    // Happy path — updates the row (store-scoped where) and revalidates.
     it("updates the status and revalidates", async () => {
       const result = await updateEnquiryStatus("id-1", "in_progress");
       expect(result.success).toBe(true);
-      expect(admin._tables.enquiries.update).toHaveBeenCalledWith({
-        status: "in_progress",
-      });
-      expect(admin._tables.enquiries.eq).toHaveBeenCalledWith("id", "id-1");
+      expect(dbHolder.current.calls.set[0]).toEqual({ status: "in_progress" });
+      expect(dbHolder.current.calls.where).toHaveLength(1);
       expect(revalidatePath).toHaveBeenCalledWith("/dashboard/enquiries");
     });
 
     // DB error path.
     it("returns an error when the update fails", async () => {
-      admin._tables.enquiries = makeChain(
-        { data: null, error: null },
-        { data: null, error: { message: "nope" } },
-      );
+      dbHolder.current.db.update = vi.fn(() => {
+        throw new Error("nope");
+      });
       const result = await updateEnquiryStatus("id", "resolved");
       expect(result.error).toMatch(/failed to update/i);
     });
@@ -215,23 +211,23 @@ describe("enquiry-actions", () => {
       vi.mocked(getManagerUserId).mockResolvedValue(null);
       const result = await deleteEnquiry("id");
       expect(result.error).toMatch(/permission/i);
+      expect(dbHolder.current.calls.delete).toHaveLength(0);
     });
 
-    // Happy path — deletes by id and revalidates.
+    // Happy path — deletes by id (store-scoped where) and revalidates.
     it("deletes the enquiry and revalidates", async () => {
       const result = await deleteEnquiry("id-9");
       expect(result.success).toBe(true);
-      expect(admin._tables.enquiries.delete).toHaveBeenCalled();
-      expect(admin._tables.enquiries.eq).toHaveBeenCalledWith("id", "id-9");
+      expect(dbHolder.current.calls.delete).toHaveLength(1);
+      expect(dbHolder.current.calls.where).toHaveLength(1);
       expect(revalidatePath).toHaveBeenCalledWith("/dashboard/enquiries");
     });
 
     // DB error path.
     it("returns an error when the delete fails", async () => {
-      admin._tables.enquiries = makeChain(
-        { data: null, error: null },
-        { data: null, error: { message: "nope" } },
-      );
+      dbHolder.current.db.delete = vi.fn(() => {
+        throw new Error("nope");
+      });
       const result = await deleteEnquiry("id");
       expect(result.error).toMatch(/failed to delete/i);
     });

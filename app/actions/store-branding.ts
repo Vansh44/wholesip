@@ -1,7 +1,9 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService } from "@/lib/db/client";
+import { stores } from "@/drizzle/schema";
 import { getActingStoreId } from "@/app/dashboard/lib/access";
 import { STORE_TAG } from "@/lib/store/resolve";
 import { ROOT_DOMAIN } from "@/lib/store/host";
@@ -16,17 +18,34 @@ export interface ActionResult {
 // used to pre-fill the dashboard editor.
 export async function getStoreBrandingForEditor(): Promise<StoreBrand> {
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("stores")
-    .select("name, settings, slug, custom_domain")
-    .eq("id", storeId)
-    .single();
-  const domain =
-    data?.custom_domain || `${data?.slug || "store"}.${ROOT_DOMAIN}`;
+  let row:
+    | {
+        name: string;
+        settings: unknown;
+        slug: string;
+        custom_domain: string | null;
+      }
+    | undefined;
+  try {
+    [row] = await withService((db) =>
+      db
+        .select({
+          name: stores.name,
+          settings: stores.settings,
+          slug: stores.slug,
+          custom_domain: stores.customDomain,
+        })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1),
+    );
+  } catch (err) {
+    console.error("getStoreBrandingForEditor:", err);
+  }
+  const domain = row?.custom_domain || `${row?.slug || "store"}.${ROOT_DOMAIN}`;
   return brandFromSettings(
-    (data?.settings as Record<string, unknown>) ?? {},
-    (data?.name as string) ?? "Store",
+    (row?.settings as Record<string, unknown>) ?? {},
+    row?.name ?? "Store",
     domain,
   );
 }
@@ -43,18 +62,27 @@ export async function saveStoreBranding(
   formData: FormData,
 ): Promise<ActionResult> {
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
   const name = clean(formData.get("name"));
   if (!name) return { error: "Store name is required." };
 
-  const { data: store } = await admin
-    .from("stores")
-    .select("settings")
-    .eq("id", storeId)
-    .single();
-  const settings = ((store?.settings as Record<string, unknown>) ??
-    {}) as Record<string, unknown>;
+  let settings: Record<string, unknown>;
+  try {
+    const [store] = await withService((db) =>
+      db
+        .select({ settings: stores.settings })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1),
+    );
+    settings = ((store?.settings as Record<string, unknown>) ?? {}) as Record<
+      string,
+      unknown
+    >;
+  } catch (err) {
+    console.error("saveStoreBranding read:", err);
+    return { error: "Could not save branding. Please try again." };
+  }
   const existingBrand = (settings.brand as Record<string, unknown>) ?? {};
 
   const brand = {
@@ -76,13 +104,18 @@ export async function saveStoreBranding(
     },
   };
 
-  const { error } = await admin
-    .from("stores")
-    .update({ settings: { ...settings, brand }, name })
-    .eq("id", storeId);
-
-  if (error) {
-    console.error("saveStoreBranding:", error.message);
+  try {
+    await withService((db) =>
+      db
+        .update(stores)
+        .set({ settings: { ...settings, brand }, name })
+        .where(eq(stores.id, storeId)),
+    );
+  } catch (err) {
+    console.error(
+      "saveStoreBranding:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not save branding. Please try again." };
   }
 

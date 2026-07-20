@@ -1,10 +1,12 @@
 import "server-only";
 
 import { Resend } from "resend";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { wrapBrandedEmail } from "./layout";
 import { PLATFORM_EMAIL_DOMAIN } from "./sender";
 import type { StoreBrand } from "@/lib/store/brand";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService } from "@/lib/db/client";
+import { admins, storeBillingSettings, stores } from "@/drizzle/schema";
 
 // Transactional BILLING emails. These come from the platform (StoreMink), not
 // the merchant's store brand — a plan receipt / renewal / dunning notice is
@@ -203,34 +205,54 @@ export interface BillingRecipient {
 export async function resolveBillingEmail(
   storeId: string,
 ): Promise<BillingRecipient | null> {
-  const admin = createAdminClient();
-  const [{ data: store }, { data: owner }, { data: billing }] =
-    await Promise.all([
-      admin.from("stores").select("name, slug").eq("id", storeId).maybeSingle(),
-      admin
-        .from("admins")
-        .select("email")
-        .eq("store_id", storeId)
-        .eq("role", "superadmin")
-        .not("email", "is", null)
-        .limit(1)
-        .maybeSingle(),
-      admin
-        .from("store_billing_settings")
-        .select("contact_email")
-        .eq("store_id", storeId)
-        .maybeSingle(),
-    ]);
+  let store: { name: string; slug: string } | undefined;
+  let ownerEmail: string | null = null;
+  let billingEmail: string | null = null;
+  try {
+    ({ store, ownerEmail, billingEmail } = await withService(async (db) => {
+      const [storeRows, ownerRows, billingRows] = await Promise.all([
+        db
+          .select({ name: stores.name, slug: stores.slug })
+          .from(stores)
+          .where(eq(stores.id, storeId))
+          .limit(1),
+        db
+          .select({ email: admins.email })
+          .from(admins)
+          .where(
+            and(
+              eq(admins.storeId, storeId),
+              eq(admins.role, "superadmin"),
+              isNotNull(admins.email),
+            ),
+          )
+          .limit(1),
+        db
+          .select({ contact_email: storeBillingSettings.contactEmail })
+          .from(storeBillingSettings)
+          .where(eq(storeBillingSettings.storeId, storeId))
+          .limit(1),
+      ]);
+      return {
+        store: storeRows[0],
+        ownerEmail: ownerRows[0]?.email ?? null,
+        billingEmail: billingRows[0]?.contact_email ?? null,
+      };
+    }));
+  } catch (err) {
+    console.error(
+      "resolveBillingEmail:",
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
 
-  const email =
-    (owner?.email as string | null) ||
-    (billing?.contact_email as string | null) ||
-    null;
+  const email = ownerEmail || billingEmail || null;
   if (!email) return null;
   return {
     email,
-    storeName: (store?.name as string) || "Your store",
-    slug: (store?.slug as string) || "",
+    storeName: store?.name || "Your store",
+    slug: store?.slug || "",
   };
 }
 

@@ -261,7 +261,7 @@ export default function StoreminkLanding() {
             </span>
             <h1 className="stq-rise stq-rise-1">
               Launch your store in a day.{" "}
-              <span className="stq-grad">Keep 100% of every sale.</span>
+              <span className="stq-grad">Keep 100% of every sales.</span>
             </h1>
             <p className="stq-sub stq-rise stq-rise-2">
               StoreMink is the India-first store builder with everything

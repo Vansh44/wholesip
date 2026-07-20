@@ -2,7 +2,7 @@
 
 // Channels → Digital payments: a merchant connects their OWN Razorpay account
 // (BYO gateway — order money settles directly with them). Credentials live in
-// store_payment_providers (service-role only, supabase/payment_providers.sql);
+// store_payment_providers (service-only, supabase/payment_providers.sql);
 // the key secret is app-layer encrypted (lib/payments/crypto.ts) and is
 // WRITE-ONLY: no action ever returns it to a client.
 //
@@ -11,7 +11,9 @@
 // time (getCheckoutConfig / placeOrder) so a lapsed plan turns the gateway
 // off without touching the merchant's stored credentials.
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { storePaymentProviders, stores } from "@/drizzle/schema";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { effectivePlan, limitsFor } from "@/lib/plans";
 import { encryptSecret } from "@/lib/payments/crypto";
@@ -27,30 +29,51 @@ export interface ChannelState {
 }
 
 async function planAllowsPayments(storeId: string): Promise<boolean> {
-  const admin = createAdminClient();
-  const { data: store } = await admin
-    .from("stores")
-    .select("plan, plan_expires_at")
-    .eq("id", storeId)
-    .maybeSingle();
-  return limitsFor(effectivePlan(store ?? {})).onlinePayments;
+  try {
+    const rows = await withService((db) =>
+      db
+        .select({ plan: stores.plan, plan_expires_at: stores.planExpiresAt })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1),
+    );
+    return limitsFor(effectivePlan(rows[0] ?? {})).onlinePayments;
+  } catch (err) {
+    console.error(
+      "planAllowsPayments:",
+      err instanceof Error ? err.message : err,
+    );
+    return false;
+  }
 }
 
 export async function getChannelState(): Promise<ChannelState> {
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
-  const [{ data: row }, planOk] = await Promise.all([
-    admin
-      .from("store_payment_providers")
-      .select("key_id, enabled")
-      .eq("store_id", storeId)
-      .eq("provider", "razorpay")
-      .maybeSingle(),
+  const [row, planOk] = await Promise.all([
+    withService((db) =>
+      db
+        // Deliberately NEVER selects the encrypted secret column.
+        .select({
+          key_id: storePaymentProviders.keyId,
+          enabled: storePaymentProviders.enabled,
+        })
+        .from(storePaymentProviders)
+        .where(
+          and(
+            eq(storePaymentProviders.storeId, storeId),
+            eq(storePaymentProviders.provider, "razorpay"),
+          ),
+        )
+        .limit(1),
+    ).then(
+      (rows) => rows[0],
+      () => undefined,
+    ),
     planAllowsPayments(storeId),
   ]);
   return {
     connected: !!row,
-    keyId: (row?.key_id as string | undefined) ?? null,
+    keyId: row?.key_id ?? null,
     enabled: !!row?.enabled,
     planAllowsOnlinePayments: planOk,
   };
@@ -96,22 +119,30 @@ export async function saveRazorpayCredentials(
     };
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.from("store_payment_providers").upsert(
-    {
-      store_id: storeId,
-      provider: "razorpay",
-      key_id: id,
-      key_secret_enc: encryptSecret(secret),
-      // Connecting (or re-keying) enables the gateway — the merchant just
-      // proved intent by pasting working credentials.
-      enabled: true,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "store_id" },
-  );
-  if (error) {
-    console.error("saveRazorpayCredentials:", error.message);
+  const updateFields = {
+    provider: "razorpay",
+    keyId: id,
+    keySecretEnc: encryptSecret(secret),
+    // Connecting (or re-keying) enables the gateway — the merchant just
+    // proved intent by pasting working credentials.
+    enabled: true,
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    await withService((db) =>
+      db
+        .insert(storePaymentProviders)
+        .values({ storeId, ...updateFields })
+        .onConflictDoUpdate({
+          target: storePaymentProviders.storeId,
+          set: updateFields,
+        }),
+    );
+  } catch (err) {
+    console.error(
+      "saveRazorpayCredentials:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Failed to save credentials. Please try again." };
   }
   return { success: true };
@@ -131,18 +162,28 @@ export async function setRazorpayEnabled(
     };
   }
 
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("store_payment_providers")
-    .update({ enabled: !!enabled, updated_at: new Date().toISOString() })
-    .eq("store_id", storeId)
-    .eq("provider", "razorpay")
-    .select("store_id");
-  if (error) {
-    console.error("setRazorpayEnabled:", error.message);
+  let updated: { store_id: string }[];
+  try {
+    updated = await withService((db) =>
+      db
+        .update(storePaymentProviders)
+        .set({ enabled: !!enabled, updatedAt: new Date().toISOString() })
+        .where(
+          and(
+            eq(storePaymentProviders.storeId, storeId),
+            eq(storePaymentProviders.provider, "razorpay"),
+          ),
+        )
+        .returning({ store_id: storePaymentProviders.storeId }),
+    );
+  } catch (err) {
+    console.error(
+      "setRazorpayEnabled:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Failed to update the gateway. Please try again." };
   }
-  if (!data?.length) return { error: "Connect Razorpay first." };
+  if (!updated.length) return { error: "Connect Razorpay first." };
   return { success: true };
 }
 
@@ -151,14 +192,22 @@ export async function disconnectRazorpay(): Promise<ChannelActionResult> {
   if (!userId) return { error: "You don't have permission to do this." };
 
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("store_payment_providers")
-    .delete()
-    .eq("store_id", storeId)
-    .eq("provider", "razorpay");
-  if (error) {
-    console.error("disconnectRazorpay:", error.message);
+  try {
+    await withService((db) =>
+      db
+        .delete(storePaymentProviders)
+        .where(
+          and(
+            eq(storePaymentProviders.storeId, storeId),
+            eq(storePaymentProviders.provider, "razorpay"),
+          ),
+        ),
+    );
+  } catch (err) {
+    console.error(
+      "disconnectRazorpay:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Failed to disconnect. Please try again." };
   }
   return { success: true };

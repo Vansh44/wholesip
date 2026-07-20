@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { blogs as blogsTable, users } from "@/drizzle/schema";
 import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import {
   DASHBOARD_PAGE_SIZE,
-  ilikeOr,
   pickPage,
   pickParam,
   sanitizeSearch,
@@ -62,8 +62,29 @@ export interface BlogCounts {
 
 // Everything except the heavy `content` HTML — the list never renders it, and
 // the editor re-fetches the full post (getBlogForEditor) when opening one.
-const LIST_COLUMNS =
-  "id, title, slug, excerpt, cover_image_url, author, status, tags, categories, featured, seo_title, seo_description, reading_time, created_by, updated_by, published_at, created_at, updated_at, submitted_by, is_customer_submission";
+// Aliased select preserving the snake_case shape the view expects.
+const LIST_COLUMNS = {
+  id: blogsTable.id,
+  title: blogsTable.title,
+  slug: blogsTable.slug,
+  excerpt: blogsTable.excerpt,
+  cover_image_url: blogsTable.coverImageUrl,
+  author: blogsTable.author,
+  status: blogsTable.status,
+  tags: blogsTable.tags,
+  categories: blogsTable.categories,
+  featured: blogsTable.featured,
+  seo_title: blogsTable.seoTitle,
+  seo_description: blogsTable.seoDescription,
+  reading_time: blogsTable.readingTime,
+  created_by: blogsTable.createdBy,
+  updated_by: blogsTable.updatedBy,
+  published_at: blogsTable.publishedAt,
+  created_at: blogsTable.createdAt,
+  updated_at: blogsTable.updatedAt,
+  submitted_by: blogsTable.submittedBy,
+  is_customer_submission: blogsTable.isCustomerSubmission,
+};
 
 export default async function BlogsPage({
   searchParams,
@@ -81,53 +102,75 @@ export default async function BlogsPage({
   const pageSize = DASHBOARD_PAGE_SIZE;
   const offset = (page - 1) * pageSize;
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
 
-  let listQuery = supabase
-    .from("blogs")
-    .select(LIST_COLUMNS, { count: "exact" })
-    .eq("store_id", storeId)
-    .order("created_at", { ascending: false });
-
-  if (filter === "published") listQuery = listQuery.eq("status", "published");
-  else if (filter === "drafts") listQuery = listQuery.eq("status", "draft");
+  const conds = [eq(blogsTable.storeId, storeId)];
+  if (filter === "published") conds.push(eq(blogsTable.status, "published"));
+  else if (filter === "drafts") conds.push(eq(blogsTable.status, "draft"));
   else if (filter === "pending")
-    listQuery = listQuery.eq("status", "pending_review");
-  else if (filter === "featured") listQuery = listQuery.eq("featured", true);
+    conds.push(eq(blogsTable.status, "pending_review"));
+  else if (filter === "featured") conds.push(eq(blogsTable.featured, true));
 
   const term = sanitizeSearch(q);
-  if (term)
-    listQuery = listQuery.or(
-      ilikeOr(["title", "slug", "excerpt", "author"], term),
+  if (term) {
+    const pat = `%${term}%`;
+    conds.push(
+      or(
+        ilike(blogsTable.title, pat),
+        ilike(blogsTable.slug, pat),
+        ilike(blogsTable.excerpt, pat),
+        ilike(blogsTable.author, pat),
+      )!,
     );
+  }
+  const whereExpr = and(...conds);
 
-  const countQuery = () =>
-    supabase
-      .from("blogs")
-      .select("id", { count: "exact", head: true })
-      .eq("store_id", storeId);
-
-  const [
-    { data: blogs, error, count },
-    allRes,
-    publishedRes,
-    draftsRes,
-    featuredRes,
-    pendingRes,
-    taxonomy,
-  ] = await Promise.all([
-    listQuery.range(offset, offset + pageSize - 1),
-    countQuery(),
-    countQuery().eq("status", "published"),
-    countQuery().eq("status", "draft"),
-    countQuery().eq("featured", true),
-    countQuery().eq("status", "pending_review"),
-    // This store's category/tag options for the editor dialog.
-    fetchBlogTaxonomy(supabase, storeId),
-  ]);
-
-  if (error) {
+  let rows: Omit<Blog, "content" | "submitter_name">[];
+  let total: number;
+  let statusRows: { status: string; n: number }[];
+  let featuredCount: number;
+  let taxonomy: Awaited<ReturnType<typeof fetchBlogTaxonomy>>;
+  try {
+    [{ rows, total, statusRows, featuredCount }, taxonomy] = await Promise.all([
+      withService(async (db) => {
+        const [rows, countRows, statusRows, featuredRows] = await Promise.all([
+          db
+            .select(LIST_COLUMNS)
+            .from(blogsTable)
+            .where(whereExpr)
+            .orderBy(desc(blogsTable.createdAt))
+            .limit(pageSize)
+            .offset(offset),
+          db.select({ n: count() }).from(blogsTable).where(whereExpr),
+          // One grouped count for the status tabs instead of a head-count
+          // per tab; featured is a separate dimension.
+          db
+            .select({ status: blogsTable.status, n: count() })
+            .from(blogsTable)
+            .where(eq(blogsTable.storeId, storeId))
+            .groupBy(blogsTable.status),
+          db
+            .select({ n: count() })
+            .from(blogsTable)
+            .where(
+              and(
+                eq(blogsTable.storeId, storeId),
+                eq(blogsTable.featured, true),
+              ),
+            ),
+        ]);
+        return {
+          rows: rows as Omit<Blog, "content" | "submitter_name">[],
+          total: countRows[0]?.n ?? 0,
+          statusRows,
+          featuredCount: featuredRows[0]?.n ?? 0,
+        };
+      }),
+      // This store's category/tag options for the editor dialog.
+      fetchBlogTaxonomy(storeId),
+    ]);
+  } catch (err) {
+    console.error("BlogsPage load error:", err);
     return (
       <div className="max-w-md border border-destructive/20 bg-destructive/5 p-6 text-sm text-destructive">
         <div className="mb-1 flex items-center gap-2 font-semibold">
@@ -142,15 +185,24 @@ export default async function BlogsPage({
   }
 
   const counts: BlogCounts = {
-    all: allRes.count ?? 0,
-    published: publishedRes.count ?? 0,
-    drafts: draftsRes.count ?? 0,
-    featured: featuredRes.count ?? 0,
-    pending: pendingRes.count ?? 0,
+    all: 0,
+    published: 0,
+    drafts: 0,
+    featured: featuredCount,
+    pending: 0,
   };
+  for (const row of statusRows) {
+    counts.all += row.n;
+    if (row.status === "published") counts.published = row.n;
+    else if (row.status === "draft") counts.drafts = row.n;
+    else if (row.status === "pending_review") counts.pending = row.n;
+  }
 
   // Resolve submitter names for the customer submissions ON THIS PAGE only.
-  const blogsWithSubmitters = (blogs ?? []) as Blog[];
+  const blogsWithSubmitters = rows.map((r) => ({
+    ...r,
+    content: null,
+  })) as Blog[];
   const submitterIds = [
     ...new Set(
       blogsWithSubmitters
@@ -160,15 +212,19 @@ export default async function BlogsPage({
   ];
 
   if (submitterIds.length > 0) {
-    // Use the service-role client: `users` RLS only lets a customer read their
-    // own row, so the admin session can't resolve submitter names.
-    const adminClient = createAdminClient();
-    const { data: customers } = await adminClient
-      .from("users")
-      .select("id, first_name, last_name")
-      .in("id", submitterIds);
-
-    if (customers) {
+    // Use the service scope: `users` RLS only lets a customer read their own
+    // row, so the admin session can't resolve submitter names.
+    try {
+      const customers = await withService((db) =>
+        db
+          .select({
+            id: users.id,
+            first_name: users.firstName,
+            last_name: users.lastName,
+          })
+          .from(users)
+          .where(inArray(users.id, submitterIds)),
+      );
       const nameMap = new Map(
         customers.map((c) => [
           c.id,
@@ -180,6 +236,8 @@ export default async function BlogsPage({
           blog.submitter_name = nameMap.get(blog.submitted_by) ?? null;
         }
       });
+    } catch (err) {
+      console.error("BlogsPage submitter lookup error:", err);
     }
   }
 
@@ -190,7 +248,7 @@ export default async function BlogsPage({
         blogs={blogsWithSubmitters}
         canManage={canManage}
         counts={counts}
-        total={count ?? 0}
+        total={total}
         page={page}
         pageSize={pageSize}
         query={q}

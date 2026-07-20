@@ -1,6 +1,25 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  isNotNull,
+  or,
+} from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import {
+  blogs,
+  customerAdmin,
+  productReviews,
+  products,
+  users,
+} from "@/drizzle/schema";
 import { getActingStoreId } from "@/app/dashboard/lib/access";
 import type {
   Customer,
@@ -10,18 +29,35 @@ import type {
 } from "./shared";
 
 // The `users` table is own-row-only under RLS, so every cross-customer read
-// here goes through the service-role admin client. Listing is paginated and
-// filtered/sorted in SQL via the `customer_admin` view (see
-// supabase/customer_admin_view.sql) so we never pull every user — or every
-// review and blog — into memory.
+// here goes through the service scope. Listing is paginated and filtered/sorted
+// in SQL via the `customer_admin` view (see supabase/customer_admin_view.sql)
+// so we never pull every user — or every review and blog — into memory.
 
 export const CUSTOMERS_PAGE_SIZE = 50;
 
-const VIEW_COLUMNS =
-  "id, phone, email, first_name, last_name, created_at, updated_at, review_count, blog_count, activity_count";
+// Aliased view projection preserving the snake_case Customer shape.
+const VIEW_COLUMNS = {
+  id: customerAdmin.id,
+  phone: customerAdmin.phone,
+  email: customerAdmin.email,
+  first_name: customerAdmin.firstName,
+  last_name: customerAdmin.lastName,
+  created_at: customerAdmin.createdAt,
+  updated_at: customerAdmin.updatedAt,
+  review_count: customerAdmin.reviewCount,
+  blog_count: customerAdmin.blogCount,
+  activity_count: customerAdmin.activityCount,
+};
 
-const DETAIL_COLUMNS =
-  "id, phone, email, first_name, last_name, created_at, updated_at";
+const DETAIL_COLUMNS = {
+  id: users.id,
+  phone: users.phone,
+  email: users.email,
+  first_name: users.firstName,
+  last_name: users.lastName,
+  created_at: users.createdAt,
+  updated_at: users.updatedAt,
+};
 
 export type CustomerSort = "newest" | "oldest" | "name" | "active";
 export type CustomerFilter = "all" | "recent" | "reviewers" | "with_email";
@@ -55,13 +91,9 @@ export interface CustomerStats {
   reviewers: number;
 }
 
-/** Strip PostgREST filter-control characters so a search term can't break the
- *  `.or()` expression (it's interpolated into the filter string). */
+/** Trim the search term to a sane length (parameterised, so no escaping). */
 function sanitizeSearch(q: string): string {
-  return q
-    .replace(/[(),:*%\\]/g, " ")
-    .trim()
-    .slice(0, 100);
+  return q.trim().slice(0, 100);
 }
 
 /**
@@ -74,156 +106,172 @@ export async function getCustomers(
   const page = Math.max(1, query.page ?? 1);
   const pageSize = CUSTOMERS_PAGE_SIZE;
   const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
   const filter = query.filter ?? "all";
   const sort = query.sort ?? "newest";
 
-  const admin = createAdminClient();
-  let q = admin
-    .from("customer_admin")
-    .select(VIEW_COLUMNS, { count: "exact" })
-    .eq("store_id", await getActingStoreId());
+  const conds = [eq(customerAdmin.storeId, await getActingStoreId())];
 
   const term = sanitizeSearch(query.q ?? "");
   if (term) {
-    const like = `*${term}*`;
-    q = q.or(
-      `first_name.ilike.${like},last_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`,
+    const like = `%${term}%`;
+    conds.push(
+      or(
+        ilike(customerAdmin.firstName, like),
+        ilike(customerAdmin.lastName, like),
+        ilike(customerAdmin.email, like),
+        ilike(customerAdmin.phone, like),
+      )!,
     );
   }
 
   if (filter === "recent") {
-    q = q.gte("created_at", recentCutoffIso());
+    conds.push(gte(customerAdmin.createdAt, recentCutoffIso()));
   } else if (filter === "reviewers") {
-    q = q.gt("review_count", 0);
+    conds.push(gt(customerAdmin.reviewCount, 0));
   } else if (filter === "with_email") {
-    q = q.not("email", "is", null);
+    conds.push(isNotNull(customerAdmin.email));
   }
+  const whereExpr = and(...conds);
 
-  if (sort === "oldest") {
-    q = q.order("created_at", { ascending: true });
-  } else if (sort === "name") {
-    q = q
-      .order("first_name", { ascending: true })
-      .order("last_name", { ascending: true, nullsFirst: false });
-  } else if (sort === "active") {
-    q = q.order("activity_count", { ascending: false });
-  } else {
-    q = q.order("created_at", { ascending: false });
-  }
+  const order =
+    sort === "oldest"
+      ? [asc(customerAdmin.createdAt)]
+      : sort === "name"
+        ? [asc(customerAdmin.firstName), asc(customerAdmin.lastName)]
+        : sort === "active"
+          ? [desc(customerAdmin.activityCount)]
+          : [desc(customerAdmin.createdAt)];
 
-  const { data, error, count } = await q.range(from, to);
-
-  if (error) {
-    console.error(
-      "Failed to load customers (apply supabase/customer_admin_view.sql + users_table.sql):",
-      error,
-    );
+  try {
+    const { rows, total } = await withService(async (db) => {
+      const [rows, countRows] = await Promise.all([
+        db
+          .select(VIEW_COLUMNS)
+          .from(customerAdmin)
+          .where(whereExpr)
+          .orderBy(...order)
+          .limit(pageSize)
+          .offset(from),
+        db.select({ n: count() }).from(customerAdmin).where(whereExpr),
+      ]);
+      return { rows, total: countRows[0]?.n ?? 0 };
+    });
+    return {
+      data: rows as Customer[],
+      error: false,
+      total,
+      page,
+      pageSize,
+    };
+  } catch (err) {
+    console.error("Failed to load customers:", err);
     return { data: [], error: true, total: 0, page, pageSize };
   }
-
-  return {
-    data: (data ?? []) as Customer[],
-    error: false,
-    total: count ?? 0,
-    page,
-    pageSize,
-  };
 }
 
 /**
- * Aggregate counts for the metric cards. These are count-only queries
- * (`head: true` transfers no rows) so they stay cheap as the table grows.
+ * Aggregate counts for the metric cards. Count-only queries so they stay cheap
+ * as the table grows.
  */
 export async function getCustomerStats(): Promise<CustomerStats> {
-  const admin = createAdminClient();
   const cutoff = recentCutoffIso();
   const storeId = await getActingStoreId();
 
-  const [totalRes, recentRes, emailRes, reviewersRes] = await Promise.all([
-    admin
-      .from("users")
-      .select("id", { count: "exact", head: true })
-      .eq("store_id", storeId),
-    admin
-      .from("users")
-      .select("id", { count: "exact", head: true })
-      .eq("store_id", storeId)
-      .gte("created_at", cutoff),
-    admin
-      .from("users")
-      .select("id", { count: "exact", head: true })
-      .eq("store_id", storeId)
-      .not("email", "is", null),
-    admin
-      .from("customer_admin")
-      .select("id", { count: "exact", head: true })
-      .eq("store_id", storeId)
-      .gt("review_count", 0),
-  ]);
-
-  return {
-    total: totalRes.count ?? 0,
-    recent: recentRes.count ?? 0,
-    withEmail: emailRes.count ?? 0,
-    reviewers: reviewersRes.count ?? 0,
-  };
+  try {
+    return await withService(async (db) => {
+      const [totalRows, recentRows, emailRows, reviewerRows] =
+        await Promise.all([
+          db
+            .select({ n: count() })
+            .from(users)
+            .where(eq(users.storeId, storeId)),
+          db
+            .select({ n: count() })
+            .from(users)
+            .where(
+              and(eq(users.storeId, storeId), gte(users.createdAt, cutoff)),
+            ),
+          db
+            .select({ n: count() })
+            .from(users)
+            .where(and(eq(users.storeId, storeId), isNotNull(users.email))),
+          db
+            .select({ n: count() })
+            .from(customerAdmin)
+            .where(
+              and(
+                eq(customerAdmin.storeId, storeId),
+                gt(customerAdmin.reviewCount, 0),
+              ),
+            ),
+        ]);
+      return {
+        total: totalRows[0]?.n ?? 0,
+        recent: recentRows[0]?.n ?? 0,
+        withEmail: emailRows[0]?.n ?? 0,
+        reviewers: reviewerRows[0]?.n ?? 0,
+      };
+    });
+  } catch (err) {
+    console.error("Failed to load customer stats:", err);
+    return { total: 0, recent: 0, withEmail: 0, reviewers: 0 };
+  }
 }
 
 /** A single customer with their reviews and blog submissions, or null. */
 export async function getCustomer(id: string): Promise<CustomerDetail | null> {
-  const admin = createAdminClient();
   const storeId = await getActingStoreId();
 
-  const { data, error } = await admin
-    .from("users")
-    .select(DETAIL_COLUMNS)
-    .eq("id", id)
-    .eq("store_id", storeId)
-    .single();
+  try {
+    return await withService(async (db) => {
+      const detailRows = await db
+        .select(DETAIL_COLUMNS)
+        .from(users)
+        .where(and(eq(users.id, id), eq(users.storeId, storeId)))
+        .limit(1);
+      const data = detailRows[0];
+      if (!data) return null;
 
-  if (error || !data) return null;
+      const [reviewRows, blogRows] = await Promise.all([
+        db
+          .select({
+            id: productReviews.id,
+            rating: productReviews.rating,
+            comment: productReviews.comment,
+            created_at: productReviews.createdAt,
+            product_id: productReviews.productId,
+            product_name: products.name,
+          })
+          .from(productReviews)
+          .leftJoin(products, eq(productReviews.productId, products.id))
+          .where(eq(productReviews.userId, id))
+          .orderBy(desc(productReviews.createdAt)),
+        db
+          .select({
+            id: blogs.id,
+            title: blogs.title,
+            slug: blogs.slug,
+            status: blogs.status,
+            created_at: blogs.createdAt,
+          })
+          .from(blogs)
+          .where(eq(blogs.submittedBy, id))
+          .orderBy(desc(blogs.createdAt)),
+      ]);
 
-  const [reviewsRes, blogsRes] = await Promise.all([
-    admin
-      .from("product_reviews")
-      .select("id, rating, comment, created_at, product_id, products(name)")
-      .eq("user_id", id)
-      .order("created_at", { ascending: false }),
-    admin
-      .from("blogs")
-      .select("id, title, slug, status, created_at")
-      .eq("submitted_by", id)
-      .order("created_at", { ascending: false }),
-  ]);
+      const reviews = reviewRows as CustomerReview[];
+      const customerBlogs = blogRows as CustomerBlog[];
 
-  const reviews: CustomerReview[] = (reviewsRes.data ?? []).map((r) => {
-    // `products(name)` arrives as an object (or array, depending on the join
-    // cardinality) — normalise to a plain string | null.
-    const product = r.products as
-      | { name?: string }
-      | { name?: string }[]
-      | null;
-    const productName = Array.isArray(product)
-      ? (product[0]?.name ?? null)
-      : (product?.name ?? null);
-    return {
-      id: r.id as string,
-      rating: r.rating as number,
-      comment: (r.comment as string | null) ?? null,
-      created_at: r.created_at as string,
-      product_id: r.product_id as string,
-      product_name: productName,
-    };
-  });
-
-  const blogs: CustomerBlog[] = (blogsRes.data ?? []) as CustomerBlog[];
-
-  return {
-    ...(data as Omit<Customer, "review_count" | "blog_count">),
-    review_count: reviews.length,
-    blog_count: blogs.length,
-    reviews,
-    blogs,
-  };
+      return {
+        ...(data as Omit<Customer, "review_count" | "blog_count">),
+        review_count: reviews.length,
+        blog_count: customerBlogs.length,
+        reviews,
+        blogs: customerBlogs,
+      };
+    });
+  } catch (err) {
+    console.error("Failed to load customer:", err);
+    return null;
+  }
 }

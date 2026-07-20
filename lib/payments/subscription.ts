@@ -1,6 +1,8 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { razorpayPlans } from "@/drizzle/schema";
 import { getPlatformRazorpayCreds } from "./provider";
 import { rzpCreatePlan, type RazorpayCreds } from "./razorpay";
 import { PLAN_META, type Plan } from "@/lib/plans";
@@ -45,32 +47,41 @@ export async function resolveRazorpayPlanId(
   if (!creds) return null;
 
   const amountPaise = planAmountPaise(plan, period);
-  const admin = createAdminClient();
 
-  const { data: cached } = await admin
-    .from("razorpay_plans")
-    .select("rzp_plan_id")
-    .eq("plan", plan)
-    .eq("period", period)
-    .eq("amount_paise", amountPaise)
-    .maybeSingle();
-  if (cached?.rzp_plan_id) {
-    return { rzpPlanId: cached.rzp_plan_id as string, amountPaise };
+  const cached = await withService((db) =>
+    db
+      .select({ rzp_plan_id: razorpayPlans.rzpPlanId })
+      .from(razorpayPlans)
+      .where(
+        and(
+          eq(razorpayPlans.plan, plan),
+          eq(razorpayPlans.period, period),
+          eq(razorpayPlans.amountPaise, amountPaise),
+        ),
+      )
+      .limit(1),
+  ).catch(() => []);
+  if (cached[0]?.rzp_plan_id) {
+    return { rzpPlanId: cached[0].rzp_plan_id, amountPaise };
   }
 
   const created = await createPlan(creds, plan, period, amountPaise);
   if (!created) return null;
 
   // Cache best-effort; a lost race just recreates a (harmless) duplicate plan.
-  await admin.from("razorpay_plans").upsert(
-    {
-      plan,
-      period,
-      amount_paise: amountPaise,
-      rzp_plan_id: created,
-    },
-    { onConflict: "plan,period,amount_paise" },
-  );
+  await withService((db) =>
+    db
+      .insert(razorpayPlans)
+      .values({ plan, period, amountPaise, rzpPlanId: created })
+      .onConflictDoUpdate({
+        target: [
+          razorpayPlans.plan,
+          razorpayPlans.period,
+          razorpayPlans.amountPaise,
+        ],
+        set: { rzpPlanId: created },
+      }),
+  ).catch((err) => console.error("resolveRazorpayPlanId (cache):", err));
   return { rzpPlanId: created, amountPaise };
 }
 

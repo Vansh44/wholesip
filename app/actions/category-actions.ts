@@ -1,10 +1,13 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { and, eq, like, ne } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { TAGS } from "@/lib/storefront/tags";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
-import { deleteStorageUrls } from "@/lib/supabase/storage-cleanup";
+import { deleteStorageUrls } from "@/lib/storage/cleanup";
+import { withUser } from "@/lib/db/client";
+import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
+import { categories } from "@/drizzle/schema";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,29 +47,26 @@ async function getAdminUserId(): Promise<string | null> {
   return getManagerUserId("categories");
 }
 
-const UNIQUE_VIOLATION = "23505";
-
-function isUniqueViolation(error: { code?: string } | null): boolean {
-  return error?.code === UNIQUE_VIOLATION;
-}
-
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
-
 async function resolveSlug(
-  supabase: SupabaseClient,
+  userId: string,
   base: string,
   storeId: string,
   excludeId?: string,
 ) {
-  let query = supabase
-    .from("categories")
-    .select("slug")
-    .eq("store_id", storeId)
-    .like("slug", `${base}%`);
-  if (excludeId) query = query.neq("id", excludeId);
-  const { data } = await query;
+  const conds = [
+    eq(categories.storeId, storeId),
+    like(categories.slug, `${base}%`),
+  ];
+  if (excludeId) conds.push(ne(categories.id, excludeId));
 
-  const taken = new Set((data ?? []).map((c: { slug: string }) => c.slug));
+  const rows = await withUser({ uid: userId }, (db) =>
+    db
+      .select({ slug: categories.slug })
+      .from(categories)
+      .where(and(...conds)),
+  );
+
+  const taken = new Set(rows.map((c) => c.slug));
   let counter = 2;
   let slug = base;
   while (taken.has(slug)) {
@@ -103,7 +103,6 @@ function revalidateCatalog() {
 export async function createCategory(
   formData: CategoryFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
@@ -111,35 +110,36 @@ export async function createCategory(
   if (!formData.name.trim()) return { error: "Name is required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(supabase, base, storeId);
+  const { slug: firstSlug, bump } = await resolveSlug(userId, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
     name: formData.name.trim(),
     slug: s,
     description: formData.description.trim() || null,
-    image_url: formData.image_url || null,
-    sort_order: formData.sort_order ?? 0,
+    imageUrl: formData.image_url || null,
+    sortOrder: formData.sort_order ?? 0,
     status: formData.status,
-    store_id: storeId,
+    storeId,
   });
 
+  // Each attempt runs in its OWN transaction: a unique violation aborts the
+  // transaction it happens in, so retrying with a bumped slug needs a fresh
+  // one. RLS (is_store_admin) gates the insert against the caller's store.
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
-    const { data, error } = await supabase
-      .from("categories")
-      .insert(row(slug))
-      .select()
-      .single();
-
-    if (!error) {
+    try {
+      const [inserted] = await withUser({ uid: userId }, (db) =>
+        db.insert(categories).values(row(slug)).returning(),
+      );
       revalidateCatalog();
-      return { success: true, data: data as Record<string, unknown> };
+      return { success: true, data: inserted as Record<string, unknown> };
+    } catch (err) {
+      if (!isUniqueViolation(err)) {
+        console.error("createCategory error:", err);
+        return { error: dbErrorMessage(err, "Failed to create category.") };
+      }
+      slug = bump(slug);
     }
-    if (!isUniqueViolation(error)) {
-      console.error("createCategory error:", error);
-      return { error: error.message };
-    }
-    slug = bump(slug);
   }
 
   return { error: "Could not generate a unique slug. Please try again." };
@@ -153,7 +153,6 @@ export async function updateCategory(
   id: string,
   formData: CategoryFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
@@ -162,7 +161,7 @@ export async function updateCategory(
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
   const { slug: firstSlug, bump } = await resolveSlug(
-    supabase,
+    userId,
     base,
     storeId,
     id,
@@ -173,38 +172,42 @@ export async function updateCategory(
     name: formData.name.trim(),
     slug: s,
     description: formData.description.trim() || null,
-    image_url: formData.image_url || null,
-    sort_order: formData.sort_order ?? 0,
+    imageUrl: formData.image_url || null,
+    sortOrder: formData.sort_order ?? 0,
     status: formData.status,
   });
 
   // The image referenced before this save, so a replaced/removed one can be
   // purged from storage afterwards.
-  const { data: prev } = await supabase
-    .from("categories")
-    .select("image_url")
-    .eq("id", id)
-    .single();
-  const oldImage = prev?.image_url ?? null;
+  const prev = await withUser({ uid: userId }, (db) =>
+    db
+      .select({ imageUrl: categories.imageUrl })
+      .from(categories)
+      .where(eq(categories.id, id))
+      .limit(1),
+  );
+  const oldImage = prev[0]?.imageUrl ?? null;
 
+  // Own transaction per attempt (see createCategory). No store filter needed:
+  // RLS (is_store_admin) confines the update to the caller's own store, and
+  // updated_at is maintained by the DB trigger.
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
-    const { error } = await supabase
-      .from("categories")
-      .update(row(slug))
-      .eq("id", id);
-
-    if (!error) {
+    try {
+      await withUser({ uid: userId }, (db) =>
+        db.update(categories).set(row(slug)).where(eq(categories.id, id)),
+      );
       const newImage = formData.image_url || null;
       if (oldImage && oldImage !== newImage)
         await deleteStorageUrls([oldImage]);
       revalidateCatalog();
       return { success: true };
+    } catch (err) {
+      if (!isUniqueViolation(err)) {
+        console.error("updateCategory error:", err);
+        return { error: dbErrorMessage(err, "Failed to update category.") };
+      }
+      slug = bump(slug);
     }
-    if (!isUniqueViolation(error)) {
-      console.error("updateCategory error:", error);
-      return { error: error.message };
-    }
-    slug = bump(slug);
   }
 
   return { error: "Could not generate a unique slug. Please try again." };
@@ -217,24 +220,28 @@ export async function updateCategory(
 // (ON DELETE SET NULL), so they become "uncategorized" rather than being lost.
 
 export async function deleteCategory(id: string): Promise<ActionResult> {
-  const supabase = await createClient();
   const userId = await getAdminUserId();
   if (!userId) return { error: "Not authenticated" };
 
-  const { data: prev } = await supabase
-    .from("categories")
-    .select("image_url")
-    .eq("id", id)
-    .single();
+  const prev = await withUser({ uid: userId }, (db) =>
+    db
+      .select({ imageUrl: categories.imageUrl })
+      .from(categories)
+      .where(eq(categories.id, id))
+      .limit(1),
+  );
 
-  const { error } = await supabase.from("categories").delete().eq("id", id);
-
-  if (error) {
-    console.error("deleteCategory error:", error);
-    return { error: error.message };
+  try {
+    // RLS (is_store_admin) confines the delete to the caller's own store.
+    await withUser({ uid: userId }, (db) =>
+      db.delete(categories).where(eq(categories.id, id)),
+    );
+  } catch (err) {
+    console.error("deleteCategory error:", err);
+    return { error: dbErrorMessage(err, "Failed to delete category.") };
   }
 
-  if (prev?.image_url) await deleteStorageUrls([prev.image_url]);
+  if (prev[0]?.imageUrl) await deleteStorageUrls([prev[0].imageUrl]);
 
   revalidateCatalog();
   return { success: true };

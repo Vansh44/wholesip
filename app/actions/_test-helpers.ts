@@ -91,6 +91,214 @@ export function makeChain(
  *     customers: makeChain({ data: { first_name: "A" }, error: null }),
  *   });
  */
+// ---------------------------------------------------------------------------
+// Mock Drizzle db (GCP migration Phase 5). Mirrors the fragment of the Drizzle
+// query API our ported server actions use, recording the args so tests can
+// assert on insert/update payloads without a real database. Pair it with a
+// mock of `@/lib/db/client` whose with* runners invoke the callback with .db:
+//
+//   const dbHolder = vi.hoisted(() => ({ current: null as any }));
+//   vi.mock("@/lib/db/client", () => ({
+//     // Promise.resolve() assimilates the thenable query steps into REAL
+//     // promises, so action code may call .catch() on a with* result.
+//     withUser: vi.fn((_id: any, fn: any) =>
+//       Promise.resolve(fn(dbHolder.current.db))),
+//     withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+//     withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+//   }));
+//   beforeEach(() => { dbHolder.current = makeDbMock({ returning: [{ id: "c1" }] }); });
+// ---------------------------------------------------------------------------
+
+export interface DbMock {
+  db: any;
+  calls: {
+    insert: any[];
+    values: any[];
+    update: any[];
+    set: any[];
+    delete: any[];
+    where: any[];
+    select: any[];
+    onConflict: any[];
+    execute: any[];
+    limit: any[];
+    offset: any[];
+  };
+}
+
+export function makeDbMock(
+  opts: {
+    returning?: any[];
+    selectQueue?: any[][];
+    executeQueue?: any[][];
+    // Tables whose insert().values(...) / update().set(...).where(...) should
+    // REJECT when awaited — for rollback-path tests. Compare by table identity.
+    failInsertFor?: any[];
+    failUpdateFor?: any[];
+  } = {},
+): DbMock {
+  const returning = opts.returning ?? [{ id: "row-1" }];
+  const failInsertFor = opts.failInsertFor ?? [];
+  const failUpdateFor = opts.failUpdateFor ?? [];
+  // A step whose await / terminals reject — models a failing write.
+  const failStep = (): any => ({
+    where: vi.fn(() => failStep()),
+    returning: vi.fn(() => Promise.reject(new Error("db write failed"))),
+    then: (_res: any, rej: any) => rej(new Error("db write failed")),
+  });
+  // Each db.select() consumes the next entry (an action doing a slug lookup
+  // then an image prefetch gets queue[0] then queue[1]); empty queue → [].
+  const selectQueue = [...(opts.selectQueue ?? [])];
+  // Each db.execute() (raw-SQL RPC calls) consumes the next `.rows` entry.
+  const executeQueue = [...(opts.executeQueue ?? [])];
+  const calls: DbMock["calls"] = {
+    insert: [],
+    values: [],
+    update: [],
+    set: [],
+    delete: [],
+    where: [],
+    select: [],
+    onConflict: [],
+    execute: [],
+    limit: [],
+    offset: [],
+  };
+
+  // A thenable step that also exposes .where()/.returning() terminals, so both
+  // `await db.update().set().where()` and `db.insert().values().returning()`
+  // resolve correctly.
+  const step = (result: any): any => ({
+    where: vi.fn((c: any) => {
+      calls.where.push(c);
+      return step(result);
+    }),
+    onConflictDoUpdate: vi.fn((c: any) => {
+      calls.onConflict.push(c);
+      return step(result);
+    }),
+    onConflictDoNothing: vi.fn((c: any) => {
+      calls.onConflict.push(c);
+      return step(result);
+    }),
+    returning: vi.fn(async () => returning),
+    then: (resolve: any) => Promise.resolve(result).then(resolve),
+  });
+
+  // A fully-chainable select step; awaiting it resolves to `rows`.
+  const selectStep = (rows: any[]): any => {
+    const s: any = {
+      from: vi.fn(() => s),
+      where: vi.fn((c: any) => {
+        calls.where.push(c);
+        return s;
+      }),
+      leftJoin: vi.fn(() => s),
+      innerJoin: vi.fn(() => s),
+      groupBy: vi.fn(() => s),
+      orderBy: vi.fn(() => s),
+      limit: vi.fn((n: any) => {
+        calls.limit.push(n);
+        return s;
+      }),
+      offset: vi.fn((n: any) => {
+        calls.offset.push(n);
+        return s;
+      }),
+      then: (resolve: any) => Promise.resolve(rows).then(resolve),
+    };
+    return s;
+  };
+
+  const db: any = {
+    select: vi.fn((projection?: any) => {
+      calls.select.push(projection);
+      return selectStep(selectQueue.length ? selectQueue.shift()! : []);
+    }),
+    execute: vi.fn(async (query: any) => {
+      calls.execute.push(query);
+      return { rows: executeQueue.length ? executeQueue.shift()! : [] };
+    }),
+    insert: vi.fn((t: any) => {
+      calls.insert.push(t);
+      const fail = failInsertFor.includes(t);
+      return {
+        values: vi.fn((v: any) => {
+          calls.values.push(v);
+          return fail ? failStep() : step(returning);
+        }),
+      };
+    }),
+    update: vi.fn((t: any) => {
+      calls.update.push(t);
+      const fail = failUpdateFor.includes(t);
+      return {
+        set: vi.fn((v: any) => {
+          calls.set.push(v);
+          return fail ? failStep() : step({ rowCount: 1 });
+        }),
+      };
+    }),
+    delete: vi.fn((t: any) => {
+      calls.delete.push(t);
+      return step({ rowCount: 1 });
+    }),
+  };
+
+  return { db, calls };
+}
+
+/**
+ * The bound parameter VALUES of a Drizzle SQL object, in order — lets tests
+ * assert what a raw-SQL RPC call (db.execute) was invoked with. In a sql``
+ * template, interpolated values sit INLINE in queryChunks as raw primitives
+ * (incl. null); literal SQL text is a StringChunk whose `value` is an array.
+ */
+export function sqlParamValues(sqlObj: any): any[] {
+  const out: any[] = [];
+  const walk = (chunk: any) => {
+    if (chunk === null || typeof chunk !== "object") {
+      out.push(chunk); // a raw bound value
+      return;
+    }
+    if (Array.isArray(chunk)) {
+      chunk.forEach(walk);
+      return;
+    }
+    if (chunk.queryChunks) {
+      walk(chunk.queryChunks); // nested SQL
+      return;
+    }
+    if (Array.isArray(chunk.value)) return; // StringChunk (literal SQL text)
+    if ("value" in chunk) out.push(chunk.value); // Param wrapper
+  };
+  if (sqlObj?.queryChunks) walk(sqlObj.queryChunks);
+  return out;
+}
+
+/**
+ * The literal SQL text of a Drizzle sql`` object (the StringChunk pieces joined),
+ * so a test can tell WHICH raw-SQL RPC a db.execute() call ran — e.g.
+ * `sqlText(call).includes("increment_coupon_usage")`.
+ */
+export function sqlText(sqlObj: any): string {
+  let out = "";
+  const walk = (chunk: any) => {
+    if (chunk === null || typeof chunk !== "object") return;
+    if (Array.isArray(chunk)) {
+      chunk.forEach(walk);
+      return;
+    }
+    if (chunk.queryChunks) {
+      walk(chunk.queryChunks);
+      return;
+    }
+    if (Array.isArray(chunk.value)) out += chunk.value.join(""); // StringChunk
+  };
+  if (sqlObj?.queryChunks) walk(sqlObj.queryChunks);
+  return out;
+}
+
 export function makeSupabase(
   tables: Record<string, ChainMock> = {},
   user: any = { id: "user-1" },

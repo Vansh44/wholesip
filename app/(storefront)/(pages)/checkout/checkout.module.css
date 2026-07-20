@@ -1,13 +1,13 @@
 /* Checkout — premium multi-step layout (Amazon / Flipkart / Shopify inspired).
-   Fully tokenised on the storefront --wholesip-* vars so it re-skins per theme
+   Fully tokenised on the storefront --sm-* vars so it re-skins per theme
    and works in light/dark like the rest of the storefront. */
 
 .page {
   min-height: 100vh;
   padding: 120px 20px 72px;
-  background: var(--wholesip-cream);
+  background: var(--sm-cream);
   font-family: var(--font-outfit), sans-serif;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .inner {
@@ -23,13 +23,13 @@
   font-size: 34px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .subtitle {
   margin-top: 6px;
   font-size: 15px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 
 .layout {
@@ -48,10 +48,10 @@
 
 /* ---- Cards / sections ---- */
 .card {
-  background: var(--wholesip-surface);
-  border: 1px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-card);
-  box-shadow: 0 6px 22px rgba(var(--wholesip-shadow-rgb), 0.05);
+  background: var(--sm-surface);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-card);
+  box-shadow: 0 6px 22px rgba(var(--sm-shadow-rgb), 0.05);
   padding: 28px;
 }
 
@@ -69,9 +69,9 @@
   width: 30px;
   height: 30px;
   flex-shrink: 0;
-  border-radius: var(--wholesip-radius-pill);
-  background: var(--wholesip-accent);
-  color: var(--wholesip-on-accent);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-accent);
+  color: var(--sm-on-accent);
   font-size: 14px;
   font-weight: 700;
 }
@@ -79,13 +79,13 @@
 .sectionTitle {
   font-size: 20px;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .sectionHint {
   margin-left: auto;
   font-size: 13px;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 /* ---- Saved address cards ---- */
@@ -101,9 +101,9 @@
   gap: 12px;
   padding: 16px 16px 16px 44px;
   text-align: left;
-  border: 1.5px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-cream);
+  border: 1.5px solid var(--sm-border);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-cream);
   cursor: pointer;
   transition:
     border-color 0.15s ease,
@@ -112,13 +112,13 @@
 }
 
 .addrCard:hover {
-  border-color: var(--wholesip-ink-faint);
+  border-color: var(--sm-ink-faint);
 }
 
 .addrCardActive {
-  border-color: var(--wholesip-accent);
-  background: var(--wholesip-surface);
-  box-shadow: 0 0 0 3px rgba(var(--wholesip-shadow-rgb), 0.06);
+  border-color: var(--sm-accent);
+  background: var(--sm-surface);
+  box-shadow: 0 0 0 3px rgba(var(--sm-shadow-rgb), 0.06);
 }
 
 .radio {
@@ -127,21 +127,21 @@
   left: 16px;
   width: 18px;
   height: 18px;
-  border-radius: var(--wholesip-radius-pill);
-  border: 2px solid var(--wholesip-ink-faint);
+  border-radius: var(--sm-radius-pill);
+  border: 2px solid var(--sm-ink-faint);
   transition: border-color 0.15s ease;
 }
 
 .addrCardActive .radio {
-  border-color: var(--wholesip-accent);
+  border-color: var(--sm-accent);
 }
 
 .addrCardActive .radio::after {
   content: "";
   position: absolute;
   inset: 3px;
-  border-radius: var(--wholesip-radius-pill);
-  background: var(--wholesip-accent);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-accent);
 }
 
 .addrBody {
@@ -155,7 +155,7 @@
   gap: 8px;
   font-size: 15px;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .badge {
@@ -164,22 +164,22 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 2px 7px;
-  border-radius: var(--wholesip-radius-pill);
-  background: var(--wholesip-sand);
-  color: var(--wholesip-ink-soft);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-sand);
+  color: var(--sm-ink-soft);
 }
 
 .addrLines {
   margin-top: 5px;
   font-size: 13px;
   line-height: 1.5;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 
 .addrPhone {
   margin-top: 6px;
   font-size: 12.5px;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .addrActions {
@@ -194,11 +194,11 @@
   gap: 4px;
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   background: none;
   border: none;
   padding: 4px 6px;
-  border-radius: var(--wholesip-radius-sm);
+  border-radius: var(--sm-radius-sm);
   cursor: pointer;
   transition:
     background 0.15s ease,
@@ -206,13 +206,13 @@
 }
 
 .linkBtn:hover {
-  background: var(--wholesip-cream-deep);
-  color: var(--wholesip-ink);
+  background: var(--sm-cream-deep);
+  color: var(--sm-ink);
 }
 
 .linkBtnDanger:hover {
-  background: var(--wholesip-error-soft);
-  color: var(--wholesip-error);
+  background: var(--sm-error-soft);
+  color: var(--sm-error);
 }
 
 /* "+ Add a new address" tile */
@@ -223,10 +223,10 @@
   justify-content: center;
   gap: 8px;
   min-height: 108px;
-  border: 1.5px dashed var(--wholesip-border);
-  border-radius: var(--wholesip-radius-control);
+  border: 1.5px dashed var(--sm-border);
+  border-radius: var(--sm-radius-control);
   background: transparent;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   font-size: 14px;
   font-weight: 600;
   font-family: inherit;
@@ -238,9 +238,9 @@
 }
 
 .addTile:hover {
-  border-color: var(--wholesip-accent);
-  color: var(--wholesip-ink);
-  background: var(--wholesip-cream);
+  border-color: var(--sm-accent);
+  color: var(--sm-ink);
+  background: var(--sm-cream);
 }
 
 .addTileIcon {
@@ -249,9 +249,9 @@
   justify-content: center;
   width: 34px;
   height: 34px;
-  border-radius: var(--wholesip-radius-pill);
-  background: var(--wholesip-sand);
-  color: var(--wholesip-ink);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-sand);
+  color: var(--sm-ink);
 }
 
 /* ---- Address form ---- */
@@ -264,7 +264,7 @@
 .formTitle {
   font-size: 15px;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .twoCol {
@@ -282,7 +282,7 @@
 .label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -290,31 +290,31 @@
 .input {
   width: 100%;
   padding: 12px 14px;
-  border-radius: var(--wholesip-radius-control);
-  border: 1.5px solid var(--wholesip-border);
-  background: var(--wholesip-cream-deep);
+  border-radius: var(--sm-radius-control);
+  border: 1.5px solid var(--sm-border);
+  background: var(--sm-cream-deep);
   font-size: 15px;
   font-family: inherit;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   transition:
     border-color 0.15s ease,
     background 0.15s ease;
 }
 
 .input::placeholder {
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .input:focus {
   outline: none;
-  border-color: var(--wholesip-accent);
-  background: var(--wholesip-surface);
+  border-color: var(--sm-accent);
+  background: var(--sm-surface);
 }
 
 .formError {
   font-size: 13px;
   font-weight: 500;
-  color: var(--wholesip-error);
+  color: var(--sm-error);
 }
 
 .formActions {
@@ -329,9 +329,9 @@
   justify-content: center;
   gap: 8px;
   padding: 13px 22px;
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-accent);
-  color: var(--wholesip-on-accent);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-accent);
+  color: var(--sm-on-accent);
   font-size: 15px;
   font-weight: 600;
   font-family: inherit;
@@ -344,7 +344,7 @@
 }
 
 .primaryBtn:hover:not(:disabled) {
-  background: var(--wholesip-accent-deep);
+  background: var(--sm-accent-deep);
 }
 
 .primaryBtn:disabled {
@@ -354,13 +354,13 @@
 
 .ghostBtn {
   padding: 13px 22px;
-  border-radius: var(--wholesip-radius-control);
+  border-radius: var(--sm-radius-control);
   background: transparent;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   font-size: 15px;
   font-weight: 600;
   font-family: inherit;
-  border: 1.5px solid var(--wholesip-border);
+  border: 1.5px solid var(--sm-border);
   cursor: pointer;
   transition:
     background 0.15s ease,
@@ -368,8 +368,8 @@
 }
 
 .ghostBtn:hover:not(:disabled) {
-  background: var(--wholesip-cream-deep);
-  color: var(--wholesip-ink);
+  background: var(--sm-cream-deep);
+  color: var(--sm-ink);
 }
 
 /* ---- Payment ---- */
@@ -384,9 +384,9 @@
   align-items: center;
   gap: 14px;
   padding: 16px;
-  border: 1.5px solid var(--wholesip-accent);
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-cream);
+  border: 1.5px solid var(--sm-accent);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-cream);
   width: 100%;
   text-align: left;
   font: inherit;
@@ -394,13 +394,13 @@
 
 /* Unselected method (only rendered when the store offers a choice). */
 .payOptionMuted {
-  border-color: rgba(var(--wholesip-shadow-rgb), 0.14);
-  background: var(--wholesip-surface);
+  border-color: rgba(var(--sm-shadow-rgb), 0.14);
+  background: var(--sm-surface);
   cursor: pointer;
 }
 
 .payOptionMuted:hover {
-  border-color: rgba(var(--wholesip-shadow-rgb), 0.3);
+  border-color: rgba(var(--sm-shadow-rgb), 0.3);
 }
 
 .payOptionMuted .payCheck {
@@ -414,26 +414,26 @@
   width: 42px;
   height: 42px;
   flex-shrink: 0;
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-sand);
-  color: var(--wholesip-ink);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-sand);
+  color: var(--sm-ink);
 }
 
 .payName {
   font-size: 15px;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .payDesc {
   font-size: 13px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   margin-top: 2px;
 }
 
 .payCheck {
   margin-left: auto;
-  color: var(--wholesip-accent);
+  color: var(--sm-accent);
 }
 
 /* ---- Order summary (right rail) ---- */
@@ -446,17 +446,17 @@
 }
 
 .summaryCard {
-  background: var(--wholesip-surface);
-  border: 1px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-card);
-  box-shadow: 0 6px 22px rgba(var(--wholesip-shadow-rgb), 0.05);
+  background: var(--sm-surface);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-card);
+  box-shadow: 0 6px 22px rgba(var(--sm-shadow-rgb), 0.05);
   padding: 24px;
 }
 
 .summaryTitle {
   font-size: 18px;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   margin-bottom: 18px;
 }
 
@@ -482,10 +482,10 @@
   width: 56px;
   height: 56px;
   flex-shrink: 0;
-  border-radius: var(--wholesip-radius-sm);
+  border-radius: var(--sm-radius-sm);
   overflow: hidden;
-  background: var(--wholesip-cream-deep);
-  border: 1px solid var(--wholesip-border);
+  background: var(--sm-cream-deep);
+  border: 1px solid var(--sm-border);
 }
 
 .thumb img {
@@ -500,7 +500,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .qtyBubble {
@@ -513,9 +513,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--wholesip-radius-pill);
-  background: var(--wholesip-accent);
-  color: var(--wholesip-on-accent);
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-accent);
+  color: var(--sm-on-accent);
   font-size: 11px;
   font-weight: 700;
 }
@@ -528,7 +528,7 @@
 .itemName {
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   line-height: 1.35;
   overflow: hidden;
   display: -webkit-box;
@@ -538,19 +538,19 @@
 
 .itemVariant {
   font-size: 12px;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
   margin-top: 2px;
 }
 
 .itemPrice {
   font-size: 13.5px;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   white-space: nowrap;
 }
 
 .rows {
-  border-top: 1px solid var(--wholesip-border);
+  border-top: 1px solid var(--sm-border);
   padding-top: 16px;
   display: flex;
   flex-direction: column;
@@ -561,16 +561,16 @@
   display: flex;
   justify-content: space-between;
   font-size: 14px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 
 .rowDiscount {
-  color: var(--wholesip-success);
+  color: var(--sm-success);
   font-weight: 600;
 }
 
 .free {
-  color: var(--wholesip-success);
+  color: var(--sm-success);
   font-weight: 600;
 }
 
@@ -580,29 +580,29 @@
   align-items: baseline;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid var(--wholesip-border);
+  border-top: 1px solid var(--sm-border);
 }
 
 .totalLabel {
   font-size: 16px;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .totalValue {
   font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.01em;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .placeBtn {
   width: 100%;
   margin-top: 20px;
   padding: 16px;
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-accent);
-  color: var(--wholesip-on-accent);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-accent);
+  color: var(--sm-on-accent);
   font-size: 16px;
   font-weight: 700;
   font-family: inherit;
@@ -615,9 +615,9 @@
 }
 
 .placeBtn:hover:not(:disabled) {
-  background: var(--wholesip-accent-deep);
+  background: var(--sm-accent-deep);
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(var(--wholesip-shadow-rgb), 0.16);
+  box-shadow: 0 8px 20px rgba(var(--sm-shadow-rgb), 0.16);
 }
 
 .placeBtn:disabled {
@@ -629,7 +629,7 @@
   margin-top: 10px;
   text-align: center;
   font-size: 12.5px;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .trust {
@@ -637,9 +637,9 @@
   flex-direction: column;
   gap: 10px;
   padding: 16px 20px;
-  border: 1px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-card);
-  background: var(--wholesip-surface);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-card);
+  background: var(--sm-surface);
 }
 
 .trustItem {
@@ -647,11 +647,11 @@
   align-items: center;
   gap: 10px;
   font-size: 12.5px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 
 .trustItem svg {
-  color: var(--wholesip-success);
+  color: var(--sm-success);
   flex-shrink: 0;
 }
 
@@ -670,17 +670,17 @@
 .centerTitle {
   font-size: 26px;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .centerText {
   max-width: 360px;
   font-size: 15px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 
 .muted {
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   font-size: 15px;
 }
 

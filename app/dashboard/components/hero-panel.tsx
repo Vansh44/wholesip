@@ -1,21 +1,24 @@
 import Link from "next/link";
 import { Download, Plus } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { admins } from "@/drizzle/schema";
+import { getServerUser } from "@/lib/auth/server-user";
 
 export async function HeroPanel() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
 
   let displayName = "Admin";
 
   if (user) {
-    const { data: profile } = await supabase
-      .from("admins")
-      .select("first_name")
-      .eq("id", user.id)
-      .single();
+    const rows = await withService((db) =>
+      db
+        .select({ first_name: admins.firstName })
+        .from(admins)
+        .where(eq(admins.id, user.id))
+        .limit(1),
+    ).catch(() => []);
+    const profile = rows[0];
 
     if (profile?.first_name) {
       displayName = profile.first_name;

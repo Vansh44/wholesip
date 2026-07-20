@@ -1,14 +1,15 @@
-name: Next.js CI
+name: Next.js CI/CD
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, staging]
   pull_request:
-    branches: [main, dev]
+    branches: [main, staging]
 
 permissions:
   contents: read
   actions: write
+  id-token: write # Required for secure GCP Workload Identity authentication
 
 jobs:
   ci:
@@ -40,5 +41,55 @@ jobs:
       - name: Format Check
         run: npm run prettier --check
 
+      # Cloud Run automatically builds the image, so you don't strictly need
+      # this build step here unless it's just for CI verification.
       - name: Build Project
         run: npm run build
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: ci # This ensures the job ONLY runs if the 'ci' job passes
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
+          service_account: "${{ secrets.GCP_SERVICE_ACCOUNT }}"
+
+      - name: Deploy to Cloud Run (Staging)
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: "storemink-web"
+          region: "asia-south1"
+          source: "."
+          flags: "--allow-unauthenticated"
+
+  deploy-prod:
+    name: Deploy to Production
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}"
+          service_account: "${{ secrets.GCP_SERVICE_ACCOUNT }}"
+
+      - name: Deploy to Cloud Run (Prod)
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: "storemink-web-prod"
+          region: "asia-south1"
+          source: "."
+          flags: "--min-instances=1 --allow-unauthenticated"

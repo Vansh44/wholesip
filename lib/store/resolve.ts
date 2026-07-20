@@ -1,7 +1,9 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { unstable_cache } from "next/cache";
-import { createPublicClient } from "@/lib/supabase/public";
+import { and, eq } from "drizzle-orm";
+import { withAnon } from "@/lib/db/client";
+import { stores } from "@/drizzle/schema";
 import { parseHost } from "@/lib/store/host";
 
 // Re-exported so existing importers (and resolve.test.ts) keep working.
@@ -36,16 +38,26 @@ export interface Store {
   settings: Record<string, unknown>;
 }
 
-// WholeSip — Store #1. Matches the fixed id seeded in multitenant_01_schema.sql.
-// Used as the single-tenant fallback until real subdomains are live.
-export const WHOLESIP_STORE_ID = "a0000000-0000-4000-8000-000000000001";
+// The fallback store (the legacy "store #1"). Matches the fixed id seeded in
+// multitenant_01_schema.sql. Never-null fallback for dashboard/action callers
+// when a host maps to no store; the storefront never relies on it (it 404s).
+export const FALLBACK_STORE_ID = "a0000000-0000-4000-8000-000000000001";
 
 // Cache tag for store lookups — call `revalidateTag(STORE_TAG)` after a store
 // is created or its settings/domain change.
 export const STORE_TAG = "stores";
 
-const STORE_COLUMNS =
-  "id, slug, name, status, plan, plan_expires_at, custom_domain, settings";
+// Aliased select preserving the snake_case Store shape callers expect.
+const STORE_COLUMNS = {
+  id: stores.id,
+  slug: stores.slug,
+  name: stores.name,
+  status: stores.status,
+  plan: stores.plan,
+  plan_expires_at: stores.planExpiresAt,
+  custom_domain: stores.customDomain,
+  settings: stores.settings,
+};
 
 // Cached store lookup by Host header. Returns null for platform hosts and for
 // hosts that don't map to an active store. Tolerates DB errors (returns null).
@@ -54,55 +66,63 @@ const lookupStoreByHost = unstable_cache(
     const kind = parseHost(host);
     if (kind.type === "platform") return null;
 
-    const supabase = createPublicClient();
-    const query = supabase
-      .from("stores")
-      .select(STORE_COLUMNS)
-      .eq("status", "active")
-      .limit(1);
+    try {
+      const rows = await withAnon((db) =>
+        db
+          .select(STORE_COLUMNS)
+          .from(stores)
+          .where(
+            and(
+              eq(stores.status, "active"),
+              kind.type === "store-subdomain"
+                ? eq(stores.slug, kind.slug)
+                : eq(stores.customDomain, kind.domain),
+            ),
+          )
+          .limit(1),
+      );
+      const store = (rows[0] as Store | undefined) ?? null;
 
-    const { data, error } =
-      kind.type === "store-subdomain"
-        ? await query.eq("slug", kind.slug).maybeSingle()
-        : await query.eq("custom_domain", kind.domain).maybeSingle();
-
-    if (error) {
-      console.error("lookupStoreByHost:", error.message);
+      // A custom domain must be proven-owned before we serve on it — otherwise a
+      // store could pre-claim a domain it doesn't control. Ownership is confirmed
+      // via the Resend DNS-verification flow, which flips settings.custom_domain_verified.
+      // (Store subdomains are inherently ours, so they need no such check.)
+      if (
+        store &&
+        kind.type === "custom-domain" &&
+        store.settings?.custom_domain_verified !== true
+      ) {
+        return null;
+      }
+      return store;
+    } catch (err) {
+      console.error(
+        "lookupStoreByHost:",
+        err instanceof Error ? err.message : err,
+      );
       return null;
     }
-    const store = (data as Store | null) ?? null;
-
-    // A custom domain must be proven-owned before we serve on it — otherwise a
-    // store could pre-claim a domain it doesn't control. Ownership is confirmed
-    // via the Resend DNS-verification flow, which flips settings.custom_domain_verified.
-    // (Store subdomains are inherently ours, so they need no such check.)
-    if (
-      store &&
-      kind.type === "custom-domain" &&
-      store.settings?.custom_domain_verified !== true
-    ) {
-      return null;
-    }
-    return store;
   },
   ["store-by-host"],
   { tags: [STORE_TAG], revalidate: 300 },
 );
 
-// Cached store lookup by id — used for the WholeSip fallback.
+// Cached store lookup by id — used for the WholeSip fallback. (RLS mirrors the
+// old anon client: only active stores are visible without an identity.)
 export const lookupStoreById = unstable_cache(
   async (id: string): Promise<Store | null> => {
-    const supabase = createPublicClient();
-    const { data, error } = await supabase
-      .from("stores")
-      .select(STORE_COLUMNS)
-      .eq("id", id)
-      .maybeSingle();
-    if (error) {
-      console.error("lookupStoreById:", error.message);
+    try {
+      const rows = await withAnon((db) =>
+        db.select(STORE_COLUMNS).from(stores).where(eq(stores.id, id)).limit(1),
+      );
+      return (rows[0] as Store | undefined) ?? null;
+    } catch (err) {
+      console.error(
+        "lookupStoreById:",
+        err instanceof Error ? err.message : err,
+      );
       return null;
     }
-    return (data as Store | null) ?? null;
   },
   ["store-by-id"],
   { tags: [STORE_TAG], revalidate: 300 },
@@ -130,13 +150,13 @@ export async function getCurrentStore(): Promise<Store> {
   const resolved = await getCurrentStoreOrNull();
   if (resolved) return resolved;
 
-  const fallback = await lookupStoreById(WHOLESIP_STORE_ID);
+  const fallback = await lookupStoreById(FALLBACK_STORE_ID);
   if (fallback) return fallback;
 
   // Last-resort synthetic store so callers never crash even if the row is
   // somehow missing (e.g. mid-migration). store_id still resolves correctly.
   return {
-    id: WHOLESIP_STORE_ID,
+    id: FALLBACK_STORE_ID,
     slug: "wholesip",
     name: "WholeSip",
     status: "active",
