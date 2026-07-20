@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { createClient as createSupabaseAuthClient } from "@supabase/supabase-js";
+import {
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  type ConfirmationResult,
+} from "firebase/auth";
+import {
+  getSecondaryFirebaseAuth,
+  firebaseAuthErrorMessage,
+} from "@/lib/auth/firebase-client";
 import { useAuth } from "../../components/auth/AuthProvider";
 import { submitEnquiry } from "@/app/actions/enquiry-actions";
 import styles from "./enquiries.module.css";
@@ -30,25 +38,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function formatPhone(p?: string | null): string {
   if (!p) return "";
   return p.startsWith("+") ? p : `+${p}`;
-}
-
-// Ephemeral, NON-persisting Supabase client used ONLY to send + verify the
-// phone OTP. Because it never writes the session to cookies/localStorage,
-// verifying a number does NOT log the enquirer in (the app's AuthProvider
-// session is untouched) and no customer record is created — we only prove the
-// enquirer owns the number, then discard the session.
-function otpClient() {
-  return createSupabaseAuthClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key",
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    },
-  );
 }
 
 export default function EnquiriesForm() {
@@ -86,6 +75,23 @@ export default function EnquiriesForm() {
   } = useOtpThrottle();
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Phone verification runs on an ISOLATED secondary Firebase app so it never
+  // logs the enquirer in or touches the main session — we only prove ownership.
+  const recaptchaRef = useRef<HTMLDivElement | null>(null);
+  const verifierRef = useRef<RecaptchaVerifier | null>(null);
+  const confirmationRef = useRef<ConfirmationResult | null>(null);
+
+  const getVerifier = (): RecaptchaVerifier => {
+    if (!verifierRef.current) {
+      verifierRef.current = new RecaptchaVerifier(
+        getSecondaryFirebaseAuth(),
+        recaptchaRef.current!,
+        { size: "invisible" },
+      );
+    }
+    return verifierRef.current;
+  };
 
   // An already-signed-in customer's phone is verified (their account number),
   // so they skip OTP entirely. Latch this once, adjusting state during render
@@ -136,23 +142,22 @@ export default function EnquiriesForm() {
     setError("");
     setSendingOtp(true);
     try {
-      const supabase = otpClient();
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        phone: fullPhone,
-      });
-      if (otpError) {
-        setError(otpError.message);
-        setSendingOtp(false);
-        return;
-      }
+      confirmationRef.current = await signInWithPhoneNumber(
+        getSecondaryFirebaseAuth(),
+        fullPhone,
+        getVerifier(),
+      );
       if (isResend) registerResend();
       setOtp(Array(OTP_LENGTH).fill(""));
       setOtpSent(true);
       setResendTimer(RESEND_COOLDOWN);
       setSendingOtp(false);
       setTimeout(() => otpRefs.current[0]?.focus(), 100);
-    } catch {
-      setError("Something went wrong sending the code. Please try again.");
+    } catch (err) {
+      setError(
+        firebaseAuthErrorMessage(err) ||
+          "Something went wrong sending the code. Please try again.",
+      );
       setSendingOtp(false);
     }
   };
@@ -161,29 +166,28 @@ export default function EnquiriesForm() {
   const handleVerifyOtp = useCallback(
     async (otpValue: string) => {
       if (verifyBlocked) return;
+      if (!confirmationRef.current) {
+        setError("Please request a code first.");
+        return;
+      }
       setError("");
       setVerifying(true);
       try {
-        const supabase = otpClient();
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          phone: fullPhone,
-          token: otpValue,
-          type: "sms",
-        });
-        if (verifyError) {
-          registerFailedVerify();
-          setError(verifyError.message);
-          setVerifying(false);
-          return;
-        }
-        // Verified. The throwaway client's session is discarded — the enquirer
-        // stays logged out. We just record that the number is confirmed.
+        // Confirm on the secondary app (proves ownership), then immediately
+        // sign that throwaway session out — the enquirer stays logged out and
+        // the main AuthProvider session is untouched.
+        await confirmationRef.current.confirm(otpValue);
+        await getSecondaryFirebaseAuth().signOut();
         setVerifying(false);
         setPhoneVerified(true);
         setVerifiedPhone(fullPhone);
         setOtpSent(false);
-      } catch {
-        setError("Verification failed. Please try again.");
+      } catch (err) {
+        registerFailedVerify();
+        setError(
+          firebaseAuthErrorMessage(err) ||
+            "Verification failed. Please try again.",
+        );
         setVerifying(false);
       }
     },
@@ -331,6 +335,8 @@ export default function EnquiriesForm() {
 
   return (
     <main className={styles.container}>
+      {/* Invisible reCAPTCHA anchor for Identity Platform phone verification. */}
+      <div ref={recaptchaRef} />
       <div className={styles.content}>
         <header className={styles.header}>
           <h1 className={styles.title}>Get in touch</h1>

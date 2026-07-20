@@ -12,7 +12,9 @@
 // double-credit. Dropped callbacks are reconciled on AI-page load (the same
 // reconcile-on-read pattern as order payments — no webhook in v1).
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, desc, eq, lte, sql } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { aiCreditLedger, aiCreditPurchases, stores } from "@/drizzle/schema";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { effectivePlan, planAllows } from "@/lib/plans";
 import { CREDIT_PACKS, getCreditPack } from "@/lib/ai/credits";
@@ -39,7 +41,12 @@ export interface AiLedgerEntry {
 
 export interface AiUsagePageData {
   usage: AiUsageSummary;
+  /** The store's EFFECTIVE plan (an expired timed plan resolves to free). */
   plan: string;
+  /** ISO expiry of a timed plan (null = indefinite). */
+  planExpiresAt: string | null;
+  /** How the plan was granted: comp / paid / trial (or null). */
+  planSource: string | null;
   /** Whether this store's plan may buy credits (basic+). */
   canBuyCredits: boolean;
   /** Whether the platform's payment account is configured at all. */
@@ -50,97 +57,154 @@ export interface AiUsagePageData {
 // Mark a paid purchase + grant its credits, idempotently. Shared by the
 // client confirm path and the reconcile pass.
 async function settlePurchase(
-  admin: ReturnType<typeof createAdminClient>,
   purchase: { id: string; store_id: string; credits: number; pack_id: string },
   rzpPaymentId: string,
 ): Promise<void> {
-  const { error: updErr } = await admin
-    .from("ai_credit_purchases")
-    .update({
-      status: "paid",
-      rzp_payment_id: rzpPaymentId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", purchase.id)
-    .eq("status", "pending");
-  if (updErr) {
-    console.error("settlePurchase (status):", updErr.message);
+  try {
+    const claimed = await withService((db) =>
+      db
+        .update(aiCreditPurchases)
+        .set({
+          status: "paid",
+          rzpPaymentId,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(aiCreditPurchases.id, purchase.id),
+            eq(aiCreditPurchases.status, "pending"),
+          ),
+        )
+        .returning({ id: aiCreditPurchases.id }),
+    );
+    // The status update lost the race (already paid) — the credits step below
+    // is idempotent anyway, but nothing to do if we didn't claim the row.
+    if (claimed.length === 0) return;
+  } catch (err) {
+    console.error(
+      "settlePurchase (status):",
+      err instanceof Error ? err.message : err,
+    );
     return;
   }
+
   // Credits keyed on the payment id — a repeat call is a no-op (returns false).
-  const { error: rpcErr } = await admin.rpc("add_ai_credits", {
-    p_store: purchase.store_id,
-    p_delta: purchase.credits,
-    p_kind: "purchase",
-    p_ref: rzpPaymentId,
-    p_note: `pack ${purchase.pack_id}`,
-  });
-  if (rpcErr) console.error("settlePurchase (credits):", rpcErr.message);
+  try {
+    await withService((db) =>
+      db.execute(
+        sql`select add_ai_credits(p_store => ${purchase.store_id}, p_delta => ${purchase.credits}, p_kind => ${"purchase"}, p_ref => ${rzpPaymentId}, p_note => ${`pack ${purchase.pack_id}`})`,
+      ),
+    );
+  } catch (err) {
+    console.error(
+      "settlePurchase (credits):",
+      err instanceof Error ? err.message : err,
+    );
+  }
 }
 
 // Reconcile-on-read: any stale pending purchase for this store is checked
 // against Razorpay; captured ⇒ settle, nothing captured ⇒ leave pending (the
 // shopper may still be mid-payment — there is no reaper for credit purchases,
 // an old pending row is harmless).
-async function reconcilePendingPurchases(
-  admin: ReturnType<typeof createAdminClient>,
-  storeId: string,
-): Promise<void> {
+async function reconcilePendingPurchases(storeId: string): Promise<void> {
   const creds = getPlatformRazorpayCreds();
   if (!creds) return;
   const cutoff = new Date(Date.now() - RECONCILE_AFTER_MS).toISOString();
-  const { data: stale } = await admin
-    .from("ai_credit_purchases")
-    .select("id, store_id, credits, pack_id, rzp_order_id")
-    .eq("store_id", storeId)
-    .eq("status", "pending")
-    .lte("created_at", cutoff)
-    .limit(10);
-  for (const p of stale ?? []) {
+  let stale: {
+    id: string;
+    store_id: string;
+    credits: number;
+    pack_id: string;
+    rzp_order_id: string | null;
+  }[];
+  try {
+    stale = await withService((db) =>
+      db
+        .select({
+          id: aiCreditPurchases.id,
+          store_id: aiCreditPurchases.storeId,
+          credits: aiCreditPurchases.credits,
+          pack_id: aiCreditPurchases.packId,
+          rzp_order_id: aiCreditPurchases.rzpOrderId,
+        })
+        .from(aiCreditPurchases)
+        .where(
+          and(
+            eq(aiCreditPurchases.storeId, storeId),
+            eq(aiCreditPurchases.status, "pending"),
+            lte(aiCreditPurchases.createdAt, cutoff),
+          ),
+        )
+        .limit(10),
+    );
+  } catch (err) {
+    console.error("reconcilePendingPurchases:", err);
+    return;
+  }
+  for (const p of stale) {
     if (!p.rzp_order_id) continue;
-    const res = await rzpFetchOrderPayments(creds, p.rzp_order_id as string);
+    const res = await rzpFetchOrderPayments(creds, p.rzp_order_id);
     if (!res.ok) continue;
     const captured = capturedPayment(res.data);
     if (captured) {
-      await settlePurchase(
-        admin,
-        p as { id: string; store_id: string; credits: number; pack_id: string },
-        captured.id,
-      );
+      await settlePurchase(p, captured.id);
     }
   }
 }
 
-/** Everything the /dashboard/ai page renders. Also runs the pending-purchase
- *  reconcile pass so a dropped payment callback self-heals on next visit. */
+/** Everything the /dashboard/plans (Plans & Billing) page renders. Also runs
+ *  the pending-purchase reconcile pass so a dropped payment callback self-heals
+ *  on next visit. */
 export async function getAiUsagePageData(): Promise<AiUsagePageData> {
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
-  await reconcilePendingPurchases(admin, storeId);
+  await reconcilePendingPurchases(storeId);
 
-  const [{ data: store }, usage, { data: ledger }] = await Promise.all([
-    admin
-      .from("stores")
-      .select("plan, plan_expires_at")
-      .eq("id", storeId)
-      .maybeSingle(),
+  const [dbResult, usage] = await Promise.all([
+    withService(async (db) => {
+      const [storeRows, ledgerRows] = await Promise.all([
+        db
+          .select({
+            plan: stores.plan,
+            plan_expires_at: stores.planExpiresAt,
+            plan_source: stores.planSource,
+          })
+          .from(stores)
+          .where(eq(stores.id, storeId))
+          .limit(1),
+        db
+          .select({
+            id: aiCreditLedger.id,
+            delta: aiCreditLedger.delta,
+            kind: aiCreditLedger.kind,
+            note: aiCreditLedger.note,
+            created_at: aiCreditLedger.createdAt,
+          })
+          .from(aiCreditLedger)
+          .where(eq(aiCreditLedger.storeId, storeId))
+          .orderBy(desc(aiCreditLedger.createdAt))
+          .limit(20),
+      ]);
+      return { storeRows, ledgerRows };
+    }).catch((err) => {
+      console.error("getAiUsagePageData:", err);
+      return { storeRows: [], ledgerRows: [] };
+    }),
     getAiUsage(storeId),
-    admin
-      .from("ai_credit_ledger")
-      .select("id, delta, kind, note, created_at")
-      .eq("store_id", storeId)
-      .order("created_at", { ascending: false })
-      .limit(20),
   ]);
+  const store = dbResult.storeRows[0];
+  const ledger = dbResult.ledgerRows as AiLedgerEntry[];
 
   const plan = effectivePlan(store ?? {});
   return {
     usage,
     plan,
+    planExpiresAt: store?.plan_expires_at ?? null,
+    planSource: store?.plan_source ?? null,
     canBuyCredits: planAllows(plan, "basic"),
     purchasesAvailable: getPlatformRazorpayCreds() !== null,
-    ledger: (ledger ?? []) as AiLedgerEntry[],
+    ledger,
   };
 }
 
@@ -165,15 +229,16 @@ export async function startCreditPurchase(
   if (!pack) return { error: "Unknown credit pack." };
 
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
   // Plan gate (server-side, convention #9): credits are a paid-plan top-up.
-  const { data: store } = await admin
-    .from("stores")
-    .select("plan, plan_expires_at")
-    .eq("id", storeId)
-    .maybeSingle();
-  if (!planAllows(effectivePlan(store ?? {}), "basic")) {
+  const storeRows = await withService((db) =>
+    db
+      .select({ plan: stores.plan, plan_expires_at: stores.planExpiresAt })
+      .from(stores)
+      .where(eq(stores.id, storeId))
+      .limit(1),
+  ).catch(() => []);
+  if (!planAllows(effectivePlan(storeRows[0] ?? {}), "basic")) {
     return {
       error:
         "AI credits are available on the Basic plan and above. Upgrade your plan to buy credits.",
@@ -185,52 +250,67 @@ export async function startCreditPurchase(
     return { error: "Credit purchases aren't available right now." };
   }
 
-  const { data: purchase, error: insErr } = await admin
-    .from("ai_credit_purchases")
-    .insert({
-      store_id: storeId,
-      pack_id: pack.id,
-      credits: pack.credits,
-      amount_inr: pack.priceInr,
-      status: "pending",
-    })
-    .select("id")
-    .single();
-  if (insErr || !purchase) {
-    console.error("startCreditPurchase (insert):", insErr?.message);
+  let purchaseId: string;
+  try {
+    const [inserted] = await withService((db) =>
+      db
+        .insert(aiCreditPurchases)
+        .values({
+          storeId,
+          packId: pack.id,
+          credits: pack.credits,
+          amountInr: pack.priceInr,
+          status: "pending",
+        })
+        .returning({ id: aiCreditPurchases.id }),
+    );
+    purchaseId = inserted.id;
+  } catch (err) {
+    console.error(
+      "startCreditPurchase (insert):",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Couldn't start the purchase. Please try again." };
   }
 
   const amountPaise = pack.priceInr * 100;
   const rzpRes = await rzpCreateOrder(creds, {
     amountPaise,
-    receipt: `aicr_${(purchase.id as string).slice(0, 30)}`,
-    notes: { store_id: storeId, purchase_id: purchase.id as string },
+    receipt: `aicr_${purchaseId.slice(0, 30)}`,
+    notes: { store_id: storeId, purchase_id: purchaseId },
   });
   if (!rzpRes.ok) {
     console.error("startCreditPurchase (rzp):", rzpRes.error);
-    await admin
-      .from("ai_credit_purchases")
-      .update({ status: "failed", updated_at: new Date().toISOString() })
-      .eq("id", purchase.id);
+    await withService((db) =>
+      db
+        .update(aiCreditPurchases)
+        .set({ status: "failed", updatedAt: new Date().toISOString() })
+        .where(eq(aiCreditPurchases.id, purchaseId)),
+    ).catch(() => {});
     return { error: "Couldn't start the payment. Please try again." };
   }
 
-  const { error: pinErr } = await admin
-    .from("ai_credit_purchases")
-    .update({
-      rzp_order_id: rzpRes.data.id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", purchase.id);
-  if (pinErr) {
-    console.error("startCreditPurchase (pin):", pinErr.message);
+  try {
+    await withService((db) =>
+      db
+        .update(aiCreditPurchases)
+        .set({
+          rzpOrderId: rzpRes.data.id,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(aiCreditPurchases.id, purchaseId)),
+    );
+  } catch (err) {
+    console.error(
+      "startCreditPurchase (pin):",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Couldn't start the payment. Please try again." };
   }
 
   return {
     success: true,
-    purchaseId: purchase.id as string,
+    purchaseId,
     rzpOrderId: rzpRes.data.id,
     keyId: creds.keyId,
     amountPaise,
@@ -263,17 +343,30 @@ export async function confirmCreditPurchase(
   }
 
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
 
-  const { data: purchase } = await admin
-    .from("ai_credit_purchases")
-    .select("id, store_id, credits, pack_id, status, rzp_order_id")
-    .eq("id", purchaseId)
-    .eq("store_id", storeId)
-    .maybeSingle();
+  const purchaseRows = await withService((db) =>
+    db
+      .select({
+        id: aiCreditPurchases.id,
+        store_id: aiCreditPurchases.storeId,
+        credits: aiCreditPurchases.credits,
+        pack_id: aiCreditPurchases.packId,
+        status: aiCreditPurchases.status,
+        rzp_order_id: aiCreditPurchases.rzpOrderId,
+      })
+      .from(aiCreditPurchases)
+      .where(
+        and(
+          eq(aiCreditPurchases.id, purchaseId),
+          eq(aiCreditPurchases.storeId, storeId),
+        ),
+      )
+      .limit(1),
+  ).catch(() => []);
+  const purchase = purchaseRows[0];
   if (!purchase) return { error: "Purchase not found." };
   if (purchase.status === "paid") {
-    return { success: true, creditsAdded: purchase.credits as number };
+    return { success: true, creditsAdded: purchase.credits };
   }
   if (purchase.status !== "pending" || !purchase.rzp_order_id) {
     return { error: "This purchase can no longer be completed." };
@@ -284,7 +377,7 @@ export async function confirmCreditPurchase(
 
   const valid = verifyCheckoutSignature(
     creds.keySecret,
-    purchase.rzp_order_id as string,
+    purchase.rzp_order_id,
     rzpPaymentId,
     rzpSignature,
   );
@@ -294,16 +387,15 @@ export async function confirmCreditPurchase(
   }
 
   await settlePurchase(
-    admin,
-    purchase as {
-      id: string;
-      store_id: string;
-      credits: number;
-      pack_id: string;
+    {
+      id: purchase.id,
+      store_id: purchase.store_id,
+      credits: purchase.credits,
+      pack_id: purchase.pack_id,
     },
     rzpPaymentId,
   );
-  return { success: true, creditsAdded: purchase.credits as number };
+  return { success: true, creditsAdded: purchase.credits };
 }
 
 /** The pack catalog for the buy panel (server → client serializable). */

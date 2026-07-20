@@ -1,7 +1,9 @@
 import "server-only";
 
 import { Resend } from "resend";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { emailCampaignRecipients, emailCampaigns } from "@/drizzle/schema";
 import { mergeTokens, renderCouponEmail } from "@/lib/email/coupon-campaign";
 import { getStoreBrandById } from "@/lib/store/brand";
 import { fromAddress } from "@/lib/email/sender";
@@ -54,12 +56,12 @@ export async function processEmailQueue(
     return { processed: 0, sent: 0, failed: 0, remaining: 0 };
   }
 
-  const admin = createAdminClient();
-
   // Recover anything stuck mid-send from a previous crashed run.
-  await admin.rpc("requeue_stale_email_recipients", {
-    p_older_than_seconds: 600,
-  });
+  await withService((db) =>
+    db.execute(
+      sql`select requeue_stale_email_recipients(p_older_than_seconds => ${600})`,
+    ),
+  ).catch((err) => console.error("requeue_stale_email_recipients:", err));
 
   let processed = 0;
   let sent = 0;
@@ -67,32 +69,41 @@ export async function processEmailQueue(
 
   while (processed < maxPerRun) {
     const want = Math.min(RESEND_BATCH, maxPerRun - processed);
-    const { data: claimed, error: claimErr } = await admin.rpc(
-      "claim_email_batch",
-      { p_limit: want },
-    );
-    if (claimErr) {
-      console.error("claim_email_batch error:", claimErr.message);
+    let batch: ClaimedRecipient[];
+    try {
+      const res = await withService((db) =>
+        db.execute(sql`select * from claim_email_batch(p_limit => ${want})`),
+      );
+      batch = res.rows as unknown as ClaimedRecipient[];
+    } catch (claimErr) {
+      console.error("claim_email_batch error:", claimErr);
       break;
     }
-    const batch = (claimed ?? []) as ClaimedRecipient[];
     if (batch.length === 0) break;
 
     // Pull the campaign copy for every campaign represented in this batch.
     const campaignIds = [...new Set(batch.map((r) => r.campaign_id))];
-    const { data: campaignRows } = await admin
-      .from("email_campaigns")
-      .select(
-        "id, subject, body, code, discount_label, valid_until_label, store_id",
-      )
-      .in("id", campaignIds);
+    const campaignRows = await withService((db) =>
+      db
+        .select({
+          id: emailCampaigns.id,
+          subject: emailCampaigns.subject,
+          body: emailCampaigns.body,
+          code: emailCampaigns.code,
+          discount_label: emailCampaigns.discountLabel,
+          valid_until_label: emailCampaigns.validUntilLabel,
+          store_id: emailCampaigns.storeId,
+        })
+        .from(emailCampaigns)
+        .where(inArray(emailCampaigns.id, campaignIds)),
+    ).catch(() => [] as CampaignRow[]);
     const campaigns = new Map<string, CampaignRow>(
-      (campaignRows ?? []).map((c) => [c.id as string, c as CampaignRow]),
+      campaignRows.map((c) => [c.id, c as CampaignRow]),
     );
 
-    const storeIds = [
-      ...new Set((campaignRows ?? []).map((c) => c.store_id as string)),
-    ].filter(Boolean);
+    const storeIds = [...new Set(campaignRows.map((c) => c.store_id))].filter(
+      Boolean,
+    );
     const brandsMap = new Map();
     for (const sid of storeIds) {
       brandsMap.set(sid, await getStoreBrandById(sid));
@@ -150,16 +161,20 @@ export async function processEmailQueue(
     // Attempted rows follow the send outcome; skipped rows are always failures
     // (no campaign/brand to send them) so they aren't silently lost as "sent".
     if (sentIds.length) {
-      await admin
-        .from("email_campaign_recipients")
-        .update({ status: ok ? "sent" : "failed" })
-        .in("id", sentIds);
+      await withService((db) =>
+        db
+          .update(emailCampaignRecipients)
+          .set({ status: ok ? "sent" : "failed" })
+          .where(inArray(emailCampaignRecipients.id, sentIds)),
+      ).catch((err) => console.error("mark attempted:", err));
     }
     if (skippedIds.length) {
-      await admin
-        .from("email_campaign_recipients")
-        .update({ status: "failed" })
-        .in("id", skippedIds);
+      await withService((db) =>
+        db
+          .update(emailCampaignRecipients)
+          .set({ status: "failed" })
+          .where(inArray(emailCampaignRecipients.id, skippedIds)),
+      ).catch((err) => console.error("mark skipped:", err));
     }
 
     processed += batch.length;
@@ -171,56 +186,88 @@ export async function processEmailQueue(
     }
   }
 
-  await finalizeCampaigns(admin);
+  await finalizeCampaigns();
 
-  const { count } = await admin
-    .from("email_campaign_recipients")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "pending");
+  let remaining = 0;
+  try {
+    const [row] = await withService((db) =>
+      db
+        .select({ n: count() })
+        .from(emailCampaignRecipients)
+        .where(eq(emailCampaignRecipients.status, "pending")),
+    );
+    remaining = row?.n ?? 0;
+  } catch (err) {
+    console.error("processEmailQueue (remaining count):", err);
+  }
 
-  return { processed, sent, failed, remaining: count ?? 0 };
+  return { processed, sent, failed, remaining };
 }
 
 /**
  * Recompute sent/failed counters for in-flight campaigns and flip them to
  * 'done' once no pending/sending recipients remain.
  */
-async function finalizeCampaigns(
-  admin: ReturnType<typeof createAdminClient>,
-): Promise<void> {
-  const { data: active } = await admin
-    .from("email_campaigns")
-    .select("id")
-    .in("status", ["pending", "sending"]);
+async function finalizeCampaigns(): Promise<void> {
+  let active: { id: string }[];
+  try {
+    active = await withService((db) =>
+      db
+        .select({ id: emailCampaigns.id })
+        .from(emailCampaigns)
+        .where(inArray(emailCampaigns.status, ["pending", "sending"])),
+    );
+  } catch (err) {
+    console.error("finalizeCampaigns (active):", err);
+    return;
+  }
 
-  for (const c of active ?? []) {
-    const id = c.id as string;
-    const [sentRes, failedRes, openRes] = await Promise.all([
-      admin
-        .from("email_campaign_recipients")
-        .select("id", { count: "exact", head: true })
-        .eq("campaign_id", id)
-        .eq("status", "sent"),
-      admin
-        .from("email_campaign_recipients")
-        .select("id", { count: "exact", head: true })
-        .eq("campaign_id", id)
-        .eq("status", "failed"),
-      admin
-        .from("email_campaign_recipients")
-        .select("id", { count: "exact", head: true })
-        .eq("campaign_id", id)
-        .in("status", ["pending", "sending"]),
-    ]);
+  for (const c of active) {
+    const id = c.id;
+    try {
+      await withService(async (db) => {
+        const [sentRes, failedRes, openRes] = await Promise.all([
+          db
+            .select({ n: count() })
+            .from(emailCampaignRecipients)
+            .where(
+              and(
+                eq(emailCampaignRecipients.campaignId, id),
+                eq(emailCampaignRecipients.status, "sent"),
+              ),
+            ),
+          db
+            .select({ n: count() })
+            .from(emailCampaignRecipients)
+            .where(
+              and(
+                eq(emailCampaignRecipients.campaignId, id),
+                eq(emailCampaignRecipients.status, "failed"),
+              ),
+            ),
+          db
+            .select({ n: count() })
+            .from(emailCampaignRecipients)
+            .where(
+              and(
+                eq(emailCampaignRecipients.campaignId, id),
+                inArray(emailCampaignRecipients.status, ["pending", "sending"]),
+              ),
+            ),
+        ]);
 
-    const open = openRes.count ?? 0;
-    await admin
-      .from("email_campaigns")
-      .update({
-        sent: sentRes.count ?? 0,
-        failed: failedRes.count ?? 0,
-        status: open === 0 ? "done" : "sending",
-      })
-      .eq("id", id);
+        const open = openRes[0]?.n ?? 0;
+        await db
+          .update(emailCampaigns)
+          .set({
+            sent: sentRes[0]?.n ?? 0,
+            failed: failedRes[0]?.n ?? 0,
+            status: open === 0 ? "done" : "sending",
+          })
+          .where(eq(emailCampaigns.id, id));
+      });
+    } catch (err) {
+      console.error(`finalizeCampaigns (campaign ${id}):`, err);
+    }
   }
 }

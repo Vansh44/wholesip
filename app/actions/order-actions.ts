@@ -1,8 +1,10 @@
 "use server";
 
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService, withUser } from "@/lib/db/client";
+import { dbErrorMessage } from "@/lib/db/errors";
+import { orderItems, orders } from "@/drizzle/schema";
 import { getActingStoreId, getManagerUserId } from "@/app/dashboard/lib/access";
 import { DASHBOARD_PAGE_SIZE } from "@/app/dashboard/lib/list-params";
 
@@ -21,11 +23,22 @@ const PAYMENT_STATUSES = ["pending", "paid", "failed"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
-// Columns the dashboard orders LIST renders. Deliberately not `*` and not the
-// order_items join — the table only needs these, and pulling every line item
-// for every order made the query grow without bound.
-const ORDER_LIST_COLUMNS =
-  "id, order_no, order_ref, created_at, total, currency, payment_method, payment_status, status, shipping_address";
+// Columns the dashboard orders LIST renders. Deliberately not every column and
+// not the order_items join — the table only needs these, and pulling every
+// line item for every order made the query grow without bound. Aliased to the
+// snake_case shape the view expects.
+const ORDER_LIST_COLUMNS = {
+  id: orders.id,
+  order_no: orders.orderNo,
+  order_ref: orders.orderRef,
+  created_at: orders.createdAt,
+  total: orders.total,
+  currency: orders.currency,
+  payment_method: orders.paymentMethod,
+  payment_status: orders.paymentStatus,
+  status: orders.status,
+  shipping_address: orders.shippingAddress,
+};
 
 export interface OrdersResult {
   orders: Record<string, unknown>[];
@@ -40,7 +53,6 @@ export async function getOrders(
   const userId = await getManagerUserId("orders");
   if (!userId) return { error: "Not authenticated", orders: [], total: 0 };
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
 
   const safePage = Number.isFinite(page) && page > 0 ? Math.trunc(page) : 1;
@@ -50,22 +62,34 @@ export async function getOrders(
       : DASHBOARD_PAGE_SIZE;
   const from = (safePage - 1) * safeSize;
 
-  const { data, error, count } = await supabase
-    .from("orders")
-    .select(ORDER_LIST_COLUMNS, { count: "exact" })
-    .eq("store_id", storeId)
-    .order("created_at", { ascending: false })
-    .range(from, from + safeSize - 1);
+  try {
+    // RLS (store admins get FOR ALL on their own orders) + explicit store scope.
+    const { rows, total } = await withUser({ uid: userId }, async (db) => {
+      const [rows, countRows] = await Promise.all([
+        db
+          .select(ORDER_LIST_COLUMNS)
+          .from(orders)
+          .where(eq(orders.storeId, storeId))
+          .orderBy(desc(orders.createdAt))
+          .limit(safeSize)
+          .offset(from),
+        db
+          .select({ n: count() })
+          .from(orders)
+          .where(eq(orders.storeId, storeId)),
+      ]);
+      return { rows, total: countRows[0]?.n ?? 0 };
+    });
 
-  if (error) {
-    console.error("Error fetching orders:", error);
-    return { error: error.message, orders: [], total: 0 };
+    return { orders: rows as Record<string, unknown>[], total };
+  } catch (err) {
+    console.error("Error fetching orders:", err);
+    return {
+      error: dbErrorMessage(err, "Failed to load orders."),
+      orders: [],
+      total: 0,
+    };
   }
-
-  return {
-    orders: (data ?? []) as Record<string, unknown>[],
-    total: count ?? 0,
-  };
 }
 
 export async function updateOrderStatus(
@@ -89,13 +113,7 @@ export async function updateOrderStatus(
     return { error: "Invalid payment status." };
   }
 
-  const supabase = await createClient();
   const storeId = await getActingStoreId();
-
-  const updateData: Record<string, string> = { status };
-  if (paymentStatus) {
-    updateData.payment_status = paymentStatus;
-  }
 
   // If cancelling, restock the order's stock EXACTLY ONCE. We atomically
   // "claim" the release by flipping stock_status 'reserved' → 'released' in a
@@ -108,47 +126,69 @@ export async function updateOrderStatus(
   // The release itself never blocks the status change (fails open); the ledger
   // is best-effort, the status update is the source of truth.
   if (status === "cancelled") {
-    const { data: claimed, error: claimError } = await supabase
-      .from("orders")
-      .update({ stock_status: "released" })
-      .eq("id", orderId)
-      .eq("store_id", storeId)
-      .eq("stock_status", "reserved")
-      .select("id");
+    const claimed = await withUser({ uid: userId }, (db) =>
+      db
+        .update(orders)
+        .set({ stockStatus: "released" })
+        .where(
+          and(
+            eq(orders.id, orderId),
+            eq(orders.storeId, storeId),
+            eq(orders.stockStatus, "reserved"),
+          ),
+        )
+        .returning({ id: orders.id }),
+    ).catch((err) => {
+      console.error(
+        "stock release claim:",
+        err instanceof Error ? err.message : err,
+      );
+      return [] as { id: string }[];
+    });
 
-    if (claimError) {
-      console.error("stock release claim:", claimError.message);
-    } else if (claimed && claimed.length > 0) {
-      const { data: items } = await supabase
-        .from("order_items")
-        .select("product_id, variant_id, quantity")
-        .eq("order_id", orderId);
+    if (claimed.length > 0) {
+      const items = await withUser({ uid: userId }, (db) =>
+        db
+          .select({
+            product_id: orderItems.productId,
+            variant_id: orderItems.variantId,
+            quantity: orderItems.quantity,
+          })
+          .from(orderItems)
+          .where(eq(orderItems.orderId, orderId)),
+      ).catch(() => []);
 
-      if (items && items.length > 0) {
-        const admin = createAdminClient();
-        for (const item of items) {
-          await admin.rpc("release_stock", {
-            p_store: storeId,
-            p_product: item.product_id,
-            p_variant: item.variant_id,
-            p_qty: item.quantity,
-            p_order: orderId,
-            p_reason: "order_cancelled",
-          });
-        }
+      for (const item of items) {
+        // The unchanged Postgres function does the atomic restock + ledger row.
+        await withService((db) =>
+          db.execute(
+            sql`select release_stock(p_store => ${storeId}, p_product => ${item.product_id}, p_variant => ${item.variant_id}, p_qty => ${item.quantity}, p_order => ${orderId}, p_reason => ${"order_cancelled"})`,
+          ),
+        ).catch((err) =>
+          console.error(
+            "release_stock:",
+            err instanceof Error ? err.message : err,
+          ),
+        );
       }
     }
   }
 
-  const { error } = await supabase
-    .from("orders")
-    .update(updateData)
-    .eq("id", orderId)
-    .eq("store_id", storeId);
+  const updateData: { status: string; paymentStatus?: string } = { status };
+  if (paymentStatus) {
+    updateData.paymentStatus = paymentStatus;
+  }
 
-  if (error) {
-    console.error("Error updating order status:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: userId }, (db) =>
+      db
+        .update(orders)
+        .set(updateData)
+        .where(and(eq(orders.id, orderId), eq(orders.storeId, storeId))),
+    );
+  } catch (err) {
+    console.error("Error updating order status:", err);
+    return { error: dbErrorMessage(err, "Failed to update order status.") };
   }
 
   revalidatePath("/dashboard/orders");

@@ -24,7 +24,7 @@ export default function StorefrontNotFound() {
       <p
         style={{
           fontSize: 16,
-          color: "var(--wholesip-ink-soft, #5b6675)",
+          color: "var(--sm-ink-soft, #5b6675)",
           margin: "0 0 24px",
         }}
       >
@@ -37,7 +37,7 @@ export default function StorefrontNotFound() {
           display: "inline-block",
           padding: "12px 22px",
           borderRadius: 10,
-          background: "var(--wholesip-ink, #17130f)",
+          background: "var(--sm-ink, #17130f)",
           color: "#fff",
           fontWeight: 600,
           textDecoration: "none",

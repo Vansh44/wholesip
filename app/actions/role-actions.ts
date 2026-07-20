@@ -1,8 +1,11 @@
 "use server";
 
+import { and, count, eq, like } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getServerUser } from "@/lib/auth/server-user";
+import { withService, withUser, type Db } from "@/lib/db/client";
+import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
+import { admins, roles } from "@/drizzle/schema";
 import { getActingStoreId } from "@/app/dashboard/lib/access";
 import {
   normalizePermissions,
@@ -23,8 +26,6 @@ export interface RoleActionResult {
   error?: string;
 }
 
-const UNIQUE_VIOLATION = "23505";
-
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -35,33 +36,35 @@ function slugify(text: string): string {
 }
 
 // Only a superadmin (or a role granted roles.manage) may administer roles.
-// Returns the caller's id when allowed, else null.
+// Returns the caller's id when allowed, else null. Reads run under the caller's
+// identity (RLS-scoped) — admins can read their own row and roles are readable.
 async function requireRolesManager(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase
-    .from("admins")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+  try {
+    return await withUser({ uid: user.id, email: user.email }, async (db) => {
+      const profileRows = await db
+        .select({ role: admins.role })
+        .from(admins)
+        .where(eq(admins.id, user.id))
+        .limit(1);
+      const slug = profileRows[0]?.role;
+      if (!slug) return null;
+      if (slug === SUPERADMIN_SLUG) return user.id;
 
-  const slug = profile?.role;
-  if (!slug) return null;
-  if (slug === SUPERADMIN_SLUG) return user.id;
-
-  const { data: role } = await supabase
-    .from("roles")
-    .select("permissions")
-    .eq("slug", slug)
-    .single();
-
-  const perms = normalizePermissions(role?.permissions);
-  if (perms.roles?.includes("manage")) return user.id;
-  return null;
+      const roleRows = await db
+        .select({ permissions: roles.permissions })
+        .from(roles)
+        .where(eq(roles.slug, slug))
+        .limit(1);
+      const perms = normalizePermissions(roleRows[0]?.permissions);
+      return perms.roles?.includes("manage") ? user.id : null;
+    });
+  } catch (err) {
+    console.error("requireRolesManager error:", err);
+    return null;
+  }
 }
 
 function validate(form: RoleFormData): string | null {
@@ -73,16 +76,15 @@ function validate(form: RoleFormData): string | null {
   return null;
 }
 
-async function resolveUniqueSlug(
-  admin: ReturnType<typeof createAdminClient>,
-  base: string,
-): Promise<string> {
+// Resolve the first free slug for `base` within this store's roles. Runs inside
+// the caller's service transaction (pass the db handle).
+async function resolveUniqueSlug(db: Db, base: string): Promise<string> {
   const safeBase = base || "role";
-  const { data } = await admin
-    .from("roles")
-    .select("slug")
-    .like("slug", `${safeBase}%`);
-  const taken = new Set((data ?? []).map((r: { slug: string }) => r.slug));
+  const rows = await db
+    .select({ slug: roles.slug })
+    .from(roles)
+    .where(like(roles.slug, `${safeBase}%`));
+  const taken = new Set(rows.map((r) => r.slug));
   if (!taken.has(safeBase)) return safeBase;
   let n = 2;
   while (taken.has(`${safeBase}-${n}`)) n++;
@@ -104,25 +106,25 @@ export async function createRole(
   const invalid = validate(form);
   if (invalid) return { error: invalid };
 
-  const admin = createAdminClient();
-  const slug = await resolveUniqueSlug(admin, slugify(form.name));
-
-  const { error } = await admin.from("roles").insert({
-    name: form.name.trim(),
-    slug,
-    description: form.description.trim() || null,
-    color: form.color,
-    permissions: normalizePermissions(form.permissions),
-    is_system: false,
-    store_id: storeId,
-  });
-
-  if (error) {
-    if (error.code === UNIQUE_VIOLATION) {
+  try {
+    await withService(async (db) => {
+      const slug = await resolveUniqueSlug(db, slugify(form.name));
+      await db.insert(roles).values({
+        name: form.name.trim(),
+        slug,
+        description: form.description.trim() || null,
+        color: form.color,
+        permissions: normalizePermissions(form.permissions),
+        isSystem: false,
+        storeId,
+      });
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) {
       return { error: "A role with that name already exists." };
     }
-    console.error("createRole error:", error);
-    return { error: error.message };
+    console.error("createRole error:", err);
+    return { error: dbErrorMessage(err, "Failed to create role.") };
   }
 
   revalidatePath("/dashboard/roles");
@@ -145,55 +147,50 @@ export async function updateRole(
   const invalid = validate(form);
   if (invalid) return { error: invalid };
 
-  // Scope every query by store_id — the service role bypasses RLS, so an id
+  // Scope every query by store_id — the service scope bypasses RLS, so an id
   // alone would let a store's roles manager edit another store's roles.
-  const admin = createAdminClient();
   const storeId = await getActingStoreId();
 
-  const { data: existing } = await admin
-    .from("roles")
-    .select("slug, is_system")
-    .eq("id", id)
-    .eq("store_id", storeId)
-    .maybeSingle();
-
+  const existingRows = await withService((db) =>
+    db
+      .select({ slug: roles.slug, is_system: roles.isSystem })
+      .from(roles)
+      .where(and(eq(roles.id, id), eq(roles.storeId, storeId)))
+      .limit(1),
+  ).catch(() => []);
+  const existing = existingRows[0];
   if (!existing) return { error: "Role not found." };
 
   // System roles keep their slug and stay non-deletable, but their name,
   // description, colour and permissions can be tuned — except the superadmin
   // role, whose all-access is enforced in code and must not be weakened here.
-  if (existing.slug === SUPERADMIN_SLUG) {
-    const { error } = await admin
-      .from("roles")
-      .update({
-        name: form.name.trim(),
-        description: form.description.trim() || null,
-        color: form.color,
-      })
-      .eq("id", id)
-      .eq("store_id", storeId);
-    if (error) return { error: error.message };
-    revalidatePath("/dashboard/roles");
-    return { success: true };
-  }
+  const set =
+    existing.slug === SUPERADMIN_SLUG
+      ? {
+          name: form.name.trim(),
+          description: form.description.trim() || null,
+          color: form.color,
+        }
+      : {
+          name: form.name.trim(),
+          description: form.description.trim() || null,
+          color: form.color,
+          permissions: normalizePermissions(form.permissions),
+        };
 
-  const { error } = await admin
-    .from("roles")
-    .update({
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      color: form.color,
-      permissions: normalizePermissions(form.permissions),
-    })
-    .eq("id", id)
-    .eq("store_id", storeId);
-
-  if (error) {
-    if (error.code === UNIQUE_VIOLATION) {
+  try {
+    await withService((db) =>
+      db
+        .update(roles)
+        .set(set)
+        .where(and(eq(roles.id, id), eq(roles.storeId, storeId))),
+    );
+  } catch (err) {
+    if (isUniqueViolation(err)) {
       return { error: "A role with that name already exists." };
     }
-    console.error("updateRole error:", error);
-    return { error: error.message };
+    console.error("updateRole error:", err);
+    return { error: dbErrorMessage(err, "Failed to update role.") };
   }
 
   revalidatePath("/dashboard/roles");
@@ -210,16 +207,16 @@ export async function deleteRole(id: string): Promise<RoleActionResult> {
   if (!callerId)
     return { error: "You do not have permission to manage roles." };
 
-  const admin = createAdminClient();
   const storeId = await getActingStoreId();
 
-  const { data: role } = await admin
-    .from("roles")
-    .select("slug, is_system")
-    .eq("id", id)
-    .eq("store_id", storeId)
-    .maybeSingle();
-
+  const roleRows = await withService((db) =>
+    db
+      .select({ slug: roles.slug, is_system: roles.isSystem })
+      .from(roles)
+      .where(and(eq(roles.id, id), eq(roles.storeId, storeId)))
+      .limit(1),
+  ).catch(() => []);
+  const role = roleRows[0];
   if (!role) return { error: "Role not found." };
   if (role.is_system) {
     return { error: "System roles cannot be deleted." };
@@ -228,26 +225,27 @@ export async function deleteRole(id: string): Promise<RoleActionResult> {
   // Block deletion while admins OF THIS STORE still hold this role — they'd be
   // left with no permissions. Surface the count so the user reassigns first.
   // (Role slugs are per-store, so the count MUST be store-scoped.)
-  const { count } = await admin
-    .from("admins")
-    .select("id", { count: "exact", head: true })
-    .eq("store_id", storeId)
-    .eq("role", role.slug);
+  const countRows = await withService((db) =>
+    db
+      .select({ n: count() })
+      .from(admins)
+      .where(and(eq(admins.storeId, storeId), eq(admins.role, role.slug))),
+  ).catch(() => [{ n: 0 }]);
+  const holders = countRows[0]?.n ?? 0;
 
-  if ((count ?? 0) > 0) {
+  if (holders > 0) {
     return {
-      error: `${count} admin${count === 1 ? "" : "s"} still hold${count === 1 ? "s" : ""} this role. Reassign them before deleting.`,
+      error: `${holders} admin${holders === 1 ? "" : "s"} still hold${holders === 1 ? "s" : ""} this role. Reassign them before deleting.`,
     };
   }
 
-  const { error } = await admin
-    .from("roles")
-    .delete()
-    .eq("id", id)
-    .eq("store_id", storeId);
-  if (error) {
-    console.error("deleteRole error:", error);
-    return { error: error.message };
+  try {
+    await withService((db) =>
+      db.delete(roles).where(and(eq(roles.id, id), eq(roles.storeId, storeId))),
+    );
+  } catch (err) {
+    console.error("deleteRole error:", err);
+    return { error: dbErrorMessage(err, "Failed to delete role.") };
   }
 
   revalidatePath("/dashboard/roles");

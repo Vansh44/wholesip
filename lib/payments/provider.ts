@@ -1,6 +1,8 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { storePaymentProviders } from "@/drizzle/schema";
 import { decryptSecret } from "./crypto";
 import type { RazorpayCreds } from "./razorpay";
 
@@ -20,23 +22,37 @@ export interface StoreGateway {
 export async function getStoreGateway(
   storeId: string,
 ): Promise<StoreGateway | null> {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("store_payment_providers")
-    .select("key_id, key_secret_enc, enabled")
-    .eq("store_id", storeId)
-    .eq("provider", "razorpay")
-    .maybeSingle();
-  if (error) {
-    console.error("getStoreGateway:", error.message);
+  let data:
+    | { key_id: string; key_secret_enc: string; enabled: boolean }
+    | undefined;
+  try {
+    const rows = await withService((db) =>
+      db
+        .select({
+          key_id: storePaymentProviders.keyId,
+          key_secret_enc: storePaymentProviders.keySecretEnc,
+          enabled: storePaymentProviders.enabled,
+        })
+        .from(storePaymentProviders)
+        .where(
+          and(
+            eq(storePaymentProviders.storeId, storeId),
+            eq(storePaymentProviders.provider, "razorpay"),
+          ),
+        )
+        .limit(1),
+    );
+    data = rows[0];
+  } catch (err) {
+    console.error("getStoreGateway:", err instanceof Error ? err.message : err);
     return null;
   }
   if (!data) return null;
   try {
     return {
       creds: {
-        keyId: data.key_id as string,
-        keySecret: decryptSecret(data.key_secret_enc as string),
+        keyId: data.key_id,
+        keySecret: decryptSecret(data.key_secret_enc),
       },
       enabled: !!data.enabled,
     };

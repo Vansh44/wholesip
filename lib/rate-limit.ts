@@ -1,6 +1,7 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sql } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
 
 export interface RateLimitOptions {
   /** Max requests allowed inside the window. */
@@ -28,18 +29,16 @@ export async function rateLimit(
   { max, windowSeconds }: RateLimitOptions,
 ): Promise<RateLimitResult> {
   try {
-    const admin = createAdminClient();
-    const { data, error } = await admin.rpc("check_rate_limit", {
-      p_key: key,
-      p_max: max,
-      p_window_seconds: windowSeconds,
-    });
-    if (error) {
-      console.error("rateLimit RPC error (failing open):", error.message);
-      return { allowed: true };
-    }
-    return { allowed: data === true };
+    const result = await withService((db) =>
+      db.execute(
+        sql`select check_rate_limit(p_key => ${key}, p_max => ${max}, p_window_seconds => ${windowSeconds}) as allowed`,
+      ),
+    );
+    const allowed = (result.rows[0] as { allowed: boolean | null } | undefined)
+      ?.allowed;
+    return { allowed: allowed === true };
   } catch (e) {
+    // Fail OPEN — a transient DB hiccup must not lock everyone out.
     console.error("rateLimit threw (failing open):", e);
     return { allowed: true };
   }

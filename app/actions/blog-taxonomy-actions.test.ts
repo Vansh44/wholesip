@@ -1,40 +1,44 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock } from "./_test-helpers";
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
   getActingStoreId: vi.fn(async () => "store-1"),
 }));
 
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withUser: vi.fn((_identity: any, fn: any) => fn(dbHolder.current.db)),
+  withService: vi.fn((fn: any) => fn(dbHolder.current.db)),
+  withAnon: vi.fn((fn: any) => fn(dbHolder.current.db)),
+}));
+
 import { revalidateTag } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 import {
   createBlogTaxonomyItem,
   renameBlogTaxonomyItem,
   deleteBlogTaxonomyItem,
 } from "./blog-taxonomy-actions";
-import { makeChain, makeSupabase } from "./_test-helpers";
+import { blogCategories, blogTags, blogs } from "@/drizzle/schema";
 
 // Per-store blog categories & tags CRUD, including the rename/delete
-// propagation into the blogs text[] columns.
+// propagation into the blogs text[] columns. All writes run through withUser
+// (RLS-enforced) with explicit store scoping.
 describe("blog-taxonomy-actions", () => {
-  let supabase: any;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    supabase = makeSupabase({
-      blog_categories: makeChain({ data: { name: "Recipes" }, error: null }),
-      blog_tags: makeChain({ data: { name: "Protein" }, error: null }),
-      blogs: makeChain({ data: null, error: null }, { data: [], error: null }),
+    // select #1 = the existing-row lookup, select #2 = the propagation lookup.
+    dbHolder.current = makeDbMock({
+      selectQueue: [[{ name: "Recipes" }], []],
     });
-    vi.mocked(createClient).mockResolvedValue(supabase);
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
   });
 
@@ -48,7 +52,7 @@ describe("blog-taxonomy-actions", () => {
     it("rejects an empty name", async () => {
       const r = await createBlogTaxonomyItem("category", "   ");
       expect(r.error).toMatch(/required/i);
-      expect(supabase._tables.blog_categories.insert).not.toHaveBeenCalled();
+      expect(dbHolder.current.calls.insert).toHaveLength(0);
     });
 
     it("rejects an over-long name", async () => {
@@ -59,8 +63,9 @@ describe("blog-taxonomy-actions", () => {
     it("inserts a trimmed, whitespace-collapsed name scoped to the store", async () => {
       const r = await createBlogTaxonomyItem("category", "  Healthy   Living ");
       expect(r.success).toBe(true);
-      expect(supabase._tables.blog_categories.insert).toHaveBeenCalledWith({
-        store_id: "store-1",
+      expect(dbHolder.current.calls.insert[0]).toBe(blogCategories);
+      expect(dbHolder.current.calls.values[0]).toEqual({
+        storeId: "store-1",
         name: "Healthy Living",
       });
       expect(revalidateTag).toHaveBeenCalled();
@@ -68,18 +73,19 @@ describe("blog-taxonomy-actions", () => {
 
     it("routes tags to the blog_tags table", async () => {
       await createBlogTaxonomyItem("tag", "Sleep");
-      expect(supabase._tables.blog_tags.insert).toHaveBeenCalledWith({
-        store_id: "store-1",
+      expect(dbHolder.current.calls.insert[0]).toBe(blogTags);
+      expect(dbHolder.current.calls.values[0]).toEqual({
+        storeId: "store-1",
         name: "Sleep",
       });
-      expect(supabase._tables.blog_categories.insert).not.toHaveBeenCalled();
     });
 
     it("maps a unique violation to a friendly duplicate message", async () => {
-      supabase._tables.blog_categories = makeChain(
-        { data: null, error: null },
-        { data: null, error: { code: "23505", message: "dup" } },
-      );
+      dbHolder.current.db.insert = vi.fn(() => {
+        throw Object.assign(new Error("Failed query"), {
+          cause: Object.assign(new Error("dup"), { code: "23505" }),
+        });
+      });
       const r = await createBlogTaxonomyItem("category", "Recipes");
       expect(r.error).toMatch(/already exists/i);
     });
@@ -93,7 +99,7 @@ describe("blog-taxonomy-actions", () => {
     });
 
     it("errors when the row doesn't exist for this store", async () => {
-      supabase._tables.blog_categories = makeChain({ data: null, error: null });
+      dbHolder.current = makeDbMock({ selectQueue: [[]] });
       const r = await renameBlogTaxonomyItem("category", "c1", "New");
       expect(r.error).toMatch(/not found/i);
     });
@@ -101,49 +107,43 @@ describe("blog-taxonomy-actions", () => {
     it("no-ops when the name is unchanged", async () => {
       const r = await renameBlogTaxonomyItem("category", "c1", "Recipes");
       expect(r.success).toBe(true);
-      expect(supabase._tables.blog_categories.update).not.toHaveBeenCalled();
+      expect(dbHolder.current.calls.update).toHaveLength(0);
     });
 
     it("renames the row and rewrites the name inside affected blogs", async () => {
-      supabase._tables.blogs = makeChain(
-        { data: null, error: null },
-        {
-          data: [{ id: "b1", categories: ["Recipes", "Community"] }],
-          error: null,
-        },
-      );
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [{ name: "Recipes" }],
+          [{ id: "b1", values: ["Recipes", "Community"] }],
+        ],
+      });
       const r = await renameBlogTaxonomyItem("category", "c1", "Meals");
       expect(r.success).toBe(true);
-      expect(supabase._tables.blog_categories.update).toHaveBeenCalledWith({
-        name: "Meals",
-      });
-      // Propagation looked up blogs containing the old name…
-      expect(supabase._tables.blogs.contains).toHaveBeenCalledWith(
-        "categories",
-        ["Recipes"],
-      );
-      // …and rewrote the array with the new name in place.
-      expect(supabase._tables.blogs.update).toHaveBeenCalledWith({
+      // First update = the taxonomy row; second = the affected blog rewrite.
+      expect(dbHolder.current.calls.update[0]).toBe(blogCategories);
+      expect(dbHolder.current.calls.set[0]).toEqual({ name: "Meals" });
+      expect(dbHolder.current.calls.update[1]).toBe(blogs);
+      expect(dbHolder.current.calls.set[1]).toEqual({
         categories: ["Meals", "Community"],
       });
     });
 
     it("dedupes when the new name already exists in a blog's array", async () => {
-      supabase._tables.blogs = makeChain(
-        { data: null, error: null },
-        { data: [{ id: "b1", categories: ["Recipes", "Meals"] }], error: null },
-      );
-      await renameBlogTaxonomyItem("category", "c1", "Meals");
-      expect(supabase._tables.blogs.update).toHaveBeenCalledWith({
-        categories: ["Meals"],
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [{ name: "Recipes" }],
+          [{ id: "b1", values: ["Recipes", "Meals"] }],
+        ],
       });
+      await renameBlogTaxonomyItem("category", "c1", "Meals");
+      expect(dbHolder.current.calls.set[1]).toEqual({ categories: ["Meals"] });
     });
 
     it("maps a unique violation to a friendly duplicate message", async () => {
-      supabase._tables.blog_categories = makeChain(
-        { data: { name: "Recipes" }, error: null },
-        { data: null, error: { code: "23505", message: "dup" } },
-      );
+      dbHolder.current = makeDbMock({ selectQueue: [[{ name: "Recipes" }]] });
+      dbHolder.current.db.update = vi.fn(() => {
+        throw Object.assign(new Error("dup"), { code: "23505" });
+      });
       const r = await renameBlogTaxonomyItem("category", "c1", "Community");
       expect(r.error).toMatch(/already exists/i);
     });
@@ -157,25 +157,23 @@ describe("blog-taxonomy-actions", () => {
     });
 
     it("errors when the row doesn't exist for this store", async () => {
-      supabase._tables.blog_tags = makeChain({ data: null, error: null });
+      dbHolder.current = makeDbMock({ selectQueue: [[]] });
       const r = await deleteBlogTaxonomyItem("tag", "t1");
       expect(r.error).toMatch(/not found/i);
     });
 
     it("deletes the row and strips the name from affected blogs", async () => {
-      supabase._tables.blogs = makeChain(
-        { data: null, error: null },
-        { data: [{ id: "b1", tags: ["Protein", "Sleep"] }], error: null },
-      );
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [{ name: "Protein" }],
+          [{ id: "b1", values: ["Protein", "Sleep"] }],
+        ],
+      });
       const r = await deleteBlogTaxonomyItem("tag", "t1");
       expect(r.success).toBe(true);
-      expect(supabase._tables.blog_tags.delete).toHaveBeenCalled();
-      expect(supabase._tables.blogs.contains).toHaveBeenCalledWith("tags", [
-        "Protein",
-      ]);
-      expect(supabase._tables.blogs.update).toHaveBeenCalledWith({
-        tags: ["Sleep"],
-      });
+      expect(dbHolder.current.calls.delete[0]).toBe(blogTags);
+      expect(dbHolder.current.calls.update[0]).toBe(blogs);
+      expect(dbHolder.current.calls.set[0]).toEqual({ tags: ["Sleep"] });
       expect(revalidateTag).toHaveBeenCalled();
     });
   });

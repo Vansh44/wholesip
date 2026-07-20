@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 .mcp.json
+
+# staging data dump (test-user contact data — local re-seed source only)
+db-data.sql

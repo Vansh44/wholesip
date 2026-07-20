@@ -1,7 +1,7 @@
 .container {
   min-height: 100vh;
   padding: 140px 24px 80px;
-  background-color: var(--wholesip-cream);
+  background-color: var(--sm-cream);
   font-family: var(--font-outfit), sans-serif;
 }
 
@@ -30,13 +30,13 @@
 .title {
   font-size: 40px;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   margin-bottom: 12px;
 }
 
 .subtitle {
   font-size: 16px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   font-weight: 400;
 }
 
@@ -47,11 +47,11 @@
 }
 
 .card {
-  background: var(--wholesip-surface);
-  border-radius: var(--wholesip-radius-card);
+  background: var(--sm-surface);
+  border-radius: var(--sm-radius-card);
   padding: 40px;
-  box-shadow: 0 8px 24px rgba(var(--wholesip-shadow-rgb), 0.06);
-  border: 1px solid var(--wholesip-border);
+  box-shadow: 0 8px 24px rgba(var(--sm-shadow-rgb), 0.06);
+  border: 1px solid var(--sm-border);
   display: flex;
   flex-direction: column;
 }
@@ -63,13 +63,13 @@
 .cardTitle {
   font-size: 24px;
   font-weight: 600;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   margin-bottom: 8px;
 }
 
 .cardSubtitle {
   font-size: 14px;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .form {
@@ -88,7 +88,7 @@
 .label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -96,19 +96,19 @@
 .input {
   width: 100%;
   padding: 14px 16px;
-  border-radius: var(--wholesip-radius-control);
-  border: 1.5px solid var(--wholesip-border);
-  background: var(--wholesip-cream-deep);
+  border-radius: var(--sm-radius-control);
+  border: 1.5px solid var(--sm-border);
+  background: var(--sm-cream-deep);
   font-size: 15px;
   font-family: var(--font-outfit), sans-serif;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   transition: all 0.2s ease;
 }
 
 .input:focus {
   outline: none;
-  border-color: var(--wholesip-ink);
-  background: var(--wholesip-surface);
+  border-color: var(--sm-ink);
+  background: var(--sm-surface);
 }
 
 .input:disabled {
@@ -119,9 +119,9 @@
 .submitBtn {
   margin-top: auto;
   padding: 16px;
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-accent);
-  color: var(--wholesip-on-accent);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-accent);
+  color: var(--sm-on-accent);
   font-size: 15px;
   font-weight: 600;
   font-family: var(--font-outfit), sans-serif;
@@ -134,9 +134,9 @@
 }
 
 .submitBtn:hover:not(:disabled) {
-  background: var(--wholesip-accent-deep);
+  background: var(--sm-accent-deep);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(var(--wholesip-shadow-rgb), 0.12);
+  box-shadow: 0 4px 12px rgba(var(--sm-shadow-rgb), 0.12);
 }
 
 .submitBtn:disabled {
@@ -146,22 +146,22 @@
 
 .statusMessage {
   padding: 12px;
-  border-radius: var(--wholesip-radius-sm);
+  border-radius: var(--sm-radius-sm);
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 16px;
 }
 
 .success {
-  background: var(--wholesip-success-soft);
-  color: var(--wholesip-success);
-  border: 1px solid color-mix(in srgb, var(--wholesip-success) 28%, transparent);
+  background: var(--sm-success-soft);
+  color: var(--sm-success);
+  border: 1px solid color-mix(in srgb, var(--sm-success) 28%, transparent);
 }
 
 .error {
-  background: var(--wholesip-error-soft);
-  color: var(--wholesip-error);
-  border: 1px solid color-mix(in srgb, var(--wholesip-error) 28%, transparent);
+  background: var(--sm-error-soft);
+  color: var(--sm-error);
+  border: 1px solid color-mix(in srgb, var(--sm-error) 28%, transparent);
 }
 
 /* ---- Address book ---- */
@@ -180,9 +180,9 @@
   align-items: flex-start;
   gap: 16px;
   padding: 16px;
-  border: 1px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-cream-deep);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-cream-deep);
 }
 
 .addrInfo {
@@ -197,7 +197,7 @@
   gap: 8px;
   font-size: 15px;
   font-weight: 600;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .addrBadge {
@@ -207,13 +207,13 @@
   letter-spacing: 0.04em;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--wholesip-accent);
-  color: var(--wholesip-on-accent);
+  background: var(--sm-accent);
+  color: var(--sm-on-accent);
 }
 
 .addrText {
   font-size: 13px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   line-height: 1.5;
 }
 
@@ -230,25 +230,25 @@
   font-size: 13px;
   font-weight: 600;
   padding: 6px 10px;
-  border-radius: var(--wholesip-radius-sm);
-  border: 1px solid var(--wholesip-border);
-  background: var(--wholesip-surface);
-  color: var(--wholesip-ink);
+  border-radius: var(--sm-radius-sm);
+  border: 1px solid var(--sm-border);
+  background: var(--sm-surface);
+  color: var(--sm-ink);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .addrBtn:hover:not(:disabled) {
-  background: var(--wholesip-cream);
+  background: var(--sm-cream);
 }
 
 .addrBtnDanger {
-  color: var(--wholesip-error);
-  border-color: color-mix(in srgb, var(--wholesip-error) 30%, transparent);
+  color: var(--sm-error);
+  border-color: color-mix(in srgb, var(--sm-error) 30%, transparent);
 }
 
 .addrBtnDanger:hover:not(:disabled) {
-  background: var(--wholesip-error-soft);
+  background: var(--sm-error-soft);
 }
 
 .addrBtn:disabled,
@@ -260,10 +260,10 @@
 .addrAddBtn {
   width: 100%;
   padding: 14px;
-  border-radius: var(--wholesip-radius-control);
-  border: 1.5px dashed var(--wholesip-border);
+  border-radius: var(--sm-radius-control);
+  border: 1.5px dashed var(--sm-border);
   background: transparent;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   font-size: 14px;
   font-weight: 600;
   font-family: var(--font-outfit), sans-serif;
@@ -272,8 +272,8 @@
 }
 
 .addrAddBtn:hover {
-  border-color: var(--wholesip-ink-soft);
-  color: var(--wholesip-ink);
+  border-color: var(--sm-ink-soft);
+  color: var(--sm-ink);
 }
 
 .addrTwoCol {
@@ -291,9 +291,9 @@
 
 .addrSaveBtn {
   padding: 12px 24px;
-  border-radius: var(--wholesip-radius-control);
-  background: var(--wholesip-accent);
-  color: var(--wholesip-on-accent);
+  border-radius: var(--sm-radius-control);
+  background: var(--sm-accent);
+  color: var(--sm-on-accent);
   font-size: 14px;
   font-weight: 600;
   font-family: var(--font-outfit), sans-serif;
@@ -303,18 +303,18 @@
 }
 
 .addrSaveBtn:hover:not(:disabled) {
-  background: var(--wholesip-accent-deep);
+  background: var(--sm-accent-deep);
 }
 
 .cancelBtn {
   padding: 12px 24px;
-  border-radius: var(--wholesip-radius-control);
+  border-radius: var(--sm-radius-control);
   background: transparent;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   font-size: 14px;
   font-weight: 600;
   font-family: var(--font-outfit), sans-serif;
-  border: 1px solid var(--wholesip-border);
+  border: 1px solid var(--sm-border);
   cursor: pointer;
 }
 

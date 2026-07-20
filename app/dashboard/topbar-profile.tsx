@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Settings, LogOut } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { endSession } from "@/lib/auth/firebase-client";
 import { useEffect, useRef, useState } from "react";
 
 function getDisplayName(
@@ -100,8 +100,7 @@ export function TopbarProfile({
   }, []);
 
   async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await endSession();
     router.push("/auth/login");
     router.refresh();
   }
@@ -111,7 +110,7 @@ export function TopbarProfile({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-[var(--dash-border-strong)] bg-[var(--dash-surface)] py-1 pl-1 pr-2.5 transition-all hover:border-[var(--dash-border-hover)] hover:bg-[var(--dash-surface-2)]"
+        className="flex items-center gap-2 rounded-full border border-[var(--dash-border-strong)] bg-[var(--dash-surface)] p-1 sm:py-1 sm:pl-1 sm:pr-2.5 transition-all hover:border-[var(--dash-border-hover)] hover:bg-[var(--dash-surface-2)]"
       >
         <div
           className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"

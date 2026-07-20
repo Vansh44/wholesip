@@ -28,7 +28,7 @@ import {
   Search,
   type LucideIcon,
 } from "lucide-react";
-import { uploadImage } from "@/lib/supabase/storage";
+import { uploadImage } from "@/lib/storage/uploads";
 import { Button } from "@/components/ui/button";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { NumberField } from "@/components/ui/number-field";

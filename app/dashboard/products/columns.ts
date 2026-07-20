@@ -1,0 +1,52 @@
+import "server-only";
+
+import { productVariants, products } from "@/drizzle/schema";
+
+// Aliased Drizzle selects preserving the snake_case row shapes the products
+// dashboard (page.tsx types) expects. Shared by the list page and the editor
+// loader (data.ts).
+
+export const PRODUCT_COLUMNS = {
+  id: products.id,
+  name: products.name,
+  slug: products.slug,
+  description: products.description,
+  category_id: products.categoryId,
+  base_price: products.basePrice,
+  selling_price: products.sellingPrice,
+  image_url: products.imageUrl,
+  images: products.images,
+  status: products.status,
+  featured: products.featured,
+  sort_order: products.sortOrder,
+  card_color: products.cardColor,
+  seo_title: products.seoTitle,
+  seo_description: products.seoDescription,
+  published_at: products.publishedAt,
+  track_inventory: products.trackInventory,
+  stock: products.stock,
+  low_stock_threshold: products.lowStockThreshold,
+  allow_backorder: products.allowBackorder,
+  sku: products.sku,
+  tax_class_id: products.taxClassId,
+  created_at: products.createdAt,
+  updated_at: products.updatedAt,
+};
+
+export const VARIANT_COLUMNS = {
+  id: productVariants.id,
+  product_id: productVariants.productId,
+  name: productVariants.name,
+  base_price: productVariants.basePrice,
+  selling_price: productVariants.sellingPrice,
+  special_price: productVariants.specialPrice,
+  stock: productVariants.stock,
+  sku: productVariants.sku,
+  image_url: productVariants.imageUrl,
+  images: productVariants.images,
+  sort_order: productVariants.sortOrder,
+  created_at: productVariants.createdAt,
+  track_inventory: productVariants.trackInventory,
+  low_stock_threshold: productVariants.lowStockThreshold,
+  allow_backorder: productVariants.allowBackorder,
+};

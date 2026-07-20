@@ -1,16 +1,30 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock } from "./_test-helpers";
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/auth/firebase-users", () => ({
+  updateAuthUser: vi.fn(async () => {}),
+}));
+vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 vi.mock("@/lib/store/resolve", () => ({
   getCurrentStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
-  WHOLESIP_STORE_ID: "a0000000-0000-4000-8000-000000000001",
+  FALLBACK_STORE_ID: "a0000000-0000-4000-8000-000000000001",
+}));
+
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withUser: vi.fn((_identity: any, fn: any) =>
+    Promise.resolve(fn(dbHolder.current.db)),
+  ),
+  withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+  withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
 }));
 
 import { updateCustomerProfile } from "./customer-profile";
-import { createClient } from "@/lib/supabase/server";
-import { makeChain, makeSupabase } from "./_test-helpers";
+import { updateAuthUser } from "@/lib/auth/firebase-users";
+import { getServerUser } from "@/lib/auth/server-user";
 
 function makeFormData(fields: Record<string, string | null | undefined>) {
   const fd = new FormData();
@@ -20,21 +34,25 @@ function makeFormData(fields: Record<string, string | null | undefined>) {
   return fd;
 }
 
-// customer-profile.ts — the /profile page action that lets a signed-in
-// shopper update their name and email. Phone is NOT NULL UNIQUE in the DB
-// so this action only ever writes it when auth has a verified value.
-describe("updateCustomerProfile", () => {
-  let supabase: any;
+const serverUser = (overrides: Record<string, any> = {}) => ({
+  id: "user-1",
+  email: "old@example.com",
+  phone: "+11234567890",
+  phoneConfirmed: true,
+  metadata: {},
+  ...overrides,
+});
 
+// customer-profile.ts — the /profile page action that lets a signed-in
+// shopper update their name and email. Identity comes from getServerUser; the
+// email change goes through Identity Platform (updateAuthUser). Phone is NOT
+// NULL UNIQUE in the DB so this action only ever writes it from a verified value.
+describe("updateCustomerProfile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    supabase = makeSupabase(
-      {
-        users: makeChain({ data: null, error: null }),
-      },
-      { id: "user-1", email: "old@example.com", phone: "+11234567890" },
-    );
-    vi.mocked(createClient).mockResolvedValue(supabase);
+    dbHolder.current = makeDbMock();
+    vi.mocked(updateAuthUser).mockResolvedValue();
+    vi.mocked(getServerUser).mockResolvedValue(serverUser() as any);
   });
 
   // First name is the only required field.
@@ -55,49 +73,44 @@ describe("updateCustomerProfile", () => {
 
   // Anonymous visitors cannot update a profile.
   it("rejects unauthenticated callers", async () => {
-    supabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+    vi.mocked(getServerUser).mockResolvedValue(null);
     const result = await updateCustomerProfile(
       makeFormData({ firstName: "Ada" }),
     );
     expect(result.error).toMatch(/not authenticated/i);
   });
 
-  // Changing the email triggers a Supabase Auth update (which sends the
-  // confirmation flow on the auth side).
-  it("calls auth.updateUser when email changes", async () => {
+  // Changing the email updates the Identity Platform account.
+  it("calls updateAuthUser when email changes", async () => {
     await updateCustomerProfile(
       makeFormData({ firstName: "Ada", email: "new@example.com" }),
     );
-    expect(supabase.auth.updateUser).toHaveBeenCalledWith({
+    expect(updateAuthUser).toHaveBeenCalledWith("user-1", {
       email: "new@example.com",
     });
   });
 
   // Same email → no auth update, just the profile upsert.
-  it("does not call auth.updateUser when email is unchanged", async () => {
+  it("does not call updateAuthUser when email is unchanged", async () => {
     await updateCustomerProfile(
       makeFormData({ firstName: "Ada", email: "old@example.com" }),
     );
-    expect(supabase.auth.updateUser).not.toHaveBeenCalled();
+    expect(updateAuthUser).not.toHaveBeenCalled();
   });
 
-  // Phone is written from auth.user.phone only — never from the form, never
-  // empty. Critical because users.phone is NOT NULL UNIQUE and an empty
-  // string would collide across every phone-less customer.
+  // Phone is written from the verified auth identity only — never from the
+  // form, never empty. Critical because users.phone is NOT NULL UNIQUE and an
+  // empty string would collide across every phone-less customer.
   it("only writes phone when auth has a verified value", async () => {
     await updateCustomerProfile(makeFormData({ firstName: "Ada" }));
-    const upserted = supabase._tables.users.upsert.mock.calls[0][0];
-    expect(upserted.phone).toBe("+11234567890");
+    expect(dbHolder.current.calls.values[0].phone).toBe("+11234567890");
   });
 
   it("omits phone entirely when auth has no phone", async () => {
-    supabase = makeSupabase(
-      { users: makeChain({ data: null, error: null }) },
-      { id: "user-1", email: "old@example.com", phone: null },
+    vi.mocked(getServerUser).mockResolvedValue(
+      serverUser({ phone: null }) as any,
     );
-    vi.mocked(createClient).mockResolvedValue(supabase);
     await updateCustomerProfile(makeFormData({ firstName: "Ada" }));
-    const upserted = supabase._tables.users.upsert.mock.calls[0][0];
-    expect(upserted.phone).toBeUndefined();
+    expect(dbHolder.current.calls.values[0].phone).toBeUndefined();
   });
 });

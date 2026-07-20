@@ -1,8 +1,18 @@
 "use server";
 
 import { headers } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { getServerUser } from "@/lib/auth/server-user";
+import {
+  orderItems,
+  orders,
+  productVariants,
+  products,
+  storeBillingSettings,
+  stores,
+  taxClasses,
+} from "@/drizzle/schema";
 import { getCurrentStore, getCurrentStoreId } from "@/lib/store/resolve";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { validateCoupon } from "./coupon-actions";
@@ -22,6 +32,30 @@ import {
   type BillingSettings,
   type TaxClass,
 } from "@/lib/billing/types";
+
+// Aliased select for store_billing_settings preserving the snake_case row shape
+// rowToBillingSettings expects (Drizzle would otherwise return camelCase keys).
+const BILLING_COLS = {
+  store_id: storeBillingSettings.storeId,
+  tax_enabled: storeBillingSettings.taxEnabled,
+  prices_include_tax: storeBillingSettings.pricesIncludeTax,
+  default_tax_class_id: storeBillingSettings.defaultTaxClassId,
+  business_name: storeBillingSettings.businessName,
+  business_address: storeBillingSettings.businessAddress,
+  tax_id: storeBillingSettings.taxId,
+  contact_email: storeBillingSettings.contactEmail,
+  contact_phone: storeBillingSettings.contactPhone,
+  logo_url: storeBillingSettings.logoUrl,
+  invoice_prefix: storeBillingSettings.invoicePrefix,
+  accent_color: storeBillingSettings.accentColor,
+  footer_note: storeBillingSettings.footerNote,
+  terms: storeBillingSettings.terms,
+  template: storeBillingSettings.template,
+};
+
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 // Bounds on client-supplied cart data — reject oversized/malformed payloads
 // before any DB work so a hostile client can't send 10k line items or negative
@@ -139,9 +173,6 @@ export async function getCartStock(
   const bounded = lines.slice(0, MAX_LINE_ITEMS);
 
   const storeId = await getCurrentStoreId();
-  // Read-only, store-scoped stock lookup. Stock is already public on the
-  // storefront, so bypassing RLS here just gives us a single uncached read.
-  const admin = createAdminClient();
 
   const productIds = Array.from(
     new Set(
@@ -152,15 +183,6 @@ export async function getCartStock(
   );
   if (productIds.length === 0) return [];
 
-  const { data: products } = await admin
-    .from("products")
-    .select("id, track_inventory, stock, allow_backorder")
-    .in("id", productIds)
-    .eq("store_id", storeId);
-  const productMap = new Map<string, StockRow>(
-    (products ?? []).map((p) => [p.id, p as StockRow]),
-  );
-
   const variantIds = Array.from(
     new Set(
       bounded
@@ -168,15 +190,46 @@ export async function getCartStock(
         .filter((x): x is string => typeof x === "string" && !!x),
     ),
   );
+
+  // Read-only, store-scoped stock lookup. Stock is already public on the
+  // storefront, so a service-role (RLS-bypassing) read just gives us a single
+  // uncached snapshot.
+  const { productRows, variantRows } = await withService(async (db) => {
+    const productRows = await db
+      .select({
+        id: products.id,
+        track_inventory: products.trackInventory,
+        stock: products.stock,
+        allow_backorder: products.allowBackorder,
+      })
+      .from(products)
+      .where(
+        and(inArray(products.id, productIds), eq(products.storeId, storeId)),
+      );
+    const variantRows = variantIds.length
+      ? await db
+          .select({
+            id: productVariants.id,
+            track_inventory: productVariants.trackInventory,
+            stock: productVariants.stock,
+            allow_backorder: productVariants.allowBackorder,
+          })
+          .from(productVariants)
+          .where(
+            and(
+              inArray(productVariants.id, variantIds),
+              eq(productVariants.storeId, storeId),
+            ),
+          )
+      : [];
+    return { productRows, variantRows };
+  });
+
+  const productMap = new Map<string, StockRow>(
+    productRows.map((p) => [p.id, p as StockRow]),
+  );
   const variantMap = new Map<string, StockRow>();
-  if (variantIds.length > 0) {
-    const { data: variants } = await admin
-      .from("product_variants")
-      .select("id, track_inventory, stock, allow_backorder")
-      .in("id", variantIds)
-      .eq("store_id", storeId);
-    for (const v of variants ?? []) variantMap.set(v.id, v as StockRow);
-  }
+  for (const v of variantRows) variantMap.set(v.id, v as StockRow);
 
   return bounded.map((l) => {
     const product = productMap.get(l.productId);
@@ -194,53 +247,64 @@ export async function getCartStock(
 // After a reserve fails, read how many units are actually left so the error can
 // tell the shopper the exact shortfall (reserve_stock only returns a boolean).
 async function availableStock(
-  admin: ReturnType<typeof createAdminClient>,
   storeId: string,
   productId: string,
   variantId: string | null,
 ): Promise<number> {
   try {
-    const table = variantId ? "product_variants" : "products";
     const id = variantId ?? productId;
-    const { data } = await admin
-      .from(table)
-      .select("stock")
-      .eq("id", id)
-      .eq("store_id", storeId)
-      .maybeSingle();
-    return Math.max(0, (data?.stock as number | undefined) ?? 0);
+    const rows = await withService((db) =>
+      variantId
+        ? db
+            .select({ stock: productVariants.stock })
+            .from(productVariants)
+            .where(
+              and(
+                eq(productVariants.id, id),
+                eq(productVariants.storeId, storeId),
+              ),
+            )
+            .limit(1)
+        : db
+            .select({ stock: products.stock })
+            .from(products)
+            .where(and(eq(products.id, id), eq(products.storeId, storeId)))
+            .limit(1),
+    );
+    return Math.max(0, rows[0]?.stock ?? 0);
   } catch {
     return 0;
   }
 }
 
-// Read a store's tax config authoritatively (uncached, store-scoped) through an
-// admin client. Used by both placeOrder (trust boundary) and getCartTaxRates
-// (display), so both agree. Uncached on purpose: an order must reflect the tax
-// config at the exact moment it's placed, never a stale cached copy.
+// Read a store's tax config authoritatively (uncached, store-scoped) with a
+// service-role read. Used by both placeOrder (trust boundary) and
+// getCartTaxRates (display), so both agree. Uncached on purpose: an order must
+// reflect the tax config at the exact moment it's placed, never a stale copy.
 async function readTaxConfig(
-  admin: ReturnType<typeof createAdminClient>,
   storeId: string,
 ): Promise<{ billing: BillingSettings; taxClasses: TaxClass[] }> {
-  const [billingRes, taxRes] = await Promise.all([
-    admin
-      .from("store_billing_settings")
-      .select("*")
-      .eq("store_id", storeId)
-      .maybeSingle(),
-    admin
-      .from("tax_classes")
-      .select("id, name, rate, sort_order")
-      .eq("store_id", storeId)
-      .order("sort_order", { ascending: true }),
-  ]);
+  const { billingRow, taxRows } = await withService(async (db) => {
+    const billingRows = await db
+      .select(BILLING_COLS)
+      .from(storeBillingSettings)
+      .where(eq(storeBillingSettings.storeId, storeId))
+      .limit(1);
+    const taxRows = await db
+      .select({
+        id: taxClasses.id,
+        name: taxClasses.name,
+        rate: taxClasses.rate,
+        sort_order: taxClasses.sortOrder,
+      })
+      .from(taxClasses)
+      .where(eq(taxClasses.storeId, storeId))
+      .orderBy(asc(taxClasses.sortOrder));
+    return { billingRow: billingRows[0] ?? null, taxRows };
+  });
   return {
-    billing: rowToBillingSettings(
-      billingRes.data as Record<string, unknown> | null,
-    ),
-    taxClasses: (taxRes.data ?? []).map((r) =>
-      rowToTaxClass(r as Record<string, unknown>),
-    ),
+    billing: rowToBillingSettings(billingRow as Record<string, unknown> | null),
+    taxClasses: taxRows.map((r) => rowToTaxClass(r as Record<string, unknown>)),
   };
 }
 
@@ -306,8 +370,7 @@ export async function getCartTaxRates(
   if (!allowed) return empty;
 
   const storeId = await getCurrentStoreId();
-  const admin = createAdminClient();
-  const { billing, taxClasses } = await readTaxConfig(admin, storeId);
+  const { billing, taxClasses: taxClassList } = await readTaxConfig(storeId);
   if (!billing.taxEnabled) return empty;
 
   const productIds = Array.from(new Set(safeLines.map((l) => l.productId)));
@@ -315,36 +378,44 @@ export async function getCartTaxRates(
     new Set(safeLines.map((l) => l.variantId).filter(Boolean)),
   ) as string[];
 
-  const [{ data: products }, variantsRes] = await Promise.all([
-    admin
-      .from("products")
-      .select("id, selling_price, tax_class_id")
-      .in("id", productIds)
-      .eq("store_id", storeId),
-    variantIds.length
-      ? admin
-          .from("product_variants")
-          .select("id, selling_price")
-          .in("id", variantIds)
-          .eq("store_id", storeId)
-      : Promise.resolve({
-          data: [] as { id: string; selling_price: number }[],
-        }),
-  ]);
+  const { productRows, variantRows } = await withService(async (db) => {
+    const productRows = await db
+      .select({
+        id: products.id,
+        selling_price: products.sellingPrice,
+        tax_class_id: products.taxClassId,
+      })
+      .from(products)
+      .where(
+        and(inArray(products.id, productIds), eq(products.storeId, storeId)),
+      );
+    const variantRows = variantIds.length
+      ? await db
+          .select({
+            id: productVariants.id,
+            selling_price: productVariants.sellingPrice,
+          })
+          .from(productVariants)
+          .where(
+            and(
+              inArray(productVariants.id, variantIds),
+              eq(productVariants.storeId, storeId),
+            ),
+          )
+      : [];
+    return { productRows, variantRows };
+  });
 
   const pMap = new Map(
-    (products ?? []).map((p) => [
+    productRows.map((p) => [
       p.id as string,
       p as { selling_price: number; tax_class_id: string | null },
     ]),
   );
   const vMap = new Map(
-    (variantsRes.data ?? []).map((v) => [
-      v.id as string,
-      v as { selling_price: number },
-    ]),
+    variantRows.map((v) => [v.id as string, v as { selling_price: number }]),
   );
-  const classById = new Map(taxClasses.map((c) => [c.id, c]));
+  const classById = new Map(taxClassList.map((c) => [c.id, c]));
 
   const resolved: CartTaxRateLine[] = safeLines.map((l) => {
     const p = pMap.get(l.productId);
@@ -385,17 +456,19 @@ export async function getCartTaxRates(
 // plan includes online payments (a lapsed plan silently reverts to COD-only
 // without touching the stored credentials).
 async function onlineGateway(
-  admin: ReturnType<typeof createAdminClient>,
   storeId: string,
 ): Promise<{ keyId: string; keySecret: string } | null> {
-  const [gateway, { data: store }] = await Promise.all([
+  const [gateway, storeRows] = await Promise.all([
     getStoreGateway(storeId),
-    admin
-      .from("stores")
-      .select("plan, plan_expires_at")
-      .eq("id", storeId)
-      .maybeSingle(),
+    withService((db) =>
+      db
+        .select({ plan: stores.plan, plan_expires_at: stores.planExpiresAt })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1),
+    ),
   ]);
+  const store = storeRows[0];
   if (!gateway?.enabled) return null;
   if (!limitsFor(effectivePlan(store ?? {})).onlinePayments) return null;
   return gateway.creds;
@@ -415,7 +488,7 @@ export interface CheckoutConfig {
  *  placeOrder re-checks everything. */
 export async function getCheckoutConfig(): Promise<CheckoutConfig> {
   const store = await getCurrentStore();
-  const creds = await onlineGateway(createAdminClient(), store.id);
+  const creds = await onlineGateway(store.id);
   return {
     onlinePayments: !!creds,
     keyId: creds?.keyId ?? null,
@@ -429,11 +502,8 @@ export async function placeOrder(
   couponCode?: string | null,
   paymentMethod: PaymentMethod = "cod",
 ): Promise<CheckoutResult> {
-  // Authenticate the shopper with their own session (RLS-respecting client).
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Authenticate the shopper via the identity seam (session-backed).
+  const user = await getServerUser();
 
   if (!user) {
     return { error: "You must be logged in to checkout." };
@@ -489,18 +559,17 @@ export async function placeOrder(
   // never a store inferred from client-supplied cart contents.
   const storeId = await getCurrentStoreId();
 
-  // Orders/order_items are written with the service-role client: there is no
-  // customer INSERT RLS policy on those tables by design (see orders_table.sql),
-  // and all prices/totals are re-derived from the DB below, not trusted from
-  // the client — so the write is safe to run with RLS bypassed.
-  const admin = createAdminClient();
+  // Orders/order_items are written with a service-role (RLS-bypassing) scope:
+  // there is no customer INSERT RLS policy on those tables by design (see
+  // orders_table.sql), and all prices/totals are re-derived from the DB below,
+  // not trusted from the client — so the write is safe with RLS bypassed.
 
   // For an online payment, resolve the store's gateway UP FRONT (connected +
   // enabled + plan allows — all server-side) so an unavailable gateway fails
   // fast, before any coupon/stock reservation.
   let gatewayCreds: { keyId: string; keySecret: string } | null = null;
   if (paymentMethod === "razorpay") {
-    gatewayCreds = await onlineGateway(admin, storeId);
+    gatewayCreds = await onlineGateway(storeId);
     if (!gatewayCreds) {
       return {
         error:
@@ -513,11 +582,20 @@ export async function placeOrder(
   //    scoped to the host store so another store's products can't be smuggled in.
   const productIds = Array.from(new Set(items.map((i) => i.productId)));
 
-  const { data: dbProducts } = await admin
-    .from("products")
-    .select("id, name, selling_price, store_id, tax_class_id")
-    .in("id", productIds)
-    .eq("store_id", storeId);
+  const dbProducts = await withService((db) =>
+    db
+      .select({
+        id: products.id,
+        name: products.name,
+        selling_price: products.sellingPrice,
+        store_id: products.storeId,
+        tax_class_id: products.taxClassId,
+      })
+      .from(products)
+      .where(
+        and(inArray(products.id, productIds), eq(products.storeId, storeId)),
+      ),
+  );
 
   if (!dbProducts || dbProducts.length === 0) {
     return { error: "One or more products were not found." };
@@ -527,9 +605,9 @@ export async function placeOrder(
 
   // Tax config + rate resolver. A line's rate comes from its product's tax
   // class, falling back to the store default; only applied when tax is enabled.
-  // Read store-scoped (admin), never trusting the client.
-  const { billing, taxClasses } = await readTaxConfig(admin, storeId);
-  const taxClassById = new Map(taxClasses.map((c) => [c.id, c]));
+  // Read store-scoped (service role), never trusting the client.
+  const { billing, taxClasses: taxClassList } = await readTaxConfig(storeId);
+  const taxClassById = new Map(taxClassList.map((c) => [c.id, c]));
   const resolveTax = (
     p: { tax_class_id?: string | null } | undefined,
   ): { rate: number; name: string | null } => {
@@ -548,16 +626,24 @@ export async function placeOrder(
     { id: string; name: string; selling_price: number }
   >();
   if (variantIds.length > 0) {
-    const { data: dbVariants } = await admin
-      .from("product_variants")
-      .select("id, name, selling_price")
-      .in("id", variantIds)
-      .eq("store_id", storeId);
+    const dbVariants = await withService((db) =>
+      db
+        .select({
+          id: productVariants.id,
+          name: productVariants.name,
+          selling_price: productVariants.sellingPrice,
+        })
+        .from(productVariants)
+        .where(
+          and(
+            inArray(productVariants.id, variantIds),
+            eq(productVariants.storeId, storeId),
+          ),
+        ),
+    );
 
-    if (dbVariants) {
-      for (const v of dbVariants) {
-        variantsMap.set(v.id, v);
-      }
+    for (const v of dbVariants) {
+      variantsMap.set(v.id, v);
     }
   }
 
@@ -689,25 +775,32 @@ export async function placeOrder(
   //     (validation already passed).
   let couponReserved = false;
   if (couponApplied && couponCodeNormalized) {
-    const { data: reserved, error: rpcError } = await admin.rpc(
-      "increment_coupon_usage",
-      { p_code: couponCodeNormalized, p_store_id: storeId },
-    );
-    if (rpcError) {
-      console.error("increment_coupon_usage:", rpcError.message);
-    } else if (reserved === false) {
-      return { error: "This coupon has reached its usage limit." };
-    } else {
+    try {
+      const res = await withService((db) =>
+        db.execute(
+          sql`select increment_coupon_usage(p_code => ${couponCodeNormalized}, p_store_id => ${storeId}) as reserved`,
+        ),
+      );
+      const reserved = (res.rows[0] as { reserved: boolean | null } | undefined)
+        ?.reserved;
+      if (reserved === false) {
+        return { error: "This coupon has reached its usage limit." };
+      }
       couponReserved = true;
+    } catch (err) {
+      // A transient RPC error fails OPEN — never block a paying customer over
+      // the usage counter (validation already passed).
+      console.error("increment_coupon_usage:", errMsg(err));
     }
   }
 
   const releaseCoupon = async () => {
     if (couponReserved && couponCodeNormalized) {
-      await admin.rpc("decrement_coupon_usage", {
-        p_code: couponCodeNormalized,
-        p_store_id: storeId,
-      });
+      await withService((db) =>
+        db.execute(
+          sql`select decrement_coupon_usage(p_code => ${couponCodeNormalized}, p_store_id => ${storeId})`,
+        ),
+      ).catch((err) => console.error("decrement_coupon_usage:", errMsg(err)));
     }
   };
 
@@ -717,38 +810,45 @@ export async function placeOrder(
   //    foreign key and every tracked-SKU checkout fails. We pass the
   //    pre-generated id so the sale movements carry the real order id from the
   //    start.
-  const { data: order, error: orderError } = await admin
-    .from("orders")
-    .insert({
-      id: orderId,
-      store_id: storeId,
-      customer_id: user.id,
-      status: "pending",
-      payment_method:
-        paymentMethod === "razorpay" ? "razorpay" : "cash_on_delivery",
-      payment_status: "pending",
-      shipping_address: shippingAddress,
-      billing_address: null, // COD uses shipping as billing essentially
-      subtotal,
-      tax,
-      tax_inclusive: billing.pricesIncludeTax,
-      shipping,
-      discount,
-      total,
-      currency: "INR",
-      applied_coupon_code: couponCode || null,
-      notes,
-      // This order goes through the reserve flow below; mark it so that
-      // cancellation restocks it exactly once (and never restocks legacy
-      // orders, which stay 'none'). If the reserve loop fails, the order row
-      // is deleted, so this value only ever persists on a fully-reserved order.
-      stock_status: "reserved",
-    })
-    .select("id, order_ref")
-    .single();
+  const orderRows = await withService((db) =>
+    db
+      .insert(orders)
+      // order_no / order_ref are NOT NULL but owned by the BEFORE-INSERT trigger
+      // (identifiers_04_triggers.sql) — the app never sends them, so the insert
+      // type is asserted past those columns.
+      .values({
+        id: orderId,
+        storeId,
+        customerId: user.id,
+        status: "pending",
+        paymentMethod:
+          paymentMethod === "razorpay" ? "razorpay" : "cash_on_delivery",
+        paymentStatus: "pending",
+        shippingAddress,
+        billingAddress: null, // COD uses shipping as billing essentially
+        subtotal,
+        tax,
+        taxInclusive: billing.pricesIncludeTax,
+        shipping,
+        discount,
+        total,
+        currency: "INR",
+        appliedCouponCode: couponCode || null,
+        notes,
+        // This order goes through the reserve flow below; mark it so that
+        // cancellation restocks it exactly once (and never restocks legacy
+        // orders, which stay 'none'). If the reserve loop fails, the order row
+        // is deleted, so this value only ever persists on a fully-reserved order.
+        stockStatus: "reserved",
+      } as typeof orders.$inferInsert)
+      .returning({ id: orders.id, order_ref: orders.orderRef }),
+  ).catch((err) => {
+    console.error("Order creation error:", errMsg(err));
+    return null;
+  });
 
-  if (orderError || !order) {
-    console.error("Order creation error:", orderError);
+  const order = orderRows?.[0];
+  if (!order) {
     await releaseCoupon(); // give the reserved coupon use back
     return { error: "Failed to create order. Please try again." };
   }
@@ -766,32 +866,41 @@ export async function placeOrder(
 
   const releaseStock = async () => {
     for (const r of reservedStockItems) {
-      await admin.rpc("release_stock", {
-        p_store: storeId,
-        p_product: r.product_id,
-        p_variant: r.variant_id,
-        p_qty: r.qty,
-        p_order: order.id,
-        p_reason: "checkout_failed",
-      });
+      await withService((db) =>
+        db.execute(
+          sql`select release_stock(p_store => ${storeId}, p_product => ${r.product_id}, p_variant => ${r.variant_id}, p_qty => ${r.qty}, p_order => ${order.id}, p_reason => ${"checkout_failed"})`,
+        ),
+      ).catch((err) => console.error("release_stock:", errMsg(err)));
     }
   };
 
-  for (const item of validItems) {
-    const { data: reserved, error: reserveError } = await admin.rpc(
-      "reserve_stock",
-      {
-        p_store: storeId,
-        p_product: item.product_id,
-        p_variant: item.variant_id,
-        p_qty: item.quantity,
-        p_order: order.id,
-      },
-    );
+  // Best-effort rollback delete of the order row (no cross-statement txn; the
+  // caller has already released stock first so the movements still wrote).
+  const deleteOrder = async () => {
+    await withService((db) =>
+      db.delete(orders).where(eq(orders.id, order.id)),
+    ).catch((err) => console.error("order rollback delete:", errMsg(err)));
+  };
 
-    if (reserveError || !reserved) {
+  for (const item of validItems) {
+    let reserved: boolean | null | undefined;
+    let reserveFailed = false;
+    try {
+      const res = await withService((db) =>
+        db.execute(
+          sql`select reserve_stock(p_store => ${storeId}, p_product => ${item.product_id}, p_variant => ${item.variant_id}, p_qty => ${item.quantity}, p_order => ${order.id}) as reserved`,
+        ),
+      );
+      reserved = (res.rows[0] as { reserved: boolean | null } | undefined)
+        ?.reserved;
+    } catch (err) {
+      console.error("reserve_stock:", errMsg(err));
+      reserveFailed = true;
+    }
+
+    if (reserveFailed || !reserved) {
       await releaseStock();
-      await admin.from("orders").delete().eq("id", order.id);
+      await deleteOrder();
       await releaseCoupon();
       // Report the exact shortfall so the shopper knows what to do rather than
       // seeing a generic "not enough stock". reserve_stock failed because the
@@ -801,7 +910,6 @@ export async function placeOrder(
         ? `${item.name} (${item.variant_name})`
         : item.name;
       const remaining = await availableStock(
-        admin,
         storeId,
         item.product_id,
         item.variant_id,
@@ -823,20 +931,32 @@ export async function placeOrder(
   // 5. Create order items. If this fails, roll back everything: release the
   //    reserved stock (order still present so the movements write), then delete
   //    the order, then give the coupon use back — no orphan order is left behind
-  //    (there is no cross-statement transaction over PostgREST).
+  //    (there is no cross-statement transaction).
   const orderItemsToInsert = validItems.map((item) => ({
-    ...item,
-    order_id: order.id,
+    orderId: order.id,
+    productId: item.product_id,
+    variantId: item.variant_id,
+    name: item.name,
+    variantName: item.variant_name,
+    price: item.price,
+    quantity: item.quantity,
+    total: item.total,
+    taxRate: item.tax_rate,
+    taxAmount: item.tax_amount,
+    taxClassName: item.tax_class_name,
   }));
 
-  const { error: itemsError } = await admin
-    .from("order_items")
-    .insert(orderItemsToInsert);
+  let itemsFailed = false;
+  try {
+    await withService((db) => db.insert(orderItems).values(orderItemsToInsert));
+  } catch (err) {
+    console.error("Order items error:", errMsg(err));
+    itemsFailed = true;
+  }
 
-  if (itemsError) {
-    console.error("Order items error:", itemsError);
+  if (itemsFailed) {
     await releaseStock();
-    await admin.from("orders").delete().eq("id", order.id);
+    await deleteOrder();
     await releaseCoupon();
     return { error: "Failed to save order items. Please try again." };
   }
@@ -855,7 +975,7 @@ export async function placeOrder(
     const amountPaise = Math.round(total * 100);
     const rollback = async () => {
       await releaseStock();
-      await admin.from("orders").delete().eq("id", order.id);
+      await deleteOrder();
       await releaseCoupon();
     };
 
@@ -873,12 +993,19 @@ export async function placeOrder(
       };
     }
 
-    const { error: pinError } = await admin
-      .from("orders")
-      .update({ razorpay_order_id: rzpRes.data.id })
-      .eq("id", order.id);
-    if (pinError) {
-      console.error("placeOrder (razorpay pin):", pinError.message);
+    let pinFailed = false;
+    try {
+      await withService((db) =>
+        db
+          .update(orders)
+          .set({ razorpayOrderId: rzpRes.data.id })
+          .where(eq(orders.id, order.id)),
+      );
+    } catch (err) {
+      console.error("placeOrder (razorpay pin):", errMsg(err));
+      pinFailed = true;
+    }
+    if (pinFailed) {
       await rollback();
       return {
         error:
@@ -917,19 +1044,29 @@ export interface ConfirmPaymentResult {
 // Load an order for payment confirmation, scoped to the host store AND the
 // signed-in shopper — a customer can only ever confirm their own order.
 async function loadOwnRazorpayOrder(
-  admin: ReturnType<typeof createAdminClient>,
   storeId: string,
   userId: string,
   orderId: string,
 ) {
-  const { data: order } = await admin
-    .from("orders")
-    .select("id, payment_method, payment_status, razorpay_order_id")
-    .eq("id", orderId)
-    .eq("store_id", storeId)
-    .eq("customer_id", userId)
-    .maybeSingle();
-  return order as {
+  const rows = await withService((db) =>
+    db
+      .select({
+        id: orders.id,
+        payment_method: orders.paymentMethod,
+        payment_status: orders.paymentStatus,
+        razorpay_order_id: orders.razorpayOrderId,
+      })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.id, orderId),
+          eq(orders.storeId, storeId),
+          eq(orders.customerId, userId),
+        ),
+      )
+      .limit(1),
+  );
+  return (rows[0] ?? null) as {
     id: string;
     payment_method: string;
     payment_status: string;
@@ -941,16 +1078,15 @@ async function loadOwnRazorpayOrder(
 // pending→paid transition is claimed atomically, so the client callback and
 // the reconcile paths can race safely).
 async function markOrderPaid(
-  admin: ReturnType<typeof createAdminClient>,
   orderId: string,
   rzpPaymentId: string,
 ): Promise<void> {
-  const { error } = await admin
-    .from("orders")
-    .update({ payment_status: "paid", razorpay_payment_id: rzpPaymentId })
-    .eq("id", orderId)
-    .eq("payment_status", "pending");
-  if (error) console.error("markOrderPaid:", error.message);
+  await withService((db) =>
+    db
+      .update(orders)
+      .set({ paymentStatus: "paid", razorpayPaymentId: rzpPaymentId })
+      .where(and(eq(orders.id, orderId), eq(orders.paymentStatus, "pending"))),
+  ).catch((err) => console.error("markOrderPaid:", errMsg(err)));
 }
 
 /**
@@ -964,10 +1100,7 @@ export async function confirmOnlinePayment(
   rzpPaymentId: string,
   rzpSignature: string,
 ): Promise<ConfirmPaymentResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "You must be logged in." };
 
   if (
@@ -990,9 +1123,8 @@ export async function confirmOnlinePayment(
   }
 
   const storeId = await getCurrentStoreId();
-  const admin = createAdminClient();
 
-  const order = await loadOwnRazorpayOrder(admin, storeId, user.id, orderId);
+  const order = await loadOwnRazorpayOrder(storeId, user.id, orderId);
   if (!order || order.payment_method !== "razorpay") {
     return { error: "Order not found." };
   }
@@ -1019,7 +1151,7 @@ export async function confirmOnlinePayment(
     return { error: "Payment verification failed." };
   }
 
-  await markOrderPaid(admin, orderId, rzpPaymentId);
+  await markOrderPaid(orderId, rzpPaymentId);
   return { success: true, paid: true };
 }
 
@@ -1032,10 +1164,7 @@ export async function confirmOnlinePayment(
 export async function reconcileMyOrderPayment(
   orderId: string,
 ): Promise<ConfirmPaymentResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getServerUser();
   if (!user) return { error: "You must be logged in." };
   if (typeof orderId !== "string" || !orderId) {
     return { error: "Order not found." };
@@ -1048,9 +1177,8 @@ export async function reconcileMyOrderPayment(
   if (!rl.allowed) return { error: "Too many attempts." };
 
   const storeId = await getCurrentStoreId();
-  const admin = createAdminClient();
 
-  const order = await loadOwnRazorpayOrder(admin, storeId, user.id, orderId);
+  const order = await loadOwnRazorpayOrder(storeId, user.id, orderId);
   if (!order || order.payment_method !== "razorpay") {
     return { error: "Order not found." };
   }
@@ -1071,6 +1199,6 @@ export async function reconcileMyOrderPayment(
   const captured = capturedPayment(payments.data);
   if (!captured) return { success: true, paid: false };
 
-  await markOrderPaid(admin, orderId, captured.id);
+  await markOrderPaid(orderId, captured.id);
   return { success: true, paid: true };
 }

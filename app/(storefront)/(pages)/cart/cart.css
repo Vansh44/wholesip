@@ -1,21 +1,21 @@
 /* ============================================================
    Storefront Cart page
-   Driven by the global --wholesip-* tokens (cream canvas + ink
+   Driven by the global --sm-* tokens (cream canvas + ink
    accent). Mirrors the shop/PDP token mapping for consistency.
    ============================================================ */
 
 .cart-main {
-  --cart-bg: var(--wholesip-cream);
-  --cart-surface: var(--wholesip-surface);
-  --cart-surface-alt: var(--wholesip-cream-deep);
-  --cart-text: var(--wholesip-ink);
-  --cart-text-muted: var(--wholesip-ink-soft);
-  --cart-text-faint: var(--wholesip-ink-faint);
-  --cart-border: var(--wholesip-border);
-  --cart-accent: var(--wholesip-accent);
-  --cart-accent-hover: var(--wholesip-accent-deep);
-  --cart-accent-soft: rgba(var(--wholesip-shadow-rgb), 0.08);
-  --cart-on-accent: var(--wholesip-on-accent);
+  --cart-bg: var(--sm-cream);
+  --cart-surface: var(--sm-surface);
+  --cart-surface-alt: var(--sm-cream-deep);
+  --cart-text: var(--sm-ink);
+  --cart-text-muted: var(--sm-ink-soft);
+  --cart-text-faint: var(--sm-ink-faint);
+  --cart-border: var(--sm-border);
+  --cart-accent: var(--sm-accent);
+  --cart-accent-hover: var(--sm-accent-deep);
+  --cart-accent-soft: rgba(var(--sm-shadow-rgb), 0.08);
+  --cart-on-accent: var(--sm-on-accent);
 
   min-height: 100vh;
   background: var(--cart-bg);
@@ -201,7 +201,7 @@
 .cart-item-max {
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--wholesip-error, #c2410c);
+  color: var(--sm-error, #c2410c);
 }
 
 .cart-stepper-value {
@@ -396,8 +396,8 @@
    ============================================================ */
 .gcart-main {
   min-height: 100vh;
-  background: var(--wholesip-cream);
-  color: var(--wholesip-ink);
+  background: var(--sm-cream);
+  color: var(--sm-ink);
   padding: 120px 24px 80px;
 }
 @media (min-width: 768px) {
@@ -413,17 +413,17 @@
   max-width: 1120px;
   margin: 0 auto 18px;
   font-size: 0.9rem;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 .gcart-breadcrumb a {
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   text-decoration: none;
 }
 .gcart-breadcrumb a:hover {
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 .gcart-breadcrumb-current {
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   font-weight: 600;
 }
 
@@ -438,7 +438,7 @@
 .gcart-subtitle {
   max-width: 1120px;
   margin: 6px auto 32px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 
 .gcart-layout {
@@ -470,7 +470,7 @@
   align-items: center;
   gap: 20px;
   padding: 20px 0;
-  border-bottom: 1px solid var(--wholesip-border);
+  border-bottom: 1px solid var(--sm-border);
 }
 .gcart-item:first-child {
   padding-top: 0;
@@ -481,7 +481,7 @@
   height: 88px;
   border-radius: 16px;
   overflow: hidden;
-  background: var(--wholesip-cream-deep);
+  background: var(--sm-cream-deep);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -490,7 +490,7 @@
   object-fit: cover;
 }
 .gcart-item-img-ph {
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 .gcart-item-main {
   display: flex;
@@ -502,7 +502,7 @@
   font-family: var(--font-outfit), sans-serif;
   font-weight: 700;
   font-size: 1.1rem;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   text-decoration: none;
   line-height: 1.25;
 }
@@ -511,7 +511,7 @@
 }
 .gcart-item-sub {
   font-size: 0.85rem;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 .gcart-item-remove {
   align-self: flex-start;
@@ -520,18 +520,18 @@
   border: none;
   padding: 0;
   font-size: 0.82rem;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
   cursor: pointer;
 }
 .gcart-item-remove:hover {
-  color: var(--wholesip-accent, var(--brand-primary));
+  color: var(--sm-accent, var(--brand-primary));
   text-decoration: underline;
 }
 .gcart-item-total {
   font-family: var(--font-outfit), sans-serif;
   font-weight: 800;
   font-size: 1.1rem;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   text-align: right;
   min-width: 64px;
 }
@@ -540,9 +540,9 @@
 .gcart-stepper {
   display: inline-flex;
   align-items: center;
-  background: var(--wholesip-surface);
-  border: 1px solid var(--wholesip-border);
-  border-radius: var(--wholesip-radius-pill, 999px);
+  background: var(--sm-surface);
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill, 999px);
   padding: 3px;
 }
 .gcart-stepper button {
@@ -553,11 +553,11 @@
   border-radius: 999px;
   font-size: 1.2rem;
   line-height: 1;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   cursor: pointer;
 }
 .gcart-stepper button:hover:not(:disabled) {
-  background: var(--wholesip-cream-deep);
+  background: var(--sm-cream-deep);
 }
 .gcart-stepper button:disabled {
   opacity: 0.4;
@@ -568,7 +568,7 @@
   margin-top: 4px;
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--wholesip-error, #c2410c);
+  color: var(--sm-error, #c2410c);
 }
 .gcart-stepper span {
   min-width: 34px;
@@ -578,7 +578,7 @@
 
 /* Summary card */
 .gcart-summary {
-  background: var(--wholesip-butter);
+  background: var(--sm-butter);
   border-radius: 22px;
   padding: 26px;
   position: sticky;
@@ -597,17 +597,17 @@
   gap: 12px;
   font-size: 0.98rem;
   margin-bottom: 12px;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 .gcart-summary-row span:last-child {
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   font-weight: 600;
 }
 .gcart-savings span:last-child {
-  color: var(--wholesip-accent, var(--brand-primary));
+  color: var(--sm-accent, var(--brand-primary));
 }
 .gcart-free {
-  color: var(--wholesip-success);
+  color: var(--sm-success);
   font-weight: 700;
 }
 .gcart-coupon {
@@ -615,7 +615,7 @@
 }
 .gcart-summary-divider {
   height: 1px;
-  background: rgba(var(--wholesip-shadow-rgb), 0.12);
+  background: rgba(var(--sm-shadow-rgb), 0.12);
   margin: 8px 0 16px;
 }
 .gcart-summary-total {
@@ -624,26 +624,26 @@
 }
 .gcart-tax-note {
   font-size: 0.8rem;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
   margin: 0 0 20px;
 }
 .gcart-saving-note {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--wholesip-success);
+  color: var(--sm-success);
   margin: 0 0 20px;
 }
 .gcart-summary-total span {
   font-family: var(--font-outfit), sans-serif;
   font-weight: 800 !important;
-  color: var(--wholesip-ink) !important;
+  color: var(--sm-ink) !important;
 }
 .gcart-checkout-btn {
   width: 100%;
   border: none;
-  background: var(--wholesip-accent, var(--brand-primary));
-  color: var(--wholesip-on-accent);
-  border-radius: var(--wholesip-radius-pill, 999px);
+  background: var(--sm-accent, var(--brand-primary));
+  color: var(--sm-on-accent);
+  border-radius: var(--sm-radius-pill, 999px);
   padding: 15px 20px;
   font-family: var(--font-outfit), sans-serif;
   font-size: 1rem;
@@ -660,11 +660,11 @@
   margin-top: 14px;
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   text-decoration: none;
 }
 .gcart-continue:hover {
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 /* Empty / loading */
@@ -672,7 +672,7 @@
   max-width: 1120px;
   margin: 0 auto;
   text-align: center;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   padding: 60px 0;
 }
 .gcart-empty {
@@ -682,7 +682,7 @@
   padding: 40px 0;
 }
 .gcart-empty-icon {
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
   margin-bottom: 14px;
 }
 .gcart-empty-title {
@@ -692,14 +692,14 @@
   margin: 0 0 8px;
 }
 .gcart-empty-sub {
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   margin: 0 0 24px;
 }
 .gcart-empty-cta {
   display: inline-block;
-  background: var(--wholesip-accent, var(--brand-primary));
-  color: var(--wholesip-on-accent);
-  border-radius: var(--wholesip-radius-pill, 999px);
+  background: var(--sm-accent, var(--brand-primary));
+  color: var(--sm-on-accent);
+  border-radius: var(--sm-radius-pill, 999px);
   padding: 13px 30px;
   font-weight: 700;
   text-decoration: none;

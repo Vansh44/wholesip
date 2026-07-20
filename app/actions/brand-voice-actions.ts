@@ -1,6 +1,8 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { storeBrandProfiles, stores } from "@/drizzle/schema";
 import { getActingStoreId, getManagerUserId } from "@/app/dashboard/lib/access";
 import { callGemini } from "@/lib/ai/gemini";
 import {
@@ -61,16 +63,26 @@ export async function saveBrandVoice(input: {
   const structured = normalizeStructured(input?.structured);
 
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
-  const { error } = await admin.from("store_brand_profiles").upsert({
-    store_id: storeId,
-    content_md: content,
+  const updateFields = {
+    contentMd: content,
     structured,
-    updated_at: new Date().toISOString(),
-    updated_by: userId,
-  });
-  if (error) {
-    console.error("saveBrandVoice:", error.message);
+    updatedAt: new Date().toISOString(),
+    updatedBy: userId,
+  };
+  try {
+    // One row per store: upsert keyed on store_id (store_brand_profiles is
+    // service-only — the manage check above is the gate).
+    await withService((db) =>
+      db
+        .insert(storeBrandProfiles)
+        .values({ storeId, ...updateFields })
+        .onConflictDoUpdate({
+          target: storeBrandProfiles.storeId,
+          set: updateFields,
+        }),
+    );
+  } catch (err) {
+    console.error("saveBrandVoice:", err instanceof Error ? err.message : err);
     return { error: "Could not save your brand voice. Please try again." };
   }
   return { success: true };
@@ -98,13 +110,19 @@ export async function generateBrandVoice(
   const quota = await consumeAiQuota(storeId);
   if (!quota.allowed) return { error: quota.error };
 
-  const admin = createAdminClient();
-  const { data: store } = await admin
-    .from("stores")
-    .select("name")
-    .eq("id", storeId)
-    .maybeSingle();
-  const storeName = (store?.name as string) || "this store";
+  let storeName = "this store";
+  try {
+    const rows = await withService((db) =>
+      db
+        .select({ name: stores.name })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1),
+    );
+    storeName = rows[0]?.name || "this store";
+  } catch (err) {
+    console.error("generateBrandVoice store read:", err);
+  }
 
   const answers = [
     `Store name: ${storeName}`,

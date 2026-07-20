@@ -1,7 +1,9 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService } from "@/lib/db/client";
+import { storeMenus } from "@/drizzle/schema";
 import { TAGS } from "@/lib/storefront/tags";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import {
@@ -20,13 +22,26 @@ import {
  */
 export async function getStoreMenusForEditor(): Promise<StoreMenus> {
   const storeId = await getActingStoreId();
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("store_menus")
-    .select("header, footer_groups, footer_legal")
-    .eq("store_id", storeId)
-    .maybeSingle();
-  return normalizeMenus(data);
+  try {
+    const rows = await withService((db) =>
+      db
+        .select({
+          header: storeMenus.header,
+          footer_groups: storeMenus.footerGroups,
+          footer_legal: storeMenus.footerLegal,
+        })
+        .from(storeMenus)
+        .where(eq(storeMenus.storeId, storeId))
+        .limit(1),
+    );
+    return normalizeMenus(rows[0] ?? null);
+  } catch (err) {
+    console.error(
+      "getStoreMenusForEditor:",
+      err instanceof Error ? err.message : err,
+    );
+    return normalizeMenus(null);
+  }
 }
 
 export async function saveStoreMenus(
@@ -37,19 +52,28 @@ export async function saveStoreMenus(
   const storeId = await getActingStoreId();
 
   const menus = sanitizeMenusForSave(input);
-  const admin = createAdminClient();
-  const { error } = await admin.from("store_menus").upsert(
-    {
-      store_id: storeId,
-      header: menus.header,
-      footer_groups: menus.footerGroups,
-      footer_legal: menus.footerLegal,
-      updated_by: userId,
-    },
-    { onConflict: "store_id" },
-  );
-  if (error) {
-    console.error("saveStoreMenus error:", error.message);
+  const updateFields = {
+    header: menus.header,
+    footerGroups: menus.footerGroups,
+    footerLegal: menus.footerLegal,
+    updatedBy: userId,
+  };
+  try {
+    // One row per store: upsert keyed on store_id.
+    await withService((db) =>
+      db
+        .insert(storeMenus)
+        .values({ storeId, ...updateFields })
+        .onConflictDoUpdate({
+          target: storeMenus.storeId,
+          set: updateFields,
+        }),
+    );
+  } catch (err) {
+    console.error(
+      "saveStoreMenus error:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "Could not save navigation. Please try again." };
   }
 

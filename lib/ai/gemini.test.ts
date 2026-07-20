@@ -4,6 +4,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import { GEMINI_MODEL, brandSystemText, callGemini } from "./gemini";
 
+// Mock ADC token minting so the Vertex AI path can be tested without real
+// Google Cloud credentials. Only the token fn is a vi.fn (re-armed per test);
+// GoogleAuth is a plain class so it survives the other suites' restoreAllMocks.
+const { mockGetAccessToken } = vi.hoisted(() => ({
+  mockGetAccessToken: vi.fn(async () => ({ token: "vertex-token" })),
+}));
+vi.mock("google-auth-library", () => ({
+  GoogleAuth: class {
+    getClient() {
+      return Promise.resolve({ getAccessToken: mockGetAccessToken });
+    }
+  },
+}));
+
 // Build a minimal fake fetch Response.
 function fakeResponse({
   ok,
@@ -55,8 +69,13 @@ describe("callGemini", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
     vi.stubEnv("GEMINI_API_KEY", "test-key");
-    // Silence the source's console.error noise on the failure paths.
+    // Pin this suite to the Gemini Developer API path (no GCP project) so the
+    // x-goog-api-key assertions are deterministic regardless of local .env.
+    vi.stubEnv("GCP_PROJECT_ID", "");
+    // Silence the logger's structured output (info/warn/error) during tests.
     vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -266,5 +285,83 @@ describe("callGemini", () => {
 
     const result = await callGemini("s", "u");
     expect(result.error).toBe("The AI returned an empty response. Try again.");
+  });
+});
+
+describe("callGemini (Vertex AI backend)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+    // A configured GCP project switches the backend to Vertex AI.
+    vi.stubEnv("GCP_PROJECT_ID", "my-project");
+    // Empty location -> defaults to the "global" host; empty API key proves the
+    // Vertex path does NOT fall back to the Developer API.
+    vi.stubEnv("GCP_LOCATION", "");
+    vi.stubEnv("GEMINI_API_KEY", "");
+    mockGetAccessToken.mockReset();
+    mockGetAccessToken.mockResolvedValue({ token: "vertex-token" });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("routes to the regional Vertex endpoint with a bearer token", async () => {
+    vi.stubEnv("GCP_LOCATION", "us-central1");
+    (fetch as any).mockResolvedValue(
+      fakeResponse({ ok: true, status: 200, json: okJson("hi") }),
+    );
+
+    const result = await callGemini("sys", "user");
+    expect(result).toEqual({ text: "hi" });
+
+    const [url, init] = (fetch as any).mock.calls[0];
+    expect(url).toBe(
+      `https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/publishers/google/models/${GEMINI_MODEL}:generateContent`,
+    );
+    expect(init.headers.Authorization).toBe("Bearer vertex-token");
+    expect(init.headers["x-goog-api-key"]).toBeUndefined();
+    // Request body is identical to the Developer API path.
+    const body = JSON.parse(init.body);
+    expect(body.systemInstruction.parts[0].text).toBe("sys");
+    expect(body.contents[0].parts[0].text).toBe("user");
+    expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
+  });
+
+  it("uses the global host when GCP_LOCATION is unset", async () => {
+    (fetch as any).mockResolvedValue(
+      fakeResponse({ ok: true, status: 200, json: okJson("ok") }),
+    );
+
+    await callGemini("s", "u");
+    const [url] = (fetch as any).mock.calls[0];
+    expect(url).toBe(
+      `https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/publishers/google/models/${GEMINI_MODEL}:generateContent`,
+    );
+  });
+
+  it("errors (without calling fetch) when ADC credentials can't be resolved", async () => {
+    mockGetAccessToken.mockRejectedValue(new Error("no ADC"));
+    (fetch as any).mockResolvedValue(
+      fakeResponse({ ok: true, status: 200, json: okJson("x") }),
+    );
+
+    const result = await callGemini("s", "u");
+    expect(result.error).toContain("Could not obtain Google Cloud credentials");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("returns the Vertex-specific rejection message on a 403", async () => {
+    (fetch as any).mockResolvedValue(
+      fakeResponse({ ok: false, status: 403, text: "denied" }),
+    );
+
+    const result = await callGemini("s", "u");
+    expect(result.error).toContain("Vertex AI User");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

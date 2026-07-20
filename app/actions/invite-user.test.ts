@@ -1,9 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { makeDbMock } from "./_test-helpers";
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+vi.mock("@/lib/auth/firebase-users", () => ({
+  createAuthUser: vi.fn(async () => "new-user"),
+  deleteAuthUser: vi.fn(async () => {}),
+  authErrorCode: vi.fn(() => undefined),
+}));
+vi.mock("@/lib/auth/firebase-claims", () => ({
+  setUserClaims: vi.fn(async () => {}),
+}));
+vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 vi.mock("@/lib/email/layout", () => ({
   wrapBrandedEmail: vi.fn((s: string) => s),
 }));
@@ -29,10 +37,20 @@ vi.mock("resend", () => {
   return { Resend };
 });
 
+// The ported data layer: with* runners invoke the callback with the mock db.
+const dbHolder = vi.hoisted(() => ({ current: null as any }));
+vi.mock("@/lib/db/client", () => ({
+  withUser: vi.fn((_identity: any, fn: any) =>
+    Promise.resolve(fn(dbHolder.current.db)),
+  ),
+  withService: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+  withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
+}));
+
 import { inviteUser } from "./invite-user";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { makeChain, makeSupabase } from "./_test-helpers";
+import { createAuthUser, deleteAuthUser } from "@/lib/auth/firebase-users";
+import { setUserClaims } from "@/lib/auth/firebase-claims";
+import { getServerUser } from "@/lib/auth/server-user";
 
 function makeFormData(fields: Record<string, string | null | undefined>) {
   const fd = new FormData();
@@ -42,12 +60,21 @@ function makeFormData(fields: Record<string, string | null | undefined>) {
   return fd;
 }
 
+// The caller-role gate reads via withUser (select #1 = role + store_id), the
+// email-collision check via withService (select #2). superadmin, in-store.
+function superadminCaller(existingEmail = false) {
+  dbHolder.current = makeDbMock({
+    selectQueue: [
+      [{ role: "superadmin", store_id: "store-1" }],
+      existingEmail ? [{ id: "existing" }] : [],
+    ],
+  });
+}
+
 // invite-user.ts — superadmin-only action that creates a new dashboard user.
-// Generates a cryptographically-secure temp password, sends the credentials
-// via Resend (or logs them in dev fallback).
+// Profile reads/writes are on Drizzle; the auth account (Identity Platform) +
+// custom claims + the Resend email stay on their providers.
 describe("inviteUser", () => {
-  let supabase: any;
-  let admin: any;
   const validForm = {
     firstName: "Ada",
     lastName: "Lovelace",
@@ -60,17 +87,19 @@ describe("inviteUser", () => {
     resendSend.mockClear();
     resendSend.mockResolvedValue({});
     process.env.RESEND_API_KEY = "re_actual_key";
-    supabase = makeSupabase({
-      admins: makeChain({ data: { role: "superadmin" }, error: null }),
-    });
-    vi.mocked(createClient).mockResolvedValue(supabase);
-    admin = makeSupabase({
-      admins: makeChain({ data: null, error: null }), // not already-taken
-    });
-    vi.mocked(createAdminClient).mockReturnValue(admin);
+    superadminCaller();
+    vi.mocked(getServerUser).mockResolvedValue({
+      id: "caller-1",
+      email: "super@example.com",
+      phone: null,
+      phoneConfirmed: true,
+      metadata: {},
+    } as any);
+    vi.mocked(createAuthUser).mockResolvedValue("new-user");
+    vi.mocked(deleteAuthUser).mockResolvedValue();
+    vi.mocked(setUserClaims).mockResolvedValue();
   });
 
-  // Field-level validation runs before any DB call.
   it("rejects empty first name", async () => {
     const result = await inviteUser(
       makeFormData({ ...validForm, firstName: "" }),
@@ -83,7 +112,6 @@ describe("inviteUser", () => {
     expect(result.error).toMatch(/valid email/i);
   });
 
-  // Only superadmin / member are valid roles for the legacy invite endpoint.
   it("rejects unknown role", async () => {
     const result = await inviteUser(
       makeFormData({ ...validForm, role: "ghost" }),
@@ -91,70 +119,61 @@ describe("inviteUser", () => {
     expect(result.error).toMatch(/invalid role/i);
   });
 
-  // Anonymous visitors cannot invite — even before reaching the DB.
   it("rejects unauthenticated callers", async () => {
-    supabase.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+    vi.mocked(getServerUser).mockResolvedValue(null);
     const result = await inviteUser(makeFormData(validForm));
     expect(result.error).toMatch(/not authenticated/i);
   });
 
-  // Only superadmins can invite — verifies even a 'member' caller is blocked.
   it("rejects non-superadmin callers", async () => {
-    supabase._tables.admins = makeChain({
-      data: { role: "member" },
-      error: null,
+    dbHolder.current = makeDbMock({
+      selectQueue: [[{ role: "member", store_id: "store-1" }]],
     });
     const result = await inviteUser(makeFormData(validForm));
     expect(result.error).toMatch(/unauthorized|superadmin/i);
   });
 
-  // Email collision check at the admins layer (auth catches duplicates too,
-  // but a phone-only auth account can collide at the profile layer).
   it("rejects when a profile with that email already exists", async () => {
-    admin._tables.admins = makeChain({
-      data: { id: "existing" },
-      error: null,
-    });
+    superadminCaller(true);
     const result = await inviteUser(makeFormData(validForm));
     expect(result.error).toMatch(/already exists/i);
+    expect(createAuthUser).not.toHaveBeenCalled();
   });
 
-  // Happy path — creates the auth user and inserts the profile, then sends
-  // the welcome email via Resend (mocked here).
-  it("creates the auth user + profile and sends invite email", async () => {
+  it("creates the auth user + profile, sets claims, and sends invite email", async () => {
     const result = await inviteUser(makeFormData(validForm));
     expect(result.success).toBe(true);
-    expect(admin.auth.admin.createUser).toHaveBeenCalledWith(
+    expect(createAuthUser).toHaveBeenCalledWith(
       expect.objectContaining({
         email: "ada@example.com",
-        email_confirm: true,
+        emailVerified: true,
       }),
     );
-    expect(admin._tables.admins.upsert).toHaveBeenCalled();
+    // Profile upserted with the new auth id + inviter's store.
+    expect(dbHolder.current.calls.values[0]).toMatchObject({
+      id: "new-user",
+      email: "ada@example.com",
+      storeId: "store-1",
+      invitedBy: "caller-1",
+    });
+    // Role + force-reset mirrored into the auth token as custom claims.
+    expect(setUserClaims).toHaveBeenCalledWith("new-user", {
+      role: "member",
+      forcePasswordReset: true,
+    });
     expect(resendSend).toHaveBeenCalledTimes(1);
   });
 
-  // If profile insert fails, the auth user must be cleaned up — leaves no
-  // orphan auth accounts.
   it("cleans up the auth user if profile insert fails", async () => {
-    admin._tables.admins = makeChain({
-      data: null,
-      error: { code: "boom", message: "no" },
+    superadminCaller();
+    dbHolder.current.db.insert = vi.fn(() => {
+      throw new Error("no");
     });
-    // Force the upsert path to return the error result rather than success.
-    admin._tables.admins.upsert = vi.fn(() => admin._tables.admins);
-    admin._tables.admins.then = (resolve: any) =>
-      Promise.resolve({
-        data: null,
-        error: { code: "boom", message: "no" },
-      }).then(resolve);
     const result = await inviteUser(makeFormData(validForm));
     expect(result.error).toMatch(/failed to create user profile/i);
-    expect(admin.auth.admin.deleteUser).toHaveBeenCalled();
+    expect(deleteAuthUser).toHaveBeenCalledWith("new-user");
   });
 
-  // When no Resend key is configured (dev fallback) the action still succeeds
-  // and the temp password is printed to the console — never the other way.
   it("falls back gracefully without RESEND_API_KEY (dev mode)", async () => {
     process.env.RESEND_API_KEY = "placeholder";
     const result = await inviteUser(makeFormData(validForm));
@@ -162,9 +181,6 @@ describe("inviteUser", () => {
     expect(resendSend).not.toHaveBeenCalled();
   });
 
-  // HTML escaping is the only defence against an attacker-controlled name
-  // landing inside the invite email body. Without it, < and > would render
-  // as raw HTML.
   it("escapes HTML in the invitee name within the email body", async () => {
     await inviteUser(
       makeFormData({ ...validForm, firstName: "<img/onerror=x>" }),

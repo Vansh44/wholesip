@@ -1,8 +1,11 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { getCurrentStoreId } from "@/lib/store/resolve";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { getServerUser } from "@/lib/auth/server-user";
+import { getCurrentStoreId } from "@/lib/store/resolve";
+import { withUser } from "@/lib/db/client";
+import { productReviews, users } from "@/drizzle/schema";
 
 export interface ReviewFormData {
   product_id: string;
@@ -22,11 +25,7 @@ export interface ActionResult {
 export async function submitReview(
   form: ReviewFormData,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getServerUser();
   if (!user) {
     return { error: "Please sign in to write a review." };
   }
@@ -38,36 +37,51 @@ export async function submitReview(
 
   // The reviewer's name is snapshotted onto the review (customers is own-row
   // only under RLS, so public readers can't join to it).
-  const { data: customer } = await supabase
-    .from("users")
-    .select("first_name, last_name")
-    .eq("id", user.id)
-    .single();
+  const [customer] = await withUser({ uid: user.id }, (db) =>
+    db
+      .select({ firstName: users.firstName, lastName: users.lastName })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1),
+  );
 
   if (!customer) {
     return { error: "Complete your profile before writing a review." };
   }
 
-  const authorName = `${customer.first_name ?? ""}${
-    customer.last_name ? " " + customer.last_name : ""
+  const authorName = `${customer.firstName ?? ""}${
+    customer.lastName ? " " + customer.lastName : ""
   }`.trim();
 
-  const { error } = await supabase.from("product_reviews").upsert(
-    {
-      product_id: form.product_id,
-      user_id: user.id,
-      author_name: authorName || "Anonymous",
-      rating,
-      comment: form.comment.trim() || null,
-      updated_at: new Date().toISOString(),
-      store_id: await getCurrentStoreId(),
-    },
-    { onConflict: "product_id,user_id" },
-  );
+  const reviewFields = {
+    authorName: authorName || "Anonymous",
+    rating,
+    comment: form.comment.trim() || null,
+    updatedAt: new Date().toISOString(),
+  };
 
-  if (error) {
-    console.error("submitReview error:", error);
-    return { error: error.message };
+  const storeId = await getCurrentStoreId();
+  try {
+    // RLS (own-row insert/update policies) enforces ownership at the DB layer.
+    await withUser({ uid: user.id }, (db) =>
+      db
+        .insert(productReviews)
+        .values({
+          productId: form.product_id,
+          userId: user.id,
+          storeId,
+          ...reviewFields,
+        })
+        .onConflictDoUpdate({
+          target: [productReviews.productId, productReviews.userId],
+          set: reviewFields,
+        }),
+    );
+  } catch (err) {
+    console.error("submitReview error:", err);
+    return {
+      error: err instanceof Error ? err.message : "Failed to save review.",
+    };
   }
 
   revalidatePath(`/shop/${form.slug}`);
@@ -79,21 +93,18 @@ export async function deleteReview(
   reviewId: string,
   slug: string,
 ): Promise<ActionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getServerUser();
   if (!user) return { error: "Please sign in." };
 
-  const { error } = await supabase
-    .from("product_reviews")
-    .delete()
-    .eq("id", reviewId);
-
-  if (error) {
-    console.error("deleteReview error:", error);
-    return { error: error.message };
+  try {
+    await withUser({ uid: user.id }, (db) =>
+      db.delete(productReviews).where(eq(productReviews.id, reviewId)),
+    );
+  } catch (err) {
+    console.error("deleteReview error:", err);
+    return {
+      error: err instanceof Error ? err.message : "Failed to delete review.",
+    };
   }
 
   revalidatePath(`/shop/${slug}`);

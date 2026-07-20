@@ -1,8 +1,10 @@
 "use server";
 
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { withService } from "@/lib/db/client";
+import { enquiries } from "@/drizzle/schema";
 import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
 import { getCurrentStoreId } from "@/lib/store/resolve";
 import { getStoreBrand } from "@/lib/store/brand";
@@ -34,8 +36,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /**
  * Storefront submission. Enquiries are ANONYMOUS — the enquirer is never logged
  * in and no customer account is created. The phone is verified client-side via
- * a throwaway (non-persisting) OTP client before this runs; here we simply store
- * what was submitted using the service-role admin client (so no auth session is
+ * a throwaway (non-persisting) OTP client before this runs; here we simply
+ * store what was submitted using the service scope (so no auth session is
  * required). Sends a best-effort acknowledgement email and never blocks success
  * on it.
  */
@@ -72,19 +74,21 @@ export async function submitEnquiry(
     };
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.from("enquiries").insert({
-    name,
-    email,
-    phone,
-    subject,
-    subject_detail: subjectDetail,
-    message,
-    store_id: await getCurrentStoreId(),
-  });
-
-  if (error) {
-    console.error("Failed to insert enquiry:", error);
+  const storeId = await getCurrentStoreId();
+  try {
+    await withService((db) =>
+      db.insert(enquiries).values({
+        name,
+        email,
+        phone,
+        subject,
+        subjectDetail,
+        message,
+        storeId,
+      }),
+    );
+  } catch (err) {
+    console.error("Failed to insert enquiry:", err);
     return {
       error: "Something went wrong saving your enquiry. Please try again.",
     };
@@ -128,17 +132,18 @@ export async function updateEnquiryStatus(
     return { error: "Invalid status." };
   }
 
-  // Scope by store_id — service role bypasses RLS, so an id alone would let a
-  // store admin mutate another store's enquiry.
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("enquiries")
-    .update({ status })
-    .eq("id", id)
-    .eq("store_id", await getActingStoreId());
-
-  if (error) {
-    console.error("Failed to update enquiry status:", error);
+  // Scope by store_id — the service scope bypasses RLS, so an id alone would
+  // let a store admin mutate another store's enquiry.
+  const storeId = await getActingStoreId();
+  try {
+    await withService((db) =>
+      db
+        .update(enquiries)
+        .set({ status })
+        .where(and(eq(enquiries.id, id), eq(enquiries.storeId, storeId))),
+    );
+  } catch (err) {
+    console.error("Failed to update enquiry status:", err);
     return { error: "Failed to update status. Please try again." };
   }
 
@@ -153,15 +158,15 @@ export async function deleteEnquiry(id: string): Promise<ActionResult> {
     return { error: "You don't have permission to manage enquiries." };
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("enquiries")
-    .delete()
-    .eq("id", id)
-    .eq("store_id", await getActingStoreId());
-
-  if (error) {
-    console.error("Failed to delete enquiry:", error);
+  const storeId = await getActingStoreId();
+  try {
+    await withService((db) =>
+      db
+        .delete(enquiries)
+        .where(and(eq(enquiries.id, id), eq(enquiries.storeId, storeId))),
+    );
+  } catch (err) {
+    console.error("Failed to delete enquiry:", err);
     return { error: "Failed to delete enquiry. Please try again." };
   }
 

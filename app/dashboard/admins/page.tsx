@@ -1,5 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { asc, desc, eq } from "drizzle-orm";
+import { withService } from "@/lib/db/client";
+import { admins, roles } from "@/drizzle/schema";
 import { requireSectionAccess, getActingStoreId } from "../lib/access";
 import { UsersManagementView } from "./users-management-view";
 
@@ -25,28 +26,46 @@ export default async function UsersPage() {
   const canManage = access.can("admins", "manage");
   const storeId = await getActingStoreId();
 
-  const supabase = await createClient();
-
-  // The admins (staff) table is RLS-scoped to own-row reads for the session
-  // client, so cross-row listing goes through the service-role admin client —
+  // The admins (staff) table is RLS-scoped to own-row reads, so cross-row
+  // listing goes through the service scope with an explicit store filter —
   // same pattern as the Users (customers) list. The page is already gated by
   // requireSectionAccess("admins", "view") above.
-  const admin = createAdminClient();
-
-  const { data: profiles, error } = await admin
-    .from("admins")
-    .select("*")
-    .eq("store_id", storeId)
-    .order("created_at", { ascending: false });
-
-  const { data: rolesData } = await supabase
-    .from("roles")
-    .select("slug, name, color")
-    .order("is_system", { ascending: false })
-    .order("name", { ascending: true });
-
-  if (error) {
-    console.error("Failed to load admins:", error);
+  let profiles: Profile[];
+  let rolesData: RoleOption[];
+  try {
+    ({ profiles, rolesData } = await withService(async (db) => {
+      const [profiles, rolesData] = await Promise.all([
+        db
+          .select({
+            id: admins.id,
+            email: admins.email,
+            first_name: admins.firstName,
+            last_name: admins.lastName,
+            role: admins.role,
+            force_password_reset: admins.forcePasswordReset,
+            is_suspended: admins.isSuspended,
+            created_at: admins.createdAt,
+          })
+          .from(admins)
+          .where(eq(admins.storeId, storeId))
+          .orderBy(desc(admins.createdAt)),
+        db
+          .select({
+            slug: roles.slug,
+            name: roles.name,
+            color: roles.color,
+          })
+          .from(roles)
+          .where(eq(roles.storeId, storeId))
+          .orderBy(desc(roles.isSystem), asc(roles.name)),
+      ]);
+      return {
+        profiles: profiles as Profile[],
+        rolesData: rolesData as RoleOption[],
+      };
+    }));
+  } catch (err) {
+    console.error("Failed to load admins:", err);
     return (
       <div className="max-w-md border border-destructive/20 bg-destructive/5 p-6 text-sm text-destructive">
         <div className="mb-1 flex items-center gap-2 font-semibold">
@@ -62,8 +81,8 @@ export default async function UsersPage() {
 
   // Fall back to the two built-in roles if the roles table isn't seeded yet.
   const roleOptions: RoleOption[] =
-    rolesData && rolesData.length > 0
-      ? (rolesData as RoleOption[])
+    rolesData.length > 0
+      ? rolesData
       : [
           { slug: "superadmin", name: "Superadmin", color: "violet" },
           { slug: "member", name: "Member", color: "blue" },
@@ -72,7 +91,7 @@ export default async function UsersPage() {
   return (
     <UsersManagementView
       currentUserId={access.userId}
-      profiles={(profiles ?? []) as Profile[]}
+      profiles={profiles}
       roleOptions={roleOptions}
       canManage={canManage}
     />

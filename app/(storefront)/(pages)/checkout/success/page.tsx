@@ -45,8 +45,8 @@ function SuccessContent() {
             drag the text to dark ink on this accent-filled button). */}
         <Link
           href="/shop"
-          className="inline-flex w-full items-center justify-center rounded-[var(--wholesip-radius-control)] bg-[var(--wholesip-accent)] px-8 py-3.5 text-base font-semibold transition-colors hover:bg-[var(--wholesip-accent-deep)] sm:w-auto"
-          style={{ color: "var(--wholesip-on-accent)" }}
+          className="inline-flex w-full items-center justify-center rounded-[var(--sm-radius-control)] bg-[var(--sm-accent)] px-8 py-3.5 text-base font-semibold transition-colors hover:bg-[var(--sm-accent-deep)] sm:w-auto"
+          style={{ color: "var(--sm-on-accent)" }}
         >
           Continue Shopping
         </Link>

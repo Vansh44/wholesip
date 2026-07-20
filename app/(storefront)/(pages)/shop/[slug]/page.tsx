@@ -1,7 +1,14 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { createPublicClient } from "@/lib/supabase/public";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
+import { withAnon } from "@/lib/db/client";
+import {
+  categories,
+  productReviews,
+  productVariants,
+  products,
+} from "@/drizzle/schema";
 import { requireStorefrontStoreId } from "@/lib/store/resolve";
 import { getStorefrontLayout } from "@/lib/store/storefront-layout";
 import { getStoreSetting } from "@/lib/settings/resolve";
@@ -31,24 +38,82 @@ type PageProps = {
 // per render instead of fetching the same product row twice.
 const getProduct = cache(
   async (slug: string, storeId: string): Promise<DetailProduct | null> => {
-    const supabase = createPublicClient();
-    const { data } = await supabase
-      .from("products")
-      .select(
-        "id, name, slug, description, category_id, base_price, selling_price, image_url, images, status, seo_title, seo_description, track_inventory, stock, low_stock_threshold, allow_backorder, category:categories(id, name, slug, status), variants:product_variants(*)",
-      )
-      .eq("store_id", storeId)
-      .eq("slug", slug)
-      .eq("status", "published")
-      .single();
+    try {
+      return await withAnon(async (db) => {
+        const rows = await db
+          .select({
+            id: products.id,
+            name: products.name,
+            slug: products.slug,
+            description: products.description,
+            category_id: products.categoryId,
+            base_price: products.basePrice,
+            selling_price: products.sellingPrice,
+            image_url: products.imageUrl,
+            images: products.images,
+            seo_title: products.seoTitle,
+            seo_description: products.seoDescription,
+            track_inventory: products.trackInventory,
+            stock: products.stock,
+            low_stock_threshold: products.lowStockThreshold,
+            allow_backorder: products.allowBackorder,
+            cat_id: categories.id,
+            cat_name: categories.name,
+            cat_slug: categories.slug,
+            cat_status: categories.status,
+          })
+          .from(products)
+          .leftJoin(categories, eq(products.categoryId, categories.id))
+          .where(
+            and(
+              eq(products.storeId, storeId),
+              eq(products.slug, slug),
+              eq(products.status, "published"),
+            ),
+          )
+          .limit(1);
+        const row = rows[0];
+        if (!row) return null;
 
-    if (!data) return null;
+        const variants = await db
+          .select({
+            id: productVariants.id,
+            name: productVariants.name,
+            base_price: productVariants.basePrice,
+            selling_price: productVariants.sellingPrice,
+            special_price: productVariants.specialPrice,
+            sku: productVariants.sku,
+            images: productVariants.images,
+            sort_order: productVariants.sortOrder,
+            track_inventory: productVariants.trackInventory,
+            stock: productVariants.stock,
+            low_stock_threshold: productVariants.lowStockThreshold,
+            allow_backorder: productVariants.allowBackorder,
+          })
+          .from(productVariants)
+          .where(eq(productVariants.productId, row.id))
+          .orderBy(asc(productVariants.sortOrder));
 
-    const product = data as unknown as DetailProduct;
-    product.variants = (product.variants ?? []).sort(
-      (a, b) => a.sort_order - b.sort_order,
-    );
-    return product;
+        const { cat_id, cat_name, cat_slug, cat_status, ...productFields } =
+          row;
+        return {
+          ...productFields,
+          images: productFields.images ?? [],
+          category: cat_id
+            ? {
+                id: cat_id,
+                name: cat_name!,
+                slug: cat_slug!,
+                status: cat_status!,
+              }
+            : null,
+          variants,
+        };
+      });
+    } catch (err) {
+      console.error("getProduct:", err instanceof Error ? err.message : err);
+      return null;
+    }
   },
 );
 
@@ -63,25 +128,70 @@ async function getRelated(
   storeId: string,
 ): Promise<RelatedProduct[]> {
   if (!categoryId) return [];
-  const supabase = createPublicClient();
-  const { data } = await supabase
-    .from("products")
-    .select(
-      "id, name, slug, base_price, selling_price, image_url, card_color, featured, track_inventory, stock, low_stock_threshold, allow_backorder, category:categories(name), variants:product_variants(base_price, selling_price, special_price, sort_order, track_inventory, stock, low_stock_threshold, allow_backorder)",
-    )
-    .eq("store_id", storeId)
-    .eq("status", "published")
-    .eq("category_id", categoryId)
-    .neq("id", excludeId)
-    .order("sort_order", { ascending: true })
-    .limit(4);
+  try {
+    return await withAnon(async (db) => {
+      // Category name flattened via the join for the card eyebrow.
+      const rows = await db
+        .select({
+          id: products.id,
+          name: products.name,
+          slug: products.slug,
+          base_price: products.basePrice,
+          selling_price: products.sellingPrice,
+          image_url: products.imageUrl,
+          card_color: products.cardColor,
+          featured: products.featured,
+          track_inventory: products.trackInventory,
+          stock: products.stock,
+          low_stock_threshold: products.lowStockThreshold,
+          allow_backorder: products.allowBackorder,
+          category: categories.name,
+        })
+        .from(products)
+        .leftJoin(categories, eq(products.categoryId, categories.id))
+        .where(
+          and(
+            eq(products.storeId, storeId),
+            eq(products.status, "published"),
+            eq(products.categoryId, categoryId),
+            ne(products.id, excludeId),
+          ),
+        )
+        .orderBy(asc(products.sortOrder))
+        .limit(4);
+      if (rows.length === 0) return [];
 
-  // Flatten the joined category to a plain name for the card eyebrow.
-  return (data ?? []).map((r) => {
-    const row = r as Record<string, unknown>;
-    const cat = row.category as { name?: string } | null;
-    return { ...row, category: cat?.name ?? null } as unknown as RelatedProduct;
-  });
+      const variantRows = await db
+        .select({
+          product_id: productVariants.productId,
+          base_price: productVariants.basePrice,
+          selling_price: productVariants.sellingPrice,
+          special_price: productVariants.specialPrice,
+          sort_order: productVariants.sortOrder,
+          track_inventory: productVariants.trackInventory,
+          stock: productVariants.stock,
+          low_stock_threshold: productVariants.lowStockThreshold,
+          allow_backorder: productVariants.allowBackorder,
+        })
+        .from(productVariants)
+        .where(
+          inArray(
+            productVariants.productId,
+            rows.map((r) => r.id),
+          ),
+        );
+      const byProduct = new Map<string, RelatedProduct["variants"]>();
+      for (const { product_id, ...variant } of variantRows) {
+        const list = byProduct.get(product_id) ?? [];
+        list.push(variant);
+        byProduct.set(product_id, list);
+      }
+      return rows.map((r) => ({ ...r, variants: byProduct.get(r.id) ?? [] }));
+    });
+  } catch (err) {
+    console.error("getRelated:", err instanceof Error ? err.message : err);
+    return [];
+  }
 }
 
 // Public reviews for a product, newest first.
@@ -89,15 +199,30 @@ async function getReviews(
   productId: string,
   storeId: string,
 ): Promise<ProductReview[]> {
-  const supabase = createPublicClient();
-  const { data } = await supabase
-    .from("product_reviews")
-    .select("id, user_id, author_name, rating, comment, created_at")
-    .eq("store_id", storeId)
-    .eq("product_id", productId)
-    .order("created_at", { ascending: false });
-
-  return (data ?? []) as ProductReview[];
+  try {
+    return await withAnon((db) =>
+      db
+        .select({
+          id: productReviews.id,
+          user_id: productReviews.userId,
+          author_name: productReviews.authorName,
+          rating: productReviews.rating,
+          comment: productReviews.comment,
+          created_at: productReviews.createdAt,
+        })
+        .from(productReviews)
+        .where(
+          and(
+            eq(productReviews.storeId, storeId),
+            eq(productReviews.productId, productId),
+          ),
+        )
+        .orderBy(desc(productReviews.createdAt)),
+    );
+  } catch (err) {
+    console.error("getReviews:", err instanceof Error ? err.message : err);
+    return [];
+  }
 }
 
 export async function generateMetadata({

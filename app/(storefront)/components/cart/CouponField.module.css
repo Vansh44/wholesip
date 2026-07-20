@@ -1,5 +1,5 @@
 /* Coupon apply / applied states — shared by cart page + drawer.
-   Driven by the global --wholesip-* tokens. */
+   Driven by the global --sm-* tokens. */
 
 .row {
   display: flex;
@@ -9,10 +9,10 @@
 .input {
   flex: 1 1 auto;
   min-width: 0;
-  border: 1px solid var(--wholesip-border);
+  border: 1px solid var(--sm-border);
   border-radius: 9px;
-  background: var(--wholesip-cream);
-  color: var(--wholesip-ink);
+  background: var(--sm-cream);
+  color: var(--sm-ink);
   padding: 10px 12px;
   font-size: 0.9rem;
   letter-spacing: 0.03em;
@@ -24,18 +24,18 @@
 .input::placeholder {
   text-transform: none;
   letter-spacing: normal;
-  color: var(--wholesip-ink-faint);
+  color: var(--sm-ink-faint);
 }
 
 .input:focus {
-  border-color: var(--wholesip-ink);
+  border-color: var(--sm-ink);
 }
 
 .applyBtn {
   flex: 0 0 auto;
-  border: 1.5px solid var(--wholesip-ink);
+  border: 1.5px solid var(--sm-ink);
   background: transparent;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   border-radius: 9px;
   padding: 0 18px;
   font-size: 0.875rem;
@@ -47,7 +47,7 @@
 }
 
 .applyBtn:hover:not(:disabled) {
-  background: rgba(var(--wholesip-shadow-rgb), 0.06);
+  background: rgba(var(--sm-shadow-rgb), 0.06);
 }
 
 .applyBtn:disabled {
@@ -66,10 +66,10 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px dashed var(--wholesip-ink);
+  border: 1px dashed var(--sm-ink);
   border-radius: 9px;
   padding: 9px 12px;
-  background: rgba(var(--wholesip-shadow-rgb), 0.04);
+  background: rgba(var(--sm-shadow-rgb), 0.04);
 }
 
 .tag {
@@ -88,12 +88,12 @@
   font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
 }
 
 .note {
   font-size: 0.78rem;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 
 .remove {
@@ -102,7 +102,7 @@
   height: 24px;
   border: none;
   background: transparent;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   font-size: 0.85rem;
   cursor: pointer;
   border-radius: 6px;
@@ -112,8 +112,8 @@
 }
 
 .remove:hover {
-  background: rgba(var(--wholesip-shadow-rgb), 0.08);
-  color: var(--wholesip-ink);
+  background: rgba(var(--sm-shadow-rgb), 0.08);
+  color: var(--sm-ink);
 }
 
 /* Available Coupons */
@@ -125,7 +125,7 @@
   font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
   margin-bottom: 6px;
 }
 
@@ -142,10 +142,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid var(--wholesip-border);
+  border: 1px solid var(--sm-border);
   border-radius: 9px;
   padding: 8px 12px;
-  background: var(--wholesip-cream);
+  background: var(--sm-cream);
 }
 
 .availableInfo {
@@ -156,19 +156,19 @@
 .availableCode {
   font-size: 0.85rem;
   font-weight: 700;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   letter-spacing: 0.02em;
 }
 
 .availableDesc {
   font-size: 0.75rem;
-  color: var(--wholesip-ink-soft);
+  color: var(--sm-ink-soft);
 }
 
 .availableApplyBtn {
   border: none;
   background: transparent;
-  color: var(--wholesip-ink);
+  color: var(--sm-ink);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -177,7 +177,7 @@
 }
 
 .availableApplyBtn:hover:not(:disabled) {
-  background: rgba(var(--wholesip-shadow-rgb), 0.06);
+  background: rgba(var(--sm-shadow-rgb), 0.06);
 }
 
 .availableApplyBtn:disabled {
