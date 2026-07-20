@@ -54,9 +54,18 @@ function initApp(): App | null {
       process.env.GCP_PROJECT_ID ||
       projectId
     ) {
+      // With ADC there's no private key, so createCustomToken /
+      // createSessionCookie sign via the IAM signBlob API. FIREBASE_SERVICE_
+      // ACCOUNT_ID forces the SIGNER to the Firebase project's own
+      // `firebase-adminsdk` SA — required for custom tokens to be VALID for that
+      // project when the runtime SA belongs to a DIFFERENT (infra) project
+      // (e.g. staging: runtime SA in storemink-prod, auth in storemink-staging).
+      // The runtime SA needs roles/iam.serviceAccountTokenCreator on that SA.
+      const serviceAccountId = process.env.FIREBASE_SERVICE_ACCOUNT_ID;
       return initializeApp({
         credential: applicationDefault(),
         projectId: projectId || process.env.GCP_PROJECT_ID,
+        ...(serviceAccountId ? { serviceAccountId } : {}),
       });
     }
   } catch (err) {

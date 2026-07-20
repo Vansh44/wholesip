@@ -14,12 +14,14 @@ const fakeJar = {
   },
 };
 
+const cookies = vi.fn();
+const headers = vi.fn();
 vi.mock("next/headers", () => ({
-  cookies: vi.fn(async () => fakeJar),
-  headers: vi.fn(async () => new Headers({ "x-forwarded-for": "1.2.3.4" })),
+  cookies: () => cookies(),
+  headers: () => headers(),
 }));
 
-const rateLimit = vi.fn(async () => ({ allowed: true }));
+const rateLimit = vi.fn();
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: (...a: unknown[]) => rateLimit(...(a as [])),
   clientIp: () => "1.2.3.4",
@@ -27,23 +29,21 @@ vi.mock("@/lib/rate-limit", () => ({
 
 // isOperator reads platform_admins via withService — return preset rows.
 let operatorRows: { email: string }[];
+const withService = vi.fn();
 vi.mock("@/lib/db/client", () => ({
-  withService: vi.fn(async () => operatorRows),
+  withService: (...a: unknown[]) => withService(...(a as [])),
 }));
 
 // Capture the code the email would carry so verify can submit the right one.
 let sentCode = "";
-const sendOperatorOtpEmail = vi.fn(async (_to: string, code: string) => {
-  sentCode = code;
-  return { sent: true };
-});
+const sendOperatorOtpEmail = vi.fn();
 vi.mock("@/lib/email/operator-otp", () => ({
   sendOperatorOtpEmail: (...a: unknown[]) =>
     sendOperatorOtpEmail(...(a as [string, string])),
 }));
 
-const getOrCreateAuthUserIdByEmail = vi.fn(async () => "uid-123");
-const createCustomAuthToken = vi.fn(async () => "custom-token-abc");
+const getOrCreateAuthUserIdByEmail = vi.fn();
+const createCustomAuthToken = vi.fn();
 vi.mock("@/lib/auth/firebase-users", () => ({
   getOrCreateAuthUserIdByEmail: () => getOrCreateAuthUserIdByEmail(),
   createCustomAuthToken: () => createCustomAuthToken(),
@@ -53,14 +53,26 @@ import { requestOperatorOtp, verifyOperatorOtp } from "./operator-otp-actions";
 
 const OP = "operator@storemink.com";
 
+// Re-establish implementations AFTER clearAllMocks so nothing bleeds across
+// tests/files (clearAllMocks wipes implementations set inline in the factory).
 beforeEach(() => {
+  vi.clearAllMocks();
   process.env.CRON_SECRET = "test-otp-secret";
   jar = new Map();
   operatorRows = [{ email: OP }];
   sentCode = "";
+  cookies.mockImplementation(async () => fakeJar);
+  headers.mockImplementation(
+    async () => new Headers({ "x-forwarded-for": "1.2.3.4" }),
+  );
   rateLimit.mockResolvedValue({ allowed: true });
-  vi.clearAllMocks();
-  rateLimit.mockResolvedValue({ allowed: true });
+  withService.mockImplementation(async () => operatorRows);
+  sendOperatorOtpEmail.mockImplementation(async (_to: string, code: string) => {
+    sentCode = code;
+    return { sent: true };
+  });
+  getOrCreateAuthUserIdByEmail.mockResolvedValue("uid-123");
+  createCustomAuthToken.mockResolvedValue("custom-token-abc");
 });
 
 describe("requestOperatorOtp", () => {
@@ -110,7 +122,8 @@ describe("verifyOperatorOtp", () => {
     const wrong = sentCode === "000000" ? "111111" : "000000";
     const r = await verifyOperatorOtp(OP, wrong);
     expect(r.customToken).toBeUndefined();
-    expect(r.error).toMatch(/4 attempts left/);
+    // MAX_ATTEMPTS is 3, so one wrong attempt leaves 2.
+    expect(r.error).toMatch(/2 attempts left/);
     // cookie survives for the next attempt
     expect(jar.has("sm_op_otp")).toBe(true);
   });
