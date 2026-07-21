@@ -144,16 +144,17 @@ export async function getCustomers(
 
   try {
     const { rows, total } = await withService(async (db) => {
-      const [rows, countRows] = await Promise.all([
-        db
-          .select(VIEW_COLUMNS)
-          .from(customerAdmin)
-          .where(whereExpr)
-          .orderBy(...order)
-          .limit(pageSize)
-          .offset(from),
-        db.select({ n: count() }).from(customerAdmin).where(whereExpr),
-      ]);
+      const rows = await db
+        .select(VIEW_COLUMNS)
+        .from(customerAdmin)
+        .where(whereExpr)
+        .orderBy(...order)
+        .limit(pageSize)
+        .offset(from);
+      const countRows = await db
+        .select({ n: count() })
+        .from(customerAdmin)
+        .where(whereExpr);
       return { rows, total: countRows[0]?.n ?? 0 };
     });
     return {
@@ -179,32 +180,27 @@ export async function getCustomerStats(): Promise<CustomerStats> {
 
   try {
     return await withService(async (db) => {
-      const [totalRows, recentRows, emailRows, reviewerRows] =
-        await Promise.all([
-          db
-            .select({ n: count() })
-            .from(users)
-            .where(eq(users.storeId, storeId)),
-          db
-            .select({ n: count() })
-            .from(users)
-            .where(
-              and(eq(users.storeId, storeId), gte(users.createdAt, cutoff)),
-            ),
-          db
-            .select({ n: count() })
-            .from(users)
-            .where(and(eq(users.storeId, storeId), isNotNull(users.email))),
-          db
-            .select({ n: count() })
-            .from(customerAdmin)
-            .where(
-              and(
-                eq(customerAdmin.storeId, storeId),
-                gt(customerAdmin.reviewCount, 0),
-              ),
-            ),
-        ]);
+      const totalRows = await db
+        .select({ n: count() })
+        .from(users)
+        .where(eq(users.storeId, storeId));
+      const recentRows = await db
+        .select({ n: count() })
+        .from(users)
+        .where(and(eq(users.storeId, storeId), gte(users.createdAt, cutoff)));
+      const emailRows = await db
+        .select({ n: count() })
+        .from(users)
+        .where(and(eq(users.storeId, storeId), isNotNull(users.email)));
+      const reviewerRows = await db
+        .select({ n: count() })
+        .from(customerAdmin)
+        .where(
+          and(
+            eq(customerAdmin.storeId, storeId),
+            gt(customerAdmin.reviewCount, 0),
+          ),
+        );
       return {
         total: totalRows[0]?.n ?? 0,
         recent: recentRows[0]?.n ?? 0,
@@ -232,32 +228,30 @@ export async function getCustomer(id: string): Promise<CustomerDetail | null> {
       const data = detailRows[0];
       if (!data) return null;
 
-      const [reviewRows, blogRows] = await Promise.all([
-        db
-          .select({
-            id: productReviews.id,
-            rating: productReviews.rating,
-            comment: productReviews.comment,
-            created_at: productReviews.createdAt,
-            product_id: productReviews.productId,
-            product_name: products.name,
-          })
-          .from(productReviews)
-          .leftJoin(products, eq(productReviews.productId, products.id))
-          .where(eq(productReviews.userId, id))
-          .orderBy(desc(productReviews.createdAt)),
-        db
-          .select({
-            id: blogs.id,
-            title: blogs.title,
-            slug: blogs.slug,
-            status: blogs.status,
-            created_at: blogs.createdAt,
-          })
-          .from(blogs)
-          .where(eq(blogs.submittedBy, id))
-          .orderBy(desc(blogs.createdAt)),
-      ]);
+      const reviewRows = await db
+        .select({
+          id: productReviews.id,
+          rating: productReviews.rating,
+          comment: productReviews.comment,
+          created_at: productReviews.createdAt,
+          product_id: productReviews.productId,
+          product_name: products.name,
+        })
+        .from(productReviews)
+        .leftJoin(products, eq(productReviews.productId, products.id))
+        .where(eq(productReviews.userId, id))
+        .orderBy(desc(productReviews.createdAt));
+      const blogRows = await db
+        .select({
+          id: blogs.id,
+          title: blogs.title,
+          slug: blogs.slug,
+          status: blogs.status,
+          created_at: blogs.createdAt,
+        })
+        .from(blogs)
+        .where(eq(blogs.submittedBy, id))
+        .orderBy(desc(blogs.createdAt));
 
       const reviews = reviewRows as CustomerReview[];
       const customerBlogs = blogRows as CustomerBlog[];

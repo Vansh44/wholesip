@@ -64,7 +64,7 @@ steps:
       - --min-instances=${_MIN_INSTANCES}
       - --max-instances=4
       - --add-cloudsql-instances=${_DB_CONN}
-      - --set-env-vars=GCP_PROJECT_ID=${_GCP_PROJECT_ID},GCP_LOCATION=global,GCS_BUCKET=${_GCS_BUCKET},DB_HOST=/cloudsql/${_DB_CONN},DB_USER=app,DB_NAME=storemink,FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID},FIREBASE_SERVICE_ACCOUNT_ID=${_FIREBASE_SA_ID},FIREBASE_API_KEY=${_NEXT_PUBLIC_FIREBASE_API_KEY},NEXT_PUBLIC_ROOT_DOMAIN=${_NEXT_PUBLIC_ROOT_DOMAIN},NEXT_PUBLIC_APP_URL=${_NEXT_PUBLIC_APP_URL}
+      - --set-env-vars=GCP_PROJECT_ID=${_GCP_PROJECT_ID},GCP_LOCATION=global,GCS_BUCKET=${_GCS_BUCKET},DB_HOST=/cloudsql/${_DB_CONN},DB_USER=app,DB_NAME=storemink,FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID},FIREBASE_SERVICE_ACCOUNT_ID=${_FIREBASE_SA_ID},FIREBASE_API_KEY=${_NEXT_PUBLIC_FIREBASE_API_KEY},GOOGLE_SEARCH_CONSOLE_PROPERTY=${_GOOGLE_SEARCH_CONSOLE_PROPERTY},NEXT_PUBLIC_ROOT_DOMAIN=${_NEXT_PUBLIC_ROOT_DOMAIN},NEXT_PUBLIC_APP_URL=${_NEXT_PUBLIC_APP_URL}
       - --set-secrets=DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,CRON_SECRET=CRON_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest
 
 images:
@@ -105,3 +105,8 @@ substitutions:
   _NEXT_PUBLIC_FIREBASE_APP_ID: "1:68037646295:web:388ef47d32e39c822b1d92"
   _NEXT_PUBLIC_ROOT_DOMAIN: staging.storemink.com
   _NEXT_PUBLIC_APP_URL: https://staging.storemink.com
+  # Google Search Console property for the sitemap auto-submit (lib/seo). Empty
+  # on staging (never indexed → the submitter is a no-op anyway). The PROD
+  # trigger passes sc-domain:storemink.com and grants the runtime SA access to
+  # that property in Search Console — no key/secret needed (auth via ADC).
+  _GOOGLE_SEARCH_CONSOLE_PROPERTY: ""

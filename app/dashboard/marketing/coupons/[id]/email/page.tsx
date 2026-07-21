@@ -17,21 +17,19 @@ export default async function CouponEmailPage({
 
   const storeId = await getActingStoreId();
   const result = await withService(async (db) => {
-    const [couponRows, groupRows] = await Promise.all([
-      db
-        .select(COUPON_COLUMNS)
-        .from(coupons)
-        .where(and(eq(coupons.id, id), eq(coupons.storeId, storeId)))
-        .limit(1),
-      db
-        .select({
-          id: userGroups.id,
-          name: userGroups.name,
-          color: userGroups.color,
-        })
-        .from(userGroups)
-        .orderBy(asc(userGroups.name)),
-    ]);
+    const couponRows = await db
+      .select(COUPON_COLUMNS)
+      .from(coupons)
+      .where(and(eq(coupons.id, id), eq(coupons.storeId, storeId)))
+      .limit(1);
+    const groupRows = await db
+      .select({
+        id: userGroups.id,
+        name: userGroups.name,
+        color: userGroups.color,
+      })
+      .from(userGroups)
+      .orderBy(asc(userGroups.name));
     return { coupon: couponRows[0], groups: groupRows as CouponGroup[] };
   }).catch(() => null);
 

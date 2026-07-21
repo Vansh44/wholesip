@@ -1,13 +1,14 @@
 import type { MetadataRoute } from "next";
 import { PLATFORM_URL } from "@/lib/site";
-import { ROOT_DOMAIN } from "@/lib/store/host";
+import { ROOT_DOMAIN, SEARCH_INDEXABLE } from "@/lib/store/host";
 import { getCurrentStoreOrNull } from "@/lib/store/resolve";
 
 export default async function robots(): Promise<MetadataRoute.Robots> {
-  // Staging / preview: keep the WHOLE site out of search engines. Enabled by
-  // setting NEXT_PUBLIC_NOINDEX=1 on the environment (e.g. Vercel Preview);
-  // production never sets it, so its indexing is unchanged.
-  if (process.env.NEXT_PUBLIC_NOINDEX === "1") {
+  // Only the real production platform (storemink.com) is crawlable. Staging,
+  // previews, and local dev keep the WHOLE site out of search engines (see
+  // SEARCH_INDEXABLE in lib/store/host.ts — derived from the apex domain, so
+  // there's no per-deploy flag to forget). NEXT_PUBLIC_NOINDEX=1 forces it off.
+  if (!SEARCH_INDEXABLE) {
     return { rules: { userAgent: "*", disallow: "/" } };
   }
 

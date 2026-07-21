@@ -136,46 +136,45 @@ export async function getInventory({
     category: string | null;
   }[];
   try {
-    [productRows, variantRows] = await withService((db) =>
-      Promise.all([
-        db
-          .select({
-            id: products.id,
-            name: products.name,
-            sku: products.sku,
-            stock: products.stock,
-            track_inventory: products.trackInventory,
-            low_stock_threshold: products.lowStockThreshold,
-            allow_backorder: products.allowBackorder,
-            image_url: products.imageUrl,
-            images: products.images,
-            category: categories.name,
-          })
-          .from(products)
-          .leftJoin(categories, eq(products.categoryId, categories.id))
-          .where(and(...prodConds)),
-        db
-          .select({
-            id: productVariants.id,
-            product_id: productVariants.productId,
-            name: productVariants.name,
-            sku: productVariants.sku,
-            stock: productVariants.stock,
-            track_inventory: productVariants.trackInventory,
-            low_stock_threshold: productVariants.lowStockThreshold,
-            allow_backorder: productVariants.allowBackorder,
-            image_url: productVariants.imageUrl,
-            images: productVariants.images,
-            product_name: products.name,
-            product_image: products.imageUrl,
-            category: categories.name,
-          })
-          .from(productVariants)
-          .innerJoin(products, eq(productVariants.productId, products.id))
-          .leftJoin(categories, eq(products.categoryId, categories.id))
-          .where(and(...varConds)),
-      ]),
-    );
+    [productRows, variantRows] = await withService(async (db) => {
+      const productRows = await db
+        .select({
+          id: products.id,
+          name: products.name,
+          sku: products.sku,
+          stock: products.stock,
+          track_inventory: products.trackInventory,
+          low_stock_threshold: products.lowStockThreshold,
+          allow_backorder: products.allowBackorder,
+          image_url: products.imageUrl,
+          images: products.images,
+          category: categories.name,
+        })
+        .from(products)
+        .leftJoin(categories, eq(products.categoryId, categories.id))
+        .where(and(...prodConds));
+      const variantRows = await db
+        .select({
+          id: productVariants.id,
+          product_id: productVariants.productId,
+          name: productVariants.name,
+          sku: productVariants.sku,
+          stock: productVariants.stock,
+          track_inventory: productVariants.trackInventory,
+          low_stock_threshold: productVariants.lowStockThreshold,
+          allow_backorder: productVariants.allowBackorder,
+          image_url: productVariants.imageUrl,
+          images: productVariants.images,
+          product_name: products.name,
+          product_image: products.imageUrl,
+          category: categories.name,
+        })
+        .from(productVariants)
+        .innerJoin(products, eq(productVariants.productId, products.id))
+        .leftJoin(categories, eq(products.categoryId, categories.id))
+        .where(and(...varConds));
+      return [productRows, variantRows] as const;
+    });
   } catch (err) {
     console.error("getInventory:", err);
     return {
@@ -372,35 +371,34 @@ export async function bulkAdjust(
       .filter((i) => i.variantId)
       .map((i) => i.variantId!);
     try {
-      const [prodRows, varRows] = await withService((db) =>
-        Promise.all([
-          productIds.length
-            ? db
-                .select({ id: products.id, stock: products.stock })
-                .from(products)
-                .where(
-                  and(
-                    eq(products.storeId, storeId),
-                    inArray(products.id, productIds),
-                  ),
-                )
-            : Promise.resolve([]),
-          variantIds.length
-            ? db
-                .select({
-                  id: productVariants.id,
-                  stock: productVariants.stock,
-                })
-                .from(productVariants)
-                .where(
-                  and(
-                    eq(productVariants.storeId, storeId),
-                    inArray(productVariants.id, variantIds),
-                  ),
-                )
-            : Promise.resolve([]),
-        ]),
-      );
+      const [prodRows, varRows] = await withService(async (db) => {
+        const prodRows = await (productIds.length
+          ? db
+              .select({ id: products.id, stock: products.stock })
+              .from(products)
+              .where(
+                and(
+                  eq(products.storeId, storeId),
+                  inArray(products.id, productIds),
+                ),
+              )
+          : Promise.resolve([]));
+        const varRows = await (variantIds.length
+          ? db
+              .select({
+                id: productVariants.id,
+                stock: productVariants.stock,
+              })
+              .from(productVariants)
+              .where(
+                and(
+                  eq(productVariants.storeId, storeId),
+                  inArray(productVariants.id, variantIds),
+                ),
+              )
+          : Promise.resolve([]));
+        return [prodRows, varRows] as const;
+      });
       for (const r of prodRows) currentStock.set(r.id, r.stock);
       for (const r of varRows) currentStock.set(r.id, r.stock);
     } catch (err) {
@@ -475,25 +473,26 @@ export async function getMovements(
 
   try {
     const { rows, total } = await withService(async (db) => {
-      const [rows, countRows] = await Promise.all([
-        db
-          .select({
-            id: stockMovements.id,
-            delta: stockMovements.delta,
-            reason: stockMovements.reason,
-            balance_after: stockMovements.balanceAfter,
-            note: stockMovements.note,
-            created_by: stockMovements.createdBy,
-            created_at: stockMovements.createdAt,
-            order_id: stockMovements.orderId,
-          })
-          .from(stockMovements)
-          .where(whereExpr)
-          .orderBy(desc(stockMovements.createdAt))
-          .limit(pageSize)
-          .offset(start),
-        db.select({ n: count() }).from(stockMovements).where(whereExpr),
-      ]);
+      const rows = await db
+        .select({
+          id: stockMovements.id,
+          delta: stockMovements.delta,
+          reason: stockMovements.reason,
+          balance_after: stockMovements.balanceAfter,
+          note: stockMovements.note,
+          created_by: stockMovements.createdBy,
+          created_at: stockMovements.createdAt,
+          order_id: stockMovements.orderId,
+        })
+        .from(stockMovements)
+        .where(whereExpr)
+        .orderBy(desc(stockMovements.createdAt))
+        .limit(pageSize)
+        .offset(start);
+      const countRows = await db
+        .select({ n: count() })
+        .from(stockMovements)
+        .where(whereExpr);
       return { rows, total: countRows[0]?.n ?? 0 };
     });
     return { movements: rows as StockMovementRow[], total };

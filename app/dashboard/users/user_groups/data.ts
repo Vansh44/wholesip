@@ -21,38 +21,36 @@ export async function getUserGroupsData(): Promise<{
 
   try {
     return await withService(async (db) => {
-      const [groupRows, memberRows, customerRows] = await Promise.all([
-        db
-          .select({
-            id: userGroups.id,
-            name: userGroups.name,
-            description: userGroups.description,
-            color: userGroups.color,
-            created_at: userGroups.createdAt,
-            updated_at: userGroups.updatedAt,
-          })
-          .from(userGroups)
-          .where(eq(userGroups.storeId, storeId))
-          .orderBy(asc(userGroups.name)),
-        db
-          .select({
-            group_id: userGroupMembers.groupId,
-            user_id: userGroupMembers.userId,
-          })
-          .from(userGroupMembers)
-          .where(eq(userGroupMembers.storeId, storeId)),
-        db
-          .select({
-            id: users.id,
-            first_name: users.firstName,
-            last_name: users.lastName,
-            email: users.email,
-            phone: users.phone,
-          })
-          .from(users)
-          .where(eq(users.storeId, storeId))
-          .orderBy(desc(users.createdAt)),
-      ]);
+      const groupRows = await db
+        .select({
+          id: userGroups.id,
+          name: userGroups.name,
+          description: userGroups.description,
+          color: userGroups.color,
+          created_at: userGroups.createdAt,
+          updated_at: userGroups.updatedAt,
+        })
+        .from(userGroups)
+        .where(eq(userGroups.storeId, storeId))
+        .orderBy(asc(userGroups.name));
+      const memberRows = await db
+        .select({
+          group_id: userGroupMembers.groupId,
+          user_id: userGroupMembers.userId,
+        })
+        .from(userGroupMembers)
+        .where(eq(userGroupMembers.storeId, storeId));
+      const customerRows = await db
+        .select({
+          id: users.id,
+          first_name: users.firstName,
+          last_name: users.lastName,
+          email: users.email,
+          phone: users.phone,
+        })
+        .from(users)
+        .where(eq(users.storeId, storeId))
+        .orderBy(desc(users.createdAt));
 
       const byGroup = new Map<string, string[]>();
       for (const m of memberRows) {

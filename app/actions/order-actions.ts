@@ -1,10 +1,15 @@
 "use server";
 
-import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { withService, withUser } from "@/lib/db/client";
 import { dbErrorMessage } from "@/lib/db/errors";
-import { orderItems, orders } from "@/drizzle/schema";
+import {
+  orderItems,
+  orders,
+  products,
+  productVariants,
+} from "@/drizzle/schema";
 import { getActingStoreId, getManagerUserId } from "@/app/dashboard/lib/access";
 import {
   DASHBOARD_PAGE_SIZE,
@@ -62,6 +67,29 @@ export interface GetOrdersParams {
   paymentMethod?: string;
   /** Free-text search over order ref + customer name/city. */
   q?: string;
+  /** Relative date window: "today" | "7d" | "30d" | "90d" | "" (all time). */
+  dateRange?: string;
+}
+
+// Map a date-window preset to its lower bound (ISO), or null for "all time".
+function dateFloor(range: string): string | null {
+  const DAY = 86_400_000;
+  const now = Date.now();
+  switch (range) {
+    case "today": {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.toISOString();
+    }
+    case "7d":
+      return new Date(now - 7 * DAY).toISOString();
+    case "30d":
+      return new Date(now - 30 * DAY).toISOString();
+    case "90d":
+      return new Date(now - 90 * DAY).toISOString();
+    default:
+      return null;
+  }
 }
 
 // Columns the dashboard orders LIST renders. Deliberately not every column and
@@ -129,8 +157,14 @@ export async function getOrders(
     : undefined;
   const term = sanitizeSearch(params.q ?? "");
 
-  // WHERE for the (filtered) page + its total. Store scope is always first.
-  const conds = [eq(orders.storeId, storeId)];
+  // Base scope shared by the list, its total, AND the status-tab counts: store +
+  // the date window (so a date filter narrows the tab counts too). The other
+  // facets (status/payment/method/search) narrow only the LIST + its total.
+  const dateFrom = dateFloor(params.dateRange ?? "");
+  const baseConds = [eq(orders.storeId, storeId)];
+  if (dateFrom) baseConds.push(gte(orders.createdAt, dateFrom));
+
+  const conds = [...baseConds];
   if (status) conds.push(eq(orders.status, status));
   if (paymentStatus) conds.push(eq(orders.paymentStatus, paymentStatus));
   if (paymentMethod) conds.push(eq(orders.paymentMethod, paymentMethod));
@@ -148,29 +182,35 @@ export async function getOrders(
     );
   }
   const whereExpr = and(...conds);
+  const countWhere = and(...baseConds);
 
   try {
     // RLS (store admins get FOR ALL on their own orders) + explicit store scope.
     const { rows, total, statusRows } = await withUser(
       { uid: userId },
       async (db) => {
-        const [rows, countRows, statusRows] = await Promise.all([
-          db
-            .select(ORDER_LIST_COLUMNS)
-            .from(orders)
-            .where(whereExpr)
-            .orderBy(desc(orders.createdAt))
-            .limit(safeSize)
-            .offset(from),
-          db.select({ n: count() }).from(orders).where(whereExpr),
-          // Store-wide per-status counts for the filter tabs (ignores the
-          // active facets, so a tab always shows its full store count).
-          db
-            .select({ status: orders.status, n: count() })
-            .from(orders)
-            .where(eq(orders.storeId, storeId))
-            .groupBy(orders.status),
-        ]);
+        // Sequential, NOT Promise.all: these share one pooled connection, which
+        // can only run one query at a time — parallelising them just trips pg's
+        // "query while another is in flight" deprecation (removed in pg@9) with
+        // no speedup, since the connection serialises them anyway.
+        const rows = await db
+          .select(ORDER_LIST_COLUMNS)
+          .from(orders)
+          .where(whereExpr)
+          .orderBy(desc(orders.createdAt))
+          .limit(safeSize)
+          .offset(from);
+        const countRows = await db
+          .select({ n: count() })
+          .from(orders)
+          .where(whereExpr);
+        // Store-wide per-status counts for the filter tabs (ignores the active
+        // facets, so a tab always shows its full store count).
+        const statusRows = await db
+          .select({ status: orders.status, n: count() })
+          .from(orders)
+          .where(countWhere)
+          .groupBy(orders.status);
         return { rows, total: countRows[0]?.n ?? 0, statusRows };
       },
     );
@@ -296,4 +336,128 @@ export async function updateOrderStatus(
 
   revalidatePath("/dashboard/orders");
   return { success: true };
+}
+
+// ── Order detail (the slide-over drawer) ───────────────────────────────────
+
+export interface OrderDetailItem {
+  id: string;
+  name: string;
+  variant_name: string | null;
+  price: number;
+  quantity: number;
+  total: number;
+  tax_rate: number | null;
+  /** Current product/variant thumbnail (best-effort; null if the product is gone). */
+  image: string | null;
+}
+
+export interface OrderDetail {
+  id: string;
+  order_ref: string;
+  order_no: number;
+  created_at: string;
+  updated_at: string;
+  status: string;
+  payment_method: string;
+  payment_status: string;
+  subtotal: number;
+  tax: number;
+  tax_inclusive: boolean;
+  shipping: number;
+  discount: number;
+  total: number;
+  currency: string;
+  applied_coupon_code: string | null;
+  notes: string | null;
+  shipping_address: Record<string, unknown> | null;
+  billing_address: Record<string, unknown> | null;
+  razorpay_payment_id: string | null;
+  stock_status: string;
+  items: OrderDetailItem[];
+}
+
+const ORDER_DETAIL_COLUMNS = {
+  id: orders.id,
+  order_ref: orders.orderRef,
+  order_no: orders.orderNo,
+  created_at: orders.createdAt,
+  updated_at: orders.updatedAt,
+  status: orders.status,
+  payment_method: orders.paymentMethod,
+  payment_status: orders.paymentStatus,
+  subtotal: orders.subtotal,
+  tax: orders.tax,
+  tax_inclusive: orders.taxInclusive,
+  shipping: orders.shipping,
+  discount: orders.discount,
+  total: orders.total,
+  currency: orders.currency,
+  applied_coupon_code: orders.appliedCouponCode,
+  notes: orders.notes,
+  shipping_address: orders.shippingAddress,
+  billing_address: orders.billingAddress,
+  razorpay_payment_id: orders.razorpayPaymentId,
+  stock_status: orders.stockStatus,
+};
+
+/**
+ * Full detail for one order (the dashboard drawer): the order row + its line
+ * items, scoped to the acting store. Gated on the `orders` section.
+ */
+export async function getOrderDetail(
+  orderId: string,
+): Promise<{ order?: OrderDetail; error?: string }> {
+  const userId = await getManagerUserId("orders");
+  if (!userId) return { error: "Not authenticated" };
+  if (typeof orderId !== "string" || !orderId.trim()) {
+    return { error: "Invalid order." };
+  }
+
+  const storeId = await getActingStoreId();
+  try {
+    const result = await withService(async (db) => {
+      const orderRows = await db
+        .select(ORDER_DETAIL_COLUMNS)
+        .from(orders)
+        .where(and(eq(orders.id, orderId), eq(orders.storeId, storeId)))
+        .limit(1);
+      const order = orderRows[0];
+      if (!order) return null;
+      // Left-join products/variants for a current thumbnail (prefer the variant
+      // image). Best-effort: a deleted product just yields a null image.
+      const itemRows = await db
+        .select({
+          id: orderItems.id,
+          name: orderItems.name,
+          variant_name: orderItems.variantName,
+          price: orderItems.price,
+          quantity: orderItems.quantity,
+          total: orderItems.total,
+          tax_rate: orderItems.taxRate,
+          product_image: products.imageUrl,
+          variant_image: productVariants.imageUrl,
+        })
+        .from(orderItems)
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .leftJoin(productVariants, eq(orderItems.variantId, productVariants.id))
+        .where(eq(orderItems.orderId, orderId));
+      const items = itemRows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        variant_name: r.variant_name,
+        price: r.price,
+        quantity: r.quantity,
+        total: r.total,
+        tax_rate: r.tax_rate,
+        image: r.variant_image || r.product_image || null,
+      }));
+      return { ...order, items };
+    });
+    if (!result) return { error: "This order no longer exists." };
+    return { order: result as unknown as OrderDetail };
+  } catch (err) {
+    console.error("getOrderDetail:", err instanceof Error ? err.message : err);
+    return { error: dbErrorMessage(err, "Could not load the order.") };
+  }
 }

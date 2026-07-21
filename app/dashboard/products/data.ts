@@ -30,53 +30,50 @@ export async function getProductEditData(id: string): Promise<{
 
   try {
     return await withService(async (db) => {
-      const [productRows, variants, categoryRows, colorRows, taxClassRows] =
-        await Promise.all([
-          db
-            .select({
-              ...PRODUCT_COLUMNS,
-              cat_id: categories.id,
-              cat_name: categories.name,
-              cat_slug: categories.slug,
-            })
-            .from(products)
-            .leftJoin(categories, eq(products.categoryId, categories.id))
-            .where(and(eq(products.id, id), eq(products.storeId, storeId)))
-            .limit(1),
-          db
-            .select(VARIANT_COLUMNS)
-            .from(productVariants)
-            .where(eq(productVariants.productId, id))
-            .orderBy(asc(productVariants.sortOrder)),
-          db
-            .select({
-              id: categories.id,
-              name: categories.name,
-              slug: categories.slug,
-              status: categories.status,
-            })
-            .from(categories)
-            .where(eq(categories.storeId, storeId))
-            .orderBy(asc(categories.sortOrder), asc(categories.name)),
-          db
-            .select({
-              id: cardColors.id,
-              name: cardColors.name,
-              hex: cardColors.hex,
-            })
-            .from(cardColors)
-            .where(eq(cardColors.storeId, storeId))
-            .orderBy(asc(cardColors.sortOrder), asc(cardColors.name)),
-          db
-            .select({
-              id: taxClasses.id,
-              name: taxClasses.name,
-              rate: taxClasses.rate,
-            })
-            .from(taxClasses)
-            .where(eq(taxClasses.storeId, storeId))
-            .orderBy(asc(taxClasses.sortOrder), asc(taxClasses.name)),
-        ]);
+      const productRows = await db
+        .select({
+          ...PRODUCT_COLUMNS,
+          cat_id: categories.id,
+          cat_name: categories.name,
+          cat_slug: categories.slug,
+        })
+        .from(products)
+        .leftJoin(categories, eq(products.categoryId, categories.id))
+        .where(and(eq(products.id, id), eq(products.storeId, storeId)))
+        .limit(1);
+      const variants = await db
+        .select(VARIANT_COLUMNS)
+        .from(productVariants)
+        .where(eq(productVariants.productId, id))
+        .orderBy(asc(productVariants.sortOrder));
+      const categoryRows = await db
+        .select({
+          id: categories.id,
+          name: categories.name,
+          slug: categories.slug,
+          status: categories.status,
+        })
+        .from(categories)
+        .where(eq(categories.storeId, storeId))
+        .orderBy(asc(categories.sortOrder), asc(categories.name));
+      const colorRows = await db
+        .select({
+          id: cardColors.id,
+          name: cardColors.name,
+          hex: cardColors.hex,
+        })
+        .from(cardColors)
+        .where(eq(cardColors.storeId, storeId))
+        .orderBy(asc(cardColors.sortOrder), asc(cardColors.name));
+      const taxClassRows = await db
+        .select({
+          id: taxClasses.id,
+          name: taxClasses.name,
+          rate: taxClasses.rate,
+        })
+        .from(taxClasses)
+        .where(eq(taxClasses.storeId, storeId))
+        .orderBy(asc(taxClasses.sortOrder), asc(taxClasses.name));
 
       const row = productRows[0];
       if (!row) {

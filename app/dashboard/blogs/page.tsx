@@ -133,32 +133,30 @@ export default async function BlogsPage({
   try {
     [{ rows, total, statusRows, featuredCount }, taxonomy] = await Promise.all([
       withService(async (db) => {
-        const [rows, countRows, statusRows, featuredRows] = await Promise.all([
-          db
-            .select(LIST_COLUMNS)
-            .from(blogsTable)
-            .where(whereExpr)
-            .orderBy(desc(blogsTable.createdAt))
-            .limit(pageSize)
-            .offset(offset),
-          db.select({ n: count() }).from(blogsTable).where(whereExpr),
-          // One grouped count for the status tabs instead of a head-count
-          // per tab; featured is a separate dimension.
-          db
-            .select({ status: blogsTable.status, n: count() })
-            .from(blogsTable)
-            .where(eq(blogsTable.storeId, storeId))
-            .groupBy(blogsTable.status),
-          db
-            .select({ n: count() })
-            .from(blogsTable)
-            .where(
-              and(
-                eq(blogsTable.storeId, storeId),
-                eq(blogsTable.featured, true),
-              ),
-            ),
-        ]);
+        const rows = await db
+          .select(LIST_COLUMNS)
+          .from(blogsTable)
+          .where(whereExpr)
+          .orderBy(desc(blogsTable.createdAt))
+          .limit(pageSize)
+          .offset(offset);
+        const countRows = await db
+          .select({ n: count() })
+          .from(blogsTable)
+          .where(whereExpr);
+        // One grouped count for the status tabs instead of a head-count
+        // per tab; featured is a separate dimension.
+        const statusRows = await db
+          .select({ status: blogsTable.status, n: count() })
+          .from(blogsTable)
+          .where(eq(blogsTable.storeId, storeId))
+          .groupBy(blogsTable.status);
+        const featuredRows = await db
+          .select({ n: count() })
+          .from(blogsTable)
+          .where(
+            and(eq(blogsTable.storeId, storeId), eq(blogsTable.featured, true)),
+          );
         return {
           rows: rows as Omit<Blog, "content" | "submitter_name">[],
           total: countRows[0]?.n ?? 0,

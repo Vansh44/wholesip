@@ -94,24 +94,25 @@ export default async function CouponsPage({
   let links: { coupon_id: string; group_id: string }[];
   try {
     ({ couponRows, total, groups, links } = await withService(async (db) => {
-      const [couponRows, countRows, groupRows] = await Promise.all([
-        db
-          .select(COUPON_COLUMNS)
-          .from(coupons)
-          .where(whereExpr)
-          .orderBy(desc(coupons.createdAt))
-          .limit(pageSize)
-          .offset(from),
-        db.select({ n: countFn() }).from(coupons).where(whereExpr),
-        db
-          .select({
-            id: userGroups.id,
-            name: userGroups.name,
-            color: userGroups.color,
-          })
-          .from(userGroups)
-          .orderBy(asc(userGroups.name)),
-      ]);
+      const couponRows = await db
+        .select(COUPON_COLUMNS)
+        .from(coupons)
+        .where(whereExpr)
+        .orderBy(desc(coupons.createdAt))
+        .limit(pageSize)
+        .offset(from);
+      const countRows = await db
+        .select({ n: countFn() })
+        .from(coupons)
+        .where(whereExpr);
+      const groupRows = await db
+        .select({
+          id: userGroups.id,
+          name: userGroups.name,
+          color: userGroups.color,
+        })
+        .from(userGroups)
+        .orderBy(asc(userGroups.name));
 
       // The coupon→group links for the coupons ON THIS PAGE only.
       const pageCouponIds = couponRows.map((c) => c.id as string);

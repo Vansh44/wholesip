@@ -26,18 +26,16 @@ export async function fetchBlogTaxonomy(
 ): Promise<BlogTaxonomy> {
   try {
     return await withAnon(async (db) => {
-      const [categories, tags] = await Promise.all([
-        db
-          .select({ id: blogCategories.id, name: blogCategories.name })
-          .from(blogCategories)
-          .where(eq(blogCategories.storeId, storeId))
-          .orderBy(asc(blogCategories.name)),
-        db
-          .select({ id: blogTags.id, name: blogTags.name })
-          .from(blogTags)
-          .where(eq(blogTags.storeId, storeId))
-          .orderBy(asc(blogTags.name)),
-      ]);
+      const categories = await db
+        .select({ id: blogCategories.id, name: blogCategories.name })
+        .from(blogCategories)
+        .where(eq(blogCategories.storeId, storeId))
+        .orderBy(asc(blogCategories.name));
+      const tags = await db
+        .select({ id: blogTags.id, name: blogTags.name })
+        .from(blogTags)
+        .where(eq(blogTags.storeId, storeId))
+        .orderBy(asc(blogTags.name));
       return { categories, tags };
     });
   } catch (err) {

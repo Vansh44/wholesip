@@ -1813,6 +1813,45 @@ export const storeMenus = pgTable(
   ],
 );
 
+// Per-store media library (images uploaded via /dashboard/media). See
+// supabase/media_assets.sql. The object URL is public (public GCS bucket); the
+// listing is admin-only (RLS: is_store_admin).
+export const mediaAssets = pgTable(
+  "media_assets",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    storeId: uuid("store_id").notNull(),
+    url: text().notNull(),
+    path: text().notNull(),
+    filename: text().default("").notNull(),
+    contentType: text("content_type").default("").notNull(),
+    sizeBytes: integer("size_bytes").default(0).notNull(),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("media_assets_store_created_idx").using(
+      "btree",
+      table.storeId.asc().nullsLast().op("uuid_ops"),
+      table.createdAt.desc().nullsFirst().op("timestamptz_ops"),
+    ),
+    foreignKey({
+      columns: [table.storeId],
+      foreignColumns: [stores.id],
+      name: "media_assets_store_id_fkey",
+    }).onDelete("cascade"),
+    pgPolicy("Store admins manage media_assets", {
+      as: "permissive",
+      for: "all",
+      to: ["public"],
+      using: sql`( SELECT is_store_admin(media_assets.store_id) AS is_store_admin)`,
+      withCheck: sql`( SELECT is_store_admin(media_assets.store_id) AS is_store_admin)`,
+    }),
+  ],
+);
+
 export const storePages = pgTable(
   "store_pages",
   {

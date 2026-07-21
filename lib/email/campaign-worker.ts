@@ -226,35 +226,33 @@ async function finalizeCampaigns(): Promise<void> {
     const id = c.id;
     try {
       await withService(async (db) => {
-        const [sentRes, failedRes, openRes] = await Promise.all([
-          db
-            .select({ n: count() })
-            .from(emailCampaignRecipients)
-            .where(
-              and(
-                eq(emailCampaignRecipients.campaignId, id),
-                eq(emailCampaignRecipients.status, "sent"),
-              ),
+        const sentRes = await db
+          .select({ n: count() })
+          .from(emailCampaignRecipients)
+          .where(
+            and(
+              eq(emailCampaignRecipients.campaignId, id),
+              eq(emailCampaignRecipients.status, "sent"),
             ),
-          db
-            .select({ n: count() })
-            .from(emailCampaignRecipients)
-            .where(
-              and(
-                eq(emailCampaignRecipients.campaignId, id),
-                eq(emailCampaignRecipients.status, "failed"),
-              ),
+          );
+        const failedRes = await db
+          .select({ n: count() })
+          .from(emailCampaignRecipients)
+          .where(
+            and(
+              eq(emailCampaignRecipients.campaignId, id),
+              eq(emailCampaignRecipients.status, "failed"),
             ),
-          db
-            .select({ n: count() })
-            .from(emailCampaignRecipients)
-            .where(
-              and(
-                eq(emailCampaignRecipients.campaignId, id),
-                inArray(emailCampaignRecipients.status, ["pending", "sending"]),
-              ),
+          );
+        const openRes = await db
+          .select({ n: count() })
+          .from(emailCampaignRecipients)
+          .where(
+            and(
+              eq(emailCampaignRecipients.campaignId, id),
+              inArray(emailCampaignRecipients.status, ["pending", "sending"]),
             ),
-        ]);
+          );
 
         const open = openRes[0]?.n ?? 0;
         await db

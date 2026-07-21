@@ -34,31 +34,29 @@ export default async function UsersPage() {
   let rolesData: RoleOption[];
   try {
     ({ profiles, rolesData } = await withService(async (db) => {
-      const [profiles, rolesData] = await Promise.all([
-        db
-          .select({
-            id: admins.id,
-            email: admins.email,
-            first_name: admins.firstName,
-            last_name: admins.lastName,
-            role: admins.role,
-            force_password_reset: admins.forcePasswordReset,
-            is_suspended: admins.isSuspended,
-            created_at: admins.createdAt,
-          })
-          .from(admins)
-          .where(eq(admins.storeId, storeId))
-          .orderBy(desc(admins.createdAt)),
-        db
-          .select({
-            slug: roles.slug,
-            name: roles.name,
-            color: roles.color,
-          })
-          .from(roles)
-          .where(eq(roles.storeId, storeId))
-          .orderBy(desc(roles.isSystem), asc(roles.name)),
-      ]);
+      const profiles = await db
+        .select({
+          id: admins.id,
+          email: admins.email,
+          first_name: admins.firstName,
+          last_name: admins.lastName,
+          role: admins.role,
+          force_password_reset: admins.forcePasswordReset,
+          is_suspended: admins.isSuspended,
+          created_at: admins.createdAt,
+        })
+        .from(admins)
+        .where(eq(admins.storeId, storeId))
+        .orderBy(desc(admins.createdAt));
+      const rolesData = await db
+        .select({
+          slug: roles.slug,
+          name: roles.name,
+          color: roles.color,
+        })
+        .from(roles)
+        .where(eq(roles.storeId, storeId))
+        .orderBy(desc(roles.isSystem), asc(roles.name));
       return {
         profiles: profiles as Profile[],
         rolesData: rolesData as RoleOption[],

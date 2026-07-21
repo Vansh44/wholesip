@@ -127,42 +127,38 @@ export async function listAllStores(q?: string): Promise<PlatformStoreRow[]> {
       // Enrich in four batch queries (never per-store): owner email, this
       // month's AI usage, the credit balance, and the BYO gateway state.
       const ids = list.map((s) => s.id);
-      const [owners, usage, credits, gw] = await Promise.all([
-        db
-          .select({
-            store_id: admins.storeId,
-            email: admins.email,
-            created_at: admins.createdAt,
-          })
-          .from(admins)
-          .where(
-            and(inArray(admins.storeId, ids), eq(admins.role, "superadmin")),
-          )
-          .orderBy(asc(admins.createdAt)),
-        db
-          .select({ store_id: aiUsage.storeId, used: aiUsage.used })
-          .from(aiUsage)
-          .where(
-            and(
-              inArray(aiUsage.storeId, ids),
-              eq(aiUsage.period, currentPeriod()),
-            ),
+      const owners = await db
+        .select({
+          store_id: admins.storeId,
+          email: admins.email,
+          created_at: admins.createdAt,
+        })
+        .from(admins)
+        .where(and(inArray(admins.storeId, ids), eq(admins.role, "superadmin")))
+        .orderBy(asc(admins.createdAt));
+      const usage = await db
+        .select({ store_id: aiUsage.storeId, used: aiUsage.used })
+        .from(aiUsage)
+        .where(
+          and(
+            inArray(aiUsage.storeId, ids),
+            eq(aiUsage.period, currentPeriod()),
           ),
-        db
-          .select({
-            store_id: aiCreditBalances.storeId,
-            balance: aiCreditBalances.balance,
-          })
-          .from(aiCreditBalances)
-          .where(inArray(aiCreditBalances.storeId, ids)),
-        db
-          .select({
-            store_id: storePaymentProviders.storeId,
-            enabled: storePaymentProviders.enabled,
-          })
-          .from(storePaymentProviders)
-          .where(inArray(storePaymentProviders.storeId, ids)),
-      ]);
+        );
+      const credits = await db
+        .select({
+          store_id: aiCreditBalances.storeId,
+          balance: aiCreditBalances.balance,
+        })
+        .from(aiCreditBalances)
+        .where(inArray(aiCreditBalances.storeId, ids));
+      const gw = await db
+        .select({
+          store_id: storePaymentProviders.storeId,
+          enabled: storePaymentProviders.enabled,
+        })
+        .from(storePaymentProviders)
+        .where(inArray(storePaymentProviders.storeId, ids));
 
       // Earliest superadmin per store wins as "owner".
       const ownerByStore = new Map<string, string>();
@@ -393,35 +389,33 @@ export async function getStoreAudit(
 
   try {
     return await withService(async (db) => {
-      const [planEventRows, creditLedgerRows] = await Promise.all([
-        db
-          .select({
-            id: planEvents.id,
-            from_plan: planEvents.fromPlan,
-            to_plan: planEvents.toPlan,
-            source: planEvents.source,
-            actor: planEvents.actor,
-            note: planEvents.note,
-            created_at: planEvents.createdAt,
-          })
-          .from(planEvents)
-          .where(eq(planEvents.storeId, storeId))
-          .orderBy(desc(planEvents.createdAt))
-          .limit(30),
-        db
-          .select({
-            id: aiCreditLedger.id,
-            delta: aiCreditLedger.delta,
-            kind: aiCreditLedger.kind,
-            ref: aiCreditLedger.ref,
-            note: aiCreditLedger.note,
-            created_at: aiCreditLedger.createdAt,
-          })
-          .from(aiCreditLedger)
-          .where(eq(aiCreditLedger.storeId, storeId))
-          .orderBy(desc(aiCreditLedger.createdAt))
-          .limit(30),
-      ]);
+      const planEventRows = await db
+        .select({
+          id: planEvents.id,
+          from_plan: planEvents.fromPlan,
+          to_plan: planEvents.toPlan,
+          source: planEvents.source,
+          actor: planEvents.actor,
+          note: planEvents.note,
+          created_at: planEvents.createdAt,
+        })
+        .from(planEvents)
+        .where(eq(planEvents.storeId, storeId))
+        .orderBy(desc(planEvents.createdAt))
+        .limit(30);
+      const creditLedgerRows = await db
+        .select({
+          id: aiCreditLedger.id,
+          delta: aiCreditLedger.delta,
+          kind: aiCreditLedger.kind,
+          ref: aiCreditLedger.ref,
+          note: aiCreditLedger.note,
+          created_at: aiCreditLedger.createdAt,
+        })
+        .from(aiCreditLedger)
+        .where(eq(aiCreditLedger.storeId, storeId))
+        .orderBy(desc(aiCreditLedger.createdAt))
+        .limit(30);
       return {
         planEvents: planEventRows as StoreAuditData["planEvents"],
         creditLedger: creditLedgerRows as StoreAuditData["creditLedger"],
@@ -495,16 +489,14 @@ export async function deleteStore(storeId: string): Promise<ActionResult> {
 
       // Login accounts to delete (auth.users). admins.id AND users.id are both
       // auth user ids; their rows cascade with the store, so collect ids first.
-      const [staff, customerRows] = await Promise.all([
-        db
-          .select({ id: admins.id })
-          .from(admins)
-          .where(eq(admins.storeId, storeId)),
-        db
-          .select({ id: users.id })
-          .from(users)
-          .where(eq(users.storeId, storeId)),
-      ]);
+      const staff = await db
+        .select({ id: admins.id })
+        .from(admins)
+        .where(eq(admins.storeId, storeId));
+      const customerRows = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.storeId, storeId));
       for (const r of staff) authUserIds.add(r.id);
       for (const r of customerRows) authUserIds.add(r.id);
 

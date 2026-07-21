@@ -17,30 +17,28 @@ export default async function EditCouponPage({
 
   const storeId = await getActingStoreId();
   const result = await withService(async (db) => {
-    const [couponRows, groupRows, linkRows] = await Promise.all([
-      db
-        .select(COUPON_COLUMNS)
-        .from(coupons)
-        .where(and(eq(coupons.id, id), eq(coupons.storeId, storeId)))
-        .limit(1),
-      db
-        .select({
-          id: userGroups.id,
-          name: userGroups.name,
-          color: userGroups.color,
-        })
-        .from(userGroups)
-        .orderBy(asc(userGroups.name)),
-      db
-        .select({ group_id: couponUserGroups.groupId })
-        .from(couponUserGroups)
-        .where(
-          and(
-            eq(couponUserGroups.storeId, storeId),
-            eq(couponUserGroups.couponId, id),
-          ),
+    const couponRows = await db
+      .select(COUPON_COLUMNS)
+      .from(coupons)
+      .where(and(eq(coupons.id, id), eq(coupons.storeId, storeId)))
+      .limit(1);
+    const groupRows = await db
+      .select({
+        id: userGroups.id,
+        name: userGroups.name,
+        color: userGroups.color,
+      })
+      .from(userGroups)
+      .orderBy(asc(userGroups.name));
+    const linkRows = await db
+      .select({ group_id: couponUserGroups.groupId })
+      .from(couponUserGroups)
+      .where(
+        and(
+          eq(couponUserGroups.storeId, storeId),
+          eq(couponUserGroups.couponId, id),
         ),
-    ]);
+      );
     return {
       coupon: couponRows[0],
       groups: groupRows as CouponGroup[],

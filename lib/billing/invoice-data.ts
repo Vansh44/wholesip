@@ -95,17 +95,15 @@ export async function loadInvoiceByStore(
       const order = orderRows[0];
       if (!order) return null;
 
-      const [items, billingRows] = await Promise.all([
-        db
-          .select(ITEM_COLS)
-          .from(orderItems)
-          .where(eq(orderItems.orderId, orderId)),
-        db
-          .select(BILLING_COLS)
-          .from(storeBillingSettings)
-          .where(eq(storeBillingSettings.storeId, storeId))
-          .limit(1),
-      ]);
+      const items = await db
+        .select(ITEM_COLS)
+        .from(orderItems)
+        .where(eq(orderItems.orderId, orderId));
+      const billingRows = await db
+        .select(BILLING_COLS)
+        .from(storeBillingSettings)
+        .where(eq(storeBillingSettings.storeId, storeId))
+        .limit(1);
 
       return {
         storeId,

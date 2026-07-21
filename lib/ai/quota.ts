@@ -113,28 +113,26 @@ export interface AiUsageSummary {
 export async function getAiUsage(storeId: string): Promise<AiUsageSummary> {
   try {
     return await withService(async (db) => {
-      const [storeRows, usageRows, creditRows] = await Promise.all([
-        db
-          .select({ plan: stores.plan, plan_expires_at: stores.planExpiresAt })
-          .from(stores)
-          .where(eq(stores.id, storeId))
-          .limit(1),
-        db
-          .select({ used: aiUsage.used })
-          .from(aiUsage)
-          .where(
-            and(
-              eq(aiUsage.storeId, storeId),
-              eq(aiUsage.period, currentPeriod()),
-            ),
-          )
-          .limit(1),
-        db
-          .select({ balance: aiCreditBalances.balance })
-          .from(aiCreditBalances)
-          .where(eq(aiCreditBalances.storeId, storeId))
-          .limit(1),
-      ]);
+      const storeRows = await db
+        .select({ plan: stores.plan, plan_expires_at: stores.planExpiresAt })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1);
+      const usageRows = await db
+        .select({ used: aiUsage.used })
+        .from(aiUsage)
+        .where(
+          and(
+            eq(aiUsage.storeId, storeId),
+            eq(aiUsage.period, currentPeriod()),
+          ),
+        )
+        .limit(1);
+      const creditRows = await db
+        .select({ balance: aiCreditBalances.balance })
+        .from(aiCreditBalances)
+        .where(eq(aiCreditBalances.storeId, storeId))
+        .limit(1);
       return {
         used: usageRows[0]?.used ?? 0,
         cap: limitsFor(effectivePlan(storeRows[0] ?? {})).aiGenerationsPerMonth,

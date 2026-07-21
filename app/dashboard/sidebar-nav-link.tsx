@@ -34,11 +34,13 @@ import {
   CreditCard,
   Gem,
   Sparkles,
+  House,
   type LucideIcon,
 } from "lucide-react";
 
 export const navIcons = {
   dashboard: LayoutGrid,
+  home: House,
   homepage: LayoutTemplate,
   orders: Package,
   products: ShoppingBag,

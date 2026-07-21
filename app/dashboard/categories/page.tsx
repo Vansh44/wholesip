@@ -33,27 +33,25 @@ export default async function CategoriesPage() {
   let countRows: { category_id: string; cnt: number }[];
   try {
     ({ list, countRows } = await withService(async (db) => {
-      const [cats, counts] = await Promise.all([
-        // Aliased select preserves the snake_case shape the view expects.
-        db
-          .select({
-            id: categories.id,
-            name: categories.name,
-            slug: categories.slug,
-            description: categories.description,
-            image_url: categories.imageUrl,
-            sort_order: categories.sortOrder,
-            status: categories.status,
-            created_at: categories.createdAt,
-            updated_at: categories.updatedAt,
-          })
-          .from(categories)
-          .where(eq(categories.storeId, storeId))
-          .orderBy(asc(categories.sortOrder), asc(categories.name)),
-        db.execute(
-          sql`select category_id, cnt from product_counts_by_category(${storeId})`,
-        ),
-      ]);
+      // Aliased select preserves the snake_case shape the view expects.
+      const cats = await db
+        .select({
+          id: categories.id,
+          name: categories.name,
+          slug: categories.slug,
+          description: categories.description,
+          image_url: categories.imageUrl,
+          sort_order: categories.sortOrder,
+          status: categories.status,
+          created_at: categories.createdAt,
+          updated_at: categories.updatedAt,
+        })
+        .from(categories)
+        .where(eq(categories.storeId, storeId))
+        .orderBy(asc(categories.sortOrder), asc(categories.name));
+      const counts = await db.execute(
+        sql`select category_id, cnt from product_counts_by_category(${storeId})`,
+      );
       return {
         list: cats as Category[],
         countRows: counts.rows as { category_id: string; cnt: number }[],

@@ -37,6 +37,7 @@ export default async function OrdersPage({
   const status = pickParam(sp.status);
   const paymentStatus = pickParam(sp.payment);
   const paymentMethod = pickParam(sp.method);
+  const dateRange = pickParam(sp.date);
   const pageSize = DASHBOARD_PAGE_SIZE;
 
   const { orders, total, counts, error } = await getOrders({
@@ -46,6 +47,7 @@ export default async function OrdersPage({
     paymentStatus,
     paymentMethod,
     q,
+    dateRange,
   });
 
   if (error) {
@@ -72,6 +74,7 @@ export default async function OrdersPage({
         status={status}
         paymentStatus={paymentStatus}
         paymentMethod={paymentMethod}
+        dateRange={dateRange}
       />
     </>
   );

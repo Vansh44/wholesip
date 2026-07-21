@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { PLATFORM_URL } from "@/lib/site";
-import { ROOT_DOMAIN } from "@/lib/store/host";
+import { ROOT_DOMAIN, SEARCH_INDEXABLE } from "@/lib/store/host";
 import {
   getPublishedProducts,
   getPublishedBlogCards,
@@ -30,9 +30,9 @@ const STATIC_PATHS: { path: string; priority: number; freq: ChangeFreq }[] = [
 ];
 
 // Image sitemaps need an absolute image URL. Uploaded media is already an
-// absolute Supabase Storage URL; theme-bundled imagery is a site-relative
-// /public path, so resolve that against the store origin. Anything else is
-// skipped.
+// absolute URL (GCS, or legacy Supabase Storage); theme-bundled imagery is a
+// site-relative /public path, so resolve that against the store origin.
+// Anything else is skipped.
 function imageEntry(
   siteUrl: string,
   url: string | null | undefined,
@@ -52,9 +52,9 @@ const PLATFORM_PATHS: { path: string; priority: number; freq: ChangeFreq }[] = [
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // Staging / preview keeps the whole site out of search (see robots.ts), so
-  // emit an empty sitemap. Toggled by NEXT_PUBLIC_NOINDEX=1 on the environment.
-  if (process.env.NEXT_PUBLIC_NOINDEX === "1") return [];
+  // Only production (storemink.com) is crawlable; staging / previews / dev emit
+  // an empty sitemap (see robots.ts + SEARCH_INDEXABLE in lib/store/host.ts).
+  if (!SEARCH_INDEXABLE) return [];
 
   const now = new Date();
 

@@ -142,7 +142,10 @@ wholesip/
 │   │   │                      # list-params.ts, use-row-selection.ts
 │   │   ├── products/          # CRUD; edit = full page [id]/ (Shopify-style, no modal)
 │   │   ├── orders/            # Orders list (server-paginated) — reads order-actions
-│   │   ├── categories/ colors/ blogs/ media/   # content management
+│   │   ├── categories/ colors/ blogs/ media/   # content management (media/ = the
+│   │   │                      # per-store Media Library: confirm-first upload + grid +
+│   │   │                      # view + copy-URL + delete (media_assets row + GCS object),
+│   │   │                      # via app/actions/media-actions.ts)
 │   │   │   └── blogs/settings/  # blog feature toggles + per-store categories/tags manager
 │   │   │   (homepage editor RETIRED in Phase 4a — the homepage is now edited in builder/)
 │   │   ├── navigation/        # ★ Menu builder (§11): edit header + footer nav (store_menus)
@@ -259,7 +262,9 @@ wholesip/
 │   │                          # client helpers (uploadImage POSTs /api/upload; uploadVideo
 │   │                          # PUTs to a signed GCS URL). cleanup.ts — deleteStorageUrls/
 │   │                          # extractMediaUrlsFromHtml orphan cleanup (legacy Supabase
-│   │                          # URLs ignored). Tested.
+│   │                          # URLs ignored). process-image.ts — shared validate+optimize
+│   │                          # (sharp→WebP, SVG rasterize) used by BOTH /api/upload and
+│   │                          # the media-library action. Tested.
 │   ├── db/                    # ★ Cloud SQL data layer (GCP Phase 5, IN PROGRESS — NOT yet
 │   │                          # the active path; app still on Supabase). client.ts: Drizzle
 │   │                          # over pg Pool w/ the 2A tenancy model — withService (BYPASSRLS),
@@ -385,6 +390,8 @@ wholesip/
 │   │                          # reserve/release (enforces max_uses under concurrency)
 │   ├── blog_taxonomy.sql      # per-store blog_categories + blog_tags (+ RLS + seed)
 │   ├── store_menus.sql        # ★ per-store header/footer nav (+ RLS + WholeSip seed) — §11
+│   ├── media_assets.sql       # ★ per-store Media Library table (RLS is_store_admin; NOT
+│   │                          # public — object URLs are public, the listing is admin-only)
 │   ├── invoicing.sql          # ★ tax_classes + products.tax_class_id + order_items tax
 │   │                          # cols + orders.tax_inclusive + store_billing_settings — §17
 │   ├── plans_02_basic_and_expiry.sql # ★ starter→basic rename + plan_expires_at — §15
@@ -1065,13 +1072,23 @@ npm run format      # prettier --write
   only) is env **`RAZORPAY_KEY_ID`** / **`RAZORPAY_KEY_SECRET`**. Cron routes
   (`/api/cron/*`) require **`CRON_SECRET`** (Vercel Cron sends it as a Bearer
   header).
-- **Search-engine indexing** (`lib/seo/search-engines.ts`): IndexNow needs no
-  account (public key file `public/<key>.txt`; `INDEXNOW_KEY` overrides it,
-  `INDEXNOW_FORCE=1` enables pings outside prod). Google Search Console
-  submission is DORMANT until `GOOGLE_SEARCH_CONSOLE_CREDENTIALS` (service-account
-  JSON) + `GOOGLE_SEARCH_CONSOLE_PROPERTY` (e.g. `sc-domain:storemink.com`) are
-  set. One-time human setup: verify `storemink.com` as a Search Console _Domain
-  property_ (covers all `*.storemink.com`) and grant the service account access.
+- **Search-engine indexing** (`lib/seo/search-engines.ts`; full runbook in
+  `docs/seo-indexing.md`): only the **production apex** is indexable —
+  `SEARCH_INDEXABLE` in `lib/store/host.ts` (`ROOT_DOMAIN === "storemink.com" &&
+NEXT_PUBLIC_NOINDEX !== "1"`) is the single gate for `robots.ts` (non-prod →
+  `Disallow: /`), `sitemap.ts` (non-prod → empty), AND both notify channels, so
+  staging/previews are auto-`noindex`d and never ping (no per-deploy flag; staging
+  runs as `NODE_ENV=production` on Cloud Run, so the old NODE*ENV guard was
+  insufficient). IndexNow needs no account (public key file `public/<key>.txt`;
+  `INDEXNOW_KEY` overrides it, `INDEXNOW_FORCE=1` pings off-prod). Google Search
+  Console submission is DORMANT until `GOOGLE_SEARCH_CONSOLE_PROPERTY` (e.g.
+  `sc-domain:storemink.com`) is set — auth is then the **runtime service account
+  via ADC** (nothing to store; `cloudbuild.yaml` passes the property, prod trigger
+  = `sc-domain:storemink.com`), or an explicit `GOOGLE_SEARCH_CONSOLE_CREDENTIALS`
+  key JSON for non-GCP hosts. One-time human setup: verify `storemink.com` as a
+  Search Console \_Domain property* (covers all `*.storemink.com`) and add the
+  `storemink-run@…` SA as a property user. Custom-domain stores fall outside the
+  property, so their Google submit no-ops (IndexNow + on-page canonicals cover them).
 
 ## 8. Multi-tenant rollout status (as of 2026-07)
 

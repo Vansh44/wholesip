@@ -137,8 +137,11 @@ export async function getCurrentStoreOrNull(): Promise<Store | null> {
     // this null is NOT cached (the throw inside lookupStoreByHost bypasses
     // unstable_cache), so once the DB is back the very next request resolves the
     // real store instead of serving a poisoned null for the revalidate window.
-    console.error(
-      "lookupStoreByHost:",
+    // warn, not error: this is a transient, self-healing condition (the next
+    // request retries), so it shouldn't trip the dev error overlay or pollute
+    // prod Error Reporting.
+    console.warn(
+      "lookupStoreByHost (transient, degraded to no-store):",
       err instanceof Error ? err.message : err,
     );
     return null;
@@ -161,7 +164,10 @@ export async function getCurrentStore(): Promise<Store> {
   } catch (err) {
     // DB error resolving the fallback → fall through to the synthetic store
     // (never cached as null; retries next request).
-    console.error("lookupStoreById:", err instanceof Error ? err.message : err);
+    console.warn(
+      "lookupStoreById (transient, degraded to synthetic fallback):",
+      err instanceof Error ? err.message : err,
+    );
   }
 
   // Last-resort synthetic store so callers never crash even if the row is

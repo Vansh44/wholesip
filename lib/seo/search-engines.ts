@@ -1,5 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
+import { SEARCH_INDEXABLE } from "@/lib/store/host";
 
 // Search-engine notification: tell crawlers about new/changed URLs so a store
 // is discovered and re-indexed quickly, instead of waiting for organic crawl.
@@ -7,14 +8,20 @@ import crypto from "node:crypto";
 // Two independent, best-effort channels — each no-ops safely until its config
 // is present, and NEITHER ever throws (a failure must never break the store
 // action that triggered it). Callers fire these via `after()` so the user's
-// response isn't blocked.
+// response isn't blocked. BOTH are gated on SEARCH_INDEXABLE, so staging /
+// previews (which run as NODE_ENV=production on Cloud Run) never ping with
+// non-production URLs.
 //
 //   • IndexNow  → Bing, Yandex, Naver, Seznam (NOT Google). No account/setup
 //                 beyond the public key file at /{key}.txt (public/). Active in
 //                 production out of the box.
-//   • Google    → Search Console `sitemaps.submit`. Dormant until the platform
-//                 sets GOOGLE_SEARCH_CONSOLE_CREDENTIALS (service-account JSON)
-//                 + GOOGLE_SEARCH_CONSOLE_PROPERTY (e.g. "sc-domain:storemink.com").
+//   • Google    → Search Console `sitemaps.submit`, scoped to
+//                 GOOGLE_SEARCH_CONSOLE_PROPERTY (e.g. "sc-domain:storemink.com").
+//                 Auth is either the runtime service account via Application
+//                 Default Credentials (Cloud Run — nothing to store; just grant
+//                 that SA access to the property in Search Console) OR an
+//                 explicit service-account key in GOOGLE_SEARCH_CONSOLE_CREDENTIALS
+//                 (JSON, for local/non-GCP hosts). Dormant until the property is set.
 
 // Public IndexNow key. Served verbatim at public/<key>.txt so the search engine
 // can confirm ownership. Overridable via env, but the file must match.
@@ -51,12 +58,13 @@ export function indexNowPayload(host: string, urls: string[]) {
 }
 
 // Notify IndexNow that these URLs changed. Best-effort, bounded, never throws.
-// Skipped outside production (dev/preview hosts aren't publicly reachable), so
-// it doesn't ping with localhost URLs; set INDEXNOW_FORCE=1 to override.
+// Skipped unless the build is the indexable production platform (staging /
+// preview / dev hosts aren't meant to be indexed), so it never pings with
+// non-production URLs; set INDEXNOW_FORCE=1 to override for local testing.
 export async function pingIndexNow(urls: string[]): Promise<void> {
   const https = urls.filter((u) => u.startsWith("https://"));
   if (!https.length) return;
-  if (process.env.NODE_ENV !== "production" && !process.env.INDEXNOW_FORCE) {
+  if (!SEARCH_INDEXABLE && !process.env.INDEXNOW_FORCE) {
     return;
   }
   // One request per host (IndexNow requires a single host per submission).
@@ -112,15 +120,37 @@ export function googleSitemapEndpoint(
   )}/sitemaps/${encodeURIComponent(sitemapUrl)}`;
 }
 
-// Mint an OAuth access token from a service-account key via the JWT-bearer
-// grant (RS256), scoped to Search Console. Returns null on any failure.
-async function googleAccessToken(creds: GoogleCreds): Promise<string | null> {
+const WEBMASTERS_SCOPE = "https://www.googleapis.com/auth/webmasters";
+
+// Mint a Search Console access token. Two paths:
+//   • creds present → JWT-bearer grant (RS256) from that service-account key
+//     (local / non-GCP hosts).
+//   • creds null → Application Default Credentials — on Cloud Run this is the
+//     runtime service account (no key to store; grant it access to the property
+//     in Search Console). Uses google-auth-library, already a dependency (Vertex).
+// Returns null on any failure.
+async function googleAccessToken(
+  creds: GoogleCreds | null,
+): Promise<string | null> {
+  if (!creds) {
+    try {
+      const { GoogleAuth } = await import("google-auth-library");
+      const auth = new GoogleAuth({ scopes: WEBMASTERS_SCOPE });
+      const client = await auth.getClient();
+      const { token } = await client.getAccessToken();
+      return token ?? null;
+    } catch (err) {
+      console.error("googleAccessToken (ADC) failed:", (err as Error).message);
+      return null;
+    }
+  }
+
   const now = Math.floor(Date.now() / 1000);
   const b64 = (o: object) =>
     Buffer.from(JSON.stringify(o)).toString("base64url");
   const unsigned = `${b64({ alg: "RS256", typ: "JWT" })}.${b64({
     iss: creds.client_email,
-    scope: "https://www.googleapis.com/auth/webmasters",
+    scope: WEBMASTERS_SCOPE,
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600,
@@ -145,14 +175,15 @@ async function googleAccessToken(creds: GoogleCreds): Promise<string | null> {
   return data.access_token ?? null;
 }
 
-// Submit a store's sitemap to Google Search Console. Dormant (no-op) until the
-// platform's service-account + property env are set. Best-effort, never throws.
+// Submit a store's sitemap to Google Search Console. Dormant (no-op) until
+// GOOGLE_SEARCH_CONSOLE_PROPERTY is set (auth is then ADC on Cloud Run, or an
+// explicit key via GOOGLE_SEARCH_CONSOLE_CREDENTIALS). Best-effort, never throws.
 export async function submitSitemapToGoogle(sitemapUrl: string): Promise<void> {
-  const creds = loadGoogleCreds();
+  if (!SEARCH_INDEXABLE) return;
   const property = process.env.GOOGLE_SEARCH_CONSOLE_PROPERTY;
-  if (!creds || !property) return;
+  if (!property) return;
   try {
-    const token = await googleAccessToken(creds);
+    const token = await googleAccessToken(loadGoogleCreds());
     if (!token) return;
     const res = await fetchWithTimeout(
       googleSitemapEndpoint(property, sitemapUrl),
