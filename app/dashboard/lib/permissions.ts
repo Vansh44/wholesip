@@ -41,9 +41,9 @@ export const SECTIONS: DashboardSection[] = [
   // Workspace
   {
     key: "dashboard",
-    label: "Dashboard",
+    label: "Home",
     href: "/dashboard",
-    icon: "dashboard",
+    icon: "home",
     group: "Workspace",
     actions: ["view"],
   },

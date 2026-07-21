@@ -39,7 +39,7 @@ export function DashboardTopbar({
   const planPill = PLAN_PILL[planId ?? "free"] ?? PLAN_PILL.free;
 
   return (
-    <header className="dash-topbar flex items-center justify-between px-2 sm:px-4 h-14 bg-slate-800 text-white">
+    <header className="dash-topbar flex items-center justify-between px-2 sm:px-4 h-14 bg-[#3f3f46] text-white">
       <div className="flex items-center gap-1 sm:gap-3 shrink-0">
         <button
           type="button"
