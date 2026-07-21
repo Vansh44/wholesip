@@ -1072,13 +1072,23 @@ npm run format      # prettier --write
   only) is env **`RAZORPAY_KEY_ID`** / **`RAZORPAY_KEY_SECRET`**. Cron routes
   (`/api/cron/*`) require **`CRON_SECRET`** (Vercel Cron sends it as a Bearer
   header).
-- **Search-engine indexing** (`lib/seo/search-engines.ts`): IndexNow needs no
-  account (public key file `public/<key>.txt`; `INDEXNOW_KEY` overrides it,
-  `INDEXNOW_FORCE=1` enables pings outside prod). Google Search Console
-  submission is DORMANT until `GOOGLE_SEARCH_CONSOLE_CREDENTIALS` (service-account
-  JSON) + `GOOGLE_SEARCH_CONSOLE_PROPERTY` (e.g. `sc-domain:storemink.com`) are
-  set. One-time human setup: verify `storemink.com` as a Search Console _Domain
-  property_ (covers all `*.storemink.com`) and grant the service account access.
+- **Search-engine indexing** (`lib/seo/search-engines.ts`; full runbook in
+  `docs/seo-indexing.md`): only the **production apex** is indexable —
+  `SEARCH_INDEXABLE` in `lib/store/host.ts` (`ROOT_DOMAIN === "storemink.com" &&
+NEXT_PUBLIC_NOINDEX !== "1"`) is the single gate for `robots.ts` (non-prod →
+  `Disallow: /`), `sitemap.ts` (non-prod → empty), AND both notify channels, so
+  staging/previews are auto-`noindex`d and never ping (no per-deploy flag; staging
+  runs as `NODE_ENV=production` on Cloud Run, so the old NODE*ENV guard was
+  insufficient). IndexNow needs no account (public key file `public/<key>.txt`;
+  `INDEXNOW_KEY` overrides it, `INDEXNOW_FORCE=1` pings off-prod). Google Search
+  Console submission is DORMANT until `GOOGLE_SEARCH_CONSOLE_PROPERTY` (e.g.
+  `sc-domain:storemink.com`) is set — auth is then the **runtime service account
+  via ADC** (nothing to store; `cloudbuild.yaml` passes the property, prod trigger
+  = `sc-domain:storemink.com`), or an explicit `GOOGLE_SEARCH_CONSOLE_CREDENTIALS`
+  key JSON for non-GCP hosts. One-time human setup: verify `storemink.com` as a
+  Search Console \_Domain property* (covers all `*.storemink.com`) and add the
+  `storemink-run@…` SA as a property user. Custom-domain stores fall outside the
+  property, so their Google submit no-ops (IndexNow + on-page canonicals cover them).
 
 ## 8. Multi-tenant rollout status (as of 2026-07)
 

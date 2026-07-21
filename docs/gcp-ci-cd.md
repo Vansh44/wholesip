@@ -112,7 +112,7 @@ gcloud builds triggers create github \
   --branch-pattern='^main$' \
   --build-config=cloudbuild.yaml \
   --service-account=projects/storemink-prod/serviceAccounts/705863961054-compute@developer.gserviceaccount.com \
-  --substitutions='_IMAGE=asia-south1-docker.pkg.dev/storemink-prod/storemink/web:prod,_SERVICE=storemink-web-prod,_MIN_INSTANCES=1,_DB_CONN=storemink-prod:asia-south1:storemink-prod-db,_DB_PASSWORD_SECRET=CLOUDSQL_PROD_APP_PW,_GCS_BUCKET=storemink-media-prod,_FIREBASE_PROJECT_ID=storemink-prod,_FIREBASE_SA_ID=firebase-adminsdk-fbsvc@storemink-prod.iam.gserviceaccount.com,_NEXT_PUBLIC_FIREBASE_API_KEY=<PROD_WEB_API_KEY>,_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=storemink-prod.firebaseapp.com,_NEXT_PUBLIC_FIREBASE_PROJECT_ID=storemink-prod,_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=storemink-prod.firebasestorage.app,_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=705863961054,_NEXT_PUBLIC_FIREBASE_APP_ID=1:705863961054:web:e326046a5f9f7b7de9f54f,_NEXT_PUBLIC_ROOT_DOMAIN=storemink.com,_NEXT_PUBLIC_APP_URL=https://storemink.com'
+  --substitutions='_IMAGE=asia-south1-docker.pkg.dev/storemink-prod/storemink/web:prod,_SERVICE=storemink-web-prod,_MIN_INSTANCES=1,_DB_CONN=storemink-prod:asia-south1:storemink-prod-db,_DB_PASSWORD_SECRET=CLOUDSQL_PROD_APP_PW,_GCS_BUCKET=storemink-media-prod,_FIREBASE_PROJECT_ID=storemink-prod,_FIREBASE_SA_ID=firebase-adminsdk-fbsvc@storemink-prod.iam.gserviceaccount.com,_NEXT_PUBLIC_FIREBASE_API_KEY=<PROD_WEB_API_KEY>,_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=storemink-prod.firebaseapp.com,_NEXT_PUBLIC_FIREBASE_PROJECT_ID=storemink-prod,_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=storemink-prod.firebasestorage.app,_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=705863961054,_NEXT_PUBLIC_FIREBASE_APP_ID=1:705863961054:web:e326046a5f9f7b7de9f54f,_NEXT_PUBLIC_ROOT_DOMAIN=storemink.com,_NEXT_PUBLIC_APP_URL=https://storemink.com,_GOOGLE_SEARCH_CONSOLE_PROPERTY=sc-domain:storemink.com'
 ```
 
 ---
@@ -145,6 +145,12 @@ gcloud builds triggers delete rmgpgab-storemink-web-asia-south1-Vansh44-storemin
 | `_NEXT_PUBLIC_FIREBASE_APP_ID`              | `1:68037646295:web:388ef47d32e39c822b1d92`                          | `1:705863961054:web:e326046a5f9f7b7de9f54f`                      |
 | `_NEXT_PUBLIC_ROOT_DOMAIN`                  | `staging.storemink.com`                                             | `storemink.com`                                                  |
 | `_NEXT_PUBLIC_APP_URL`                      | `https://staging.storemink.com`                                     | `https://storemink.com`                                          |
+| `_GOOGLE_SEARCH_CONSOLE_PROPERTY`           | _(empty — staging is never indexed)_                                | `sc-domain:storemink.com`                                        |
+
+Staging is never indexed (its `ROOT_DOMAIN` isn't the prod apex), so it needs no
+Search Console property. On prod, the runtime SA `_RUN_SA` authenticates to
+Search Console via ADC — grant it access to the property once (see
+`docs/seo-indexing.md`); there is no key/secret to store.
 
 The Firebase `apiKey` and app id are public (they ship in the client bundle) —
 not secrets. Real secrets (`DB_PASSWORD`, `CRON_SECRET`) come from Secret Manager

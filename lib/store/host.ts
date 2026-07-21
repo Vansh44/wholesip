@@ -10,6 +10,16 @@ export const ROOT_DOMAIN = (
   process.env.NEXT_PUBLIC_ROOT_DOMAIN || "storemink.com"
 ).toLowerCase();
 
+// Search indexing is enabled ONLY on the real production platform apex
+// (storemink.com) — and never when NEXT_PUBLIC_NOINDEX=1 forces it off. Staging
+// (ROOT_DOMAIN=staging.storemink.com), Vercel/Cloud Run previews, and local dev
+// are therefore never indexed AND never ping search engines, with no per-deploy
+// flag to remember (and no risk of accidentally no-indexing production). It's a
+// build-time constant because NEXT_PUBLIC_* are inlined at build. Consumed by
+// app/robots.ts, app/sitemap.ts, and lib/seo/search-engines.ts.
+export const SEARCH_INDEXABLE =
+  ROOT_DOMAIN === "storemink.com" && process.env.NEXT_PUBLIC_NOINDEX !== "1";
+
 export type HostKind =
   | { type: "store-subdomain"; slug: string }
   | { type: "custom-domain"; domain: string }
