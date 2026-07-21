@@ -29,24 +29,22 @@ export default async function ColorsPage() {
   let countRows: { card_color: string; cnt: number }[];
   try {
     ({ list, countRows } = await withService(async (db) => {
-      const [colors, counts] = await Promise.all([
-        // Aliased select preserves the snake_case shape the view expects.
-        db
-          .select({
-            id: cardColors.id,
-            name: cardColors.name,
-            hex: cardColors.hex,
-            sort_order: cardColors.sortOrder,
-            created_at: cardColors.createdAt,
-            updated_at: cardColors.updatedAt,
-          })
-          .from(cardColors)
-          .where(eq(cardColors.storeId, storeId))
-          .orderBy(asc(cardColors.sortOrder), asc(cardColors.name)),
-        db.execute(
-          sql`select card_color, cnt from product_counts_by_color(${storeId})`,
-        ),
-      ]);
+      // Aliased select preserves the snake_case shape the view expects.
+      const colors = await db
+        .select({
+          id: cardColors.id,
+          name: cardColors.name,
+          hex: cardColors.hex,
+          sort_order: cardColors.sortOrder,
+          created_at: cardColors.createdAt,
+          updated_at: cardColors.updatedAt,
+        })
+        .from(cardColors)
+        .where(eq(cardColors.storeId, storeId))
+        .orderBy(asc(cardColors.sortOrder), asc(cardColors.name));
+      const counts = await db.execute(
+        sql`select card_color, cnt from product_counts_by_color(${storeId})`,
+      );
       return {
         list: colors as CardColor[],
         countRows: counts.rows as { card_color: string; cnt: number }[],

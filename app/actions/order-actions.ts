@@ -189,23 +189,28 @@ export async function getOrders(
     const { rows, total, statusRows } = await withUser(
       { uid: userId },
       async (db) => {
-        const [rows, countRows, statusRows] = await Promise.all([
-          db
-            .select(ORDER_LIST_COLUMNS)
-            .from(orders)
-            .where(whereExpr)
-            .orderBy(desc(orders.createdAt))
-            .limit(safeSize)
-            .offset(from),
-          db.select({ n: count() }).from(orders).where(whereExpr),
-          // Store-wide per-status counts for the filter tabs (ignores the
-          // active facets, so a tab always shows its full store count).
-          db
-            .select({ status: orders.status, n: count() })
-            .from(orders)
-            .where(countWhere)
-            .groupBy(orders.status),
-        ]);
+        // Sequential, NOT Promise.all: these share one pooled connection, which
+        // can only run one query at a time — parallelising them just trips pg's
+        // "query while another is in flight" deprecation (removed in pg@9) with
+        // no speedup, since the connection serialises them anyway.
+        const rows = await db
+          .select(ORDER_LIST_COLUMNS)
+          .from(orders)
+          .where(whereExpr)
+          .orderBy(desc(orders.createdAt))
+          .limit(safeSize)
+          .offset(from);
+        const countRows = await db
+          .select({ n: count() })
+          .from(orders)
+          .where(whereExpr);
+        // Store-wide per-status counts for the filter tabs (ignores the active
+        // facets, so a tab always shows its full store count).
+        const statusRows = await db
+          .select({ status: orders.status, n: count() })
+          .from(orders)
+          .where(countWhere)
+          .groupBy(orders.status);
         return { rows, total: countRows[0]?.n ?? 0, statusRows };
       },
     );

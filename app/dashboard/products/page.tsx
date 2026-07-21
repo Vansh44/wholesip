@@ -160,76 +160,66 @@ export default async function ProductsPage({
   let defaultTrackInventory: boolean;
   try {
     const result = await withService(async (db) => {
-      const [
-        rows,
-        countRows,
-        statusRows,
-        featuredRows,
-        categoryRows,
-        colorRows,
-        taxClassRows,
-        storeRows,
-      ] = await Promise.all([
-        db
-          .select({
-            ...PRODUCT_COLUMNS,
-            cat_id: categories.id,
-            cat_name: categories.name,
-            cat_slug: categories.slug,
-          })
-          .from(products)
-          .leftJoin(categories, eq(products.categoryId, categories.id))
-          .where(whereExpr)
-          .orderBy(asc(products.sortOrder), desc(products.createdAt))
-          .limit(pageSize)
-          .offset(from),
-        db.select({ n: count() }).from(products).where(whereExpr),
-        // One grouped count for the status tabs; featured is its own dimension.
-        db
-          .select({ status: products.status, n: count() })
-          .from(products)
-          .where(eq(products.storeId, storeId))
-          .groupBy(products.status),
-        db
-          .select({ n: count() })
-          .from(products)
-          .where(
-            and(eq(products.storeId, storeId), eq(products.featured, true)),
-          ),
-        db
-          .select({
-            id: categories.id,
-            name: categories.name,
-            slug: categories.slug,
-            status: categories.status,
-          })
-          .from(categories)
-          .where(eq(categories.storeId, storeId))
-          .orderBy(asc(categories.sortOrder), asc(categories.name)),
-        db
-          .select({
-            id: cardColors.id,
-            name: cardColors.name,
-            hex: cardColors.hex,
-          })
-          .from(cardColors)
-          .where(eq(cardColors.storeId, storeId))
-          .orderBy(asc(cardColors.sortOrder), asc(cardColors.name)),
-        db
-          .select({
-            id: taxClasses.id,
-            name: taxClasses.name,
-            rate: taxClasses.rate,
-          })
-          .from(taxClasses)
-          .where(eq(taxClasses.storeId, storeId))
-          .orderBy(asc(taxClasses.sortOrder), asc(taxClasses.name)),
-        db
-          .select({ settings: stores.settings, plan: stores.plan })
-          .from(stores)
-          .where(eq(stores.id, storeId))
-          .limit(1),
-      ]);
+      const rows = await db
+        .select({
+          ...PRODUCT_COLUMNS,
+          cat_id: categories.id,
+          cat_name: categories.name,
+          cat_slug: categories.slug,
+        })
+        .from(products)
+        .leftJoin(categories, eq(products.categoryId, categories.id))
+        .where(whereExpr)
+        .orderBy(asc(products.sortOrder), desc(products.createdAt))
+        .limit(pageSize)
+        .offset(from);
+      const countRows = await db
+        .select({ n: count() })
+        .from(products)
+        .where(whereExpr);
+      // One grouped count for the status tabs; featured is its own dimension.
+      const statusRows = await db
+        .select({ status: products.status, n: count() })
+        .from(products)
+        .where(eq(products.storeId, storeId))
+        .groupBy(products.status);
+      const featuredRows = await db
+        .select({ n: count() })
+        .from(products)
+        .where(and(eq(products.storeId, storeId), eq(products.featured, true)));
+      const categoryRows = await db
+        .select({
+          id: categories.id,
+          name: categories.name,
+          slug: categories.slug,
+          status: categories.status,
+        })
+        .from(categories)
+        .where(eq(categories.storeId, storeId))
+        .orderBy(asc(categories.sortOrder), asc(categories.name));
+      const colorRows = await db
+        .select({
+          id: cardColors.id,
+          name: cardColors.name,
+          hex: cardColors.hex,
+        })
+        .from(cardColors)
+        .where(eq(cardColors.storeId, storeId))
+        .orderBy(asc(cardColors.sortOrder), asc(cardColors.name));
+      const taxClassRows = await db
+        .select({
+          id: taxClasses.id,
+          name: taxClasses.name,
+          rate: taxClasses.rate,
+        })
+        .from(taxClasses)
+        .where(eq(taxClasses.storeId, storeId))
+        .orderBy(asc(taxClasses.sortOrder), asc(taxClasses.name));
+      const storeRows = await db
+        .select({ settings: stores.settings, plan: stores.plan })
+        .from(stores)
+        .where(eq(stores.id, storeId))
+        .limit(1);
 
       // The list view only shows a variant COUNT (editing re-fetches the full
       // product + variants via /dashboard/products/[id]), so pull just variant

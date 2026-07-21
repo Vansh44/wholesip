@@ -18,18 +18,16 @@ export default async function RolesPage() {
   let profiles: { role: string }[];
   try {
     ({ rolesRaw, profiles } = await withService(async (db) => {
-      const [rolesRaw, profiles] = await Promise.all([
-        db
-          .select()
-          .from(rolesTable)
-          .where(eq(rolesTable.storeId, storeId))
-          .orderBy(desc(rolesTable.isSystem), asc(rolesTable.name)),
-        // Count how many admins hold each role (by slug).
-        db
-          .select({ role: admins.role })
-          .from(admins)
-          .where(eq(admins.storeId, storeId)),
-      ]);
+      const rolesRaw = await db
+        .select()
+        .from(rolesTable)
+        .where(eq(rolesTable.storeId, storeId))
+        .orderBy(desc(rolesTable.isSystem), asc(rolesTable.name));
+      // Count how many admins hold each role (by slug).
+      const profiles = await db
+        .select({ role: admins.role })
+        .from(admins)
+        .where(eq(admins.storeId, storeId));
       return {
         rolesRaw: rolesRaw as Record<string, unknown>[],
         profiles,

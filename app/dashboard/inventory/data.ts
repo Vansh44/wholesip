@@ -31,28 +31,26 @@ export async function getLowStockAlertCount(): Promise<number> {
       const threshold =
         (settings["inventory.lowStockThreshold"] as number) ?? 5;
 
-      const [pRows, vRows] = await Promise.all([
-        db
-          .select({ n: count() })
-          .from(products)
-          .where(
-            and(
-              eq(products.storeId, storeId),
-              eq(products.trackInventory, true),
-              lte(products.stock, threshold),
-            ),
+      const pRows = await db
+        .select({ n: count() })
+        .from(products)
+        .where(
+          and(
+            eq(products.storeId, storeId),
+            eq(products.trackInventory, true),
+            lte(products.stock, threshold),
           ),
-        db
-          .select({ n: count() })
-          .from(productVariants)
-          .where(
-            and(
-              eq(productVariants.storeId, storeId),
-              eq(productVariants.trackInventory, true),
-              lte(productVariants.stock, threshold),
-            ),
+        );
+      const vRows = await db
+        .select({ n: count() })
+        .from(productVariants)
+        .where(
+          and(
+            eq(productVariants.storeId, storeId),
+            eq(productVariants.trackInventory, true),
+            lte(productVariants.stock, threshold),
           ),
-      ]);
+        );
 
       return (pRows[0]?.n ?? 0) + (vRows[0]?.n ?? 0);
     });

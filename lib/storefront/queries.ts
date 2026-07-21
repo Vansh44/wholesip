@@ -266,18 +266,16 @@ export const getBlogTaxonomyNames = unstable_cache(
   ): Promise<{ categories: string[]; tags: string[] }> => {
     try {
       return await withAnon(async (db) => {
-        const [cats, tags] = await Promise.all([
-          db
-            .select({ name: blogCategories.name })
-            .from(blogCategories)
-            .where(eq(blogCategories.storeId, storeId))
-            .orderBy(asc(blogCategories.name)),
-          db
-            .select({ name: blogTags.name })
-            .from(blogTags)
-            .where(eq(blogTags.storeId, storeId))
-            .orderBy(asc(blogTags.name)),
-        ]);
+        const cats = await db
+          .select({ name: blogCategories.name })
+          .from(blogCategories)
+          .where(eq(blogCategories.storeId, storeId))
+          .orderBy(asc(blogCategories.name));
+        const tags = await db
+          .select({ name: blogTags.name })
+          .from(blogTags)
+          .where(eq(blogTags.storeId, storeId))
+          .orderBy(asc(blogTags.name));
         return {
           categories: cats.map((r) => r.name),
           tags: tags.map((r) => r.name),

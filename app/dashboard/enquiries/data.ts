@@ -136,16 +136,17 @@ export async function getEnquiries(
 
   try {
     const { rows, total } = await withService(async (db) => {
-      const [rows, countRows] = await Promise.all([
-        db
-          .select(ENQUIRY_COLUMNS)
-          .from(enquiryAdmin)
-          .where(whereExpr)
-          .orderBy(...order)
-          .limit(pageSize)
-          .offset(offset),
-        db.select({ n: count() }).from(enquiryAdmin).where(whereExpr),
-      ]);
+      const rows = await db
+        .select(ENQUIRY_COLUMNS)
+        .from(enquiryAdmin)
+        .where(whereExpr)
+        .orderBy(...order)
+        .limit(pageSize)
+        .offset(offset);
+      const countRows = await db
+        .select({ n: count() })
+        .from(enquiryAdmin)
+        .where(whereExpr);
       return { rows, total: countRows[0]?.n ?? 0 };
     });
     return {

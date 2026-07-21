@@ -15,7 +15,7 @@
 // (unix socket). Auth is the `app` login role (member of app_user + app_service).
 
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import * as schema from "../../drizzle/schema";
 import * as relations from "../../drizzle/relations";
 
@@ -38,6 +38,10 @@ function getPool(): Pool {
       max: Number(process.env.DB_POOL_MAX ?? 10),
       // The Auth Proxy / unix socket already provide a secure channel.
       ssl: false,
+      // Keep sockets warm so an idle connection isn't silently dropped by the
+      // Cloud SQL Auth Proxy — a dropped idle socket surfaces as ECONNRESET on
+      // its next use.
+      keepAlive: true,
     });
   }
   return _pool;
@@ -47,12 +51,40 @@ function getPool(): Pool {
 // them into SET LOCAL ROLE — which cannot take a bind parameter — is safe.
 type AppRole = "app_service" | "app_user";
 
+// Transient connection errors worth a quick retry: on a flaky link (or when the
+// Cloud SQL Auth Proxy recycles an idle socket) ACQUIRING a connection can fail
+// with these before any statement has run.
+const TRANSIENT_CONN_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "EPIPE",
+  "ETIMEDOUT",
+]);
+function isTransientConnError(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === "string" && TRANSIENT_CONN_CODES.has(code);
+}
+
+// Acquire a pooled connection, retrying briefly on transient network errors.
+// Retrying the ACQUIRE is safe (no statement has run yet); we never retry a
+// statement or a whole transaction — that could double-apply a write.
+async function acquireClient(retries = 2): Promise<PoolClient> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await getPool().connect();
+    } catch (err) {
+      if (attempt >= retries || !isTransientConnError(err)) throw err;
+      await new Promise((r) => setTimeout(r, 120 * (attempt + 1)));
+    }
+  }
+}
+
 async function runScoped<T>(
   role: AppRole,
   identity: { uid?: string; email?: string } | null,
   fn: (db: Db) => Promise<T>,
 ): Promise<T> {
-  const client = await getPool().connect();
+  const client = await acquireClient();
   try {
     await client.query("BEGIN");
     await client.query(`SET LOCAL ROLE ${role}`);

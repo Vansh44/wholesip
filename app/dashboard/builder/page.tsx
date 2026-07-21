@@ -19,34 +19,32 @@ export default async function BuilderPage() {
     ensureHomepage(),
     listPages(),
     withService(async (db) => {
-      const [productRows, categoryRows, blogRows] = await Promise.all([
-        db
-          .select({
-            id: products.id,
-            name: products.name,
-            slug: products.slug,
-            image_url: products.imageUrl,
-            featured: products.featured,
-          })
-          .from(products)
-          .where(eq(products.storeId, storeId))
-          .orderBy(asc(products.sortOrder), asc(products.name)),
-        db
-          .select({
-            id: categories.id,
-            name: categories.name,
-            slug: categories.slug,
-            image_url: categories.imageUrl,
-          })
-          .from(categories)
-          .where(eq(categories.storeId, storeId))
-          .orderBy(asc(categories.sortOrder), asc(categories.name)),
-        db
-          .select({ id: blogs.id, title: blogs.title, slug: blogs.slug })
-          .from(blogs)
-          .where(and(eq(blogs.storeId, storeId), eq(blogs.status, "published")))
-          .orderBy(desc(blogs.publishedAt)),
-      ]);
+      const productRows = await db
+        .select({
+          id: products.id,
+          name: products.name,
+          slug: products.slug,
+          image_url: products.imageUrl,
+          featured: products.featured,
+        })
+        .from(products)
+        .where(eq(products.storeId, storeId))
+        .orderBy(asc(products.sortOrder), asc(products.name));
+      const categoryRows = await db
+        .select({
+          id: categories.id,
+          name: categories.name,
+          slug: categories.slug,
+          image_url: categories.imageUrl,
+        })
+        .from(categories)
+        .where(eq(categories.storeId, storeId))
+        .orderBy(asc(categories.sortOrder), asc(categories.name));
+      const blogRows = await db
+        .select({ id: blogs.id, title: blogs.title, slug: blogs.slug })
+        .from(blogs)
+        .where(and(eq(blogs.storeId, storeId), eq(blogs.status, "published")))
+        .orderBy(desc(blogs.publishedAt));
       return { productRows, categoryRows, blogRows };
     }).catch(() => ({
       productRows: [] as ProductOption[],

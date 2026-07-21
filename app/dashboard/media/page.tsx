@@ -23,27 +23,27 @@ export default async function MediaDashboardPage({
   let total = 0;
   try {
     const result = await withService(async (db) => {
-      const [rows, countRows] = await Promise.all([
-        db
-          .select({
-            id: mediaAssets.id,
-            url: mediaAssets.url,
-            path: mediaAssets.path,
-            filename: mediaAssets.filename,
-            content_type: mediaAssets.contentType,
-            size_bytes: mediaAssets.sizeBytes,
-            created_at: mediaAssets.createdAt,
-          })
-          .from(mediaAssets)
-          .where(eq(mediaAssets.storeId, storeId))
-          .orderBy(desc(mediaAssets.createdAt))
-          .limit(pageSize)
-          .offset(from),
-        db
-          .select({ n: count() })
-          .from(mediaAssets)
-          .where(eq(mediaAssets.storeId, storeId)),
-      ]);
+      // Sequential (not Promise.all): one pooled connection serialises queries
+      // anyway, so parallelising only trips pg's in-flight-query deprecation.
+      const rows = await db
+        .select({
+          id: mediaAssets.id,
+          url: mediaAssets.url,
+          path: mediaAssets.path,
+          filename: mediaAssets.filename,
+          content_type: mediaAssets.contentType,
+          size_bytes: mediaAssets.sizeBytes,
+          created_at: mediaAssets.createdAt,
+        })
+        .from(mediaAssets)
+        .where(eq(mediaAssets.storeId, storeId))
+        .orderBy(desc(mediaAssets.createdAt))
+        .limit(pageSize)
+        .offset(from);
+      const countRows = await db
+        .select({ n: count() })
+        .from(mediaAssets)
+        .where(eq(mediaAssets.storeId, storeId));
       return { rows, total: countRows[0]?.n ?? 0 };
     });
     assets = result.rows as unknown as MediaAsset[];

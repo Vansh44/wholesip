@@ -80,6 +80,23 @@ function methodLabel(m: string): string {
   return m === "cash_on_delivery" ? "COD" : m === "razorpay" ? "Online" : m;
 }
 
+// Deterministic date for the SSR'd table: pin BOTH locale and timezone so the
+// server and the browser render the IDENTICAL string. `toLocaleDateString`
+// otherwise uses each runtime's default locale (US on the server → "Jul 21,
+// 2026", en-GB in the browser → "21 Jul 2026") and default timezone (UTC on
+// Cloud Run vs the visitor's), which trips React hydration. Asia/Kolkata is the
+// India-first default until per-store timezones exist.
+function fmtListDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
+}
+
 export function OrdersManagementView({
   orders,
   total,
@@ -298,14 +315,7 @@ export function OrdersManagementView({
                           </div>
                         </td>
                         <td className="whitespace-nowrap text-xs">
-                          {new Date(order.created_at).toLocaleDateString(
-                            undefined,
-                            {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            },
-                          )}
+                          {fmtListDate(order.created_at)}
                         </td>
                         <td className="text-right font-medium tabular-nums text-gray-900">
                           {formatPrice(order.total)}

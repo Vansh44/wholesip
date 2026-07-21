@@ -121,7 +121,7 @@ async function getRelatedBlogs(blog: Blog, storeId: string): Promise<Blog[]> {
   // merge: category matches first, topped up with recents, deduped, capped at 3.
   const hasCategories = !!blog.categories && blog.categories.length > 0;
   try {
-    const [categoryRows, recentRows] = await withAnon((db) => {
+    const [categoryRows, recentRows] = await withAnon(async (db) => {
       const base = () =>
         db
           .select(RELATED_BLOG_COLUMNS)
@@ -133,14 +133,13 @@ async function getRelatedBlogs(blog: Blog, storeId: string): Promise<Blog[]> {
         eq(blogs.status, "published"),
         ne(blogs.id, blog.id),
       );
-      return Promise.all([
-        hasCategories
-          ? base().where(
-              and(published, arrayOverlaps(blogs.categories, blog.categories!)),
-            )
-          : Promise.resolve([]),
-        base().where(published),
-      ]);
+      const categoryRows = await (hasCategories
+        ? base().where(
+            and(published, arrayOverlaps(blogs.categories, blog.categories!)),
+          )
+        : Promise.resolve([]));
+      const recentRows = await base().where(published);
+      return [categoryRows, recentRows];
     });
 
     const seen = new Set<string>([blog.id]);
