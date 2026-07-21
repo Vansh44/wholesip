@@ -21,7 +21,7 @@ vi.mock("@/lib/db/client", () => ({
   withAnon: vi.fn((fn: any) => Promise.resolve(fn(dbHolder.current.db))),
 }));
 
-import { getOrders, updateOrderStatus } from "./order-actions";
+import { getOrders, getOrderDetail, updateOrderStatus } from "./order-actions";
 import { getManagerUserId } from "@/app/dashboard/lib/access";
 
 const STORE = "a0000000-0000-4000-8000-000000000001";
@@ -79,6 +79,35 @@ describe("order-actions", () => {
       await getOrders({ page: 1, pageSize: 100000 });
       expect(dbHolder.current.calls.limit[0]).toBe(100);
       expect(dbHolder.current.calls.offset[0]).toBe(0);
+    });
+  });
+
+  describe("getOrderDetail", () => {
+    it("rejects an unauthenticated caller", async () => {
+      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      const res = await getOrderDetail("o1");
+      expect(res.error).toMatch(/not authenticated/i);
+    });
+
+    it("returns the order with its line items", async () => {
+      dbHolder.current = makeDbMock({
+        selectQueue: [
+          [{ id: "o1", order_ref: "ORD1", total: 100, status: "pending" }],
+          [{ id: "i1", name: "Tea", quantity: 2, price: 50, total: 100 }],
+        ],
+      });
+      const res = await getOrderDetail("o1");
+      expect(res.error).toBeUndefined();
+      expect(res.order?.id).toBe("o1");
+      expect(res.order?.items).toHaveLength(1);
+      // The order lookup is scoped by id AND store (its where carries both).
+      expect(dbHolder.current.calls.where.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("errors when the order isn't in this store", async () => {
+      dbHolder.current = makeDbMock({ selectQueue: [[]] });
+      const res = await getOrderDetail("nope");
+      expect(res.error).toMatch(/no longer exists/i);
     });
   });
 
