@@ -973,9 +973,11 @@ amountPaise}` for the modal. `confirmOnlinePayment` verifies the HMAC
 npm run dev         # next dev --turbopack (test stores via {slug}.localhost:3000)
 npm run dev:all     # ↑ dev + the Cloud SQL Auth Proxy together (concurrently) — one command
 npm run db:proxy    # just the Cloud SQL Auth Proxy → staging DB on localhost:6543 (needs
-                    #   `gcloud auth application-default login` once for ADC). Local dev
-                    #   reads/writes the staging Cloud SQL instance THROUGH this proxy, so
-                    #   it must be running (else lookupStoreByHost → ECONNREFUSED/ECONNRESET).
+                    #   `gcloud auth application-default login` once for ADC). Points at the
+                    #   `storemink-prod-db` INSTANCE; local dev uses its `storemink_staging`
+                    #   DATABASE (set DB_NAME=storemink_staging in .env — staging & prod are
+                    #   two databases in one instance, see §7). Must be running (else
+                    #   lookupStoreByHost → ECONNREFUSED/ECONNRESET).
 npm run build       # production build
 npm run lint        # eslint
 npm run typecheck   # tsc --noEmit
@@ -997,20 +999,26 @@ npm run format      # prettier --write
 - **Identity Platform (Firebase Auth) — the auth provider (GCP Phase 6).** All
   auth goes through `lib/auth/*` (see §4). **ENV:**
   - **One Identity Platform project PER ENVIRONMENT, paired with that env's Cloud
-    SQL instance** (isolation, mirroring the two Cloud SQL instances). The pairing
-    is mandatory because `admins.id`/`users.id` in Cloud SQL ARE the Firebase uid —
-    crossing them (e.g. staging DB + prod project) makes `getServerUser` return
-    uids with no matching row → everything reads as signed-out. So the
-    `NEXT_PUBLIC_FIREBASE_*` (and server SA) values DIFFER per environment:
-    | env | Cloud SQL (`DB_*`) | Firebase/IP project | keys |
+    SQL DATABASE.** Staging and prod now share ONE Cloud SQL INSTANCE
+    (`storemink-prod-db`) as two databases — `storemink_staging` (staging + local
+    dev) and `storemink` (prod); there is no separate staging instance anymore.
+    The project↔database pairing is still mandatory because `admins.id`/`users.id`
+    in Cloud SQL ARE the Firebase uid — crossing them (e.g. the staging database +
+    the prod project) makes `getServerUser` return uids with no matching row →
+    everything reads as signed-out. So the `NEXT_PUBLIC_FIREBASE_*` (and server SA)
+    values DIFFER per environment:
+    | env | Cloud SQL database (`DB_NAME`, all in `storemink-prod-db`) | Firebase/IP project | keys |
     | ---------- | -------------------- | ------------------- | ----------- |
-    | local dev | `storemink-staging` | **staging** project | staging |
-    | staging | `storemink-staging` | **staging** project | staging |
-    | production | prod instance | **prod** project | prod |
-    Local dev uses the STAGING project (its DB holds staging-project uids), exactly
-    as local dev pointed at the staging Supabase project before. The web `apiKey`
-    is NOT a secret — it's a public project id; separate projects are about
-    ISOLATING test users/SMS from prod, not secrecy.
+    | local dev | `storemink_staging` | **staging** project | staging |
+    | staging | `storemink_staging` | **staging** project | staging |
+    | production | `storemink` | **prod** project | prod |
+    Local dev uses the STAGING project (its database holds staging-project uids).
+    The web `apiKey` is NOT a secret — it's a public project id; separate projects
+    are about ISOLATING test users/SMS from prod, not secrecy. The database is
+    selected purely by `DB_NAME` (`lib/db/client.ts`), so a wrong `DB_NAME` on a
+    shared instance is the one thing that would cross staging and prod — the
+    deploy config guards this (see `docs/gcp-ci-cd.md`), and hardening to a
+    restricted `app_staging` role is a documented pre-launch step.
   - **Server (Admin SDK)**: `FIREBASE_PROJECT_ID` + `FIREBASE_CLIENT_EMAIL` +
     `FIREBASE_PRIVATE_KEY` (service account; `\n`-escaped key), OR Application
     Default Credentials (automatic on Cloud Run; locally set
