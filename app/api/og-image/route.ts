@@ -5,15 +5,13 @@ import { GCS_PUBLIC_HOST, GCS_BUCKET_NAME } from "@/lib/storage/gcs";
 
 /**
  * OG Image proxy — serves a compressed, WhatsApp-friendly version of any
- * Supabase storage image.
+ * managed GCS storage image.
  *
  * Usage:  /api/og-image?url=<encodeURIComponent(managed_storage_url)>
  *
  * Why this exists:
  *  1. WhatsApp's crawler silently drops og:image when the file is > ~300 KB.
- *  2. Next.js HTML-encodes `&` → `&amp;` inside meta tag attributes, so
- *     multi-param transform URLs break when WhatsApp fetches them.
- *  3. This route fetches the original image, compresses it to a small JPEG
+ *  2. This route fetches the original image, compresses it to a small JPEG
  *     via sharp, and returns it with proper cache headers.
  *
  * Caching: no server-side persistence — the `Cache-Control`/`CDN-Cache-Control`
@@ -49,27 +47,23 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Only allow proxying our OWN managed media (Supabase Storage or, post
-  // Phase 3, Google Cloud Storage). Parse and validate STRUCTURALLY — a
-  // substring test (`url.includes("supabase.co/storage/")`) is trivially
-  // bypassable with a URL like `http://169.254.169.254/?x=supabase.co/storage/`,
-  // turning this fetch() into an SSRF vector against internal/metadata hosts.
+  // Only allow proxying our OWN managed media (Google Cloud Storage). Parse and
+  // validate STRUCTURALLY — a substring test (`url.includes("googleapis.com")`)
+  // is trivially bypassable with a URL like
+  // `http://169.254.169.254/?x=storage.googleapis.com`, turning this fetch()
+  // into an SSRF vector against internal/metadata hosts. Scope strictly to the
+  // configured bucket so this can't proxy arbitrary public GCS objects.
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
     return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
   }
-  const isSupabase =
-    parsed.hostname.endsWith(".supabase.co") &&
-    parsed.pathname.startsWith("/storage/");
-  // GCS: scope strictly to the configured bucket so this can't proxy arbitrary
-  // public GCS objects.
   const isGcs =
     parsed.hostname === GCS_PUBLIC_HOST &&
     GCS_BUCKET_NAME !== null &&
     parsed.pathname.startsWith(`/${GCS_BUCKET_NAME}/`);
-  if (parsed.protocol !== "https:" || (!isSupabase && !isGcs)) {
+  if (parsed.protocol !== "https:" || !isGcs) {
     return NextResponse.json(
       { error: "Only managed storage URLs are allowed" },
       { status: 403 },

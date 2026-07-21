@@ -23,8 +23,8 @@ export const SESSION_COOKIE = "sm_session";
 const SESSION_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 export const SESSION_MAX_AGE_SECONDS = SESSION_MAX_AGE_MS / 1000;
 
-/** The two custom claims we carry (mirrors SessionClaims in supabase/middleware
- *  and the legacy custom_access_token_hook). */
+/** The two custom claims we carry (role + force_password_reset; mirror of the
+ *  Firebase custom claims set in lib/auth/firebase-claims.ts). */
 export interface SessionClaims {
   role: string | null;
   forcePasswordReset: boolean;

@@ -1,9 +1,8 @@
 // Google Cloud Storage backend for media (GCP migration Phase 3 — see
 // docs/gcp-migration-phase5-6.md and CODEBASE.md §7).
 //
-// New image/video uploads go here when GCS_BUCKET is set; otherwise the app
-// falls back to Supabase Storage (fully backward-compatible, reversible). Auth
-// is Application Default Credentials (ADC) — automatic on Cloud Run's default
+// GCS is the media backend (GCS_BUCKET required — the Supabase Storage fallback
+// was removed). Auth is Application Default Credentials (ADC) — automatic on Cloud Run's default
 // service account, local dev via `gcloud auth application-default login`. An
 // optional base64 service-account JSON (GCP_SA_KEY) is honoured for hosts
 // without ADC (e.g. Vercel) and is REQUIRED to sign video upload URLs off
