@@ -32,9 +32,14 @@ Two-part fix (both in this commit):
 1. **Code safety net** — `lib/store/host.ts` now uses `|| "storemink.com"` (not
    `??`), so an empty env degrades to the apex instead of crashing. Belt-and-
    suspenders; the trigger must still pass the real values.
-2. **`cloudbuild.yaml` is now a full build → push → deploy pipeline** with
-   per-env substitutions (below). Replace the built-in trigger with two that use
-   it.
+2. **`cloudbuild.yaml` is now a full build → deploy pipeline** with per-env
+   substitutions (below). Replace the built-in trigger with two that use it.
+   The build step runs `docker buildx` with registry-backed layer caching: it
+   pushes the image itself (no separate push step) and also writes a per-env
+   `web:buildcache-<tag>` cache image to the same Artifact Registry repo, so the
+   first build after this change is a cold cache and later builds skip an
+   unchanged `npm ci`. No new IAM/substitution — the cache tag is derived from
+   `_IMAGE` and reuses the SA's existing Artifact Registry write access.
 
 ---
 
