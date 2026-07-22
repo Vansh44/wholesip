@@ -300,7 +300,7 @@ async function notifyProductPublished(
 // Uploads add files to storage; removing an image only drops its URL from the
 // DB, so the file would otherwise be orphaned. On save we delete the files
 // that are no longer referenced; on delete we remove them all.
-// (deleteStorageUrls lives in lib/supabase/storage-cleanup, shared by actions.)
+// (deleteStorageUrls lives in lib/storage/cleanup, shared by actions.)
 // ---------------------------------------------------------------------------
 
 // All image URLs currently referenced by a product (primary + gallery + every

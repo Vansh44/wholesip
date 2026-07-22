@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ClipboardCheck, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { and, desc, eq } from "drizzle-orm";
 import { withService } from "@/lib/db/client";
 import { blogs } from "@/drizzle/schema";
@@ -84,32 +84,16 @@ export async function BlogApprovals() {
   return (
     <div className="dash-card h-full">
       <div className="dash-card-header">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="flex h-8 w-8 items-center justify-center rounded-[var(--dash-radius-sm)]"
-            style={{
-              background: "var(--dash-amber-soft)",
-              color: AMBER,
-            }}
-          >
-            <ClipboardCheck className="h-[17px] w-[17px]" />
-          </span>
-          <div>
-            <div className="dash-card-title">Blog Approvals</div>
-            <div className="dash-card-sub">Submissions awaiting review</div>
-          </div>
+        <div>
+          <div className="dash-card-title">Blog approvals</div>
+          <div className="dash-card-sub">Submissions awaiting review</div>
         </div>
         {hasPending && (
-          <span className="relative flex h-2.5 w-2.5" aria-hidden>
-            <span
-              className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-70"
-              style={{ background: AMBER }}
-            />
-            <span
-              className="relative inline-flex h-2.5 w-2.5 rounded-full"
-              style={{ background: AMBER }}
-            />
-          </span>
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ background: AMBER }}
+            aria-hidden
+          />
         )}
       </div>
 
@@ -122,16 +106,13 @@ export async function BlogApprovals() {
           <>
             <div className="mb-4 flex items-end justify-between gap-3">
               <div>
-                <div
-                  className="text-[34px] font-bold leading-none"
-                  style={{ color: hasPending ? AMBER : "var(--dash-text)" }}
-                >
+                <div className="text-[24px] font-semibold leading-none tracking-[-0.5px] tabular-nums text-[var(--dash-text)]">
                   {count}
                 </div>
-                <div className="mt-1 text-[12.5px] text-[var(--dash-text-2)]">
+                <div className="mt-1.5 text-[12.5px] text-[var(--dash-text-2)]">
                   {hasPending
                     ? `request${count === 1 ? "" : "s"} need your review`
-                    : "You're all caught up 🎉"}
+                    : "You're all caught up"}
                 </div>
               </div>
 

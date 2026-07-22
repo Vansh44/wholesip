@@ -14,39 +14,45 @@
 # to storemink.com, but the trigger must still pass the real per-env values.
 
 steps:
-  # 1. Build (bakes the per-env NEXT_PUBLIC_* into the client bundle).
-  - id: build
+  # 1. Build + push, with registry-backed Docker layer caching (buildx).
+  #    `--cache-to mode=max` exports EVERY stage — including the expensive
+  #    `npm ci` deps layer — to a per-env `:buildcache-<tag>` image in Artifact
+  #    Registry. A later build whose package-lock.json is unchanged reuses that
+  #    layer and skips reinstalling node_modules. `--push` uploads the final
+  #    image itself (docker-container driver builds straight to the registry, so
+  #    there's NO separate push step and the `images:` block is gone — listing it
+  #    would make Cloud Build re-push a non-existent local image and fail).
+  #    NEXT_PUBLIC_* are still baked into the client bundle here.
+  #    ($$ escapes the $ so Cloud Build leaves the bash expansion for the shell;
+  #    the cache tag is derived from _IMAGE, so triggers need no new value.)
+  - id: build-push
     name: gcr.io/cloud-builders/docker
+    entrypoint: bash
     args:
-      - build
-      - -t
-      - ${_IMAGE}
-      - --build-arg
-      - NEXT_PUBLIC_FIREBASE_API_KEY=${_NEXT_PUBLIC_FIREBASE_API_KEY}
-      - --build-arg
-      - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
-      - --build-arg
-      - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${_NEXT_PUBLIC_FIREBASE_PROJECT_ID}
-      - --build-arg
-      - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
-      - --build-arg
-      - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
-      - --build-arg
-      - NEXT_PUBLIC_FIREBASE_APP_ID=${_NEXT_PUBLIC_FIREBASE_APP_ID}
-      - --build-arg
-      - NEXT_PUBLIC_ROOT_DOMAIN=${_NEXT_PUBLIC_ROOT_DOMAIN}
-      - --build-arg
-      - NEXT_PUBLIC_APP_URL=${_NEXT_PUBLIC_APP_URL}
-      - .
+      - -c
+      - |
+        set -e
+        IMAGE="${_IMAGE}"
+        CACHE="$${IMAGE%:*}:buildcache-$${IMAGE##*:}"
+        docker buildx create --use --name sm --driver docker-container 2>/dev/null \
+          || docker buildx use sm
+        docker buildx build \
+          -t "$${IMAGE}" \
+          --push \
+          --provenance=false \
+          --cache-from "type=registry,ref=$${CACHE}" \
+          --cache-to "type=registry,ref=$${CACHE},mode=max" \
+          --build-arg "NEXT_PUBLIC_FIREBASE_API_KEY=${_NEXT_PUBLIC_FIREBASE_API_KEY}" \
+          --build-arg "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}" \
+          --build-arg "NEXT_PUBLIC_FIREBASE_PROJECT_ID=${_NEXT_PUBLIC_FIREBASE_PROJECT_ID}" \
+          --build-arg "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}" \
+          --build-arg "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}" \
+          --build-arg "NEXT_PUBLIC_FIREBASE_APP_ID=${_NEXT_PUBLIC_FIREBASE_APP_ID}" \
+          --build-arg "NEXT_PUBLIC_ROOT_DOMAIN=${_NEXT_PUBLIC_ROOT_DOMAIN}" \
+          --build-arg "NEXT_PUBLIC_APP_URL=${_NEXT_PUBLIC_APP_URL}" \
+          .
 
-  # 2. Push the image to Artifact Registry.
-  - id: push
-    name: gcr.io/cloud-builders/docker
-    args:
-      - push
-      - ${_IMAGE}
-
-  # 3. Deploy to the per-env Cloud Run service (runtime env + secrets + Cloud SQL).
+  # 2. Deploy to the per-env Cloud Run service (runtime env + secrets + Cloud SQL).
   #    --set-env-vars / --set-secrets REPLACE the full set, so every runtime value
   #    the app needs is listed here. Server secrets stay in Secret Manager.
   - id: deploy
@@ -65,16 +71,23 @@ steps:
       - --max-instances=4
       - --add-cloudsql-instances=${_DB_CONN}
       - --set-env-vars=GCP_PROJECT_ID=${_GCP_PROJECT_ID},GCP_LOCATION=global,GCS_BUCKET=${_GCS_BUCKET},DB_HOST=/cloudsql/${_DB_CONN},DB_USER=app,DB_NAME=${_DB_NAME},FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID},FIREBASE_SERVICE_ACCOUNT_ID=${_FIREBASE_SA_ID},FIREBASE_API_KEY=${_NEXT_PUBLIC_FIREBASE_API_KEY},GOOGLE_SEARCH_CONSOLE_PROPERTY=${_GOOGLE_SEARCH_CONSOLE_PROPERTY},NEXT_PUBLIC_ROOT_DOMAIN=${_NEXT_PUBLIC_ROOT_DOMAIN},NEXT_PUBLIC_APP_URL=${_NEXT_PUBLIC_APP_URL}
-      - --set-secrets=DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,CRON_SECRET=CRON_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest
+      - --set-secrets=DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,CRON_SECRET=CRON_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest,PAYMENT_CRED_KEY=${_PAYMENT_CRED_KEY_SECRET}:latest,RAZORPAY_KEY_ID=${_RAZORPAY_KEY_ID_SECRET}:latest,RAZORPAY_KEY_SECRET=${_RAZORPAY_KEY_SECRET_SECRET}:latest,RAZORPAY_WEBHOOK_SECRET=${_RAZORPAY_WEBHOOK_SECRET_SECRET}:latest
 
-images:
-  - ${_IMAGE}
+# buildx --push uploads the image directly, so no `images:` block (it would make
+# Cloud Build try to re-push a non-existent local image).
 
-# npm ci + next build for this app can exceed Cloud Build's 10-min default.
+# npm ci + next build is heavy — and slower on the 2-vCPU free-tier machine — so
+# stay well above Cloud Build's 10-min default. Caching (step 1) claws the npm ci
+# time back whenever the lockfile is unchanged.
 timeout: 1800s
 
 options:
-  machineType: E2_HIGHCPU_8
+  # No machineType ⇒ the DEFAULT e2-standard-2 (2 vCPU / 8 GB) in the default
+  # pool — the ONLY machine covered by Cloud Build's free tier (2,500
+  # build-minutes/month; $0.006/min after). e2-medium is cheaper per-minute but
+  # gets NO free allocation, so the default is both free AND faster for us. RAM
+  # is unchanged from the old E2_HIGHCPU_8 (both 8 GB), so no new OOM risk on
+  # `next build` — only fewer vCPUs (8 → 2), i.e. slower, offset by the cache.
   logging: CLOUD_LOGGING_ONLY
 
 # Defaults target STAGING, so a bare `gcloud builds submit` is the safe env.
@@ -100,6 +113,19 @@ substitutions:
   # + a _DB_USER substitution, so staging creds physically cannot reach the
   # prod database.)
   _DB_PASSWORD_SECRET: CLOUDSQL_PROD_APP_PW
+  # Payments + Razorpay — per-env VALUES via env-specific secret NAMES. Secret
+  # Manager is per-project and staging+prod share the storemink-prod project, so
+  # a value differs only by pointing at a *_STAGING vs *_PROD secret (same trick
+  # as _DB_PASSWORD_SECRET). Defaults target STAGING = Razorpay TEST keys; the
+  # PROD trigger overrides all four to the *_PROD secrets = Razorpay LIVE keys.
+  # PAYMENT_CRED_KEY intentionally differs per env (a leaked staging key must not
+  # decrypt prod-stored BYO-gateway creds). The naming looks doubled
+  # (…_KEY_SECRET_SECRET) because the env var itself ends in _SECRET and the
+  # substitution suffix _SECRET means "the Secret Manager name for this var".
+  _PAYMENT_CRED_KEY_SECRET: PAYMENT_CRED_KEY_STAGING
+  _RAZORPAY_KEY_ID_SECRET: RAZORPAY_KEY_ID_STAGING
+  _RAZORPAY_KEY_SECRET_SECRET: RAZORPAY_KEY_SECRET_STAGING
+  _RAZORPAY_WEBHOOK_SECRET_SECRET: RAZORPAY_WEBHOOK_SECRET_STAGING
   _GCS_BUCKET: storemink-media
   _FIREBASE_PROJECT_ID: storemink-staging
   # The Firebase project's own firebase-adminsdk SA — the SIGNER for custom

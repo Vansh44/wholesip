@@ -56,6 +56,38 @@ export default async function DashboardLayout({
 
   const { userEmail, profile, isSuperadmin, permissions } = ctx;
 
+  if (ctx.dbError) {
+    // The access lookups failed — we don't know who this is, so we must NOT
+    // fall through to the "no access" screen below and accuse them of not
+    // being staff. This is an outage, and it's usually transient (locally:
+    // the Cloud SQL Auth Proxy losing its credentials), hence the plain
+    // GET-form retry — no JS needed to try again.
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f6f7f9] px-4 text-[#111827]">
+        <div className="max-w-md space-y-4 rounded-2xl border border-[rgba(17,24,39,0.08)] bg-white p-8 text-center shadow-[0_12px_32px_-8px_rgba(16,24,40,0.16)]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15 text-2xl">
+            ⚠️
+          </div>
+          <h1 className="text-lg font-bold">
+            Couldn&apos;t reach the database
+          </h1>
+          <p className="text-sm text-[#5b6472]">
+            Your dashboard is fine — we just can&apos;t load it right now. This
+            is usually temporary, so try again in a moment.
+          </p>
+          <form>
+            <button
+              type="submit"
+              className="rounded-lg bg-[#111827] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            >
+              Try again
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (!profile) {
     // Authenticated, but this account is not staff of THIS store (and not a
     // platform operator). In the multi-tenant model that's simply "no access"

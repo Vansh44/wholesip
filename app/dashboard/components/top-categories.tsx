@@ -1,60 +1,72 @@
-const categories = [
-  {
-    name: "Beverages",
-    amount: "₹1,48,200",
-    share: 49,
-    color: "var(--dash-accent)",
-  },
-  {
-    name: "Merchandise",
-    amount: "₹98,400",
-    share: 33,
-    color: "var(--dash-green)",
-  },
-  {
-    name: "Bundles",
-    amount: "₹67,100",
-    share: 22,
-    color: "var(--dash-amber)",
-  },
-  {
-    name: "Gift Sets",
-    amount: "₹34,800",
-    share: 12,
-    color: "var(--dash-violet)",
-  },
-];
+import type { TopCategory } from "../analytics/data";
 
-export function TopCategories() {
+// One hue, weighted by size — rank reads off the bar length, not off a colour
+// the reader has to decode. (The old four-tone palette implied a
+// category→colour meaning that didn't exist, and only ever covered 4 rows.)
+function weightFor(amount: number, max: number): number {
+  if (max <= 0 || amount <= 0) return 0.3;
+  return 0.4 + 0.6 * (amount / max);
+}
+
+export function TopCategories({ items }: { items: TopCategory[] }) {
+  const max = items.reduce((m, c) => Math.max(m, c.amount), 0);
+  const earning = items.filter((c) => c.amount > 0).length;
+
   return (
     <div className="dash-card h-full">
       <div className="dash-card-header">
         <div>
-          <div className="dash-card-title">Top Categories</div>
-          <div className="dash-card-sub">By revenue share</div>
+          <div className="dash-card-title">Sales by category</div>
+          <div className="dash-card-sub">
+            {items.length === 0
+              ? "By revenue share"
+              : `Product revenue · ${earning} of ${items.length} earning`}
+          </div>
         </div>
       </div>
       <div className="dash-card-body">
-        {categories.map((cat) => (
-          <div key={cat.name} className="dash-progress-row">
-            <div className="dash-progress-label">
-              <span className="flex items-center gap-2">
-                <span
-                  className="h-2.5 w-2.5 rounded-[3px]"
-                  style={{ background: cat.color }}
-                />
-                {cat.name}
-              </span>
-              <span>{cat.amount}</span>
-            </div>
-            <div className="dash-progress-track">
-              <div
-                className="dash-progress-fill"
-                style={{ width: `${cat.share}%`, background: cat.color }}
-              />
-            </div>
+        {items.length === 0 ? (
+          <div className="py-8 text-center text-[13px] text-[var(--dash-text-3)]">
+            No categories yet — add some to see where revenue comes from.
           </div>
-        ))}
+        ) : (
+          // Every category is listed, so the list scrolls inside the card
+          // rather than stretching the whole dashboard row.
+          <div className="dash-cat-list">
+            {items.map((cat) => (
+              <div key={cat.name} className="dash-progress-row">
+                <div className="dash-progress-label">
+                  <span className="truncate">{cat.name}</span>
+                  <span
+                    className={`tabular-nums ${cat.amount > 0 ? "text-[var(--dash-text-2)]" : "text-[var(--dash-text-3)]"}`}
+                  >
+                    ₹{cat.amount.toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <div className="dash-progress-track">
+                  <div
+                    className="dash-progress-fill"
+                    style={{
+                      width: `${cat.share}%`,
+                      background: "var(--dash-accent)",
+                      opacity: weightFor(cat.amount, max),
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {items.length > 0 && (
+          // Tax and discounts sit on the ORDER, not the line item, so they
+          // can't be attributed to a category — which means these bars sum to
+          // order subtotals, not to the Total revenue card. Say so here, where
+          // someone who just added the numbers up will be looking.
+          <p className="dash-cat-note">
+            Line-item totals, before tax and discounts — so this won&rsquo;t
+            match Total revenue.
+          </p>
+        )}
       </div>
     </div>
   );

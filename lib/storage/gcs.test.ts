@@ -32,9 +32,7 @@ describe("gcs helpers", () => {
     it("returns null for a non-GCS or wrong-bucket URL", async () => {
       const gcs = await loadGcs("storemink-media");
       expect(
-        gcs.gcsPathFromUrl(
-          "https://x.supabase.co/storage/v1/object/public/media/a.png",
-        ),
+        gcs.gcsPathFromUrl("https://cdn.example.com/media/a.png"),
       ).toBeNull();
       expect(
         gcs.gcsPathFromUrl("https://storage.googleapis.com/other-bucket/a.png"),

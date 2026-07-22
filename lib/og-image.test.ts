@@ -2,12 +2,10 @@ import { describe, it, expect } from "vitest";
 import { getOgImageUrl } from "./og-image";
 
 // getOgImageUrl() decides whether an image needs the /api/og-image proxy. The
-// proxy only accepts Supabase storage URLs (it compresses them and collapses
-// their transform params into a SINGLE clean query param so Next.js can't
-// HTML-encode a bare `&` into `&amp;`). Non-Supabase images are returned as-is,
+// proxy only accepts our managed GCS storage URLs (it compresses them below
+// WhatsApp's ~300 KB og:image limit). Non-managed images are returned as-is,
 // because routing them through the proxy would 403 and blank the share card.
-const SUPABASE_SRC =
-  "https://xyz.supabase.co/storage/v1/object/public/media/products/x.png";
+const GCS_SRC = "https://storage.googleapis.com/storemink-media/products/x.png";
 
 describe("getOgImageUrl", () => {
   // Nullish / empty inputs must yield undefined (no og:image tag rendered).
@@ -17,18 +15,17 @@ describe("getOgImageUrl", () => {
     expect(getOgImageUrl("")).toBeUndefined();
   });
 
-  // A Supabase storage URL is wrapped through the proxy with the source encoded.
-  it("routes a Supabase storage URL through the og-image proxy", () => {
-    expect(getOgImageUrl(SUPABASE_SRC)).toBe(
-      `/api/og-image?url=${encodeURIComponent(SUPABASE_SRC)}`,
+  // A managed GCS storage URL is wrapped through the proxy with the source encoded.
+  it("routes a GCS storage URL through the og-image proxy", () => {
+    expect(getOgImageUrl(GCS_SRC)).toBe(
+      `/api/og-image?url=${encodeURIComponent(GCS_SRC)}`,
     );
   });
 
-  // The critical case: a Supabase transform URL with query params (&, =, ?)
-  // must be fully percent-encoded so the proxy URL has just ONE query param
-  // and no stray ampersands.
+  // Any query params on the source (?, &, =) must be fully percent-encoded so
+  // the proxy URL has just ONE query param and no stray ampersands.
   it("encodes special characters so there's a single query param", () => {
-    const src = `${SUPABASE_SRC}?width=800&quality=60&format=webp`;
+    const src = `${GCS_SRC}?width=800&quality=60&format=webp`;
     const out = getOgImageUrl(src)!;
 
     // Exactly one `?` (the proxy's own) — the source's `?` is encoded to %3F.
@@ -48,8 +45,8 @@ describe("getOgImageUrl", () => {
     );
   });
 
-  // A non-Supabase absolute URL is likewise passed through, not proxied.
-  it("passes a non-Supabase absolute URL through unchanged", () => {
+  // A non-managed absolute URL is likewise passed through, not proxied.
+  it("passes a non-managed absolute URL through unchanged", () => {
     const src = "https://cdn.example.com/x.png";
     expect(getOgImageUrl(src)).toBe(src);
   });

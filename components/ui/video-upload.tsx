@@ -13,7 +13,7 @@ interface VideoUploadProps {
 }
 
 // Video counterpart of ImageUpload: pick → inline preview → confirm → upload
-// (signed-URL flow, straight to storage — see lib/supabase/storage.ts).
+// (signed-URL flow, straight to storage — see lib/storage/uploads.ts).
 export function VideoUpload({
   onUploadSuccess,
   folder = "",

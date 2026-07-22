@@ -17,14 +17,31 @@
   staff invite → first login.
 - ✅ **`uuid→text` uid-column migration** applied + verified on staging
   (`supabase/phase6_01_uid_columns_to_text.sql`) — Firebase uids are strings.
-- ▶ **Remaining:** provision prod, migrate prod data + users + media, deploy
-  Cloud Run, flip DNS, decommission.
+- ✅ **Code is fully Supabase-free** (2026-07-22, verified): no `@supabase/*`
+  deps, `lib/supabase/` deleted, zero `SUPABASE_*` env reads. Only residue is
+  the `.supabase.co` SSRF allowlist in `app/api/og-image/route.ts` that keeps
+  serving LEGACY media URLs until the backfill. So the old §4 code items
+  ("remove Supabase Storage fallback", "drop `NEXT_PUBLIC_SUPABASE_*`") are
+  already done — see below.
+- ▶ **Remaining:** prod Identity Platform + user import, final data load (if any
+  real data), media backfill, deploy Cloud Run, LB/DNS, crons → Scheduler,
+  decommission.
 
-**Key topology reminder:** the infra (Cloud SQL instances, GCS buckets, Cloud
-Run, Vertex) lives in the **`storemink-prod` GCP project**; the **Identity
+> **⚠ DB TOPOLOGY CHANGED (2026-07-22): one instance, not two.** To cut cost the
+> two Cloud SQL instances were **consolidated into a single instance
+> `storemink-prod-db`** holding TWO databases — `storemink_staging` (staging +
+> local dev) and `storemink` (prod). The separate `storemink-staging` instance
+> was **DELETED**. So "provision a separate prod instance" below is OBSOLETE —
+> the prod `storemink` DB already exists in the shared instance (schema + seed
+> data present). The database is selected purely by `DB_NAME`; a wrong `DB_NAME`
+> is now the only thing that could cross staging↔prod (guard it in deploy
+> config). Matches CODEBASE.md §7.
+
+**Key topology reminder:** the infra (the ONE Cloud SQL instance, GCS buckets,
+Cloud Run, Vertex) lives in the **`storemink-prod` GCP project**; the **Identity
 Platform project is separate per env** (`storemink-staging` for staging, a prod
-project for prod — CODEBASE.md §7). Isolation = separate _instances/buckets_, not
-separate projects.
+project for prod — CODEBASE.md §7). Isolation = separate _databases/buckets_,
+not separate instances or projects.
 
 ---
 
@@ -41,8 +58,12 @@ separate projects.
 
 **Provision prod GCP** — exact `gcloud` commands in [`gcp-migration-prod-provision.md`](gcp-migration-prod-provision.md).
 
-- [ ] **Prod Cloud SQL instance** (POSTGRES_17, asia-south1, IAM auth, db
-      `storemink`) — separate instance from staging.
+- [x] ~~**Prod Cloud SQL instance** (separate from staging)~~ **OBSOLETE — 2026-07-22
+      consolidation.** Prod is the `storemink` DATABASE inside the shared
+      `storemink-prod-db` instance (schema + seed data already present). No
+      separate instance to provision. `app`/`postgres` role passwords were reset
+      to their Secret Manager values (`CLOUDSQL_PROD_APP_PW` /
+      `CLOUDSQL_PROD_POSTGRES_PW`) so the secrets are the source of truth.
 - [ ] **Prod Identity Platform / Firebase project** — separate from staging.
       Enable Email/Password, Email-link, Google, Phone; reCAPTCHA; **SMS region
       allowlist** (NOT `allowlistOnly:{}`); authorized domains; Google OAuth web
@@ -97,9 +118,16 @@ separate projects.
 **Media**
 
 - [ ] Backfill existing media Supabase Storage → prod GCS bucket **+ rewrite DB
-      URLs**.
+      URLs**. **Scope is tiny** (scan 2026-07-22): only **9** column-hits of
+      `…supabase.co/storage/…` in each DB — `products.image_url` (3),
+      `product_variants.image_url` (2), `blogs.cover_image_url` (1),
+      `store_pages.sections`/`published_sections` (1 each, jsonb),
+      `stores.settings` (1). These are WholeSip seed/legacy images; no real
+      customer media (no prod traffic). Re-run the scan (dynamic loop over
+      `information_schema.columns` for `%supabase.co/storage/%`) before cutover.
 - [ ] Migrate the OG-image cache bucket ([`app/api/og-image/route.ts`](../app/api/og-image/route.ts)
-      still uses Supabase Storage).
+      — only the `.supabase.co` SSRF allowlist entry remains, to keep proxying
+      legacy media; no Supabase Storage writes remain in code).
 
 **Deploy + DNS**
 
@@ -116,19 +144,27 @@ separate projects.
 
 - [ ] Smoke-test prod: signup, login (email + Google), a storefront, a dashboard,
       place an order, upload an image + a video.
-- [ ] Remove the Supabase Storage fallback from the 3 upload routes
-      (`api/upload`, `api/upload/sign-video`, `api/og-image`) once the backfill is
-      confirmed.
-- [ ] Drop `NEXT_PUBLIC_SUPABASE_*` + `SUPABASE_SERVICE_ROLE_KEY` from all env.
+- [x] ~~Remove the Supabase Storage fallback from the 3 upload routes~~ **DONE** —
+      code is Supabase-free; only the `.supabase.co` SSRF allowlist in
+      `api/og-image` remains (intentional, for legacy media). After the media
+      backfill, that allowlist entry can also be dropped.
+- [x] ~~Drop `NEXT_PUBLIC_SUPABASE_*` + `SUPABASE_SERVICE_ROLE_KEY` from env~~
+      **DONE** — no `SUPABASE_*` env is read by code anymore.
 - [ ] Delete the Supabase project. Turn off Vercel.
 
 **Hygiene (do sooner, not blocking)**
 
-- [ ] Rotate the staging DB `app` password (pasted in chat a few times):
-      `gcloud sql users set-password app --instance=storemink-staging`, then
-      update `.env` + Secret Manager (`CLOUDSQL_STAGING_APP_PW`).
-- [ ] Delete staging test users (`smoketest@storemink.com`, the `dummy`/`test`
-      stores' owners, etc.) from the staging Identity Platform.
+- [x] ~~Rotate the staging DB `app` password / delete staging users on the
+      `storemink-staging` instance~~ **OBSOLETE — the `storemink-staging`
+      instance was DELETED 2026-07-22** (consolidation). Staging now lives in the
+      `storemink_staging` DB on `storemink-prod-db`. Its `app` password IS
+      `CLOUDSQL_PROD_APP_PW` (shared instance). Durable backup of the deleted
+      instance: `~/storemink-backups/old_staging_storemink_2026-07-22.sql`.
+- [ ] Orphaned secrets `CLOUDSQL_STAGING_APP_PW` / `CLOUDSQL_STAGING_POSTGRES_PW`
+      (no instance uses them) — delete whenever.
+- [ ] Add the missing runtime secrets to `cloudbuild.yaml` `--set-secrets`:
+      `RAZORPAY_KEY_ID`/`_KEY_SECRET`/`_WEBHOOK_SECRET`, `PAYMENT_CRED_KEY`
+      (currently only `DB_PASSWORD`/`CRON_SECRET`/`RESEND_API_KEY` are set).
 
 ---
 

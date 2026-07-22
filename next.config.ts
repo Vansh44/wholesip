@@ -19,12 +19,6 @@ const nextConfig: NextConfig = {
     // Next negotiates per request via the Accept header.
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "*.supabase.co",
-        port: "",
-        pathname: "/storage/v1/object/public/**",
-      },
       // Google Cloud Storage (media backend, GCP migration Phase 3).
       {
         protocol: "https",
@@ -35,7 +29,7 @@ const nextConfig: NextConfig = {
     ],
     // DEV ONLY: on DNS64/NAT64 networks (common on Indian ISPs) public hosts
     // resolve to 64:ff9b::/96 addresses, which Next 16's image-optimizer SSRF
-    // guard classifies as private and blocks — every remote (Supabase) image
+    // guard classifies as private and blocks — every remote (GCS) image
     // 400s locally. Relax the check in development only; production keeps the
     // full SSRF protection.
     dangerouslyAllowLocalIP: process.env.NODE_ENV === "development",
