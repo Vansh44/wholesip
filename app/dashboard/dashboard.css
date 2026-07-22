@@ -3507,3 +3507,12 @@ a.customer-detail-field:hover {
 .dashboard-shell .dash-analytics .dash-cat-list .dash-progress-row {
   margin-bottom: 14px;
 }
+
+.dashboard-shell .dash-cat-note {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--dash-border);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--dash-text-3);
+}

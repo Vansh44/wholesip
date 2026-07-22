@@ -498,6 +498,7 @@ export async function toggleCouponVisibility(
   show: boolean,
 ): Promise<{ success?: boolean; error?: string }> {
   const ctx = await getViewerContext();
+  if (ctx?.dbError) return { error: "Couldn't reach the database. Try again." };
   if (!ctx?.profile) return { error: "Not authenticated" };
 
   if (!can(ctx.permissions, "marketing", "manage", ctx.isSuperadmin)) {

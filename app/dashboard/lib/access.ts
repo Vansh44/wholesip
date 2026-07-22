@@ -5,6 +5,7 @@ import { withService } from "@/lib/db/client";
 import { admins, platformAdmins, roles } from "@/drizzle/schema";
 import { getServerUser } from "@/lib/auth/server-user";
 import { getCurrentStoreId } from "@/lib/store/resolve";
+import { logError } from "@/lib/observability/logger";
 import {
   can,
   normalizePermissions,
@@ -31,6 +32,14 @@ export interface ViewerContext {
   storeId: string;
   /** True when the viewer is a Storemink platform operator (god access). */
   isPlatformAdmin: boolean;
+  /**
+   * The access lookups themselves FAILED (database unreachable) — we don't know
+   * what this user may do, which is NOT the same as knowing they may do nothing.
+   * `profile` is null in both cases, so callers that render an access decision
+   * (the dashboard layout) MUST check this first and show an outage, never
+   * "no access". See the note on getViewerContext.
+   */
+  dbError?: boolean;
 }
 
 // Platform-operator role for the signed-in user (by JWT email), or null.
@@ -46,13 +55,16 @@ const getPlatformRole = cache(
     // + seed), mirroring the DB's `lower(email)` RLS helpers. platform_admins IS
     // the allowlist, so a service-scope read filtered by the verified email is
     // the gate.
+    // A query failure is NOT "not an operator" — it propagates (see
+    // getViewerContext). Swallowing it here would silently downgrade a platform
+    // operator to a stranger the moment the DB hiccups.
     const rows = await withService((db) =>
       db
         .select({ role: platformAdmins.role })
         .from(platformAdmins)
         .where(eq(platformAdmins.email, user.email!.toLowerCase()))
         .limit(1),
-    ).catch(() => []);
+    );
     return (rows[0]?.role as "superadmin" | "member" | undefined) ?? null;
   },
 );
@@ -67,6 +79,17 @@ const getPlatformRole = cache(
  *    store, so they get full access even without a store-admin row.
  *  • Anyone else → profile: null (the layout shows a setup screen).
  * Returns null only when there is no session.
+ *
+ * A DB FAILURE IS NOT AN ACCESS DECISION. These lookups used to be wrapped in
+ * `.catch(() => [])`, which made an unreachable database look exactly like "this
+ * account is not staff of this store" — the layout then accused a legitimate
+ * owner of not owning their store (it happened on 2026-07-22, when the local
+ * Cloud SQL proxy lost its ADC token, and cost an hour of chasing a phantom
+ * permissions bug). Same rule lib/store/resolve.ts already follows for store
+ * lookups. So the error is caught ONLY to label it: `dbError: true` with no
+ * permissions, which the layout renders as an outage. The gates below
+ * (getManagerUserId) don't catch at all — they let it throw, because a server
+ * action returning "not authorized" for a network blip is the same lie.
  */
 export const getViewerContext = cache(
   async (): Promise<ViewerContext | null> => {
@@ -74,31 +97,48 @@ export const getViewerContext = cache(
     if (!user) return null;
 
     const storeId = await getCurrentStoreId();
-    const isPlatformAdmin = (await getPlatformRole()) !== null;
-
-    // The user's admin row for THIS store (if they're store staff here).
-    // Service scope + the verified user id + store id are the scoping.
-    const profileRows = await withService((db) =>
-      db
-        .select({
-          email: admins.email,
-          role: admins.role,
-          first_name: admins.firstName,
-          last_name: admins.lastName,
-          store_id: admins.storeId,
-        })
-        .from(admins)
-        .where(and(eq(admins.id, user.id), eq(admins.storeId, storeId)))
-        .limit(1),
-    ).catch(() => []);
-    const profile = profileRows[0];
 
     const base = {
       userId: user.id,
       userEmail: user.email ?? null,
       storeId,
-      isPlatformAdmin,
     };
+
+    let isPlatformAdmin = false;
+    let profile: ViewerProfile | undefined;
+    try {
+      isPlatformAdmin = (await getPlatformRole()) !== null;
+
+      // The user's admin row for THIS store (if they're store staff here).
+      // Service scope + the verified user id + store id are the scoping.
+      const profileRows = await withService((db) =>
+        db
+          .select({
+            email: admins.email,
+            role: admins.role,
+            first_name: admins.firstName,
+            last_name: admins.lastName,
+            store_id: admins.storeId,
+          })
+          .from(admins)
+          .where(and(eq(admins.id, user.id), eq(admins.storeId, storeId)))
+          .limit(1),
+      );
+      profile = profileRows[0];
+    } catch (error) {
+      logError("dashboard: access lookup failed", error, {
+        userId: user.id,
+        storeId,
+      });
+      return {
+        ...base,
+        isPlatformAdmin: false,
+        profile: null,
+        isSuperadmin: false,
+        permissions: {},
+        dbError: true,
+      };
+    }
 
     if (!profile) {
       // Platform operator dropping into a store they have no row for → treat as
@@ -106,6 +146,7 @@ export const getViewerContext = cache(
       if (isPlatformAdmin) {
         return {
           ...base,
+          isPlatformAdmin,
           profile: {
             email: user.email ?? "",
             role: SUPERADMIN_SLUG,
@@ -117,7 +158,13 @@ export const getViewerContext = cache(
           permissions: {},
         };
       }
-      return { ...base, profile: null, isSuperadmin: false, permissions: {} };
+      return {
+        ...base,
+        isPlatformAdmin,
+        profile: null,
+        isSuperadmin: false,
+        permissions: {},
+      };
     }
 
     const roleSlug: string = profile.role ?? "";
@@ -125,17 +172,36 @@ export const getViewerContext = cache(
 
     let permissions: RolePermissions = {};
     if (!isSuperadmin && roleSlug) {
-      const roleRows = await withService((db) =>
-        db
-          .select({ permissions: roles.permissions })
-          .from(roles)
-          .where(and(eq(roles.storeId, storeId), eq(roles.slug, roleSlug)))
-          .limit(1),
-      ).catch(() => []);
-      permissions = normalizePermissions(roleRows[0]?.permissions);
+      // Same rule as above: an unreadable roles table means we don't KNOW this
+      // admin's permissions. Defaulting to {} would strip a staff member down to
+      // an empty dashboard and blame their role for it.
+      try {
+        const roleRows = await withService((db) =>
+          db
+            .select({ permissions: roles.permissions })
+            .from(roles)
+            .where(and(eq(roles.storeId, storeId), eq(roles.slug, roleSlug)))
+            .limit(1),
+        );
+        permissions = normalizePermissions(roleRows[0]?.permissions);
+      } catch (error) {
+        logError("dashboard: role permissions lookup failed", error, {
+          userId: user.id,
+          storeId,
+          roleSlug,
+        });
+        return {
+          ...base,
+          isPlatformAdmin,
+          profile: null,
+          isSuperadmin: false,
+          permissions: {},
+          dbError: true,
+        };
+      }
     }
 
-    return { ...base, profile, isSuperadmin, permissions };
+    return { ...base, isPlatformAdmin, profile, isSuperadmin, permissions };
   },
 );
 
@@ -201,6 +267,10 @@ export async function getViewerAccess(): Promise<ViewerAccess | null> {
  * Server-action gate (non-redirecting). Returns the caller's id only if they
  * may `manage` `section` on the current store, else null. Platform operators
  * and store superadmins always pass.
+ *
+ * `null` means DENIED and nothing else. A failed lookup THROWS (these queries
+ * are deliberately un-caught) so the action surfaces a real error instead of
+ * telling a legitimate admin they aren't authorised — see getViewerContext.
  */
 export async function getManagerUserId(
   section: string,
@@ -218,7 +288,7 @@ export async function getManagerUserId(
       .from(admins)
       .where(and(eq(admins.id, user.id), eq(admins.storeId, storeId)))
       .limit(1),
-  ).catch(() => []);
+  );
 
   const slug = profileRows[0]?.role;
   if (!slug) return null;
@@ -230,7 +300,7 @@ export async function getManagerUserId(
       .from(roles)
       .where(and(eq(roles.storeId, storeId), eq(roles.slug, slug)))
       .limit(1),
-  ).catch(() => []);
+  );
 
   // Role found: enforce the permission map.
   if (roleRows[0]) {

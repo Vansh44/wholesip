@@ -20,7 +20,7 @@ export function TopCategories({ items }: { items: TopCategory[] }) {
           <div className="dash-card-sub">
             {items.length === 0
               ? "By revenue share"
-              : `${earning} of ${items.length} earning`}
+              : `Product revenue · ${earning} of ${items.length} earning`}
           </div>
         </div>
       </div>
@@ -56,6 +56,16 @@ export function TopCategories({ items }: { items: TopCategory[] }) {
               </div>
             ))}
           </div>
+        )}
+        {items.length > 0 && (
+          // Tax and discounts sit on the ORDER, not the line item, so they
+          // can't be attributed to a category — which means these bars sum to
+          // order subtotals, not to the Total revenue card. Say so here, where
+          // someone who just added the numbers up will be looking.
+          <p className="dash-cat-note">
+            Line-item totals, before tax and discounts — so this won&rsquo;t
+            match Total revenue.
+          </p>
         )}
       </div>
     </div>

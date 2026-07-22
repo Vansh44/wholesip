@@ -143,7 +143,13 @@ wholesip/
 │   │   │                      # recent-orders-table, activity-feed, bulk-actions…) +
 │   │   │                      # feature-toggles (shared settings-group card, convention #9)
 │   │   ├── lib/               # access.ts, permissions.ts (role → allowed nav/actions),
-│   │   │                      # list-params.ts, use-row-selection.ts
+│   │   │                      # list-params.ts, use-row-selection.ts. ★ access.ts never
+│   │   │                      # swallows a DB error into an access decision (the
+│   │   │                      # resolve.ts rule): getViewerContext returns
+│   │   │                      # `dbError: true` → layout shows an outage, NOT "no
+│   │   │                      # access"; getManagerUserId THROWS rather than
+│   │   │                      # returning a false "not authorized". Tested in
+│   │   │                      # access.test.ts.
 │   │   ├── products/          # CRUD; edit = full page [id]/ (Shopify-style, no modal)
 │   │   ├── orders/            # Orders list (server-paginated) — reads order-actions
 │   │   ├── categories/ colors/ blogs/ media/   # content management (media/ = the

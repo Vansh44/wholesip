@@ -62,6 +62,9 @@ export async function getStoreSettingsForEditor(group?: string): Promise<{
   settings: EditorSetting[];
 }> {
   const ctx = await getViewerContext();
+  // dbError = the access lookup failed, not "you have no rights" (see access.ts).
+  if (ctx?.dbError)
+    throw new Error("Settings unavailable: database unreachable");
   if (!ctx?.profile) return { plan: "free", settings: [] };
 
   const visible = SETTINGS.filter(
@@ -115,6 +118,7 @@ export async function saveStoreSettings(
   values: Record<string, boolean | number>,
 ): Promise<ActionResult> {
   const ctx = await getViewerContext();
+  if (ctx?.dbError) return { error: "Couldn't reach the database. Try again." };
   if (!ctx?.profile) return { error: "Not authenticated" };
 
   // Registry keys actually submitted vs. the subset this caller may change.
