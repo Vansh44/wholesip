@@ -2,10 +2,13 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { withService } from "@/lib/db/client";
+import { withService, type UserIdentity } from "@/lib/db/client";
 import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
 import { userGroupMembers, userGroups } from "@/drizzle/schema";
-import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
+import {
+  getManagerIdentity,
+  getActingStoreId,
+} from "@/app/dashboard/lib/access";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,8 +27,8 @@ export interface ActionResult {
 }
 
 // User Groups live under the Users section, so they share its `manage` right.
-async function getAdminUserId(): Promise<string | null> {
-  return getManagerUserId("users");
+async function getAdminIdentity(): Promise<UserIdentity | null> {
+  return getManagerIdentity("users");
 }
 
 function revalidateGroups() {
@@ -39,8 +42,9 @@ function revalidateGroups() {
 export async function createUserGroup(
   form: GroupFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
+  const userId = admin.uid;
   const storeId = await getActingStoreId();
 
   const name = form.name.trim();
@@ -80,8 +84,8 @@ export async function updateUserGroup(
   id: string,
   form: GroupFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
 
   const name = form.name.trim();
   if (!name) return { error: "Group name is required." };
@@ -116,8 +120,8 @@ export async function updateUserGroup(
 // ---------------------------------------------------------------------------
 
 export async function deleteUserGroup(id: string): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
 
   const storeId = await getActingStoreId();
   try {
@@ -144,8 +148,9 @@ export async function setGroupMembers(
   groupId: string,
   customerIds: string[],
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
+  const userId = admin.uid;
   const storeId = await getActingStoreId();
 
   // De-dupe defensively; an empty selection just clears the group.

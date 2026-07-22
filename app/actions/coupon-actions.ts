@@ -2,12 +2,17 @@
 
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
-import { withAnon, withUser, type Db } from "@/lib/db/client";
+import {
+  withAnon,
+  withUser,
+  type Db,
+  type UserIdentity,
+} from "@/lib/db/client";
 import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
 import { coupons, couponUserGroups, userGroupMembers } from "@/drizzle/schema";
 import { getServerUser } from "@/lib/auth/server-user";
 import {
-  getManagerUserId,
+  getManagerIdentity,
   getActingStoreId,
   getViewerContext,
 } from "@/app/dashboard/lib/access";
@@ -67,8 +72,8 @@ function normalizeCode(code: string): string {
 }
 
 // Allowed when the caller's role grants `manage` on the Marketing section.
-async function getAdminUserId(): Promise<string | null> {
-  return getManagerUserId("marketing");
+async function getAdminIdentity(): Promise<UserIdentity | null> {
+  return getManagerIdentity("marketing");
 }
 
 // Turn a date input ("" | "yyyy-mm-dd") into an ISO timestamp or null.
@@ -124,7 +129,7 @@ function revalidateCoupons() {
 // yet migrated) is logged, not fatal — the coupon itself still saves. Runs
 // under the admin's identity so RLS applies.
 async function syncCouponGroups(
-  userId: string,
+  admin: UserIdentity,
   couponId: string,
   groupIds: string[] | undefined,
   storeId: string,
@@ -132,7 +137,7 @@ async function syncCouponGroups(
   const ids = Array.from(new Set((groupIds ?? []).filter(Boolean)));
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db
         .delete(couponUserGroups)
         .where(eq(couponUserGroups.couponId, couponId)),
@@ -150,9 +155,7 @@ async function syncCouponGroups(
     storeId,
   }));
   try {
-    await withUser({ uid: userId }, (db) =>
-      db.insert(couponUserGroups).values(rows),
-    );
+    await withUser(admin, (db) => db.insert(couponUserGroups).values(rows));
   } catch (err) {
     console.error("syncCouponGroups (insert) error:", err);
   }
@@ -186,16 +189,18 @@ async function checkGroupRestriction(couponId: string): Promise<string | null> {
   if (!user) return "Sign in to use this coupon.";
 
   try {
-    const memberships = await withUser({ uid: user.id }, (db) =>
-      db
-        .select({ group_id: userGroupMembers.groupId })
-        .from(userGroupMembers)
-        .where(
-          and(
-            eq(userGroupMembers.userId, user.id),
-            inArray(userGroupMembers.groupId, groupIds),
+    const memberships = await withUser(
+      { uid: user.id, email: user.email },
+      (db) =>
+        db
+          .select({ group_id: userGroupMembers.groupId })
+          .from(userGroupMembers)
+          .where(
+            and(
+              eq(userGroupMembers.userId, user.id),
+              inArray(userGroupMembers.groupId, groupIds),
+            ),
           ),
-        ),
     );
     if (memberships.length === 0)
       return "This coupon isn’t available for your account.";
@@ -213,8 +218,9 @@ async function checkGroupRestriction(couponId: string): Promise<string | null> {
 export async function createCoupon(
   form: CouponFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
+  const userId = admin.uid;
   const storeId = await getActingStoreId();
 
   const invalid = validateForm(form);
@@ -222,7 +228,7 @@ export async function createCoupon(
 
   let created: Record<string, unknown>;
   try {
-    const [row] = await withUser({ uid: userId }, (db) =>
+    const [row] = await withUser(admin, (db) =>
       db
         .insert(coupons)
         .values({ ...buildRow(form, userId, true), storeId })
@@ -237,7 +243,7 @@ export async function createCoupon(
   }
 
   await syncCouponGroups(
-    userId,
+    admin,
     created.id as string,
     form.restricted_group_ids,
     storeId,
@@ -255,8 +261,9 @@ export async function updateCoupon(
   id: string,
   form: CouponFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
+  const userId = admin.uid;
   const storeId = await getActingStoreId();
 
   const invalid = validateForm(form);
@@ -264,7 +271,7 @@ export async function updateCoupon(
 
   try {
     // RLS (is_store_admin) confines the update to the caller's own store.
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db
         .update(coupons)
         .set(buildRow(form, userId, false))
@@ -277,7 +284,7 @@ export async function updateCoupon(
     return { error: dbErrorMessage(err, "Failed to update coupon.") };
   }
 
-  await syncCouponGroups(userId, id, form.restricted_group_ids, storeId);
+  await syncCouponGroups(admin, id, form.restricted_group_ids, storeId);
 
   revalidateCoupons();
   return { success: true };
@@ -288,14 +295,12 @@ export async function updateCoupon(
 // ---------------------------------------------------------------------------
 
 export async function deleteCoupon(id: string): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
 
   try {
     // RLS (is_store_admin) confines the delete to the caller's own store.
-    await withUser({ uid: userId }, (db) =>
-      db.delete(coupons).where(eq(coupons.id, id)),
-    );
+    await withUser(admin, (db) => db.delete(coupons).where(eq(coupons.id, id)));
   } catch (err) {
     console.error("deleteCoupon error:", err);
     return { error: dbErrorMessage(err, "Failed to delete coupon.") };
@@ -510,7 +515,7 @@ export async function toggleCouponVisibility(
 
   try {
     // Explicit store scope on top of RLS — no admin can flip another store's coupon.
-    await withUser({ uid: user.id }, (db) =>
+    await withUser({ uid: user.id, email: user.email }, (db) =>
       db
         .update(coupons)
         .set({ showOnStorefront: show })

@@ -3,8 +3,11 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { TAGS } from "@/lib/storefront/tags";
-import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
-import { withUser } from "@/lib/db/client";
+import {
+  getManagerIdentity,
+  getActingStoreId,
+} from "@/app/dashboard/lib/access";
+import { withUser, type UserIdentity } from "@/lib/db/client";
 import { cardColors } from "@/drizzle/schema";
 
 // ---------------------------------------------------------------------------
@@ -28,8 +31,8 @@ export interface ActionResult {
 // ---------------------------------------------------------------------------
 
 // Allowed when the caller's role grants `manage` on the Colours section.
-async function getAdminUserId(): Promise<string | null> {
-  return getManagerUserId("colors");
+async function getAdminIdentity(): Promise<UserIdentity | null> {
+  return getManagerIdentity("colors");
 }
 
 // Normalize to a 6-digit lowercase hex (#rrggbb). Returns null if invalid.
@@ -62,8 +65,8 @@ function revalidateColors() {
 export async function createCardColor(
   formData: CardColorFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
 
   if (!formData.name.trim()) return { error: "Name is required." };
@@ -72,7 +75,7 @@ export async function createCardColor(
 
   try {
     // RLS (is_store_admin) gates the insert against the caller's store.
-    const [row] = await withUser({ uid: userId }, (db) =>
+    const [row] = await withUser(admin, (db) =>
       db
         .insert(cardColors)
         .values({
@@ -101,8 +104,8 @@ export async function updateCardColor(
   id: string,
   formData: CardColorFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
 
   if (!formData.name.trim()) return { error: "Name is required." };
   const hex = normalizeHex(formData.hex);
@@ -111,7 +114,7 @@ export async function updateCardColor(
   try {
     // No store filter needed: RLS (is_store_admin) confines the update to the
     // caller's own store; updated_at is maintained by the DB trigger.
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db
         .update(cardColors)
         .set({
@@ -138,12 +141,12 @@ export async function updateCardColor(
 // entry is removed — deleting a shade just takes it out of the dropdown.
 
 export async function deleteCardColor(id: string): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
 
   try {
     // RLS (is_store_admin) confines the delete to the caller's own store.
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db.delete(cardColors).where(eq(cardColors.id, id)),
     );
     revalidateColors();

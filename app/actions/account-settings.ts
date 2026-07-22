@@ -22,7 +22,7 @@ export async function updateProfileName(formData: FormData): Promise<Result> {
 
   try {
     // Own-row update (admins RLS lets a user edit their own row).
-    await withUser({ uid: user.id }, (db) =>
+    await withUser({ uid: user.id, email: user.email }, (db) =>
       db
         .update(admins)
         .set({ firstName, lastName: lastName || null })
@@ -96,7 +96,7 @@ export async function setVerifiedPhone(phone: string): Promise<Result> {
   }
 
   try {
-    await withUser({ uid: user.id }, (db) =>
+    await withUser({ uid: user.id, email: user.email }, (db) =>
       db
         .update(admins)
         .set({ phone: normalized })

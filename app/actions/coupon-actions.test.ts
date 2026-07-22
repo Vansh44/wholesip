@@ -12,6 +12,7 @@ vi.mock("@/lib/store/resolve", () => ({ getCurrentStore: vi.fn() }));
 vi.mock("@/lib/auth/server-user", () => ({ getServerUser: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getManagerIdentity: vi.fn(),
   getViewerContext: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
@@ -34,7 +35,10 @@ import {
 } from "./coupon-actions";
 import { getCurrentStore } from "@/lib/store/resolve";
 import { getServerUser } from "@/lib/auth/server-user";
-import { getManagerUserId, getViewerContext } from "@/app/dashboard/lib/access";
+import {
+  getManagerIdentity,
+  getViewerContext,
+} from "@/app/dashboard/lib/access";
 
 const STORE = "a0000000-0000-4000-8000-000000000001";
 
@@ -87,7 +91,10 @@ describe("coupon-actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbHolder.current = makeDbMock({ returning: [{ id: "x" }] });
-    vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+    vi.mocked(getManagerIdentity).mockResolvedValue({
+      uid: "user-1",
+      email: "admin@example.com",
+    });
     // Default caller is an anonymous shopper.
     vi.mocked(getServerUser).mockResolvedValue(null);
   });
@@ -95,7 +102,7 @@ describe("coupon-actions", () => {
   describe("createCoupon", () => {
     // Auth gate.
     it("rejects when caller lacks marketing.manage", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await createCoupon(validForm);
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -169,7 +176,7 @@ describe("coupon-actions", () => {
   describe("updateCoupon", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await updateCoupon("id", validForm);
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -188,7 +195,7 @@ describe("coupon-actions", () => {
   describe("deleteCoupon", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await deleteCoupon("id");
       expect(result.error).toMatch(/not authenticated/i);
     });

@@ -10,7 +10,11 @@ import {
   products,
   productVariants,
 } from "@/drizzle/schema";
-import { getActingStoreId, getManagerUserId } from "@/app/dashboard/lib/access";
+import {
+  getActingStoreId,
+  getManagerIdentity,
+  getManagerUserId,
+} from "@/app/dashboard/lib/access";
 import {
   DASHBOARD_PAGE_SIZE,
   sanitizeSearch,
@@ -119,8 +123,8 @@ export interface OrdersResult {
 export async function getOrders(
   params: GetOrdersParams = {},
 ): Promise<OrdersResult> {
-  const userId = await getManagerUserId("orders");
-  if (!userId)
+  const admin = await getManagerIdentity("orders");
+  if (!admin)
     return {
       error: "Not authenticated",
       orders: [],
@@ -185,35 +189,39 @@ export async function getOrders(
   const countWhere = and(...baseConds);
 
   try {
-    // RLS (store admins get FOR ALL on their own orders) + explicit store scope.
-    const { rows, total, statusRows } = await withUser(
-      { uid: userId },
-      async (db) => {
-        // Sequential, NOT Promise.all: these share one pooled connection, which
-        // can only run one query at a time — parallelising them just trips pg's
-        // "query while another is in flight" deprecation (removed in pg@9) with
-        // no speedup, since the connection serialises them anyway.
-        const rows = await db
-          .select(ORDER_LIST_COLUMNS)
-          .from(orders)
-          .where(whereExpr)
-          .orderBy(desc(orders.createdAt))
-          .limit(safeSize)
-          .offset(from);
-        const countRows = await db
-          .select({ n: count() })
-          .from(orders)
-          .where(whereExpr);
-        // Store-wide per-status counts for the filter tabs (ignores the active
-        // facets, so a tab always shows its full store count).
-        const statusRows = await db
-          .select({ status: orders.status, n: count() })
-          .from(orders)
-          .where(countWhere)
-          .groupBy(orders.status);
-        return { rows, total: countRows[0]?.n ?? 0, statusRows };
-      },
-    );
+    // User scope (RLS enforced) + the explicit store filter above. The FULL
+    // identity — uid AND email — matters: the orders policy delegates to
+    // is_store_admin(store_id), whose platform-operator branch matches
+    // platform_admins BY EMAIL via auth.email(). Opened with a uid alone, a
+    // platform operator (no admins row for this store) matches no policy and
+    // gets a silently empty list — the bug where /dashboard/orders said
+    // "No orders yet" while analytics showed nine orders. getManagerIdentity
+    // returns exactly what withUser needs, so that omission can't recur.
+    const { rows, total, statusRows } = await withUser(admin, async (db) => {
+      // Sequential, NOT Promise.all: these share one pooled connection, which
+      // can only run one query at a time — parallelising them just trips pg's
+      // "query while another is in flight" deprecation (removed in pg@9) with
+      // no speedup, since the connection serialises them anyway.
+      const rows = await db
+        .select(ORDER_LIST_COLUMNS)
+        .from(orders)
+        .where(whereExpr)
+        .orderBy(desc(orders.createdAt))
+        .limit(safeSize)
+        .offset(from);
+      const countRows = await db
+        .select({ n: count() })
+        .from(orders)
+        .where(whereExpr);
+      // Store-wide per-status counts for the filter tabs (ignores the active
+      // facets, so a tab always shows its full store count).
+      const statusRows = await db
+        .select({ status: orders.status, n: count() })
+        .from(orders)
+        .where(countWhere)
+        .groupBy(orders.status);
+      return { rows, total: countRows[0]?.n ?? 0, statusRows };
+    });
 
     const counts: OrderStatusCounts = { ...ZERO_COUNTS };
     for (const row of statusRows) {
@@ -240,8 +248,8 @@ export async function updateOrderStatus(
   status: string,
   paymentStatus?: string,
 ): Promise<{ success?: boolean; error?: string }> {
-  const userId = await getManagerUserId("orders");
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getManagerIdentity("orders");
+  if (!admin) return { error: "Not authenticated" };
 
   if (typeof orderId !== "string" || !orderId.trim()) {
     return { error: "Invalid order." };
@@ -269,7 +277,7 @@ export async function updateOrderStatus(
   // The release itself never blocks the status change (fails open); the ledger
   // is best-effort, the status update is the source of truth.
   if (status === "cancelled") {
-    const claimed = await withUser({ uid: userId }, (db) =>
+    const claimed = await withUser(admin, (db) =>
       db
         .update(orders)
         .set({ stockStatus: "released" })
@@ -290,7 +298,9 @@ export async function updateOrderStatus(
     });
 
     if (claimed.length > 0) {
-      const items = await withUser({ uid: userId }, (db) =>
+      // The claim above already proved this order belongs to `storeId`; RLS
+      // (via the parent order) scopes the line items again.
+      const items = await withUser(admin, (db) =>
         db
           .select({
             product_id: orderItems.productId,
@@ -323,7 +333,7 @@ export async function updateOrderStatus(
   }
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db
         .update(orders)
         .set(updateData)

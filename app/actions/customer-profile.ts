@@ -25,7 +25,7 @@ export async function getMyCustomer(): Promise<MyCustomer | null> {
   const user = await getServerUser();
   if (!user) return null;
 
-  const rows = await withUser({ uid: user.id }, (db) =>
+  const rows = await withUser({ uid: user.id, email: user.email }, (db) =>
     db
       .select({
         id: users.id,
@@ -99,7 +99,7 @@ export async function updateCustomerProfile(formData: FormData) {
   try {
     // Own-row upsert under the customer's identity (RLS-scoped to user_id).
     // phone is filled from the verified auth identity, not the form.
-    await withUser({ uid: user.id }, (db) =>
+    await withUser({ uid: user.id, email: user.email }, (db) =>
       db
         .insert(users)
         .values(insertRow as typeof users.$inferInsert)

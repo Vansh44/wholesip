@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({
 }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getManagerIdentity: vi.fn(),
   getActingStoreId: vi.fn(async () => "store-1"),
 }));
 
@@ -21,7 +22,7 @@ vi.mock("@/lib/db/client", () => ({
 }));
 
 import { revalidateTag } from "next/cache";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerIdentity } from "@/app/dashboard/lib/access";
 import {
   createBlogTaxonomyItem,
   renameBlogTaxonomyItem,
@@ -39,12 +40,15 @@ describe("blog-taxonomy-actions", () => {
     dbHolder.current = makeDbMock({
       selectQueue: [[{ name: "Recipes" }], []],
     });
-    vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+    vi.mocked(getManagerIdentity).mockResolvedValue({
+      uid: "user-1",
+      email: "admin@example.com",
+    });
   });
 
   describe("createBlogTaxonomyItem", () => {
     it("rejects callers without blogs.manage", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const r = await createBlogTaxonomyItem("category", "News");
       expect(r.error).toMatch(/not authenticated/i);
     });
@@ -93,7 +97,7 @@ describe("blog-taxonomy-actions", () => {
 
   describe("renameBlogTaxonomyItem", () => {
     it("rejects callers without blogs.manage", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const r = await renameBlogTaxonomyItem("category", "c1", "New");
       expect(r.error).toMatch(/not authenticated/i);
     });
@@ -151,7 +155,7 @@ describe("blog-taxonomy-actions", () => {
 
   describe("deleteBlogTaxonomyItem", () => {
     it("rejects callers without blogs.manage", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const r = await deleteBlogTaxonomyItem("tag", "t1");
       expect(r.error).toMatch(/not authenticated/i);
     });

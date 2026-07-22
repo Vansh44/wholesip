@@ -37,7 +37,7 @@ export async function submitReview(
 
   // The reviewer's name is snapshotted onto the review (customers is own-row
   // only under RLS, so public readers can't join to it).
-  const [customer] = await withUser({ uid: user.id }, (db) =>
+  const [customer] = await withUser({ uid: user.id, email: user.email }, (db) =>
     db
       .select({ firstName: users.firstName, lastName: users.lastName })
       .from(users)
@@ -63,7 +63,7 @@ export async function submitReview(
   const storeId = await getCurrentStoreId();
   try {
     // RLS (own-row insert/update policies) enforces ownership at the DB layer.
-    await withUser({ uid: user.id }, (db) =>
+    await withUser({ uid: user.id, email: user.email }, (db) =>
       db
         .insert(productReviews)
         .values({
@@ -97,7 +97,7 @@ export async function deleteReview(
   if (!user) return { error: "Please sign in." };
 
   try {
-    await withUser({ uid: user.id }, (db) =>
+    await withUser({ uid: user.id, email: user.email }, (db) =>
       db.delete(productReviews).where(eq(productReviews.id, reviewId)),
     );
   } catch (err) {

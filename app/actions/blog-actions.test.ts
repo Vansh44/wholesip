@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({
 }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getManagerIdentity: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
 vi.mock("@/lib/store/brand", () => ({
@@ -69,7 +70,7 @@ import {
   bulkSetBlogFeatured,
   bulkDeleteBlogs,
 } from "./blog-actions";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerIdentity } from "@/app/dashboard/lib/access";
 import { getServerUser } from "@/lib/auth/server-user";
 import { fetchBlogTaxonomy } from "@/lib/blog-taxonomy";
 import { getStoreSettings } from "@/lib/settings/resolve";
@@ -121,7 +122,10 @@ describe("blog-actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbHolder.current = makeDbMock({ returning: [{ id: "b1" }] });
-    vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+    vi.mocked(getManagerIdentity).mockResolvedValue({
+      uid: "user-1",
+      email: "admin@example.com",
+    });
     vi.mocked(getServerUser).mockResolvedValue(serverUser);
     // The store's blog taxonomy — customer submissions are validated
     // against these per-store lists (blog_taxonomy.sql).
@@ -133,7 +137,7 @@ describe("blog-actions", () => {
 
   describe("bulk operations", () => {
     it("bulkSetBlogStatus rejects when not authorised", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const r = await bulkSetBlogStatus(["b1"], "published");
       expect(r.error).toMatch(/not authenticated/i);
     });
@@ -184,7 +188,7 @@ describe("blog-actions", () => {
     });
 
     it("bulkDeleteBlogs rejects when not authorised", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const r = await bulkDeleteBlogs(["b1"]);
       expect(r.error).toMatch(/not authenticated/i);
     });
@@ -201,7 +205,7 @@ describe("blog-actions", () => {
   describe("createBlog", () => {
     // Auth gate.
     it("rejects when caller lacks blogs.manage", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await createBlog(blogForm);
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -248,7 +252,7 @@ describe("blog-actions", () => {
   describe("updateBlog", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await updateBlog("b1", blogForm);
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -301,7 +305,7 @@ describe("blog-actions", () => {
 
   describe("publishBlog / unpublishBlog", () => {
     it("publishBlog rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       expect((await publishBlog("b1")).error).toMatch(/not authenticated/i);
     });
 
@@ -333,7 +337,7 @@ describe("blog-actions", () => {
   describe("deleteBlog", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       expect((await deleteBlog("b1")).error).toMatch(/not authenticated/i);
     });
 
@@ -501,7 +505,7 @@ describe("blog-actions", () => {
   describe("approveCustomerBlog", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await approveCustomerBlog("b1");
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -536,7 +540,7 @@ describe("blog-actions", () => {
   describe("rejectCustomerBlog", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await rejectCustomerBlog("b1");
       expect(result.error).toMatch(/not authenticated/i);
     });

@@ -139,23 +139,26 @@ export async function loadInvoiceForCustomer(
   let order: Record<string, unknown> | undefined;
   let items: unknown[] = [];
   try {
-    ({ order, items } = await withUser({ uid: user.id }, async (db) => {
-      // No explicit customer filter — RLS confines this to the caller's orders.
-      const orderRows = await db
-        .select(ORDER_COLS)
-        .from(orders)
-        .where(eq(orders.id, orderId))
-        .limit(1);
-      if (!orderRows[0]) return { order: undefined, items: [] };
-      const itemRows = await db
-        .select(ITEM_COLS)
-        .from(orderItems)
-        .where(eq(orderItems.orderId, orderId));
-      return {
-        order: orderRows[0] as Record<string, unknown>,
-        items: itemRows as unknown[],
-      };
-    }));
+    ({ order, items } = await withUser(
+      { uid: user.id, email: user.email },
+      async (db) => {
+        // No explicit customer filter — RLS confines this to the caller's orders.
+        const orderRows = await db
+          .select(ORDER_COLS)
+          .from(orders)
+          .where(eq(orders.id, orderId))
+          .limit(1);
+        if (!orderRows[0]) return { order: undefined, items: [] };
+        const itemRows = await db
+          .select(ITEM_COLS)
+          .from(orderItems)
+          .where(eq(orderItems.orderId, orderId));
+        return {
+          order: orderRows[0] as Record<string, unknown>,
+          items: itemRows as unknown[],
+        };
+      },
+    ));
   } catch (err) {
     console.error(
       "loadInvoiceForCustomer:",

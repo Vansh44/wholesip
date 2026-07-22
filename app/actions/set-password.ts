@@ -75,7 +75,7 @@ export async function setPassword(formData: FormData) {
 
   // Update the admin's own profile row (RLS own-row) — clears the reset flag
   // and stores the verified name/phone.
-  await withUser({ uid: user.id }, (db) =>
+  await withUser({ uid: user.id, email: user.email }, (db) =>
     db
       .update(admins)
       .set({

@@ -431,6 +431,13 @@ wholesip/
 │   │                          # stay uuid. Drops/recreates 7 FKs + 25 policies + 2 admin
 │   │                          # views. RUN AS postgres (owner of the tables + auth schema;
 │   │                          # `app` can't). (+ rollback)
+│   ├── platform_admin_01_order_policies.sql # ★ routes the orders/order_items
+│   │                          # admin policies through is_store_admin() so platform
+│   │                          # operators pass them (they inlined the admins lookup and
+│   │                          # silently blanked the orders dashboard for operators —
+│   │                          # convention #2). Ends with a guard that FAILS if any
+│   │                          # policy still inlines `FROM admins`. RUN AS postgres.
+│   │                          # Applied to staging + prod 2026-07-22. (+ rollback)
 │   └── perf_*.sql             # index / RLS performance migrations
 │
 ├── brand/tasks/               # AI copy TASK prompts (product-desc.md, seo-meta.md), read at
@@ -446,8 +453,28 @@ wholesip/
 1. **Tenancy first**: any new table gets a `store_id` column + RLS policy; any new
    query/action threads `getCurrentStoreId()`. Never leak data across stores.
 2. **Server actions** live in `app/actions/<domain>-actions.ts` with a co-located
-   `<domain>-actions.test.ts`. Use the right Supabase client (`server` for user
-   context, `admin` only when RLS must be bypassed and input is validated).
+   `<domain>-actions.test.ts`. Use the right DB scope (`withUser` for user
+   context, `withService` only when RLS must be bypassed and input is
+   validated + explicitly store-scoped).
+   **User-scoped queries carry the FULL identity (uid + email).**
+   `withUser` (`lib/db/client.ts`) requires a `UserIdentity` — `email` is a
+   REQUIRED (nullable) field, not an optional nicety, and the manager gate for
+   dashboard actions is **`getManagerIdentity(section)`** (access.ts), which
+   returns exactly that shape (`getManagerUserId` remains only for callers
+   that never open a user scope). Why: the RLS helpers grant a StoreMink
+   platform operator implicit superadmin on every store via
+   `is_platform_admin()`, which matches `platform_admins` **by email** through
+   `auth.email()` (the `app.current_user_email` GUC). A user scope opened with
+   a uid alone leaves that GUC unset, so for an operator with no `admins` row
+   every policy silently fails — reads come back EMPTY and writes affect zero
+   rows with **no error** (this is how `/dashboard/orders` showed "No orders
+   yet" for a store whose analytics page showed nine orders). The compiler now
+   enforces the field; don't work around it by passing a made-up email. On the
+   DB side, admin policies must delegate to `is_store_admin(store_id)` — never
+   inline `FROM admins WHERE id = auth.uid()` (that recreates the operator
+   blind spot; the two orders policies that did are fixed by
+   `supabase/platform_admin_01_order_policies.sql`, which also FAILS if any
+   policy reintroduces the inline pattern).
 3. **Route groups**: `(storefront)` = customer site, `dashboard/` = store admin,
    `platform/` = StoreMink itself. Don't put platform pages in the storefront group —
    the proxy rewrite depends on this separation.
@@ -729,8 +756,11 @@ allow-popups"` + `srcDoc`, **never `allow-same-origin`**: the session cookie
       PostgREST). **If you ever move checkout off the service-role client, add a
       customer INSERT policy first** (see the note in `orders_table.sql`).
     - **Dashboard reads/writes**: `order-actions.ts` gates on
-      `getManagerUserId("orders")`, scopes every query by `store_id`, paginates
+      `getManagerIdentity("orders")`, scopes every query by `store_id`, paginates
       `getOrders`, and allowlists `status`/`payment_status` in `updateOrderStatus`.
+      Reads/writes run under **`withUser(admin)` with the FULL identity** (uid +
+      email) — see the "user-scoped queries carry the full identity" rule in
+      convention #2 for why the email is load-bearing.
     - **Checkout UX**: the `/checkout` page opens the auth modal IN PLACE when
       signed out (no redirect) so a signed-in shopper lands straight on the form.
       Saved addresses (`address-actions.ts` + `supabase/customer_addresses.sql`,

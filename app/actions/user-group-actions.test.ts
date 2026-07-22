@@ -6,6 +6,7 @@ import { makeDbMock } from "./_test-helpers";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getManagerIdentity: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
 
@@ -25,7 +26,7 @@ import {
   deleteUserGroup,
   setGroupMembers,
 } from "./user-group-actions";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerIdentity } from "@/app/dashboard/lib/access";
 
 const STORE = "a0000000-0000-4000-8000-000000000001";
 
@@ -42,12 +43,15 @@ describe("user-group-actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbHolder.current = makeDbMock({ returning: [{ id: "g1" }] });
-    vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+    vi.mocked(getManagerIdentity).mockResolvedValue({
+      uid: "user-1",
+      email: "admin@example.com",
+    });
   });
 
   describe("createUserGroup", () => {
     it("rejects when caller lacks users.manage", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await createUserGroup(validForm);
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -92,7 +96,7 @@ describe("user-group-actions", () => {
 
   describe("updateUserGroup", () => {
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await updateUserGroup("g1", validForm);
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -131,7 +135,7 @@ describe("user-group-actions", () => {
 
   describe("deleteUserGroup", () => {
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await deleteUserGroup("g1");
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -157,7 +161,7 @@ describe("user-group-actions", () => {
   // selection — all in one transaction. select #1 = the ownership check.
   describe("setGroupMembers", () => {
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await setGroupMembers("g1", ["c1"]);
       expect(result.error).toMatch(/not authenticated/i);
     });

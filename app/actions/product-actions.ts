@@ -5,14 +5,17 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { after } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
-import { withUser } from "@/lib/db/client";
+import { withUser, type UserIdentity } from "@/lib/db/client";
 import {
   isUniqueViolation,
   pgErrorCode,
   dbErrorMessage,
 } from "@/lib/db/errors";
 import { productVariants, products } from "@/drizzle/schema";
-import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
+import {
+  getManagerIdentity,
+  getActingStoreId,
+} from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/storage/cleanup";
 import { getStoreUrl } from "@/lib/site";
 import { pingIndexNow } from "@/lib/seo/search-engines";
@@ -85,12 +88,12 @@ function slugify(text: string): string {
 }
 
 // Allowed when the caller's role grants `manage` on the Products section.
-async function getAdminUserId(): Promise<string | null> {
-  return getManagerUserId("products");
+async function getAdminIdentity(): Promise<UserIdentity | null> {
+  return getManagerIdentity("products");
 }
 
 async function resolveSlug(
-  uid: string,
+  admin: UserIdentity,
   base: string,
   storeId: string,
   excludeId?: string,
@@ -101,7 +104,7 @@ async function resolveSlug(
   ];
   if (excludeId) conds.push(ne(products.id, excludeId));
 
-  const rows = await withUser({ uid }, (db) =>
+  const rows = await withUser(admin, (db) =>
     db
       .select({ slug: products.slug })
       .from(products)
@@ -182,7 +185,7 @@ function sanitizeVariants(variants: VariantFormData[]) {
 // references and the stock_movements ledger are preserved. Runs under the
 // admin's identity (RLS applies); returns an error message or null.
 async function replaceVariants(
-  uid: string,
+  admin: UserIdentity,
   productId: string,
   variants: VariantFormData[],
   storeId: string,
@@ -192,7 +195,7 @@ async function replaceVariants(
   // 1. Fetch existing variant ids for this product.
   let existingIds: Set<string>;
   try {
-    const existing = await withUser({ uid }, (db) =>
+    const existing = await withUser(admin, (db) =>
       db
         .select({ id: productVariants.id })
         .from(productVariants)
@@ -213,7 +216,7 @@ async function replaceVariants(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _id, stock: _stock, ...updates } = row;
     try {
-      await withUser({ uid }, (db) =>
+      await withUser(admin, (db) =>
         db
           .update(productVariants)
           .set(updates)
@@ -239,7 +242,7 @@ async function replaceVariants(
       storeId,
     }));
     try {
-      await withUser({ uid }, (db) =>
+      await withUser(admin, (db) =>
         db
           .insert(productVariants)
           // sku / variant_no are NOT NULL but owned by the BEFORE-INSERT
@@ -257,7 +260,7 @@ async function replaceVariants(
   const toDelete = [...existingIds].filter((id) => !formIds.has(id));
   if (toDelete.length > 0) {
     try {
-      await withUser({ uid }, (db) =>
+      await withUser(admin, (db) =>
         db.delete(productVariants).where(inArray(productVariants.id, toDelete)),
       );
     } catch (err) {
@@ -306,12 +309,12 @@ async function notifyProductPublished(
 // All image URLs currently referenced by a product (primary + gallery + every
 // variant's primary + gallery). Resilient: returns [] on any error.
 async function fetchProductImageUrls(
-  uid: string,
+  admin: UserIdentity,
   productId: string,
 ): Promise<string[]> {
   const urls: string[] = [];
   try {
-    const [p] = await withUser({ uid }, (db) =>
+    const [p] = await withUser(admin, (db) =>
       db
         .select({ image_url: products.imageUrl, images: products.images })
         .from(products)
@@ -321,7 +324,7 @@ async function fetchProductImageUrls(
     if (p?.image_url) urls.push(p.image_url);
     if (Array.isArray(p?.images)) urls.push(...p.images);
 
-    const vs = await withUser({ uid }, (db) =>
+    const vs = await withUser(admin, (db) =>
       db
         .select({
           image_url: productVariants.imageUrl,
@@ -347,8 +350,9 @@ async function fetchProductImageUrls(
 export async function createProduct(
   formData: ProductFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
+  const userId = admin.uid;
   const storeId = await getActingStoreId();
 
   if (!formData.name.trim()) return { error: "Name is required." };
@@ -359,7 +363,7 @@ export async function createProduct(
     return { error: "SEO title and description are required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(userId, base, storeId);
+  const { slug: firstSlug, bump } = await resolveSlug(admin, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -393,7 +397,7 @@ export async function createProduct(
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     let inserted: Record<string, unknown>;
     try {
-      const [row0] = await withUser({ uid: userId }, (db) =>
+      const [row0] = await withUser(admin, (db) =>
         db
           .insert(products)
           // sku / sku_no are NOT NULL but owned by the BEFORE-INSERT trigger
@@ -413,7 +417,7 @@ export async function createProduct(
     }
 
     const variantError = await replaceVariants(
-      userId,
+      admin,
       inserted.id as string,
       formData.variants,
       storeId,
@@ -438,8 +442,9 @@ export async function updateProduct(
   id: string,
   formData: ProductFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
+  const userId = admin.uid;
   const storeId = await getActingStoreId();
 
   if (!formData.name.trim()) return { error: "Name is required." };
@@ -450,15 +455,10 @@ export async function updateProduct(
     return { error: "SEO title and description are required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(
-    userId,
-    base,
-    storeId,
-    id,
-  );
+  const { slug: firstSlug, bump } = await resolveSlug(admin, base, storeId, id);
   let slug = firstSlug;
 
-  const currentRows = await withUser({ uid: userId }, (db) =>
+  const currentRows = await withUser(admin, (db) =>
     db
       .select({ published_at: products.publishedAt })
       .from(products)
@@ -497,13 +497,13 @@ export async function updateProduct(
 
   // Images referenced before this save — compared against what survives so any
   // removed file can be purged from storage.
-  const oldImageUrls = await fetchProductImageUrls(userId, id);
+  const oldImageUrls = await fetchProductImageUrls(admin, id);
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     try {
       // Own transaction per attempt; RLS confines the update to the caller's
       // own store.
-      await withUser({ uid: userId }, (db) =>
+      await withUser(admin, (db) =>
         db.update(products).set(row(slug)).where(eq(products.id, id)),
       );
     } catch (err) {
@@ -516,7 +516,7 @@ export async function updateProduct(
     }
 
     const variantError = await replaceVariants(
-      userId,
+      admin,
       id,
       formData.variants,
       storeId,
@@ -528,7 +528,7 @@ export async function updateProduct(
       };
     }
     // Purge files that are no longer referenced after the save.
-    const kept = new Set(await fetchProductImageUrls(userId, id));
+    const kept = new Set(await fetchProductImageUrls(admin, id));
     await deleteStorageUrls(oldImageUrls.filter((u) => !kept.has(u)));
 
     revalidateProduct(slug);
@@ -544,14 +544,14 @@ export async function updateProduct(
 // ---------------------------------------------------------------------------
 
 export async function deleteProduct(id: string): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
 
   // Collect the product's images before deleting (variants cascade in the DB).
-  const imageUrls = await fetchProductImageUrls(userId, id);
+  const imageUrls = await fetchProductImageUrls(admin, id);
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db.delete(products).where(eq(products.id, id)),
     );
   } catch (err) {
@@ -574,12 +574,13 @@ export async function toggleProductPublish(
   id: string,
   publish: boolean,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
+  const userId = admin.uid;
 
   let updated: { slug: string } | undefined;
   try {
-    [updated] = await withUser({ uid: userId }, (db) =>
+    [updated] = await withUser(admin, (db) =>
       db
         .update(products)
         .set({
@@ -610,12 +611,13 @@ export async function bulkToggleProductPublish(
   ids: string[],
   publish: boolean,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
+  const userId = admin.uid;
   if (ids.length === 0) return { error: "Nothing selected." };
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db
         .update(products)
         .set({
@@ -638,12 +640,13 @@ export async function bulkSetProductFeatured(
   ids: string[],
   featured: boolean,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
+  const userId = admin.uid;
   if (ids.length === 0) return { error: "Nothing selected." };
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db
         .update(products)
         .set({ featured, updatedBy: userId })
@@ -659,19 +662,19 @@ export async function bulkSetProductFeatured(
 
 /** Permanently delete many products, cleaning up their storage assets. */
 export async function bulkDeleteProducts(ids: string[]): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
   if (ids.length === 0) return { error: "Nothing selected." };
 
   // Gather images for every product first (variants cascade in the DB; files
   // do not).
   const urls: string[] = [];
   for (const id of ids) {
-    urls.push(...(await fetchProductImageUrls(userId, id)));
+    urls.push(...(await fetchProductImageUrls(admin, id)));
   }
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db.delete(products).where(inArray(products.id, ids)),
     );
   } catch (err) {
@@ -760,8 +763,8 @@ function buildProductFacts(input: {
 export async function generateProductDescription(
   input: DescriptionInput,
 ): Promise<DescriptionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
 
   if (!input.name?.trim()) {
     return { error: "Add a product name first." };
@@ -846,8 +849,8 @@ const SEO_SCHEMA = {
 };
 
 export async function generateProductSeo(input: SeoInput): Promise<SeoResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
 
   if (!input.name?.trim()) {
     return { error: "Add a product name first." };

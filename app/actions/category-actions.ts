@@ -3,9 +3,12 @@
 import { and, eq, like, ne } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { TAGS } from "@/lib/storefront/tags";
-import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
+import {
+  getManagerIdentity,
+  getActingStoreId,
+} from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/storage/cleanup";
-import { withUser } from "@/lib/db/client";
+import { withUser, type UserIdentity } from "@/lib/db/client";
 import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
 import { categories } from "@/drizzle/schema";
 
@@ -43,12 +46,12 @@ function slugify(text: string): string {
 
 // Returns the caller's id only if their role grants `manage` on Categories.
 // RLS enforces a baseline at the DB layer too; this is the app-layer gate.
-async function getAdminUserId(): Promise<string | null> {
-  return getManagerUserId("categories");
+async function getAdminIdentity(): Promise<UserIdentity | null> {
+  return getManagerIdentity("categories");
 }
 
 async function resolveSlug(
-  userId: string,
+  admin: UserIdentity,
   base: string,
   storeId: string,
   excludeId?: string,
@@ -59,7 +62,7 @@ async function resolveSlug(
   ];
   if (excludeId) conds.push(ne(categories.id, excludeId));
 
-  const rows = await withUser({ uid: userId }, (db) =>
+  const rows = await withUser(admin, (db) =>
     db
       .select({ slug: categories.slug })
       .from(categories)
@@ -103,14 +106,14 @@ function revalidateCatalog() {
 export async function createCategory(
   formData: CategoryFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
 
   if (!formData.name.trim()) return { error: "Name is required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(userId, base, storeId);
+  const { slug: firstSlug, bump } = await resolveSlug(admin, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -128,7 +131,7 @@ export async function createCategory(
   // one. RLS (is_store_admin) gates the insert against the caller's store.
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     try {
-      const [inserted] = await withUser({ uid: userId }, (db) =>
+      const [inserted] = await withUser(admin, (db) =>
         db.insert(categories).values(row(slug)).returning(),
       );
       revalidateCatalog();
@@ -153,19 +156,14 @@ export async function updateCategory(
   id: string,
   formData: CategoryFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
 
   if (!formData.name.trim()) return { error: "Name is required." };
 
   const base = formData.slug ? slugify(formData.slug) : slugify(formData.name);
-  const { slug: firstSlug, bump } = await resolveSlug(
-    userId,
-    base,
-    storeId,
-    id,
-  );
+  const { slug: firstSlug, bump } = await resolveSlug(admin, base, storeId, id);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -179,7 +177,7 @@ export async function updateCategory(
 
   // The image referenced before this save, so a replaced/removed one can be
   // purged from storage afterwards.
-  const prev = await withUser({ uid: userId }, (db) =>
+  const prev = await withUser(admin, (db) =>
     db
       .select({ imageUrl: categories.imageUrl })
       .from(categories)
@@ -193,7 +191,7 @@ export async function updateCategory(
   // updated_at is maintained by the DB trigger.
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     try {
-      await withUser({ uid: userId }, (db) =>
+      await withUser(admin, (db) =>
         db.update(categories).set(row(slug)).where(eq(categories.id, id)),
       );
       const newImage = formData.image_url || null;
@@ -220,10 +218,10 @@ export async function updateCategory(
 // (ON DELETE SET NULL), so they become "uncategorized" rather than being lost.
 
 export async function deleteCategory(id: string): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
 
-  const prev = await withUser({ uid: userId }, (db) =>
+  const prev = await withUser(admin, (db) =>
     db
       .select({ imageUrl: categories.imageUrl })
       .from(categories)
@@ -233,7 +231,7 @@ export async function deleteCategory(id: string): Promise<ActionResult> {
 
   try {
     // RLS (is_store_admin) confines the delete to the caller's own store.
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db.delete(categories).where(eq(categories.id, id)),
     );
   } catch (err) {

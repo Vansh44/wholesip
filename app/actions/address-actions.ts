@@ -98,7 +98,7 @@ export async function getMyAddresses(): Promise<SavedAddress[]> {
   if (!user) return [];
 
   try {
-    return await withUser({ uid: user.id }, (db) =>
+    return await withUser({ uid: user.id, email: user.email }, (db) =>
       db
         .select(ADDRESS_COLUMNS)
         .from(customerAddresses)
@@ -131,43 +131,46 @@ export async function saveAddress(
   try {
     // One transaction: clear the old default, dedup, then update-or-insert —
     // the whole address-book mutation lands (or rolls back) atomically.
-    const id = await withUser({ uid: user.id }, async (db) => {
-      // The address just used becomes the default; clear the flag on the
-      // others so it prefills next time.
-      await db
-        .update(customerAddresses)
-        .set({ isDefault: false })
-        .where(eq(customerAddresses.userId, user.id));
-
-      // Dedup: update an identical existing address rather than inserting a copy.
-      const existingRows = await db
-        .select({ id: customerAddresses.id })
-        .from(customerAddresses)
-        .where(
-          and(
-            eq(customerAddresses.userId, user.id),
-            eq(customerAddresses.addressLine1, row.addressLine1),
-            eq(customerAddresses.city, row.city),
-            eq(customerAddresses.postalCode, row.postalCode),
-          ),
-        )
-        .limit(1);
-      const existing = existingRows[0];
-
-      if (existing) {
+    const id = await withUser(
+      { uid: user.id, email: user.email },
+      async (db) => {
+        // The address just used becomes the default; clear the flag on the
+        // others so it prefills next time.
         await db
           .update(customerAddresses)
-          .set(row)
-          .where(eq(customerAddresses.id, existing.id));
-        return existing.id;
-      }
+          .set({ isDefault: false })
+          .where(eq(customerAddresses.userId, user.id));
 
-      const [inserted] = await db
-        .insert(customerAddresses)
-        .values(row)
-        .returning({ id: customerAddresses.id });
-      return inserted.id;
-    });
+        // Dedup: update an identical existing address rather than inserting a copy.
+        const existingRows = await db
+          .select({ id: customerAddresses.id })
+          .from(customerAddresses)
+          .where(
+            and(
+              eq(customerAddresses.userId, user.id),
+              eq(customerAddresses.addressLine1, row.addressLine1),
+              eq(customerAddresses.city, row.city),
+              eq(customerAddresses.postalCode, row.postalCode),
+            ),
+          )
+          .limit(1);
+        const existing = existingRows[0];
+
+        if (existing) {
+          await db
+            .update(customerAddresses)
+            .set(row)
+            .where(eq(customerAddresses.id, existing.id));
+          return existing.id;
+        }
+
+        const [inserted] = await db
+          .insert(customerAddresses)
+          .values(row)
+          .returning({ id: customerAddresses.id });
+        return inserted.id;
+      },
+    );
     return { success: true, id };
   } catch (err) {
     console.error("saveAddress:", err instanceof Error ? err.message : err);
@@ -192,7 +195,7 @@ export async function upsertAddress(
 
   if (addressId) {
     try {
-      await withUser({ uid: user.id }, (db) =>
+      await withUser({ uid: user.id, email: user.email }, (db) =>
         db
           .update(customerAddresses)
           .set(row)
@@ -214,20 +217,23 @@ export async function upsertAddress(
   }
 
   try {
-    const id = await withUser({ uid: user.id }, async (db) => {
-      // First address for this customer defaults to true so checkout can prefill.
-      const [countRow] = await db
-        .select({ n: count() })
-        .from(customerAddresses)
-        .where(eq(customerAddresses.userId, user.id));
-      const isFirst = (countRow?.n ?? 0) === 0;
+    const id = await withUser(
+      { uid: user.id, email: user.email },
+      async (db) => {
+        // First address for this customer defaults to true so checkout can prefill.
+        const [countRow] = await db
+          .select({ n: count() })
+          .from(customerAddresses)
+          .where(eq(customerAddresses.userId, user.id));
+        const isFirst = (countRow?.n ?? 0) === 0;
 
-      const [inserted] = await db
-        .insert(customerAddresses)
-        .values({ ...row, isDefault: isFirst })
-        .returning({ id: customerAddresses.id });
-      return inserted.id;
-    });
+        const [inserted] = await db
+          .insert(customerAddresses)
+          .values({ ...row, isDefault: isFirst })
+          .returning({ id: customerAddresses.id });
+        return inserted.id;
+      },
+    );
     return { success: true, id };
   } catch (err) {
     console.error(
@@ -250,7 +256,7 @@ export async function setDefaultAddress(
   try {
     // Clear every default for this customer, then set the chosen one
     // (own-row) — atomically, so there is never a moment with two defaults.
-    await withUser({ uid: user.id }, async (db) => {
+    await withUser({ uid: user.id, email: user.email }, async (db) => {
       await db
         .update(customerAddresses)
         .set({ isDefault: false })
@@ -285,7 +291,7 @@ export async function deleteAddress(
   if (!user) return { error: "You must be signed in." };
 
   try {
-    await withUser({ uid: user.id }, (db) =>
+    await withUser({ uid: user.id, email: user.email }, (db) =>
       db
         .delete(customerAddresses)
         .where(

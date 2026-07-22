@@ -6,6 +6,7 @@ import { makeDbMock, sqlParamValues } from "./_test-helpers";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getManagerIdentity: vi.fn(),
   getActingStoreId: vi.fn(async () => STORE),
 }));
 
@@ -22,24 +23,33 @@ vi.mock("@/lib/db/client", () => ({
 }));
 
 import { getOrders, getOrderDetail, updateOrderStatus } from "./order-actions";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import {
+  getManagerIdentity,
+  getManagerUserId,
+} from "@/app/dashboard/lib/access";
 
 const STORE = "a0000000-0000-4000-8000-000000000001";
 
-// order-actions.ts — the dashboard orders list (withUser + explicit store
-// scope) and the allowlisted status update with the exactly-once cancel
-// restock (atomic reserved→released claim + release_stock RPC).
+// order-actions.ts — the dashboard orders list (user scope with the FULL
+// identity + explicit store scope, gated on getManagerIdentity) and the
+// allowlisted status update with the exactly-once cancel restock (atomic
+// reserved→released claim + release_stock RPC).
 describe("order-actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbHolder.current = makeDbMock({ returning: [{ id: "o1" }] });
     vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+    vi.mocked(getManagerIdentity).mockResolvedValue({
+      uid: "user-1",
+      email: "admin@example.com",
+    });
   });
 
   describe("getOrders", () => {
     // Auth gate — no orders permission → nothing leaks.
     it("rejects when the caller lacks the orders permission", async () => {
       vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await getOrders();
       expect(result.error).toMatch(/not authenticated/i);
       expect(result.orders).toEqual([]);
@@ -80,11 +90,25 @@ describe("order-actions", () => {
       expect(dbHolder.current.calls.limit[0]).toBe(100);
       expect(dbHolder.current.calls.offset[0]).toBe(0);
     });
+
+    // REGRESSION (the "No orders yet" bug): the user scope must be opened with
+    // the FULL identity — uid AND email — because the platform-operator branch
+    // of the orders RLS policy (is_platform_admin) matches by auth.email().
+    // A uid-only identity silently empties the list for platform operators.
+    it("opens the user scope with the full identity (uid + email)", async () => {
+      const { withUser } = await import("@/lib/db/client");
+      await getOrders();
+      expect(vi.mocked(withUser).mock.calls[0][0]).toEqual({
+        uid: "user-1",
+        email: "admin@example.com",
+      });
+    });
   });
 
   describe("getOrderDetail", () => {
     it("rejects an unauthenticated caller", async () => {
       vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const res = await getOrderDetail("o1");
       expect(res.error).toMatch(/not authenticated/i);
     });
@@ -115,6 +139,7 @@ describe("order-actions", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
       vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await updateOrderStatus("o1", "shipped");
       expect(result.error).toMatch(/not authenticated/i);
     });

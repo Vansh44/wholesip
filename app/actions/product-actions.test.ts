@@ -20,6 +20,7 @@ vi.mock("@/lib/seo/search-engines", () => ({
 }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getManagerIdentity: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
 vi.mock("@/lib/storage/cleanup", () => ({
@@ -63,7 +64,7 @@ import {
   bulkSetProductFeatured,
   bulkDeleteProducts,
 } from "./product-actions";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerIdentity } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/storage/cleanup";
 import { getBrandSoulForStore } from "@/lib/ai/brand-voice";
 import { consumeAiQuota } from "@/lib/ai/quota";
@@ -107,12 +108,15 @@ describe("product-actions", () => {
     dbHolder.current = makeDbMock({
       returning: [{ id: "p1", slug: "almonds" }],
     });
-    vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+    vi.mocked(getManagerIdentity).mockResolvedValue({
+      uid: "user-1",
+      email: "admin@example.com",
+    });
   });
 
   describe("bulk operations", () => {
     it("bulkToggleProductPublish rejects when not authorised", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const r = await bulkToggleProductPublish(["p1"], true);
       expect(r.error).toMatch(/not authenticated/i);
     });
@@ -165,7 +169,7 @@ describe("product-actions", () => {
   describe("createProduct", () => {
     // Auth gate — products.manage permission required.
     it("rejects when caller lacks products.manage", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await createProduct(validForm);
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -300,7 +304,7 @@ describe("product-actions", () => {
   describe("updateProduct", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await updateProduct("p1", validForm);
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -322,7 +326,7 @@ describe("product-actions", () => {
   describe("deleteProduct", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await deleteProduct("p1");
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -346,7 +350,7 @@ describe("product-actions", () => {
   describe("toggleProductPublish", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await toggleProductPublish("p1", true);
       expect(result.error).toMatch(/not authenticated/i);
     });
@@ -384,7 +388,7 @@ describe("product-actions", () => {
   describe("generateProductDescription", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await generateProductDescription({ name: "x" });
       expect(result.error).toMatch(/not authenticated/i);
     });

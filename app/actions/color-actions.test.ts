@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({
 }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getManagerIdentity: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
 
@@ -25,7 +26,7 @@ import {
   updateCardColor,
   deleteCardColor,
 } from "./color-actions";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerIdentity } from "@/app/dashboard/lib/access";
 
 const validForm = { name: "Cream", hex: "#f4dfe0", sort_order: 1 };
 
@@ -36,12 +37,15 @@ describe("color-actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbHolder.current = makeDbMock({ returning: [{ id: "c1" }] });
-    vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+    vi.mocked(getManagerIdentity).mockResolvedValue({
+      uid: "user-1",
+      email: "admin@example.com",
+    });
   });
 
   describe("createCardColor", () => {
     it("rejects when the caller lacks colors.manage", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await createCardColor(validForm);
       expect(result.error).toMatch(/not authenticated/i);
       expect(dbHolder.current.calls.insert).toHaveLength(0);
@@ -79,7 +83,7 @@ describe("color-actions", () => {
 
   describe("updateCardColor", () => {
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await updateCardColor("c1", validForm);
       expect(result.error).toMatch(/not authenticated/i);
       expect(dbHolder.current.calls.update).toHaveLength(0);
@@ -101,7 +105,7 @@ describe("color-actions", () => {
 
   describe("deleteCardColor", () => {
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await deleteCardColor("c1");
       expect(result.error).toMatch(/not authenticated/i);
       expect(dbHolder.current.calls.delete).toHaveLength(0);

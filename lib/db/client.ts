@@ -121,11 +121,40 @@ export function withService<T>(fn: (db: Db) => Promise<T>): Promise<T> {
 }
 
 /**
- * Signed-in user scope: RLS enforced, with app.current_user_id (and optional
- * email) set so `auth.uid()`/`auth.email()` resolve inside every policy.
+ * A verified caller opening a user-scoped transaction. BOTH fields are
+ * required (email may be null) — see withUser for why omitting the email is a
+ * silent authorisation bug rather than a missing nicety.
+ */
+export interface UserIdentity {
+  /** Verified uid → `app.current_user_id` → `auth.uid()`. */
+  uid: string;
+  /**
+   * Verified email → `app.current_user_email` → `auth.email()`. Null only for
+   * an account that genuinely has no email. Get it from `getServerUser()` or a
+   * gate that returns an identity (`getManagerIdentity`) — never invent one.
+   */
+  email: string | null;
+}
+
+/**
+ * Signed-in user scope: RLS enforced, with app.current_user_id AND
+ * app.current_user_email set so `auth.uid()`/`auth.email()` both resolve
+ * inside every policy.
+ *
+ * `email` is REQUIRED (nullable) on purpose. The store-admin RLS helper is
+ *   is_store_admin(store) := is_platform_admin() OR <admins row for store>
+ * and `is_platform_admin()` matches `platform_admins` BY EMAIL via
+ * `auth.email()`. With no email GUC, `auth.email()` is NULL, that branch is
+ * dead, and a StoreMink platform operator — who has god access at the app
+ * layer but no `admins` row for the store they're managing — matches no
+ * policy. Postgres then returns zero rows and reports NO error: reads look
+ * empty and writes look successful. That is precisely how `/dashboard/orders`
+ * came to show "No orders yet" for a store whose analytics page showed nine.
+ * Making the field required means the compiler, not a future incident,
+ * catches the omission.
  */
 export function withUser<T>(
-  identity: { uid: string; email?: string | null },
+  identity: UserIdentity,
   fn: (db: Db) => Promise<T>,
 ): Promise<T> {
   return runScoped(

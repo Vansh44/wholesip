@@ -7,11 +7,14 @@ import { getStoreUrl } from "@/lib/site";
 import { pingIndexNow } from "@/lib/seo/search-engines";
 import { TAGS } from "@/lib/storefront/tags";
 import { sanitizeBlogContent } from "@/lib/sanitize";
-import { withService, withUser } from "@/lib/db/client";
+import { withService, withUser, type UserIdentity } from "@/lib/db/client";
 import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
 import { blogs, users } from "@/drizzle/schema";
 import { getServerUser } from "@/lib/auth/server-user";
-import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
+import {
+  getManagerIdentity,
+  getActingStoreId,
+} from "@/app/dashboard/lib/access";
 import { getCurrentStoreId } from "@/lib/store/resolve";
 import {
   deleteStorageUrls,
@@ -103,8 +106,8 @@ function calculateReadingTime(html: string): number {
 
 // Returns the caller's id only if their role grants `manage` on Blogs.
 // RLS already enforces a baseline at the DB layer; this is the app-layer gate.
-async function getAdminUserId(): Promise<string | null> {
-  return getManagerUserId("blogs");
+async function getAdminIdentity(): Promise<UserIdentity | null> {
+  return getManagerIdentity("blogs");
 }
 
 /**
@@ -117,8 +120,8 @@ async function getAdminUserId(): Promise<string | null> {
 export async function getBlogForEditor(
   id: string,
 ): Promise<Record<string, unknown> | null> {
-  const userId = await getAdminUserId();
-  if (!userId) return null;
+  const admin = await getAdminIdentity();
+  if (!admin) return null;
   const storeId = await getActingStoreId();
   try {
     const rows = await withService((db) =>
@@ -198,7 +201,7 @@ async function validateCustomerTaxonomy(
  * so RLS shapes what it can see — same as the old cookie-client pre-check.
  */
 async function resolveSlug(
-  uid: string,
+  admin: UserIdentity,
   base: string,
   storeId: string,
   excludeId?: string,
@@ -206,7 +209,7 @@ async function resolveSlug(
   const conds = [eq(blogs.storeId, storeId), like(blogs.slug, `${base}%`)];
   if (excludeId) conds.push(ne(blogs.id, excludeId));
 
-  const rows = await withUser({ uid }, (db) =>
+  const rows = await withUser(admin, (db) =>
     db
       .select({ slug: blogs.slug })
       .from(blogs)
@@ -249,11 +252,12 @@ function revalidateBlogs() {
 export async function createBlog(
   formData: BlogFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
+  const admin = await getAdminIdentity();
 
-  if (!userId) {
+  if (!admin) {
     return { error: "Not authenticated" };
   }
+  const userId = admin.uid;
 
   const readingTime = formData.content
     ? calculateReadingTime(formData.content)
@@ -261,7 +265,7 @@ export async function createBlog(
   const storeId = await getActingStoreId();
 
   const base = formData.slug || slugify(formData.title);
-  const { slug: firstSlug, bump } = await resolveSlug(userId, base, storeId);
+  const { slug: firstSlug, bump } = await resolveSlug(admin, base, storeId);
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -289,7 +293,7 @@ export async function createBlog(
   // transaction it happens in). RLS (is_store_admin) gates the insert.
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     try {
-      const [inserted] = await withUser({ uid: userId }, (db) =>
+      const [inserted] = await withUser(admin, (db) =>
         db.insert(blogs).values(row(slug)).returning(),
       );
       revalidateBlogs();
@@ -315,11 +319,12 @@ export async function updateBlog(
   id: string,
   formData: BlogFormData,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
+  const admin = await getAdminIdentity();
 
-  if (!userId) {
+  if (!admin) {
     return { error: "Not authenticated" };
   }
+  const userId = admin.uid;
 
   const readingTime = formData.content
     ? calculateReadingTime(formData.content)
@@ -328,18 +333,13 @@ export async function updateBlog(
 
   // Check slug uniqueness (exclude current blog)
   const base = formData.slug || slugify(formData.title);
-  const { slug: firstSlug, bump } = await resolveSlug(
-    userId,
-    base,
-    storeId,
-    id,
-  );
+  const { slug: firstSlug, bump } = await resolveSlug(admin, base, storeId, id);
   let slug = firstSlug;
 
   // Get current blog to check if it was previously unpublished, and whether
   // this is a customer submission awaiting review (so we can notify the author
   // when an admin approves it by publishing from the editor).
-  const currentRows = await withUser({ uid: userId }, (db) =>
+  const currentRows = await withUser(admin, (db) =>
     db
       .select({
         status: blogs.status,
@@ -382,7 +382,7 @@ export async function updateBlog(
     try {
       // Own transaction per attempt; RLS confines the update to the caller's
       // own store.
-      await withUser({ uid: userId }, (db) =>
+      await withUser(admin, (db) =>
         db.update(blogs).set(row(slug)).where(eq(blogs.id, id)),
       );
     } catch (err) {
@@ -439,13 +439,13 @@ export async function updateBlog(
 // ---------------------------------------------------------------------------
 
 export async function deleteBlog(id: string): Promise<ActionResult> {
-  const userId = await getAdminUserId();
+  const admin = await getAdminIdentity();
 
-  if (!userId) {
+  if (!admin) {
     return { error: "Not authenticated" };
   }
 
-  const prevRows = await withUser({ uid: userId }, (db) =>
+  const prevRows = await withUser(admin, (db) =>
     db
       .select({
         cover_image_url: blogs.coverImageUrl,
@@ -459,9 +459,7 @@ export async function deleteBlog(id: string): Promise<ActionResult> {
 
   try {
     // RLS confines the delete to the caller's own store.
-    await withUser({ uid: userId }, (db) =>
-      db.delete(blogs).where(eq(blogs.id, id)),
-    );
+    await withUser(admin, (db) => db.delete(blogs).where(eq(blogs.id, id)));
   } catch (err) {
     console.error("deleteBlog error:", err);
     return { error: dbErrorMessage(err, "Failed to delete blog.") };
@@ -499,15 +497,16 @@ export async function deleteUploadedImage(url: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function publishBlog(id: string): Promise<ActionResult> {
-  const userId = await getAdminUserId();
+  const admin = await getAdminIdentity();
 
-  if (!userId) {
+  if (!admin) {
     return { error: "Not authenticated" };
   }
+  const userId = admin.uid;
 
   let published: { slug: string } | undefined;
   try {
-    [published] = await withUser({ uid: userId }, (db) =>
+    [published] = await withUser(admin, (db) =>
       db
         .update(blogs)
         .set({
@@ -540,14 +539,15 @@ export async function publishBlog(id: string): Promise<ActionResult> {
 // ---------------------------------------------------------------------------
 
 export async function unpublishBlog(id: string): Promise<ActionResult> {
-  const userId = await getAdminUserId();
+  const admin = await getAdminIdentity();
 
-  if (!userId) {
+  if (!admin) {
     return { error: "Not authenticated" };
   }
+  const userId = admin.uid;
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db
         .update(blogs)
         .set({
@@ -575,12 +575,13 @@ export async function bulkSetBlogStatus(
   ids: string[],
   status: "published" | "draft",
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
+  const userId = admin.uid;
   if (ids.length === 0) return { error: "Nothing selected." };
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db
         .update(blogs)
         .set({
@@ -604,12 +605,13 @@ export async function bulkSetBlogFeatured(
   ids: string[],
   featured: boolean,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
+  const userId = admin.uid;
   if (ids.length === 0) return { error: "Nothing selected." };
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db
         .update(blogs)
         .set({ featured, updatedBy: userId })
@@ -626,12 +628,12 @@ export async function bulkSetBlogFeatured(
 
 /** Permanently delete many blogs, cleaning up their storage assets. */
 export async function bulkDeleteBlogs(ids: string[]): Promise<ActionResult> {
-  const userId = await getAdminUserId();
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getAdminIdentity();
+  if (!admin) return { error: "Not authenticated" };
   if (ids.length === 0) return { error: "Nothing selected." };
 
   // Collect every referenced asset before the rows go (storage won't cascade).
-  const rows = await withUser({ uid: userId }, (db) =>
+  const rows = await withUser(admin, (db) =>
     db
       .select({
         cover_image_url: blogs.coverImageUrl,
@@ -642,7 +644,7 @@ export async function bulkDeleteBlogs(ids: string[]): Promise<ActionResult> {
   );
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db.delete(blogs).where(inArray(blogs.id, ids)),
     );
   } catch (err) {
@@ -669,11 +671,12 @@ export async function autosaveBlog(
   id: string,
   fields: Partial<BlogFormData>,
 ): Promise<ActionResult> {
-  const userId = await getAdminUserId();
+  const admin = await getAdminIdentity();
 
-  if (!userId) {
+  if (!admin) {
     return { error: "Not authenticated" };
   }
+  const userId = admin.uid;
 
   const updateData: Record<string, unknown> = { updatedBy: userId };
 
@@ -694,7 +697,7 @@ export async function autosaveBlog(
     updateData.seoDescription = fields.seo_description;
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db.update(blogs).set(updateData).where(eq(blogs.id, id)),
     );
   } catch (err) {
@@ -720,13 +723,13 @@ export interface CustomerBlogFormData {
 
 // Own-row customer profile read (users is own-row only under RLS).
 async function getCustomerProfile(
-  uid: string,
+  user: UserIdentity,
 ): Promise<{ first_name: string; last_name: string | null } | null> {
-  const rows = await withUser({ uid }, (db) =>
+  const rows = await withUser(user, (db) =>
     db
       .select({ first_name: users.firstName, last_name: users.lastName })
       .from(users)
-      .where(eq(users.id, uid))
+      .where(eq(users.id, user.uid))
       .limit(1),
   );
   return rows[0] ?? null;
@@ -754,7 +757,10 @@ export async function submitCustomerBlog(
   const requireApproval = settings["blogs.requireApproval"];
 
   // Verify user is a customer
-  const customer = await getCustomerProfile(user.id);
+  const customer = await getCustomerProfile({
+    uid: user.id,
+    email: user.email,
+  });
   if (!customer) {
     return {
       error: "Customer profile not found. Please complete your profile first.",
@@ -777,7 +783,11 @@ export async function submitCustomerBlog(
   const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
 
   const base = slugify(formData.title);
-  const { slug: firstSlug, bump } = await resolveSlug(user.id, base, storeId);
+  const { slug: firstSlug, bump } = await resolveSlug(
+    { uid: user.id, email: user.email },
+    base,
+    storeId,
+  );
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -803,7 +813,7 @@ export async function submitCustomerBlog(
     let inserted: Record<string, unknown>;
     try {
       // RLS only lets a customer insert their own pending_review rows.
-      const [row0] = await withUser({ uid: user.id }, (db) =>
+      const [row0] = await withUser({ uid: user.id, email: user.email }, (db) =>
         db.insert(blogs).values(row(slug)).returning(),
       );
       inserted = row0 as Record<string, unknown>;
@@ -872,7 +882,10 @@ export async function saveCustomerBlogDraft(
     return { error: "Blog submissions are currently disabled on this store." };
   }
 
-  const customer = await getCustomerProfile(user.id);
+  const customer = await getCustomerProfile({
+    uid: user.id,
+    email: user.email,
+  });
   if (!customer) {
     return {
       error: "Customer profile not found. Please complete your profile first.",
@@ -889,7 +902,7 @@ export async function saveCustomerBlogDraft(
   // submitted/published post can't be silently pulled back here.
   if (id) {
     try {
-      await withUser({ uid: user.id }, (db) =>
+      await withUser({ uid: user.id, email: user.email }, (db) =>
         db
           .update(blogs)
           .set({
@@ -923,7 +936,11 @@ export async function saveCustomerBlogDraft(
   const storeId = await getCurrentStoreId();
   const authorName = `${customer.first_name}${customer.last_name ? " " + customer.last_name : ""}`;
   const base = slugify(formData.title);
-  const { slug: firstSlug, bump } = await resolveSlug(user.id, base, storeId);
+  const { slug: firstSlug, bump } = await resolveSlug(
+    { uid: user.id, email: user.email },
+    base,
+    storeId,
+  );
   let slug = firstSlug;
 
   const row = (s: string) => ({
@@ -947,8 +964,9 @@ export async function saveCustomerBlogDraft(
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     try {
-      const [inserted] = await withUser({ uid: user.id }, (db) =>
-        db.insert(blogs).values(row(slug)).returning({ id: blogs.id }),
+      const [inserted] = await withUser(
+        { uid: user.id, email: user.email },
+        (db) => db.insert(blogs).values(row(slug)).returning({ id: blogs.id }),
       );
       revalidatePath("/dashboard/blogs");
       return { success: true, data: inserted as Record<string, unknown> };
@@ -1001,7 +1019,7 @@ export async function updateCustomerBlog(
 
   // The author's current cover + body images, so replaced/removed ones can be
   // purged after saving.
-  const prevRows = await withUser({ uid: user.id }, (db) =>
+  const prevRows = await withUser({ uid: user.id, email: user.email }, (db) =>
     db
       .select({
         cover_image_url: blogs.coverImageUrl,
@@ -1014,7 +1032,7 @@ export async function updateCustomerBlog(
   const prev = prevRows[0];
 
   try {
-    await withUser({ uid: user.id }, (db) =>
+    await withUser({ uid: user.id, email: user.email }, (db) =>
       db
         .update(blogs)
         .set({
@@ -1094,33 +1112,35 @@ export async function getMySubmissions(): Promise<ActionResult> {
   }
 
   try {
-    const submissions = await withUser({ uid: user.id }, (db) =>
-      db
-        .select({
-          id: blogs.id,
-          title: blogs.title,
-          slug: blogs.slug,
-          excerpt: blogs.excerpt,
-          content: blogs.content,
-          cover_image_url: blogs.coverImageUrl,
-          author: blogs.author,
-          status: blogs.status,
-          categories: blogs.categories,
-          tags: blogs.tags,
-          reading_time: blogs.readingTime,
-          created_at: blogs.createdAt,
-          updated_at: blogs.updatedAt,
-          submitted_by: blogs.submittedBy,
-          is_customer_submission: blogs.isCustomerSubmission,
-        })
-        .from(blogs)
-        .where(
-          and(
-            eq(blogs.submittedBy, user.id),
-            eq(blogs.isCustomerSubmission, true),
-          ),
-        )
-        .orderBy(desc(blogs.createdAt)),
+    const submissions = await withUser(
+      { uid: user.id, email: user.email },
+      (db) =>
+        db
+          .select({
+            id: blogs.id,
+            title: blogs.title,
+            slug: blogs.slug,
+            excerpt: blogs.excerpt,
+            content: blogs.content,
+            cover_image_url: blogs.coverImageUrl,
+            author: blogs.author,
+            status: blogs.status,
+            categories: blogs.categories,
+            tags: blogs.tags,
+            reading_time: blogs.readingTime,
+            created_at: blogs.createdAt,
+            updated_at: blogs.updatedAt,
+            submitted_by: blogs.submittedBy,
+            is_customer_submission: blogs.isCustomerSubmission,
+          })
+          .from(blogs)
+          .where(
+            and(
+              eq(blogs.submittedBy, user.id),
+              eq(blogs.isCustomerSubmission, true),
+            ),
+          )
+          .orderBy(desc(blogs.createdAt)),
     );
     return { success: true, data: { submissions } };
   } catch (err) {
@@ -1146,7 +1166,7 @@ export async function deleteCustomerBlog(id: string): Promise<ActionResult> {
     content: string | null;
   }[];
   try {
-    removedRows = await withUser({ uid: user.id }, (db) =>
+    removedRows = await withUser({ uid: user.id, email: user.email }, (db) =>
       db
         .delete(blogs)
         .where(
@@ -1199,7 +1219,7 @@ export async function revertCustomerBlogToDraft(
 
   let reverted: { id: string }[];
   try {
-    reverted = await withUser({ uid: user.id }, (db) =>
+    reverted = await withUser({ uid: user.id, email: user.email }, (db) =>
       db
         .update(blogs)
         .set({ status: "draft", updatedBy: user.id })
@@ -1231,17 +1251,18 @@ export async function revertCustomerBlogToDraft(
 // ---------------------------------------------------------------------------
 
 export async function approveCustomerBlog(id: string): Promise<ActionResult> {
-  const userId = await getAdminUserId();
+  const admin = await getAdminIdentity();
 
-  if (!userId) {
+  if (!admin) {
     return { error: "Not authenticated" };
   }
+  const userId = admin.uid;
 
   let approved:
     | { title: string; slug: string; submitted_by: string | null }
     | undefined;
   try {
-    [approved] = await withUser({ uid: userId }, (db) =>
+    [approved] = await withUser(admin, (db) =>
       db
         .update(blogs)
         .set({
@@ -1289,14 +1310,14 @@ export async function approveCustomerBlog(id: string): Promise<ActionResult> {
 // ---------------------------------------------------------------------------
 
 export async function rejectCustomerBlog(id: string): Promise<ActionResult> {
-  const userId = await getAdminUserId();
+  const admin = await getAdminIdentity();
 
-  if (!userId) {
+  if (!admin) {
     return { error: "Not authenticated" };
   }
 
   // Capture the author + title before deleting so we can email them after.
-  const targetRows = await withUser({ uid: userId }, (db) =>
+  const targetRows = await withUser(admin, (db) =>
     db
       .select({ title: blogs.title, submitted_by: blogs.submittedBy })
       .from(blogs)
@@ -1306,7 +1327,7 @@ export async function rejectCustomerBlog(id: string): Promise<ActionResult> {
   const target = targetRows[0];
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db
         .delete(blogs)
         .where(and(eq(blogs.id, id), eq(blogs.status, "pending_review"))),

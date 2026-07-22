@@ -125,28 +125,31 @@ export async function submitBlogComment(form: {
 
   const storeId = await getCurrentStoreId();
   try {
-    const result = await withUser({ uid: user.id }, async (db) => {
-      const customerRows = await db
-        .select({ firstName: users.firstName, lastName: users.lastName })
-        .from(users)
-        .where(eq(users.id, user.id))
-        .limit(1);
-      const customer = customerRows[0];
-      if (!customer) return { error: "PROFILE_MISSING" as const };
+    const result = await withUser(
+      { uid: user.id, email: user.email },
+      async (db) => {
+        const customerRows = await db
+          .select({ firstName: users.firstName, lastName: users.lastName })
+          .from(users)
+          .where(eq(users.id, user.id))
+          .limit(1);
+        const customer = customerRows[0];
+        if (!customer) return { error: "PROFILE_MISSING" as const };
 
-      const authorName = `${customer.firstName ?? ""}${
-        customer.lastName ? " " + customer.lastName : ""
-      }`.trim();
+        const authorName = `${customer.firstName ?? ""}${
+          customer.lastName ? " " + customer.lastName : ""
+        }`.trim();
 
-      await db.insert(blogComments).values({
-        blogId: form.blog_id,
-        userId: user.id,
-        authorName: authorName || "Anonymous",
-        body,
-        storeId,
-      });
-      return { ok: true as const };
-    });
+        await db.insert(blogComments).values({
+          blogId: form.blog_id,
+          userId: user.id,
+          authorName: authorName || "Anonymous",
+          body,
+          storeId,
+        });
+        return { ok: true as const };
+      },
+    );
 
     if ("error" in result) {
       return { error: "Complete your profile before commenting." };
@@ -171,7 +174,7 @@ export async function deleteBlogComment(
   if (!user) return { error: "Please sign in." };
 
   try {
-    await withUser({ uid: user.id }, (db) =>
+    await withUser({ uid: user.id, email: user.email }, (db) =>
       db.delete(blogComments).where(eq(blogComments.id, commentId)),
     );
   } catch (err) {

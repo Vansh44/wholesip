@@ -2,11 +2,14 @@
 
 import { and, arrayContains, eq } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { withUser } from "@/lib/db/client";
+import { withUser, type UserIdentity } from "@/lib/db/client";
 import { isUniqueViolation, dbErrorMessage } from "@/lib/db/errors";
 import { blogCategories, blogTags, blogs } from "@/drizzle/schema";
 import { TAGS } from "@/lib/storefront/tags";
-import { getManagerUserId, getActingStoreId } from "@/app/dashboard/lib/access";
+import {
+  getManagerIdentity,
+  getActingStoreId,
+} from "@/app/dashboard/lib/access";
 
 // ---------------------------------------------------------------------------
 // Per-store blog categories & tags (blog_categories / blog_tags tables).
@@ -68,7 +71,7 @@ function revalidateTaxonomy() {
  * runs under the admin's identity so RLS still applies.
  */
 async function propagateToBlogs(
-  userId: string,
+  admin: UserIdentity,
   storeId: string,
   kind: TaxonomyKind,
   oldName: string,
@@ -77,7 +80,7 @@ async function propagateToBlogs(
   const column = BLOG_COLUMN[kind];
   let rows: { id: string; values: string[] | null }[];
   try {
-    rows = await withUser({ uid: userId }, (db) =>
+    rows = await withUser(admin, (db) =>
       db
         .select({ id: blogs.id, values: column })
         .from(blogs)
@@ -99,7 +102,7 @@ async function propagateToBlogs(
       ? [...new Set(current.map((v) => (v === oldName ? newName : v)))]
       : current.filter((v) => v !== oldName);
     try {
-      await withUser({ uid: userId }, (db) =>
+      await withUser(admin, (db) =>
         db
           .update(blogs)
           .set(kind === "category" ? { categories: next } : { tags: next })
@@ -122,8 +125,8 @@ export async function createBlogTaxonomyItem(
   kind: TaxonomyKind,
   rawName: string,
 ): Promise<ActionResult> {
-  const userId = await getManagerUserId("blogs");
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getManagerIdentity("blogs");
+  if (!admin) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
 
   const name = normalizeName(rawName);
@@ -132,7 +135,7 @@ export async function createBlogTaxonomyItem(
 
   try {
     // RLS (is_store_admin) gates the insert against the caller's store.
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db.insert(TABLE[kind]).values({ storeId, name }),
     );
   } catch (err) {
@@ -154,8 +157,8 @@ export async function renameBlogTaxonomyItem(
   id: string,
   rawName: string,
 ): Promise<ActionResult> {
-  const userId = await getManagerUserId("blogs");
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getManagerIdentity("blogs");
+  if (!admin) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
 
   const name = normalizeName(rawName);
@@ -163,7 +166,7 @@ export async function renameBlogTaxonomyItem(
   if (invalid) return { error: invalid };
 
   const table = TABLE[kind];
-  const existingRows = await withUser({ uid: userId }, (db) =>
+  const existingRows = await withUser(admin, (db) =>
     db
       .select({ name: table.name })
       .from(table)
@@ -175,7 +178,7 @@ export async function renameBlogTaxonomyItem(
   if (existing.name === name) return { success: true };
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db
         .update(table)
         .set({ name })
@@ -187,7 +190,7 @@ export async function renameBlogTaxonomyItem(
     return { error: dbErrorMessage(err, "Failed to rename.") };
   }
 
-  await propagateToBlogs(userId, storeId, kind, existing.name, name);
+  await propagateToBlogs(admin, storeId, kind, existing.name, name);
   revalidateTaxonomy();
   return { success: true };
 }
@@ -201,12 +204,12 @@ export async function deleteBlogTaxonomyItem(
   kind: TaxonomyKind,
   id: string,
 ): Promise<ActionResult> {
-  const userId = await getManagerUserId("blogs");
-  if (!userId) return { error: "Not authenticated" };
+  const admin = await getManagerIdentity("blogs");
+  if (!admin) return { error: "Not authenticated" };
   const storeId = await getActingStoreId();
 
   const table = TABLE[kind];
-  const existingRows = await withUser({ uid: userId }, (db) =>
+  const existingRows = await withUser(admin, (db) =>
     db
       .select({ name: table.name })
       .from(table)
@@ -217,7 +220,7 @@ export async function deleteBlogTaxonomyItem(
   if (!existing) return { error: "Not found. Please refresh and try again." };
 
   try {
-    await withUser({ uid: userId }, (db) =>
+    await withUser(admin, (db) =>
       db.delete(table).where(and(eq(table.id, id), eq(table.storeId, storeId))),
     );
   } catch (err) {
@@ -225,7 +228,7 @@ export async function deleteBlogTaxonomyItem(
     return { error: dbErrorMessage(err, "Failed to delete.") };
   }
 
-  await propagateToBlogs(userId, storeId, kind, existing.name, null);
+  await propagateToBlogs(admin, storeId, kind, existing.name, null);
   revalidateTaxonomy();
   return { success: true };
 }

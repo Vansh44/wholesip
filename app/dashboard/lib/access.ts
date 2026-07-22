@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
-import { withService } from "@/lib/db/client";
+import { withService, type UserIdentity } from "@/lib/db/client";
 import { admins, platformAdmins, roles } from "@/drizzle/schema";
 import { getServerUser } from "@/lib/auth/server-user";
 import { getCurrentStoreId } from "@/lib/store/resolve";
@@ -264,22 +264,31 @@ export async function getViewerAccess(): Promise<ViewerAccess | null> {
 }
 
 /**
- * Server-action gate (non-redirecting). Returns the caller's id only if they
- * may `manage` `section` on the current store, else null. Platform operators
- * and store superadmins always pass.
+ * Server-action gate (non-redirecting). Returns the caller's verified IDENTITY
+ * (uid + email) only if they may `manage` `section` on the current store, else
+ * null. Platform operators and store superadmins always pass.
+ *
+ * Returns the identity rather than a bare uid because that is exactly what
+ * `withUser` needs: the email feeds `auth.email()`, which is how the RLS
+ * helpers recognise a platform operator (`is_platform_admin()` matches
+ * `platform_admins` BY EMAIL). A user-scoped query opened with the uid alone
+ * silently sees nothing on a store the caller isn't staff of — see the note on
+ * `withUser` in lib/db/client.ts.
  *
  * `null` means DENIED and nothing else. A failed lookup THROWS (these queries
  * are deliberately un-caught) so the action surfaces a real error instead of
  * telling a legitimate admin they aren't authorised — see getViewerContext.
  */
-export async function getManagerUserId(
+export async function getManagerIdentity(
   section: string,
-): Promise<string | null> {
+): Promise<UserIdentity | null> {
   const user = await getServerUser();
   if (!user) return null;
 
+  const identity: UserIdentity = { uid: user.id, email: user.email ?? null };
+
   // Platform operators manage everything.
-  if ((await getPlatformRole()) !== null) return user.id;
+  if ((await getPlatformRole()) !== null) return identity;
 
   const storeId = await getCurrentStoreId();
   const profileRows = await withService((db) =>
@@ -292,7 +301,7 @@ export async function getManagerUserId(
 
   const slug = profileRows[0]?.role;
   if (!slug) return null;
-  if (slug === SUPERADMIN_SLUG) return user.id;
+  if (slug === SUPERADMIN_SLUG) return identity;
 
   const roleRows = await withService((db) =>
     db
@@ -305,12 +314,24 @@ export async function getManagerUserId(
   // Role found: enforce the permission map.
   if (roleRows[0]) {
     const perms = normalizePermissions(roleRows[0].permissions);
-    return can(perms, section, "manage") ? user.id : null;
+    return can(perms, section, "manage") ? identity : null;
   }
 
   // Legacy fallback before the roles table is populated: "member" keeps rights.
-  if (slug === "member") return user.id;
+  if (slug === "member") return identity;
   return null;
+}
+
+/**
+ * The same gate, when the caller only needs the id (an auth check, a
+ * `created_by`/`updated_by` value) and never opens a user-scoped transaction.
+ * If you are about to call `withUser`, use `getManagerIdentity` instead — its
+ * required `email` is what keeps the platform-operator RLS branch alive.
+ */
+export async function getManagerUserId(
+  section: string,
+): Promise<string | null> {
+  return (await getManagerIdentity(section))?.uid ?? null;
 }
 
 /**

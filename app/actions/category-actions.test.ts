@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({
 }));
 vi.mock("@/app/dashboard/lib/access", () => ({
   getManagerUserId: vi.fn(),
+  getManagerIdentity: vi.fn(),
   getActingStoreId: vi.fn(async () => "a0000000-0000-4000-8000-000000000001"),
 }));
 vi.mock("@/lib/storage/cleanup", () => ({
@@ -28,7 +29,7 @@ import {
   updateCategory,
   deleteCategory,
 } from "./category-actions";
-import { getManagerUserId } from "@/app/dashboard/lib/access";
+import { getManagerIdentity } from "@/app/dashboard/lib/access";
 import { deleteStorageUrls } from "@/lib/storage/cleanup";
 
 const validForm = {
@@ -49,13 +50,16 @@ describe("category-actions", () => {
     vi.clearAllMocks();
     // select #1 = the slug lookup (no collisions by default).
     dbHolder.current = makeDbMock({ returning: [{ id: "c1" }] });
-    vi.mocked(getManagerUserId).mockResolvedValue("user-1");
+    vi.mocked(getManagerIdentity).mockResolvedValue({
+      uid: "user-1",
+      email: "admin@example.com",
+    });
   });
 
   describe("createCategory", () => {
     // Auth gate.
     it("rejects when caller lacks categories.manage", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await createCategory(validForm);
       expect(result.error).toMatch(/not authenticated/i);
       expect(dbHolder.current.calls.insert).toHaveLength(0);
@@ -135,7 +139,7 @@ describe("category-actions", () => {
   describe("updateCategory", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await updateCategory("c1", validForm);
       expect(result.error).toMatch(/not authenticated/i);
       expect(dbHolder.current.calls.update).toHaveLength(0);
@@ -173,7 +177,7 @@ describe("category-actions", () => {
   describe("deleteCategory", () => {
     // Auth gate.
     it("rejects unauthorised callers", async () => {
-      vi.mocked(getManagerUserId).mockResolvedValue(null);
+      vi.mocked(getManagerIdentity).mockResolvedValue(null);
       const result = await deleteCategory("c1");
       expect(result.error).toMatch(/not authenticated/i);
       expect(dbHolder.current.calls.delete).toHaveLength(0);
