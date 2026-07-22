@@ -65,7 +65,7 @@ steps:
       - --max-instances=4
       - --add-cloudsql-instances=${_DB_CONN}
       - --set-env-vars=GCP_PROJECT_ID=${_GCP_PROJECT_ID},GCP_LOCATION=global,GCS_BUCKET=${_GCS_BUCKET},DB_HOST=/cloudsql/${_DB_CONN},DB_USER=app,DB_NAME=${_DB_NAME},FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID},FIREBASE_SERVICE_ACCOUNT_ID=${_FIREBASE_SA_ID},FIREBASE_API_KEY=${_NEXT_PUBLIC_FIREBASE_API_KEY},GOOGLE_SEARCH_CONSOLE_PROPERTY=${_GOOGLE_SEARCH_CONSOLE_PROPERTY},NEXT_PUBLIC_ROOT_DOMAIN=${_NEXT_PUBLIC_ROOT_DOMAIN},NEXT_PUBLIC_APP_URL=${_NEXT_PUBLIC_APP_URL}
-      - --set-secrets=DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,CRON_SECRET=CRON_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest
+      - --set-secrets=DB_PASSWORD=${_DB_PASSWORD_SECRET}:latest,CRON_SECRET=CRON_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest,PAYMENT_CRED_KEY=${_PAYMENT_CRED_KEY_SECRET}:latest,RAZORPAY_KEY_ID=${_RAZORPAY_KEY_ID_SECRET}:latest,RAZORPAY_KEY_SECRET=${_RAZORPAY_KEY_SECRET_SECRET}:latest,RAZORPAY_WEBHOOK_SECRET=${_RAZORPAY_WEBHOOK_SECRET_SECRET}:latest
 
 images:
   - ${_IMAGE}
@@ -100,6 +100,19 @@ substitutions:
   # + a _DB_USER substitution, so staging creds physically cannot reach the
   # prod database.)
   _DB_PASSWORD_SECRET: CLOUDSQL_PROD_APP_PW
+  # Payments + Razorpay — per-env VALUES via env-specific secret NAMES. Secret
+  # Manager is per-project and staging+prod share the storemink-prod project, so
+  # a value differs only by pointing at a *_STAGING vs *_PROD secret (same trick
+  # as _DB_PASSWORD_SECRET). Defaults target STAGING = Razorpay TEST keys; the
+  # PROD trigger overrides all four to the *_PROD secrets = Razorpay LIVE keys.
+  # PAYMENT_CRED_KEY intentionally differs per env (a leaked staging key must not
+  # decrypt prod-stored BYO-gateway creds). The naming looks doubled
+  # (…_KEY_SECRET_SECRET) because the env var itself ends in _SECRET and the
+  # substitution suffix _SECRET means "the Secret Manager name for this var".
+  _PAYMENT_CRED_KEY_SECRET: PAYMENT_CRED_KEY_STAGING
+  _RAZORPAY_KEY_ID_SECRET: RAZORPAY_KEY_ID_STAGING
+  _RAZORPAY_KEY_SECRET_SECRET: RAZORPAY_KEY_SECRET_STAGING
+  _RAZORPAY_WEBHOOK_SECRET_SECRET: RAZORPAY_WEBHOOK_SECRET_STAGING
   _GCS_BUCKET: storemink-media
   _FIREBASE_PROJECT_ID: storemink-staging
   # The Firebase project's own firebase-adminsdk SA — the SIGNER for custom

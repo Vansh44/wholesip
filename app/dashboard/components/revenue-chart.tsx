@@ -11,32 +11,14 @@ import {
   YAxis,
 } from "recharts";
 
-type Point = { label: string; revenue: number; orders: number };
+import type { MonthPoint } from "../analytics/data";
 
-const data7: Point[] = [
-  { label: "Dec", revenue: 248, orders: 920 },
-  { label: "Jan", revenue: 312, orders: 1040 },
-  { label: "Feb", revenue: 214, orders: 880 },
-  { label: "Mar", revenue: 368, orders: 1180 },
-  { label: "Apr", revenue: 290, orders: 1010 },
-  { label: "May", revenue: 402, orders: 1240 },
-  { label: "Jun", revenue: 429, orders: 1284 },
-];
-
-const data12: Point[] = [
-  { label: "Jul", revenue: 178, orders: 640 },
-  { label: "Aug", revenue: 244, orders: 820 },
-  { label: "Sep", revenue: 212, orders: 760 },
-  { label: "Oct", revenue: 268, orders: 900 },
-  { label: "Nov", revenue: 330, orders: 1080 },
-  { label: "Dec", revenue: 312, orders: 980 },
-  { label: "Jan", revenue: 258, orders: 940 },
-  { label: "Feb", revenue: 290, orders: 1010 },
-  { label: "Mar", revenue: 356, orders: 1160 },
-  { label: "Apr", revenue: 310, orders: 1070 },
-  { label: "May", revenue: 392, orders: 1230 },
-  { label: "Jun", revenue: 429, orders: 1284 },
-];
+export interface RevenueChartProps {
+  series: { m7: MonthPoint[]; m12: MonthPoint[]; all: MonthPoint[] };
+  totalRevenue: number;
+  trendPct: number;
+  trendUp: boolean;
+}
 
 function CustomTooltip({
   active,
@@ -60,17 +42,28 @@ function CustomTooltip({
   );
 }
 
-export function RevenueChart() {
+export function RevenueChart({
+  series,
+  totalRevenue,
+  trendPct,
+  trendUp,
+}: RevenueChartProps) {
   const [range, setRange] = useState<"7M" | "1Y" | "All">("7M");
-  const data = range === "7M" ? data7 : data12;
+  const data =
+    range === "7M" ? series.m7 : range === "1Y" ? series.m12 : series.all;
+  const hasData = totalRevenue > 0;
 
   return (
     <div className="dash-card h-full">
       <div className="dash-card-header">
         <div>
-          <div className="dash-card-title">Revenue Overview</div>
+          <div className="dash-card-title">Revenue over time</div>
           <div className="dash-card-sub">
-            {range === "7M" ? "Last 7 months" : "Last 12 months"}
+            {range === "7M"
+              ? "Last 7 months"
+              : range === "1Y"
+                ? "Last 12 months"
+                : "All time"}
           </div>
         </div>
         <div className="dash-filter-tabs">
@@ -87,16 +80,39 @@ export function RevenueChart() {
         </div>
       </div>
       <div className="dash-card-body">
-        <div className="mb-5 flex items-end gap-3">
-          <div className="font-mono-dash text-[28px] font-semibold leading-none tracking-tight text-[var(--dash-text)]">
-            ₹4,28,900
+        <div className="mb-4 flex items-end gap-2.5">
+          <div className="text-[24px] font-semibold leading-none tracking-[-0.5px] tabular-nums text-[var(--dash-text)]">
+            ₹{Math.round(totalRevenue).toLocaleString("en-IN")}
           </div>
-          <span className="dash-trend dash-trend-up mb-1">+12.4%</span>
-          <span className="mb-1 text-[12.5px] text-[var(--dash-text-3)]">
-            vs last period
-          </span>
+          {hasData && (
+            <>
+              <span
+                className={`mb-0.5 text-[12.5px] font-medium tabular-nums ${
+                  trendPct === 0
+                    ? "text-[var(--dash-text-3)]"
+                    : trendUp
+                      ? "text-[var(--dash-green)]"
+                      : "text-[var(--dash-red)]"
+                }`}
+              >
+                {trendPct === 0
+                  ? "—"
+                  : `${trendUp ? "↑" : "↓"} ${Math.abs(trendPct)}%`}
+              </span>
+              <span className="mb-0.5 text-[12.5px] text-[var(--dash-text-3)]">
+                vs last month
+              </span>
+            </>
+          )}
         </div>
-        <div className="h-[260px] w-full">
+        <div className="relative h-[260px] w-full">
+          {!hasData && (
+            <div className="absolute inset-0 z-[1] flex items-center justify-center">
+              <span className="text-[13px] text-[var(--dash-text-3)]">
+                No revenue yet — your sales will appear here.
+              </span>
+            </div>
+          )}
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
               data={data}
@@ -107,7 +123,7 @@ export function RevenueChart() {
                   <stop
                     offset="0%"
                     stopColor="var(--dash-accent)"
-                    stopOpacity={0.28}
+                    stopOpacity={0.14}
                   />
                   <stop
                     offset="100%"
@@ -116,29 +132,28 @@ export function RevenueChart() {
                   />
                 </linearGradient>
               </defs>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
+              <CartesianGrid vertical={false} strokeDasharray="0" />
               <XAxis dataKey="label" axisLine={false} tickLine={false} dy={8} />
-              <YAxis axisLine={false} tickLine={false} width={48} />
+              <YAxis axisLine={false} tickLine={false} width={44} />
               <Tooltip
                 content={<CustomTooltip />}
                 cursor={{
-                  stroke: "var(--dash-accent)",
+                  stroke: "var(--dash-border-hover)",
                   strokeWidth: 1,
-                  strokeDasharray: "4 4",
                 }}
               />
               <Area
                 type="monotone"
                 dataKey="revenue"
                 stroke="var(--dash-accent)"
-                strokeWidth={2.5}
+                strokeWidth={2}
                 fill="url(#revFill)"
                 dot={false}
                 activeDot={{
-                  r: 5,
+                  r: 4,
                   fill: "var(--dash-accent)",
                   stroke: "var(--dash-surface)",
-                  strokeWidth: 2.5,
+                  strokeWidth: 2,
                 }}
               />
             </AreaChart>

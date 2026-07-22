@@ -135,7 +135,11 @@ wholesip/
 │   ├── dashboard/             # ★ STORE ADMIN DASHBOARD (per-store, auth-gated)
 │   │   ├── layout.tsx         # Sidebar + topbar shell (dashboard.css)
 │   │   ├── page.tsx           # Overview: metrics, revenue chart, activity, inventory…
-│   │   ├── components/        # Dashboard widgets (executive-metrics, revenue-chart,
+│   │   ├── analytics/         # ★ Performance dashboard (§20): data.ts (live per-store
+│   │   │                      # aggregates), widgets.ts (widget registry + default
+│   │   │                      # layout), dashboard-canvas.tsx (client: "Edit dashboard" —
+│   │   │                      # drag-reorder, remove, add-section, localStorage layout)
+│   │   ├── components/        # Dashboard widgets (metric-card, revenue-chart,
 │   │   │                      # recent-orders-table, activity-feed, bulk-actions…) +
 │   │   │                      # feature-toggles (shared settings-group card, convention #9)
 │   │   ├── lib/               # access.ts, permissions.ts (role → allowed nav/actions),
@@ -967,6 +971,34 @@ amountPaise}` for the modal. `confirmOnlinePayment` verifies the HMAC
     Runs on the PLATFORM's Razorpay account (env `RAZORPAY_KEY_ID` /
     `RAZORPAY_KEY_SECRET`).
 
+20. **Analytics is a composable dashboard (`/dashboard/analytics`).** Every card
+    is a WIDGET the merchant can remove, re-order, or add back — Shopify's
+    "Edit dashboard". Three pieces: - `analytics/widgets.ts` — the registry (pure data, no JSX, importable from
+    both server and client): `WidgetId`, per-widget `{title, description,
+group, span}` (span = columns of the 4-wide desktop grid),
+    `DEFAULT_LAYOUT`, plus `normalizeLayout` / `defaultLayoutFor`. Adding a
+    widget = an entry here + a node in the page's `slots` map. - `analytics/page.tsx` — renders EVERY card server-side with the data
+    already loaded and hands them to the canvas as `slots`. A widget the
+    viewer lacks permission for is never put in the map, so it can't be
+    re-added from the library either — **permission gating stays server-side**,
+    the client only picks which of the allowed nodes to show. - `analytics/dashboard-canvas.tsx` (client) — owns edit mode: a dark
+    contextual save bar (Cancel / Save / Reset to default), per-widget drag
+    handle + remove, and the "Add section" popover library. Drag is dnd-kit
+    (`rectSortingStrategy`); `useSortable` is only called by `SortableWidget`
+    INSIDE the DndContext (read-only mode renders the plain `Widget`, no hook).
+    Edits are a DRAFT (`draft: WidgetId[] | null`) — Cancel discards, Save
+    commits. **Layout lives in localStorage, per store**
+    (`sm.analytics.layout.v1.{storeId}`): it's a personal display preference,
+    so it needs no table, no migration and no round trip, and a lost layout
+    just falls back to the default. `readLayout`/`writeLayout` are the two
+    functions to swap if it should ever follow a user across devices. First
+    paint renders the DEFAULT layout and the saved one is applied in an
+    effect (server/client hydration must agree). - **Visual language**: the page root `.dash-analytics` re-skins the shared
+    `.dash-card` chrome into the quieter Shopify look (hairline borders,
+    dotted-underline titles, monochrome bars/icons, colour reserved for trend
+    direction) WITHOUT touching how cards look on any other dashboard page —
+    all in the `/* Analytics (Shopify-style) */` block of `dashboard.css`.
+
 ## 6. Commands
 
 ```bash
@@ -977,7 +1009,11 @@ npm run db:proxy    # just the Cloud SQL Auth Proxy → staging DB on localhost:
                     #   `storemink-prod-db` INSTANCE; local dev uses its `storemink_staging`
                     #   DATABASE (set DB_NAME=storemink_staging in .env — staging & prod are
                     #   two databases in one instance, see §7). Must be running (else
-                    #   lookupStoreByHost → ECONNREFUSED/ECONNRESET).
+                    #   lookupStoreByHost → ECONNREFUSED/ECONNRESET). Runs with
+                    #   `--run-connection-test` so an expired/reauth-needed ADC token kills the
+                    #   proxy at startup (dev:all then `--kill-others-on-fail`s the dev server)
+                    #   instead of listening and RESETTING every query — a silent proxy makes
+                    #   the dashboard render "No access to this dashboard".
 npm run build       # production build
 npm run lint        # eslint
 npm run typecheck   # tsc --noEmit

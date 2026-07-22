@@ -133,7 +133,11 @@
   flex: 1;
   overflow-x: auto;
   overflow-y: auto;
-  padding: 28px 32px 40px;
+  /* Published as vars so a child can cancel them out and go full-bleed across
+     the scroll column — see .dash-savebar. */
+  --dash-pad-x: 32px;
+  --dash-pad-t: 28px;
+  padding: var(--dash-pad-t) var(--dash-pad-x) 40px;
   scrollbar-width: thin;
   scrollbar-color: var(--dash-surface-3) transparent;
 }
@@ -2218,7 +2222,9 @@ a.enquiry-detail-field:hover {
 
   /* ---- Content ---- */
   .dashboard-shell .dash-content {
-    padding: 16px 14px 32px;
+    --dash-pad-x: 14px;
+    --dash-pad-t: 16px;
+    padding: var(--dash-pad-t) var(--dash-pad-x) 32px;
   }
 
   .dashboard-shell .dash-page-header h1 {
@@ -2991,4 +2997,513 @@ a.customer-detail-field:hover {
   .dash-bulk-bar {
     animation: none;
   }
+}
+
+/* =========================================================================
+   Analytics dashboard (Shopify-style)
+   -------------------------------------------------------------------------
+   Scoped to `.dash-analytics` on purpose: it restyles the SHARED .dash-card
+   chrome into a quieter, flatter language (hairline borders, dotted-underline
+   titles, monochrome accents) without touching how cards look on every other
+   dashboard page. Everything here is tokenised on the --dash-* vars.
+   ========================================================================= */
+
+.dashboard-shell .dash-analytics {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---------- Page head ---------- */
+.dashboard-shell .dash-an-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 34px;
+}
+
+.dashboard-shell .dash-an-head h1 {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.35px;
+  color: var(--dash-text);
+  line-height: 1.2;
+}
+
+.dashboard-shell .dash-an-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-shell .dash-an-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--dash-text);
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border-strong);
+  border-radius: 8px;
+  box-shadow: var(--dash-shadow-xs);
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.dashboard-shell .dash-an-btn:hover {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-border-hover);
+}
+
+/* ---------- Grid ---------- */
+.dashboard-shell .dash-canvas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.dashboard-shell .dash-widget {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-shell .dash-widget-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.dashboard-shell .dash-widget-body > * {
+  height: 100%;
+}
+
+.dashboard-shell .dash-widget.span-1 {
+  grid-column: span 1;
+}
+.dashboard-shell .dash-widget.span-2 {
+  grid-column: span 2;
+}
+.dashboard-shell .dash-widget.span-3 {
+  grid-column: span 3;
+}
+.dashboard-shell .dash-widget.span-4 {
+  grid-column: span 4;
+}
+
+@media (max-width: 1280px) {
+  .dashboard-shell .dash-canvas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dashboard-shell .dash-widget.span-3,
+  .dashboard-shell .dash-widget.span-4 {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .dashboard-shell .dash-canvas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dashboard-shell .dash-widget.span-1,
+  .dashboard-shell .dash-widget.span-2,
+  .dashboard-shell .dash-widget.span-3,
+  .dashboard-shell .dash-widget.span-4 {
+    grid-column: span 1;
+  }
+}
+
+/* ---------- Metric tiles ---------- */
+.dashboard-shell .dash-metric {
+  height: 100%;
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border-strong);
+  border-radius: var(--dash-radius);
+  box-shadow: var(--dash-shadow-xs);
+  padding: 14px 16px 15px;
+}
+
+.dashboard-shell .dash-metric-label {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--dash-text-2);
+  text-decoration: underline dotted;
+  text-decoration-color: var(--dash-border-hover);
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+}
+
+.dashboard-shell .dash-metric-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.dashboard-shell .dash-metric-val {
+  font-size: 22px;
+  font-weight: 620;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  color: var(--dash-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-shell .dash-metric-delta {
+  font-size: 12.5px;
+  font-weight: 550;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dashboard-shell .dash-metric-delta.is-up {
+  color: var(--dash-green);
+}
+.dashboard-shell .dash-metric-delta.is-down {
+  color: var(--dash-red);
+}
+.dashboard-shell .dash-metric-delta.is-flat {
+  color: var(--dash-text-3);
+}
+
+.dashboard-shell .dash-metric-spark {
+  margin-left: auto;
+  color: var(--dash-accent);
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+/* ---------- Shared cards, quieted down ---------- */
+.dashboard-shell .dash-analytics .dash-card {
+  border-color: var(--dash-border-strong);
+  box-shadow: var(--dash-shadow-xs);
+  height: 100%;
+}
+
+.dashboard-shell .dash-analytics .dash-card-header {
+  padding: 14px 16px;
+  border-bottom: none;
+  align-items: flex-start;
+}
+
+.dashboard-shell .dash-analytics .dash-card-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--dash-border-hover);
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+}
+
+.dashboard-shell .dash-analytics .dash-card-sub {
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.dashboard-shell .dash-analytics .dash-card-body {
+  padding: 0 16px 16px;
+}
+
+/* Recharts axis/grid, toned to the page's greys. */
+.dashboard-shell .dash-analytics .recharts-cartesian-axis-tick text {
+  fill: var(--dash-text-3);
+  font-size: 11.5px;
+}
+
+.dashboard-shell .dash-analytics .recharts-cartesian-grid line {
+  stroke: var(--dash-border);
+}
+
+/* ---------- Edit mode ---------- */
+.dashboard-shell .dash-canvas.is-editing .dash-widget {
+  position: relative;
+  border-radius: var(--dash-radius);
+  outline: 1px dashed var(--dash-border-hover);
+  outline-offset: 3px;
+  background: var(--dash-surface);
+}
+
+.dashboard-shell .dash-canvas.is-editing .dash-widget-body {
+  pointer-events: none;
+  user-select: none;
+}
+
+.dashboard-shell .dash-widget.is-dragging {
+  z-index: 2;
+  opacity: 0.9;
+  box-shadow: var(--dash-shadow-lg);
+}
+
+.dashboard-shell .dash-widget-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--dash-border);
+  background: var(--dash-surface-2);
+  border-radius: var(--dash-radius) var(--dash-radius) 0 0;
+}
+
+.dashboard-shell .dash-widget-grip,
+.dashboard-shell .dash-widget-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  color: var(--dash-text-3);
+  cursor: pointer;
+}
+
+.dashboard-shell .dash-widget-grip {
+  flex: 1;
+  justify-content: flex-start;
+  width: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dashboard-shell .dash-widget-grip:active {
+  cursor: grabbing;
+}
+
+.dashboard-shell .dash-widget-grip:hover,
+.dashboard-shell .dash-widget-x:hover {
+  background: var(--dash-surface-3);
+  color: var(--dash-text);
+}
+
+.dashboard-shell .dash-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 92px;
+  grid-column: span 1;
+  border: 1px dashed var(--dash-border-hover);
+  border-radius: var(--dash-radius);
+  background: transparent;
+  color: var(--dash-text-3);
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    color 0.14s ease,
+    background 0.14s ease;
+}
+
+.dashboard-shell .dash-slot:hover {
+  border-color: var(--dash-accent);
+  color: var(--dash-accent);
+  background: var(--dash-accent-soft);
+}
+
+.dashboard-shell .dash-canvas-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 16px;
+  border: 1px dashed var(--dash-border-hover);
+  border-radius: var(--dash-radius);
+  color: var(--dash-text-2);
+  font-size: 13.5px;
+}
+
+/* ---------- Contextual save bar ---------- */
+/* Pins flush to the TOP of the scroll column and spans it edge to edge, so the
+   dashboard scrolls cleanly UNDER it with no strip of content showing above.
+   Two deliberate bits:
+   • the negative SIDE margins cancel .dash-content's horizontal padding
+     (a negative margin-TOP would not work — sticky resolves its inset against
+     the margin box, so it pushes the bar down over the page header instead);
+   • the negative top inset cancels the scroll container's padding-top, which
+     the sticky inset is measured from — with top: 0 the bar parks 28px down
+     and content shows above it. */
+.dashboard-shell .dash-savebar {
+  position: sticky;
+  top: calc(var(--dash-pad-t, 28px) * -1);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 calc(var(--dash-pad-x, 32px) * -1);
+  padding: 10px var(--dash-pad-x, 32px);
+  background: #1a1a1a;
+  box-shadow: var(--dash-shadow-lg);
+}
+
+.dashboard-shell .dash-savebar-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 550;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.dashboard-shell .dash-savebar-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dash-amber);
+}
+
+.dashboard-shell .dash-savebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-shell .dash-sb-btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 550;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+
+.dashboard-shell .dash-sb-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.dashboard-shell .dash-sb-btn.is-primary {
+  color: #1a1a1a;
+  background: #fff;
+}
+
+.dashboard-shell .dash-sb-btn.is-primary:hover {
+  background: rgba(255, 255, 255, 0.86);
+}
+
+/* ---------- Section library ---------- */
+.dashboard-shell .dash-lib-anchor {
+  position: relative;
+}
+
+.dashboard-shell .dash-lib {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 320px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-border-strong);
+  border-radius: var(--dash-radius);
+  box-shadow: var(--dash-shadow-lg);
+  overflow: hidden;
+}
+
+.dashboard-shell .dash-lib-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--dash-border);
+  color: var(--dash-text-3);
+}
+
+.dashboard-shell .dash-lib-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: 13px;
+  color: var(--dash-text);
+}
+
+.dashboard-shell .dash-lib-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.dashboard-shell .dash-lib-group-label {
+  padding: 8px 8px 4px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--dash-text-3);
+}
+
+.dashboard-shell .dash-lib-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.dashboard-shell .dash-lib-item:hover {
+  background: var(--dash-surface-2);
+}
+
+.dashboard-shell .dash-lib-item-title {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--dash-text);
+}
+
+.dashboard-shell .dash-lib-item-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--dash-text-3);
+}
+
+.dashboard-shell .dash-lib-empty {
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--dash-text-3);
+}
+
+/* Sales-by-category lists EVERY category, so it scrolls inside its card
+   instead of stretching the dashboard row it shares with the revenue chart. */
+.dashboard-shell .dash-cat-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dash-surface-3) transparent;
+}
+
+.dashboard-shell .dash-cat-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard-shell .dash-cat-list::-webkit-scrollbar-thumb {
+  background: var(--dash-surface-3);
+  border-radius: 99px;
+  border: 2px solid var(--dash-surface);
+}
+
+.dashboard-shell .dash-analytics .dash-cat-list .dash-progress-row {
+  margin-bottom: 14px;
 }
