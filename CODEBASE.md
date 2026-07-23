@@ -1035,6 +1035,62 @@ group, span}` (span = columns of the 4-wide desktop grid),
     direction) WITHOUT touching how cards look on any other dashboard page —
     all in the `/* Analytics (Shopify-style) */` block of `dashboard.css`.
 
+21. **Help Centre (`help.storemink.com`) — platform-global, operator-managed
+    docs (Shopify-style).** StoreMink's OWN product docs, NOT per-store data, so
+    there is **no `store_id`** anywhere — the model mirrors `platform_admins` (a
+    global, operator-managed table). Two tables in `supabase/help_centre.sql`
+    (run as `postgres` via the Cloud SQL proxy, like every migration):
+    `help_categories` + `help_articles` (sanitized HTML `body`, `status`
+    draft/published, weighted **generated `search` tsvector** column + GIN index
+    — the first real FTS in the codebase; plus `view_count`/`helpful_yes`/
+    `helpful_no`). RLS: anon reads published only; writes gated on
+    `is_platform_admin()`. Public feedback/view counters are narrow atomic
+    `SECURITY DEFINER` RPCs (`help_article_view`, `help_article_vote`) so no
+    write policy opens to anon. Drizzle tables added to `drizzle/schema.ts`
+    (`helpCategories`, `helpArticles`; the generated `search` column is
+    intentionally absent — search uses a raw `sql` predicate).
+    - **Public site** (`app/help/*`, statically generated + ISR, fully
+      crawlable): `/help` (search + category grid + popular). The category +
+      article pages use a **3-pane docs layout** (`.hc-docs`): a fixed left
+      **Topics tree** (`getHelpNavTree` → collapsible client `help-sidebar.tsx`,
+      active category expanded/highlighted), the scrolling content, and a fixed
+      right on-this-page TOC. `/help/[category]`,
+      `/help/[category]/[slug]` (rendered body + breadcrumbs + on-this-page TOC +
+      "was this helpful?" + related; **operator-only `?preview=1`** renders a
+      draft via the uncached, `getPlatformViewer`-gated `lib/help/preview.ts` —
+      non-operators fall through to published/404, so a leaked URL leaks
+      nothing), `/help/search` (FTS, noindex). Reads via
+      cached `lib/help/queries.ts` (`withAnon`, tag `TAGS.help`); types +
+      mappers in `lib/help/types.ts`. SEO: per-page `generateMetadata` +
+      canonical on `HELP_URL` (`lib/site.ts`), `helpArticleSchema` (TechArticle)
+      - `breadcrumbSchema` JSON-LD, and a \*\*help-host branch in `app/sitemap.ts`
+      - `app/robots.ts`\*\* (both were previously store-only). IndexNow pings on
+        publish (prod only). The old static `app/help/page.tsx` (hardcoded topic
+        cards) is retired.
+    - **Management console** at **`/dashboard/help`** (platform host; nav entry
+      in `app/platform/dashboard/(console)/layout.tsx`, `faq` icon), gated by
+      `getPlatformViewer()`. `app/actions/help-actions.ts` holds public actions
+      (`suggestHelpArticles`, `recordHelpArticleView`, `voteHelpArticle`) and
+      operator CRUD (articles + categories, publish/unpublish, reorder) under
+      `withService` after the gate, plus **AI drafting** — `runHelpAiCommand`
+      (Gemini via `lib/ai/gemini.ts`, a fixed technical-writer system prompt in
+      `brand/tasks/help-article.md`; output sanitized) is one flexible command
+      that both writes-from-scratch and edits current content per a
+      natural-language instruction. The editor is a **full-screen takeover
+      route** (`help/new` + `help/[id]`, Shopify-style — `fixed inset-0` over the
+      dashboard chrome, not a modal), `article-editor.tsx`: a TipTap WYSIWYG
+      adapted from the blog editor with an **AI chat composer** (one input drives
+      `runHelpAiCommand`), image upload to the `help-articles/` GCS folder, and
+      **tables** (`@tiptap/extension-table` TableKit — insert / add row / add
+      column / delete). Console list chrome in
+      `help-console.tsx` (rows link to the editor routes; the category manager
+      stays a dialog) + `help-admin.css`. Body sanitized on write AND render
+      (`sanitizeBlogContent` — which now also permits table `colspan`/`rowspan`
+      - cell width so tables survive; the blog trust model).
+    - **Production-only indexing**: the `SEARCH_INDEXABLE` gate already keeps
+      staging/dev help pages `noindex` (help metadata sets robots noindex
+      off-prod too); only `storemink.com` is ever crawled.
+
 ## 6. Commands
 
 ```bash
@@ -1137,14 +1193,16 @@ npm run format      # prettier --write
   origin) for direct video uploads. No bulk migration of existing objects yet (a
   pre-decommission backfill copies old objects + rewrites DB URLs).
 - **Gemini / Vertex AI**: AI copy generation (`lib/ai/gemini.ts`, dual backend).
-  When **`GCP_PROJECT_ID`** is set, `callGemini` routes through **Vertex AI** using
-  Application Default Credentials (ADC — no API key; automatic on Cloud Run, local
-  dev via `gcloud auth application-default login`), at **`GCP_LOCATION`** (default
-  `global`). Otherwise it falls back to the Gemini Developer API via
-  **`GEMINI_API_KEY`**. Same request/response shape both ways; callers see the
-  unchanged `{text,error}` contract. This is Phase 1 of the GCP migration (see
-  `docs/gcp-migration-phase5-6.md`); needs `google-auth-library` +
-  `roles/aiplatform.user` on the runtime credentials.
+  **Backend precedence: the free Gemini Developer API key wins whenever one is
+  set** — so **local + staging set `GEMINI_API_KEY`** (a Google AI Studio key,
+  free) and their AI costs nothing; **production omits `GEMINI_API_KEY` and sets
+  `GCP_PROJECT_ID`** so `callGemini` routes through **Vertex AI** via Application
+  Default Credentials (ADC — no API key; automatic on Cloud Run) at
+  **`GCP_LOCATION`** (default `global`). (An env with BOTH set prefers the free
+  key.) Same request/response shape both ways; callers see the unchanged
+  `{text,error}` contract. Vertex needs `google-auth-library` +
+  `roles/aiplatform.user` on the runtime credentials (see
+  `docs/gcp-migration-phase5-6.md`).
 - **Razorpay** (§18, §16): two SEPARATE credential sets. Per-store BYO gateway
   creds live in the DB (`store_payment_providers`, encrypted with env
   **`PAYMENT_CRED_KEY`** — 32-byte base64; generate with
